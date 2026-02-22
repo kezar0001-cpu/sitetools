@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
@@ -28,9 +28,6 @@ const TYPE_COLOURS: Record<VisitorType, string> = {
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
 }
 const HEADER_SVG = (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -86,11 +83,10 @@ function SiteSignIn({ site }: { site: Site }) {
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const [onSite, setOnSite] = useState<SiteVisit[]>([]);
-  const [loadingList, setLoadingList] = useState(true);
-  const [signingOut, setSigningOut] = useState<string | null>(null);
+  const [myVisit, setMyVisit] = useState<SiteVisit | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
-  const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
+  const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
   const [editTimeSaving, setEditTimeSaving] = useState(false);
 
@@ -99,35 +95,25 @@ function SiteSignIn({ site }: { site: Site }) {
     const hh = String(d.getHours()).padStart(2, "0");
     const mm = String(d.getMinutes()).padStart(2, "0");
     setEditTime(`${hh}:${mm}`);
-    setEditingTimeId(v.id);
+    setEditingTime(true);
   }
 
-  const fetchOnSite = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("site_visits").select("*")
-      .eq("site_id", site.id).is("signed_out_at", null)
-      .order("signed_in_at", { ascending: false });
-    if (!error && data) setOnSite(data as SiteVisit[]);
-    setLoadingList(false);
-  }, [site.id]);
-
-  useEffect(() => { fetchOnSite(); }, [fetchOnSite]);
-
-  async function handleSaveTime(v: SiteVisit) {
-    if (!editTime) return;
+  async function handleSaveTime() {
+    if (!editTime || !myVisit) return;
     setEditTimeSaving(true);
-    const original = new Date(v.signed_in_at);
+    const original = new Date(myVisit.signed_in_at);
     const [hh, mm] = editTime.split(":").map(Number);
     const updated = new Date(original);
     updated.setHours(hh, mm, 0, 0);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("site_visits")
       .update({ signed_in_at: updated.toISOString() })
-      .eq("id", v.id);
+      .eq("id", myVisit.id)
+      .select().single();
     setEditTimeSaving(false);
     if (error) { setFormError("Could not update sign-in time. Please try again."); return; }
-    setEditingTimeId(null);
-    fetchOnSite();
+    setMyVisit(data as SiteVisit);
+    setEditingTime(false);
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -135,24 +121,36 @@ function SiteSignIn({ site }: { site: Site }) {
     setFormError(null);
     if (!fullName.trim() || !companyName.trim()) { setFormError("Please fill in all fields."); return; }
     setSubmitting(true);
+    const visitId = crypto.randomUUID();
     const { error } = await supabase.from("site_visits").insert({
+      id: visitId,
       full_name: fullName.trim(), company_name: companyName.trim(),
       visitor_type: visitorType, site_id: site.id,
     });
     setSubmitting(false);
     if (error) { setFormError("Sign in failed. Please try again."); return; }
+    const newVisit: SiteVisit = {
+      id: visitId,
+      full_name: fullName.trim(),
+      company_name: companyName.trim(),
+      visitor_type: visitorType,
+      site_id: site.id,
+      signed_in_at: new Date().toISOString(),
+      signed_out_at: null,
+    };
+    setMyVisit(newVisit);
     setSuccess(true);
     setFullName(""); setCompanyName(""); setVisitorType("Worker");
-    fetchOnSite();
-    setTimeout(() => setSuccess(false), 5000);
+    setTimeout(() => setSuccess(false), 4000);
   }
 
-  async function handleSignOut(id: string) {
-    setSigningOut(id);
-    const { error } = await supabase.from("site_visits").update({ signed_out_at: new Date().toISOString() }).eq("id", id);
-    setSigningOut(null);
+  async function handleSignOut() {
+    if (!myVisit) return;
+    setSigningOut(true);
+    const { error } = await supabase.from("site_visits").update({ signed_out_at: new Date().toISOString() }).eq("id", myVisit.id);
+    setSigningOut(false);
     if (error) { setFormError("Sign-out failed. Please try again."); return; }
-    fetchOnSite();
+    setMyVisit(null);
   }
 
   return (
@@ -218,77 +216,61 @@ function SiteSignIn({ site }: { site: Site }) {
           </form>
         </div>
 
-        {/* On-Site Register */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-5">
+        {/* My sign-in card — only shown after this visitor signs in */}
+        {myVisit && (
+          <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-6 space-y-4">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
-              <h2 className="text-lg font-extrabold text-gray-900">Currently On Site</h2>
+              <h2 className="text-lg font-extrabold text-gray-900">You&apos;re Signed In</h2>
             </div>
-            <span className="text-sm font-semibold text-gray-500 bg-gray-100 rounded-full px-3 py-1">
-              {onSite.length} {onSite.length === 1 ? "person" : "people"}
-            </span>
-          </div>
-          {loadingList ? (
-            <div className="text-center py-10 text-gray-400 text-sm">Loading…</div>
-          ) : onSite.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 text-sm">No one is currently signed in.</div>
-          ) : (
-            <ul className="space-y-3">
-              {onSite.map((v) => (
-                <li key={v.id} className="border border-gray-100 rounded-xl px-4 py-3 bg-gray-50 space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-gray-900 text-sm truncate">{v.full_name}</span>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>{v.visitor_type}</span>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-0.5 truncate">{v.company_name}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        Signed in {formatDate(v.signed_in_at)} at {formatTime(v.signed_in_at)}
-                      </div>
-                    </div>
-                    <button onClick={() => handleSignOut(v.id)} disabled={signingOut === v.id}
-                      className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-                      {signingOut === v.id ? "…" : "Sign Out"}
-                    </button>
+            <div className="border border-gray-100 rounded-xl px-4 py-3 bg-gray-50 space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-gray-900 text-sm">{myVisit.full_name}</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[myVisit.visitor_type]}`}>{myVisit.visitor_type}</span>
                   </div>
-                  {editingTimeId === v.id ? (
-                    <div className="flex items-center gap-2 pt-1 border-t border-gray-200">
-                      <span className="text-xs text-gray-500 font-semibold shrink-0">Signed in at:</span>
-                      <input
-                        type="time"
-                        value={editTime}
-                        onChange={(e) => setEditTime(e.target.value)}
-                        className="border border-yellow-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                      />
-                      <button
-                        onClick={() => handleSaveTime(v)}
-                        disabled={editTimeSaving || !editTime}
-                        className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0"
-                      >
-                        {editTimeSaving ? "…" : "Save"}
-                      </button>
-                      <button
-                        onClick={() => setEditingTimeId(null)}
-                        className="text-xs text-gray-400 hover:text-gray-600 px-1"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => startEditTime(v)}
-                      className="text-xs text-blue-500 hover:text-blue-700 font-semibold hover:underline"
-                    >
-                      Edit sign-in time
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                  <div className="text-xs text-gray-500 mt-0.5">{myVisit.company_name}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    Signed in at {formatTime(myVisit.signed_in_at)}
+                  </div>
+                </div>
+                <button onClick={handleSignOut} disabled={signingOut}
+                  className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                  {signingOut ? "…" : "Sign Out"}
+                </button>
+              </div>
+              {editingTime ? (
+                <div className="flex items-center gap-2 pt-1 border-t border-gray-200 flex-wrap">
+                  <span className="text-xs text-gray-500 font-semibold shrink-0">Signed in at:</span>
+                  <input
+                    type="time"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    className="border border-yellow-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  />
+                  <button
+                    onClick={handleSaveTime}
+                    disabled={editTimeSaving || !editTime}
+                    className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    {editTimeSaving ? "…" : "Save"}
+                  </button>
+                  <button onClick={() => setEditingTime(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => startEditTime(myVisit)}
+                  className="text-xs text-blue-500 hover:text-blue-700 font-semibold hover:underline"
+                >
+                  Edit sign-in time
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4 space-y-1">
