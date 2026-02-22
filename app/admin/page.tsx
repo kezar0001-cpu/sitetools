@@ -461,6 +461,24 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   const [filterDate, setFilterDate] = useState("");
   const [filterType, setFilterType] = useState<VisitorType | "">("");
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSignedIn, setEditSignedIn] = useState("");
+  const [editSignedOut, setEditSignedOut] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  function toDatetimeLocal(iso: string | null) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function startEdit(v: SiteVisit) {
+    setEditingId(v.id);
+    setEditSignedIn(toDatetimeLocal(v.signed_in_at));
+    setEditSignedOut(toDatetimeLocal(v.signed_out_at));
+  }
+
   const fetchVisits = useCallback(async () => {
     if (!activeSite) { setVisits([]); setLoading(false); return; }
     setLoading(true);
@@ -475,6 +493,20 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   useEffect(() => {
     fetchVisits();
   }, [fetchVisits]);
+
+  async function handleSaveEdit(id: string) {
+    if (!editSignedIn) return;
+    setEditSaving(true);
+    const updates: Record<string, string | null> = {
+      signed_in_at: new Date(editSignedIn).toISOString(),
+      signed_out_at: editSignedOut ? new Date(editSignedOut).toISOString() : null,
+    };
+    const { error } = await supabase.from("site_visits").update(updates).eq("id", id);
+    setEditSaving(false);
+    if (error) { alert("Could not save changes. Please try again."); return; }
+    setEditingId(null);
+    fetchVisits();
+  }
 
   async function handleSignOut(id: string) {
     setSigningOut(id);
@@ -804,7 +836,40 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filtered.map((v) => (
+                    {filtered.map((v) => editingId === v.id ? (
+                      <tr key={v.id} className="bg-yellow-50">
+                        <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{v.full_name}</td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.company_name}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
+                            {v.visitor_type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input type="datetime-local" value={editSignedIn} onChange={(e) => setEditSignedIn(e.target.value)}
+                            className="border border-yellow-400 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input type="datetime-local" value={editSignedOut} onChange={(e) => setEditSignedOut(e.target.value)}
+                            className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                          {editSignedOut && (
+                            <button onClick={() => setEditSignedOut("")} className="ml-1 text-xs text-gray-400 hover:text-gray-600">✕</button>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleSaveEdit(v.id)} disabled={editSaving || !editSignedIn}
+                              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+                              {editSaving ? "…" : "Save"}
+                            </button>
+                            <button onClick={() => setEditingId(null)}
+                              className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1.5">
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
                       <tr key={v.id} className={v.signed_out_at === null ? "bg-green-50" : ""}>
                         <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{v.full_name}</td>
                         <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.company_name}</td>
@@ -826,6 +891,12 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEdit(v)}
+                              className="text-blue-500 hover:text-blue-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                            >
+                              Edit
+                            </button>
                             {v.signed_out_at === null && (
                               <button
                                 onClick={() => handleSignOut(v.id)}
@@ -870,7 +941,41 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
               {/* Mobile card list */}
               <ul className="sm:hidden divide-y divide-gray-100">
-                {filtered.map((v) => (
+                {filtered.map((v) => editingId === v.id ? (
+                  <li key={v.id} className="px-4 py-4 space-y-3 bg-yellow-50">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-gray-900 text-sm">{v.full_name}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>{v.visitor_type}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">Signed In</label>
+                        <input type="datetime-local" value={editSignedIn} onChange={(e) => setEditSignedIn(e.target.value)}
+                          className="w-full border border-yellow-400 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">Signed Out (leave blank if still on site)</label>
+                        <div className="flex gap-1">
+                          <input type="datetime-local" value={editSignedOut} onChange={(e) => setEditSignedOut(e.target.value)}
+                            className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                          {editSignedOut && (
+                            <button onClick={() => setEditSignedOut("")} className="text-xs text-gray-400 hover:text-gray-600 px-2">✕</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSaveEdit(v.id)} disabled={editSaving || !editSignedIn}
+                        className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-4 py-2 rounded-lg transition-colors">
+                        {editSaving ? "Saving…" : "Save"}
+                      </button>
+                      <button onClick={() => setEditingId(null)}
+                        className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-3 py-2">
+                        Cancel
+                      </button>
+                    </div>
+                  </li>
+                ) : (
                   <li key={v.id} className={`px-4 py-4 space-y-1.5 ${v.signed_out_at === null ? "bg-green-50" : ""}`}>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -880,6 +985,12 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => startEdit(v)}
+                          className="text-blue-500 hover:text-blue-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+                        >
+                          Edit
+                        </button>
                         {v.signed_out_at === null && (
                           <button
                             onClick={() => handleSignOut(v.id)}
