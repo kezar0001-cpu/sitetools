@@ -136,6 +136,24 @@ alter table public.org_members   enable row level security;
 alter table public.sites         enable row level security;
 alter table public.site_visits   enable row level security;
 
+-- ─── STEP 3b: GRANT table-level access to PostgREST roles ───────────────────
+--   Without these, PostgREST returns 403 even when RLS policies exist.
+--   RLS controls which ROWS are visible; GRANT controls whether the
+--   role can touch the TABLE at all.
+
+grant usage on schema public to anon, authenticated;
+
+grant select, insert, update, delete on public.organisations to authenticated;
+grant select, insert, update, delete on public.org_members   to authenticated;
+grant select, insert, update, delete on public.sites         to anon, authenticated;
+grant select, insert, update, delete on public.site_visits   to anon, authenticated;
+
+-- Grant execute on helper functions
+grant execute on function public.get_my_org_ids()          to authenticated;
+grant execute on function public.is_org_admin(uuid)        to authenticated;
+grant execute on function public.org_has_members(uuid)     to authenticated;
+grant execute on function public.get_my_site_id(uuid)      to authenticated;
+
 -- ─── STEP 4: Drop ALL existing policies (every known name) ───────────────────
 
 -- organisations
