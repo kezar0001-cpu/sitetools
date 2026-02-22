@@ -56,56 +56,71 @@ create table if not exists public.org_members (
 
 alter table public.org_members enable row level security;
 
--- Org members can see all members of their org
+-- Helper functions (SECURITY DEFINER — bypass RLS to prevent infinite recursion)
+
+create or replace function public.get_my_org_ids()
+returns setof uuid
+language plpgsql security definer set search_path = public, auth, extensions
+as $$
+begin
+  return query select org_id from public.org_members where user_id = auth.uid();
+end;
+$$;
+
+create or replace function public.is_org_admin(p_org_id uuid)
+returns boolean
+language plpgsql security definer set search_path = public, auth, extensions
+as $$
+begin
+  return exists(
+    select 1 from public.org_members
+    where org_id = p_org_id and user_id = auth.uid() and role = 'admin'
+  );
+end;
+$$;
+
+create or replace function public.org_has_members(p_org_id uuid)
+returns boolean
+language plpgsql security definer set search_path = public, auth, extensions
+as $$
+begin
+  return exists(select 1 from public.org_members where org_id = p_org_id);
+end;
+$$;
+
+create or replace function public.get_my_site_id(p_org_id uuid)
+returns uuid
+language plpgsql security definer set search_path = public, auth, extensions
+as $$
+declare
+  result uuid;
+begin
+  select site_id into result from public.org_members
+  where org_id = p_org_id and user_id = auth.uid()
+  limit 1;
+  return result;
+end;
+$$;
+
+-- Policies (using helper functions — no self-referencing subqueries)
+
 create policy "org_members_select"
   on public.org_members for select to authenticated
-  using (
-    org_id in (
-      select om2.org_id from public.org_members om2
-      where om2.user_id = auth.uid()
-    )
-  );
+  using (org_id in (select public.get_my_org_ids()));
 
--- Org admins can insert new members
 create policy "org_members_insert"
   on public.org_members for insert to authenticated
   with check (
-    exists (
-      select 1 from public.org_members om2
-      where om2.org_id = org_members.org_id
-        and om2.user_id = auth.uid()
-        and om2.role = 'admin'
-    )
-    -- OR this is the first member (creator becoming admin)
-    or not exists (
-      select 1 from public.org_members om2
-      where om2.org_id = org_members.org_id
-    )
+    public.is_org_admin(org_id) or not public.org_has_members(org_id)
   );
 
--- Org admins can update members
 create policy "org_members_update"
   on public.org_members for update to authenticated
-  using (
-    exists (
-      select 1 from public.org_members om2
-      where om2.org_id = org_members.org_id
-        and om2.user_id = auth.uid()
-        and om2.role = 'admin'
-    )
-  );
+  using (public.is_org_admin(org_id));
 
--- Org admins can remove members
 create policy "org_members_delete"
   on public.org_members for delete to authenticated
-  using (
-    exists (
-      select 1 from public.org_members om2
-      where om2.org_id = org_members.org_id
-        and om2.user_id = auth.uid()
-        and om2.role = 'admin'
-    )
-  );
+  using (public.is_org_admin(org_id));
 
 -- ─── 3. Sites ─────────────────────────────────────────────────────────────────
 
@@ -127,49 +142,24 @@ create policy "anon_select_sites"
 create policy "auth_select_sites"
   on public.sites for select to authenticated
   using (
-    exists (
-      select 1 from public.org_members
-      where org_members.org_id = sites.org_id
-        and org_members.user_id = auth.uid()
-        and (org_members.role = 'admin' or org_members.site_id = sites.id)
-    )
+    org_id in (select public.get_my_org_ids())
+    and (public.is_org_admin(org_id) or id = public.get_my_site_id(org_id))
   );
 
 -- Only org admins can create sites
 create policy "auth_insert_sites"
   on public.sites for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.org_members
-      where org_members.org_id = sites.org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+  with check (public.is_org_admin(org_id));
 
 -- Only org admins can update sites
 create policy "auth_update_sites"
   on public.sites for update to authenticated
-  using (
-    exists (
-      select 1 from public.org_members
-      where org_members.org_id = sites.org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+  using (public.is_org_admin(org_id));
 
 -- Only org admins can delete sites
 create policy "auth_delete_sites"
   on public.sites for delete to authenticated
-  using (
-    exists (
-      select 1 from public.org_members
-      where org_members.org_id = sites.org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+  using (public.is_org_admin(org_id));
 
 -- ─── 4. Site Visits ───────────────────────────────────────────────────────────
 

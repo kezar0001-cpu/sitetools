@@ -17,6 +17,7 @@ interface SiteVisit {
   visitor_type: VisitorType;
   signed_in_at: string;
   signed_out_at: string | null;
+  site_id: string;
 }
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
@@ -165,7 +166,11 @@ function OrgSetupScreen({ userId, onDone }: { userId: string; onDone: (org: Orga
     const { data: member, error: memErr } = await supabase
       .from("org_members").insert({ org_id: orgId, user_id: userId, role: "admin" }).select().single();
     setCreating(false);
-    if (memErr || !member) { setError("Could not set up membership."); return; }
+    if (memErr || !member) {
+      // Clean up the orphaned org — no member means no one can access it
+      await supabase.from("organisations").delete().eq("id", orgId);
+      setError("Could not set up membership."); return;
+    }
     const org: Organisation = { id: orgId, name: orgName.trim(), created_at: new Date().toISOString() };
     onDone(org, member as OrgMember);
   }
@@ -333,8 +338,9 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
   async function handleRemove(memberId: string, userId: string) {
     if (userId === currentUserId) return;
     setRemovingId(memberId);
-    await supabase.from("org_members").delete().eq("id", memberId);
+    const { error } = await supabase.from("org_members").delete().eq("id", memberId);
     setRemovingId(null);
+    if (error) { setAddError("Failed to remove member."); return; }
     fetchMembers();
   }
 
@@ -489,6 +495,10 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   async function handleAddVisit(e: React.FormEvent) {
     e.preventDefault();
     setAddError(null);
+    if (!activeSite) {
+      setAddError("Please select a site first.");
+      return;
+    }
     if (!addName.trim() || !addCompany.trim()) {
       setAddError("Full name and company are required.");
       return;
@@ -498,8 +508,8 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
       full_name: addName.trim(),
       company_name: addCompany.trim(),
       visitor_type: addType,
+      site_id: activeSite.id,
     };
-    if (activeSite) payload.site_id = activeSite.id;
     if (addSignedIn) payload.signed_in_at = new Date(addSignedIn).toISOString();
     if (addSignedOut) payload.signed_out_at = new Date(addSignedOut).toISOString();
     const { error } = await supabase.from("site_visits").insert(payload);
@@ -586,39 +596,46 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
         {/* QR Code panel */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 print:shadow-none">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            <div className="shrink-0 bg-white p-3 border-2 border-gray-200 rounded-xl">
-              <QRCodeSVG
-                value={typeof window !== "undefined"
-                  ? `${window.location.origin}${activeSite ? `/?site=${activeSite.slug}` : ""}`
-                  : ""}
-                size={160}
-                bgColor="#ffffff"
-                fgColor="#1c1917"
-                level="M"
-              />
+          {activeSite ? (
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="shrink-0 bg-white p-3 border-2 border-gray-200 rounded-xl">
+                <QRCodeSVG
+                  value={typeof window !== "undefined"
+                    ? `${window.location.origin}/?site=${activeSite.slug}`
+                    : ""}
+                  size={160}
+                  bgColor="#ffffff"
+                  fgColor="#1c1917"
+                  level="M"
+                />
+              </div>
+              <div className="text-center sm:text-left space-y-2">
+                <h3 className="text-lg font-extrabold text-gray-900">Site Sign-In QR Code</h3>
+                <p className="text-sm text-gray-500">
+                  Print this page and post it at the site entrance. Visitors scan the QR code to sign in on their phone.
+                </p>
+                <p className="text-xs font-mono text-gray-400 break-all">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/?site=${activeSite.slug}`
+                    : ""}
+                </p>
+                <button
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 text-sm font-bold px-4 py-2 rounded-xl transition-colors print:hidden"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print QR Code
+                </button>
+              </div>
             </div>
-            <div className="text-center sm:text-left space-y-2">
+          ) : (
+            <div className="text-center py-6 space-y-2">
               <h3 className="text-lg font-extrabold text-gray-900">Site Sign-In QR Code</h3>
-              <p className="text-sm text-gray-500">
-                Print this page and post it at the site entrance. Visitors scan the QR code to sign in on their phone.
-              </p>
-              <p className="text-xs font-mono text-gray-400 break-all">
-                {typeof window !== "undefined"
-                  ? `${window.location.origin}${activeSite ? `/?site=${activeSite.slug}` : ""}`
-                  : ""}
-              </p>
-              <button
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 text-sm font-bold px-4 py-2 rounded-xl transition-colors print:hidden"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                Print QR Code
-              </button>
+              <p className="text-sm text-gray-500">Select a site above to generate the QR code for visitor sign-in.</p>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Add Visit panel */}
