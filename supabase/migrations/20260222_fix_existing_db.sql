@@ -3,9 +3,55 @@
 -- ║  Safe to run multiple times (idempotent)                                  ║
 -- ╚══════════════════════════════════════════════════════════════════════════════╝
 
--- ─── 1. Drop ALL old policies ─────────────────────────────────────────────────
+-- ─── 1. Create tables FIRST (so DROP POLICY doesn't fail on missing tables) ──
 
--- site_visits old policies
+create table if not exists public.organisations (
+  id         uuid        primary key default gen_random_uuid(),
+  name       text        not null,
+  created_at timestamptz not null default now()
+);
+alter table public.organisations enable row level security;
+
+create table if not exists public.org_members (
+  id         uuid        primary key default gen_random_uuid(),
+  org_id     uuid        not null references public.organisations(id) on delete cascade,
+  user_id    uuid        not null references auth.users(id) on delete cascade,
+  role       text        not null check (role in ('admin', 'editor')),
+  site_id    uuid,
+  created_at timestamptz not null default now(),
+  unique (org_id, user_id)
+);
+alter table public.org_members enable row level security;
+
+-- ─── 2. Ensure columns exist ─────────────────────────────────────────────────
+
+alter table public.sites
+  add column if not exists org_id uuid references public.organisations(id) on delete cascade;
+
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_name = 'sites' and column_name = 'user_id') then
+    alter table public.sites drop column user_id;
+  end if;
+end $$;
+
+alter table public.site_visits
+  add column if not exists site_id uuid references public.sites(id) on delete cascade;
+
+do $$ begin
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where table_name = 'org_members' and constraint_type = 'FOREIGN KEY'
+      and constraint_name = 'org_members_site_id_fkey'
+  ) then
+    alter table public.org_members
+      add constraint org_members_site_id_fkey
+      foreign key (site_id) references public.sites(id) on delete set null;
+  end if;
+end $$;
+
+-- ─── 3. Drop ALL old policies (tables guaranteed to exist now) ───────────────
+
+-- site_visits
 drop policy if exists "anon_insert" on public.site_visits;
 drop policy if exists "anon_select" on public.site_visits;
 drop policy if exists "anon_update" on public.site_visits;
@@ -20,7 +66,7 @@ drop policy if exists "auth_update_visits" on public.site_visits;
 drop policy if exists "auth_delete_visits" on public.site_visits;
 drop policy if exists "anon_delete_site_visits" on public.site_visits;
 
--- sites old policies
+-- sites
 drop policy if exists "anon_select_sites" on public.sites;
 drop policy if exists "anon_insert_sites" on public.sites;
 drop policy if exists "auth_insert_sites" on public.sites;
@@ -32,82 +78,60 @@ drop policy if exists "org_select_sites" on public.sites;
 drop policy if exists "org_admin_update_sites" on public.sites;
 drop policy if exists "org_admin_delete_sites" on public.sites;
 
--- organisations old policies
-drop policy if exists "org_members_select" on public.organisations;
+-- organisations
 drop policy if exists "org_members_select_orgs" on public.organisations;
 drop policy if exists "org_insert" on public.organisations;
 drop policy if exists "org_admin_update" on public.organisations;
 
--- org_members old policies
+-- org_members
 drop policy if exists "org_members_select" on public.org_members;
 drop policy if exists "org_members_insert" on public.org_members;
 drop policy if exists "org_members_update" on public.org_members;
 drop policy if exists "org_members_delete" on public.org_members;
 
--- ─── 2. Create organisations table ───────────────────────────────────────────
+-- ─── 4. Helper functions (SECURITY DEFINER — bypass RLS) ─────────────────────
+--    These prevent infinite recursion when org_members policies reference
+--    org_members itself.
 
-create table if not exists public.organisations (
-  id         uuid        primary key default gen_random_uuid(),
-  name       text        not null,
-  created_at timestamptz not null default now()
-);
-alter table public.organisations enable row level security;
+create or replace function public.get_my_org_ids()
+returns setof uuid
+language sql security definer set search_path = public
+as $$
+  select org_id from org_members where user_id = auth.uid();
+$$;
 
--- ─── 3. Create org_members table ─────────────────────────────────────────────
+create or replace function public.is_org_admin(p_org_id uuid)
+returns boolean
+language sql security definer set search_path = public
+as $$
+  select exists(
+    select 1 from org_members
+    where org_id = p_org_id and user_id = auth.uid() and role = 'admin'
+  );
+$$;
 
-create table if not exists public.org_members (
-  id         uuid        primary key default gen_random_uuid(),
-  org_id     uuid        not null references public.organisations(id) on delete cascade,
-  user_id    uuid        not null references auth.users(id) on delete cascade,
-  role       text        not null check (role in ('admin', 'editor')),
-  site_id    uuid,
-  created_at timestamptz not null default now(),
-  unique (org_id, user_id)
-);
-alter table public.org_members enable row level security;
+create or replace function public.org_has_members(p_org_id uuid)
+returns boolean
+language sql security definer set search_path = public
+as $$
+  select exists(select 1 from org_members where org_id = p_org_id);
+$$;
 
--- ─── 4. Ensure sites table has org_id column ─────────────────────────────────
+create or replace function public.get_my_site_id(p_org_id uuid)
+returns uuid
+language sql security definer set search_path = public
+as $$
+  select site_id from org_members
+  where org_id = p_org_id and user_id = auth.uid()
+  limit 1;
+$$;
 
-alter table public.sites
-  add column if not exists org_id uuid references public.organisations(id) on delete cascade;
-
--- Drop old user_id column if it exists (replaced by org membership)
--- (keeping this safe — won't fail if column doesn't exist)
-do $$ begin
-  if exists (select 1 from information_schema.columns where table_name = 'sites' and column_name = 'user_id') then
-    alter table public.sites drop column user_id;
-  end if;
-end $$;
-
--- ─── 5. Ensure site_visits table has site_id column ──────────────────────────
-
-alter table public.site_visits
-  add column if not exists site_id uuid references public.sites(id) on delete cascade;
-
--- ─── 6. Add org_members FK for site_id ───────────────────────────────────────
-
--- Add FK constraint from org_members.site_id to sites.id if not already there
-do $$ begin
-  if not exists (
-    select 1 from information_schema.table_constraints
-    where table_name = 'org_members' and constraint_type = 'FOREIGN KEY'
-      and constraint_name = 'org_members_site_id_fkey'
-  ) then
-    alter table public.org_members
-      add constraint org_members_site_id_fkey
-      foreign key (site_id) references public.sites(id) on delete set null;
-  end if;
-end $$;
-
--- ─── 7. Create ALL policies fresh ────────────────────────────────────────────
+-- ─── 5. Policies (using helper functions) ─────────────────────────────────────
 
 -- organisations
 create policy "org_members_select_orgs"
   on public.organisations for select to authenticated
-  using (exists (
-    select 1 from public.org_members
-    where org_members.org_id = organisations.id and org_members.user_id = auth.uid()
-  ));
+  using (id in (select public.get_my_org_ids()));
 
 create policy "org_insert"
   on public.organisations for insert to authenticated
@@ -115,42 +139,26 @@ create policy "org_insert"
 
 create policy "org_admin_update"
   on public.organisations for update to authenticated
-  using (exists (
-    select 1 from public.org_members
-    where org_members.org_id = organisations.id and org_members.user_id = auth.uid() and org_members.role = 'admin'
-  ));
+  using (public.is_org_admin(id));
 
--- org_members
+-- org_members (NO self-referencing subqueries — uses helper functions)
 create policy "org_members_select"
   on public.org_members for select to authenticated
-  using (org_id in (select om2.org_id from public.org_members om2 where om2.user_id = auth.uid()));
+  using (org_id in (select public.get_my_org_ids()));
 
 create policy "org_members_insert"
   on public.org_members for insert to authenticated
   with check (
-    exists (
-      select 1 from public.org_members om2
-      where om2.org_id = org_members.org_id and om2.user_id = auth.uid() and om2.role = 'admin'
-    )
-    or not exists (
-      select 1 from public.org_members om2
-      where om2.org_id = org_members.org_id
-    )
+    public.is_org_admin(org_id) or not public.org_has_members(org_id)
   );
 
 create policy "org_members_update"
   on public.org_members for update to authenticated
-  using (exists (
-    select 1 from public.org_members om2
-    where om2.org_id = org_members.org_id and om2.user_id = auth.uid() and om2.role = 'admin'
-  ));
+  using (public.is_org_admin(org_id));
 
 create policy "org_members_delete"
   on public.org_members for delete to authenticated
-  using (exists (
-    select 1 from public.org_members om2
-    where om2.org_id = org_members.org_id and om2.user_id = auth.uid() and om2.role = 'admin'
-  ));
+  using (public.is_org_admin(org_id));
 
 -- sites
 create policy "anon_select_sites"
@@ -158,34 +166,24 @@ create policy "anon_select_sites"
 
 create policy "auth_select_sites"
   on public.sites for select to authenticated
-  using (exists (
-    select 1 from public.org_members
-    where org_members.org_id = sites.org_id and org_members.user_id = auth.uid()
-      and (org_members.role = 'admin' or org_members.site_id = sites.id)
-  ));
+  using (
+    org_id in (select public.get_my_org_ids())
+    and (public.is_org_admin(org_id) or id = public.get_my_site_id(org_id))
+  );
 
 create policy "auth_insert_sites"
   on public.sites for insert to authenticated
-  with check (exists (
-    select 1 from public.org_members
-    where org_members.org_id = sites.org_id and org_members.user_id = auth.uid() and org_members.role = 'admin'
-  ));
+  with check (public.is_org_admin(org_id));
 
 create policy "auth_update_sites"
   on public.sites for update to authenticated
-  using (exists (
-    select 1 from public.org_members
-    where org_members.org_id = sites.org_id and org_members.user_id = auth.uid() and org_members.role = 'admin'
-  ));
+  using (public.is_org_admin(org_id));
 
 create policy "auth_delete_sites"
   on public.sites for delete to authenticated
-  using (exists (
-    select 1 from public.org_members
-    where org_members.org_id = sites.org_id and org_members.user_id = auth.uid() and org_members.role = 'admin'
-  ));
+  using (public.is_org_admin(org_id));
 
--- site_visits (BOTH anon AND authenticated — this was the 403 bug)
+-- site_visits (BOTH anon AND authenticated)
 create policy "anon_insert_visits"
   on public.site_visits for insert to anon with check (true);
 create policy "anon_select_visits"

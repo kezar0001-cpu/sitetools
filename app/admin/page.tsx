@@ -927,7 +927,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!userId) return;
     setLoadingOrg(true);
-    supabase.from("org_members").select("*").eq("user_id", userId).limit(1).single()
+    supabase.from("org_members").select("*").eq("user_id", userId).limit(1).maybeSingle()
       .then(async ({ data: mem }) => {
         if (mem) {
           setMember(mem as OrgMember);
