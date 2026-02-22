@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 
-interface Organisation { id: string; name: string; }
+interface Organisation { id: string; name: string; created_at: string; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor"; site_id: string | null; }
 interface Site { id: string; name: string; slug: string; org_id: string; }
 
