@@ -90,6 +90,18 @@ function SiteSignIn({ site }: { site: Site }) {
   const [loadingList, setLoadingList] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
 
+  const [editingTimeId, setEditingTimeId] = useState<string | null>(null);
+  const [editTime, setEditTime] = useState("");
+  const [editTimeSaving, setEditTimeSaving] = useState(false);
+
+  function startEditTime(v: SiteVisit) {
+    const d = new Date(v.signed_in_at);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    setEditTime(`${hh}:${mm}`);
+    setEditingTimeId(v.id);
+  }
+
   const fetchOnSite = useCallback(async () => {
     const { data, error } = await supabase
       .from("site_visits").select("*")
@@ -100,6 +112,23 @@ function SiteSignIn({ site }: { site: Site }) {
   }, [site.id]);
 
   useEffect(() => { fetchOnSite(); }, [fetchOnSite]);
+
+  async function handleSaveTime(v: SiteVisit) {
+    if (!editTime) return;
+    setEditTimeSaving(true);
+    const original = new Date(v.signed_in_at);
+    const [hh, mm] = editTime.split(":").map(Number);
+    const updated = new Date(original);
+    updated.setHours(hh, mm, 0, 0);
+    const { error } = await supabase
+      .from("site_visits")
+      .update({ signed_in_at: updated.toISOString() })
+      .eq("id", v.id);
+    setEditTimeSaving(false);
+    if (error) { setFormError("Could not update sign-in time. Please try again."); return; }
+    setEditingTimeId(null);
+    fetchOnSite();
+  }
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -207,19 +236,54 @@ function SiteSignIn({ site }: { site: Site }) {
           ) : (
             <ul className="space-y-3">
               {onSite.map((v) => (
-                <li key={v.id} className="flex items-center justify-between gap-3 border border-gray-100 rounded-xl px-4 py-3 bg-gray-50">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-gray-900 text-sm truncate">{v.full_name}</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>{v.visitor_type}</span>
+                <li key={v.id} className="border border-gray-100 rounded-xl px-4 py-3 bg-gray-50 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-gray-900 text-sm truncate">{v.full_name}</span>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>{v.visitor_type}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5 truncate">{v.company_name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        Signed in {formatDate(v.signed_in_at)} at {formatTime(v.signed_in_at)}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5 truncate">{v.company_name}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">Signed in {formatDate(v.signed_in_at)} at {formatTime(v.signed_in_at)}</div>
+                    <button onClick={() => handleSignOut(v.id)} disabled={signingOut === v.id}
+                      className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+                      {signingOut === v.id ? "…" : "Sign Out"}
+                    </button>
                   </div>
-                  <button onClick={() => handleSignOut(v.id)} disabled={signingOut === v.id}
-                    className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-                    {signingOut === v.id ? "…" : "Sign Out"}
-                  </button>
+                  {editingTimeId === v.id ? (
+                    <div className="flex items-center gap-2 pt-1 border-t border-gray-200">
+                      <span className="text-xs text-gray-500 font-semibold shrink-0">Signed in at:</span>
+                      <input
+                        type="time"
+                        value={editTime}
+                        onChange={(e) => setEditTime(e.target.value)}
+                        className="border border-yellow-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      />
+                      <button
+                        onClick={() => handleSaveTime(v)}
+                        disabled={editTimeSaving || !editTime}
+                        className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                      >
+                        {editTimeSaving ? "…" : "Save"}
+                      </button>
+                      <button
+                        onClick={() => setEditingTimeId(null)}
+                        className="text-xs text-gray-400 hover:text-gray-600 px-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startEditTime(v)}
+                      className="text-xs text-blue-500 hover:text-blue-700 font-semibold hover:underline"
+                    >
+                      Edit sign-in time
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
