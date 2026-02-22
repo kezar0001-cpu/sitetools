@@ -163,16 +163,20 @@ function OrgSetupScreen({ userId, onDone }: { userId: string; onDone: (org: Orga
     const { error: orgErr } = await supabase
       .from("organisations").insert({ id: orgId, name: orgName.trim() });
     if (orgErr) { setError("Could not create organisation."); setCreating(false); return; }
-    const { data: member, error: memErr } = await supabase
-      .from("org_members").insert({ org_id: orgId, user_id: userId, role: "admin" }).select().single();
+    // Generate member ID client-side — .select() after INSERT is blocked by RLS
+    // because the membership row doesn't exist yet when the SELECT fires.
+    const memberId = crypto.randomUUID();
+    const { error: memErr } = await supabase
+      .from("org_members").insert({ id: memberId, org_id: orgId, user_id: userId, role: "admin" });
     setCreating(false);
-    if (memErr || !member) {
+    if (memErr) {
       // Clean up the orphaned org — no member means no one can access it
       await supabase.from("organisations").delete().eq("id", orgId);
       setError("Could not set up membership."); return;
     }
     const org: Organisation = { id: orgId, name: orgName.trim(), created_at: new Date().toISOString() };
-    onDone(org, member as OrgMember);
+    const member: OrgMember = { id: memberId, org_id: orgId, user_id: userId, role: "admin", site_id: null };
+    onDone(org, member);
   }
 
   return (
