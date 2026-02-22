@@ -32,43 +32,15 @@ function formatTime(iso: string) {
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
 }
-function makeSlug(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
-    "-" + Math.random().toString(36).slice(2, 7);
-}
-
 const HEADER_SVG = (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
   </svg>
 );
 
-// ─── Site Picker ──────────────────────────────────────────────────────────────
+// ─── No-site screen ────────────────────────────────────────────────────────────────
 
-function SitePicker({ onSelect }: { onSelect: (site: Site) => void }) {
-  const [sites, setSites] = useState<Site[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.from("sites").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setSites(data as Site[]); setLoading(false); });
-  }, []);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!newName.trim()) return;
-    setCreating(true);
-    const slug = makeSlug(newName.trim());
-    const { data, error } = await supabase.from("sites").insert({ name: newName.trim(), slug }).select().single();
-    setCreating(false);
-    if (error || !data) { setError("Could not create site. Try again."); return; }
-    onSelect(data as Site);
-  }
-
+function NoSiteScreen() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
@@ -80,43 +52,25 @@ function SitePicker({ onSelect }: { onSelect: (site: Site) => void }) {
           </div>
         </div>
       </header>
-      <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-6 pb-10 space-y-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
-          <h2 className="text-xl font-extrabold text-gray-900 mb-4">Create a New Site</h2>
-          {error && <div className="mb-3 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
-          <form onSubmit={handleCreate} className="flex gap-3">
-            <input type="text" placeholder="e.g. Riverside Apartments" value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-            <button type="submit" disabled={creating || !newName.trim()}
-              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-extrabold px-5 py-4 rounded-xl transition-colors text-base shadow-md shrink-0">
-              {creating ? "…" : "Create"}
-            </button>
-          </form>
-        </div>
-        {!loading && sites.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
-            <h2 className="text-lg font-extrabold text-gray-900 mb-4">Or Select an Existing Site</h2>
-            <ul className="space-y-2">
-              {sites.map((s) => (
-                <li key={s.id}>
-                  <button onClick={() => onSelect(s)}
-                    className="w-full text-left flex items-center justify-between gap-3 border border-gray-200 rounded-xl px-4 py-3.5 hover:border-yellow-400 hover:bg-yellow-50 transition-colors group">
-                    <span className="font-bold text-gray-900 group-hover:text-yellow-900">{s.name}</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 group-hover:text-yellow-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                </li>
-              ))}
-            </ul>
+      <main className="flex-1 flex items-center justify-center px-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full text-center space-y-4">
+          <div className="mx-auto bg-yellow-100 text-yellow-700 rounded-full w-14 h-14 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+            </svg>
           </div>
-        )}
-        {loading && <div className="text-center py-10 text-gray-400 text-sm">Loading sites…</div>}
+          <h2 className="text-xl font-extrabold text-gray-900">Scan the QR Code</h2>
+          <p className="text-sm text-gray-500">
+            Use the QR code posted at the site entrance to sign in. This page can&apos;t be accessed directly.
+          </p>
+          <p className="text-xs text-gray-400 pt-2">
+            Are you an admin?{" "}
+            <a href="/admin" className="text-yellow-700 font-semibold hover:underline">Log in here</a>
+          </p>
+        </div>
       </main>
-      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4 space-y-1">
+      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4">
         <p>SiteSign &copy; {new Date().getFullYear()} — Construction Site Access Management</p>
-        <p><a href="/admin" className="text-gray-500 hover:text-yellow-400 transition-colors text-xs">Admin</a></p>
       </footer>
     </div>
   );
@@ -124,7 +78,7 @@ function SitePicker({ onSelect }: { onSelect: (site: Site) => void }) {
 
 // ─── Sign-In view for a specific site ────────────────────────────────────────
 
-function SiteSignIn({ site, onChangeSite }: { site: Site; onChangeSite: () => void }) {
+function SiteSignIn({ site }: { site: Site }) {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [visitorType, setVisitorType] = useState<VisitorType>("Worker");
@@ -182,9 +136,6 @@ function SiteSignIn({ site, onChangeSite }: { site: Site; onChangeSite: () => vo
               <p className="text-xs font-medium text-yellow-800">Site Sign In / Sign Out</p>
             </div>
           </div>
-          <button onClick={onChangeSite} className="shrink-0 text-yellow-800 hover:text-yellow-900 text-xs font-bold underline">
-            Change site
-          </button>
         </div>
       </header>
 
@@ -305,13 +256,7 @@ export default function Home() {
 
   if (!ready) return null;
 
-  if (!site) return <SitePicker onSelect={(s) => {
-    setSite(s);
-    window.history.replaceState(null, "", `/?site=${s.slug}`);
-  }} />;
+  if (!site) return <NoSiteScreen />;
 
-  return <SiteSignIn site={site} onChangeSite={() => {
-    setSite(null);
-    window.history.replaceState(null, "", "/");
-  }} />;
+  return <SiteSignIn site={site} />;
 }

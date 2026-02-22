@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 
+interface Site { id: string; name: string; slug: string; user_id: string; }
+
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
 interface SiteVisit {
@@ -38,34 +40,32 @@ function toLocalDateValue(iso: string) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// ─── Login Screen ────────────────────────────────────────────────────────────
+// ─── Auth Screen (Sign Up / Log In) ─────────────────────────────────────────
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
+function AuthScreen({ onAuth }: { onAuth: () => void }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
-    try {
-      const res = await fetch("/api/admin-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        sessionStorage.setItem("admin_authed", "1");
-        onLogin();
-      } else {
-        setError(data.error ?? "Incorrect password.");
-      }
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({ email, password });
       setLoading(false);
+      if (error) { setError(error.message); return; }
+      setInfo("Check your email to confirm your account, then log in.");
+      setMode("login");
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) { setError(error.message); return; }
+      onAuth();
     }
   }
 
@@ -79,45 +79,159 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             </svg>
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-gray-900">Admin Access</h1>
+            <h1 className="text-xl font-extrabold text-gray-900">
+              {mode === "login" ? "Admin Login" : "Create Account"}
+            </h1>
             <p className="text-xs text-gray-500">SiteSign — Site Register</p>
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">
-            {error}
-          </div>
+          <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>
+        )}
+        {info && (
+          <div className="bg-blue-50 border border-blue-300 text-blue-700 rounded-xl px-4 py-3 text-sm font-semibold">{info}</div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="admin_pw">
-              Password
-            </label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="auth_email">Email</label>
             <input
-              id="admin_pw"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter admin password"
+              id="auth_email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com" autoComplete="email" autoFocus
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="auth_pw">Password</label>
+            <input
+              id="auth_pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === "signup" ? "Min. 6 characters" : "Your password"}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
             />
           </div>
           <button
-            type="submit"
-            disabled={loading || !password}
+            type="submit" disabled={loading || !email || !password}
             className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold py-3 rounded-xl transition-colors text-sm shadow"
           >
-            {loading ? "Checking…" : "Log In"}
+            {loading ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-400">
-          <a href="/" className="hover:underline text-gray-500">← Back to site sign in</a>
-        </p>
+        <div className="text-center space-y-2">
+          {mode === "login" ? (
+            <p className="text-xs text-gray-500">
+              No account?{" "}
+              <button onClick={() => { setMode("signup"); setError(null); setInfo(null); }}
+                className="font-semibold text-yellow-700 hover:underline">Sign up</button>
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500">
+              Already have an account?{" "}
+              <button onClick={() => { setMode("login"); setError(null); setInfo(null); }}
+                className="font-semibold text-yellow-700 hover:underline">Log in</button>
+            </p>
+          )}
+          <p className="text-xs text-gray-400">
+            <a href="/" className="hover:underline text-gray-500">← Back to site sign in</a>
+          </p>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Site Switcher ───────────────────────────────────────────────────────────
+
+function SiteSwitcher({ current, onSelect }: { current: Site | null; onSelect: (s: Site | null) => void }) {
+  const [sites, setSites] = useState<Site[]>([]);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("sites").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
+        .then(({ data }) => { if (data) setSites(data as Site[]); });
+    });
+  }, []);
+
+  function makeSlug(name: string) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
+      "-" + Math.random().toString(36).slice(2, 7);
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!newName.trim()) return;
+    setCreating(true);
+    const slug = makeSlug(newName.trim());
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase
+      .from("sites")
+      .insert({ name: newName.trim(), slug, user_id: user?.id })
+      .select().single();
+    setCreating(false);
+    if (error || !data) { setError("Could not create site."); return; }
+    const s = data as Site;
+    setSites((prev) => [s, ...prev]);
+    setNewName("");
+    onSelect(s);
+    setOpen(false);
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Active Site</p>
+          <p className="text-lg font-extrabold text-gray-900">{current ? current.name : <span className="text-gray-400 font-normal">None selected</span>}</p>
+        </div>
+        <button onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold px-4 py-2 rounded-xl transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+          </svg>
+          {open ? "Close" : "Switch / Add Site"}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
+          {error && <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
+          <form onSubmit={handleCreate} className="flex gap-2">
+            <input type="text" placeholder="New site name…" value={newName} onChange={(e) => setNewName(e.target.value)}
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+            <button type="submit" disabled={creating || !newName.trim()}
+              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2.5 rounded-lg text-sm transition-colors shrink-0">
+              {creating ? "…" : "Create"}
+            </button>
+          </form>
+          {sites.length > 0 && (
+            <ul className="space-y-1.5">
+              {sites.map((s) => (
+                <li key={s.id}>
+                  <button onClick={() => { onSelect(s); setOpen(false); }}
+                    className={`w-full text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
+                      current?.id === s.id
+                        ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
+                        : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
+                    }`}>
+                    <span className="text-sm truncate">{s.name}</span>
+                    {current?.id === s.id && (
+                      <span className="text-xs text-yellow-700 shrink-0">Active</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -125,6 +239,12 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
+  const [activeSite, setActiveSite] = useState<Site | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email ?? null));
+  }, []);
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
@@ -145,13 +265,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const fetchVisits = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("site_visits")
-      .select("*")
-      .order("signed_in_at", { ascending: false });
+    let query = supabase.from("site_visits").select("*").order("signed_in_at", { ascending: false });
+    if (activeSite) query = query.eq("site_id", activeSite.id);
+    const { data, error } = await query;
     if (!error && data) setVisits(data as SiteVisit[]);
     setLoading(false);
-  }, []);
+  }, [activeSite]);
 
   useEffect(() => {
     fetchVisits();
@@ -188,6 +307,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       company_name: addCompany.trim(),
       visitor_type: addType,
     };
+    if (activeSite) payload.site_id = activeSite.id;
     if (addSignedIn) payload.signed_in_at = new Date(addSignedIn).toISOString();
     if (addSignedOut) payload.signed_out_at = new Date(addSignedOut).toISOString();
     const { error } = await supabase.from("site_visits").insert(payload);
@@ -241,26 +361,36 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <p className="text-xs font-medium text-yellow-800">Site Visit Register</p>
             </div>
           </div>
-          <button
-            onClick={onLogout}
-            className="flex items-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Log Out
-          </button>
+          <div className="flex items-center gap-3">
+            {userEmail && (
+              <span className="hidden sm:block text-xs font-medium text-yellow-800 truncate max-w-[180px]">{userEmail}</span>
+            )}
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Log Out
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 space-y-6">
+
+        {/* Site switcher */}
+        <SiteSwitcher current={activeSite} onSelect={setActiveSite} />
 
         {/* QR Code panel */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 print:shadow-none">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="shrink-0 bg-white p-3 border-2 border-gray-200 rounded-xl">
               <QRCodeSVG
-                value={typeof window !== "undefined" ? window.location.origin : ""}
+                value={typeof window !== "undefined"
+                  ? `${window.location.origin}${activeSite ? `/?site=${activeSite.slug}` : ""}`
+                  : ""}
                 size={160}
                 bgColor="#ffffff"
                 fgColor="#1c1917"
@@ -273,7 +403,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 Print this page and post it at the site entrance. Visitors scan the QR code to sign in on their phone.
               </p>
               <p className="text-xs font-mono text-gray-400 break-all">
-                {typeof window !== "undefined" ? window.location.origin : ""}
+                {typeof window !== "undefined"
+                  ? `${window.location.origin}${activeSite ? `/?site=${activeSite.slug}` : ""}`
+                  : ""}
               </p>
               <button
                 onClick={() => window.print()}
@@ -587,16 +719,17 @@ export default function AdminPage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setAuthed(sessionStorage.getItem("admin_authed") === "1");
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setAuthed(!!session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthed(!!session);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  function handleLogin() {
-    setAuthed(true);
-  }
-
-  function handleLogout() {
-    sessionStorage.removeItem("admin_authed");
-    setAuthed(false);
+  async function handleLogout() {
+    await supabase.auth.signOut();
   }
 
   if (authed === null) return null;
@@ -604,6 +737,6 @@ export default function AdminPage() {
   return authed ? (
     <AdminDashboard onLogout={handleLogout} />
   ) : (
-    <LoginScreen onLogin={handleLogin} />
+    <AuthScreen onAuth={() => setAuthed(true)} />
   );
 }
