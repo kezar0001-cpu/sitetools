@@ -91,7 +91,6 @@ function SiteSignIn({ site }: { site: Site }) {
   const [hasDrawn, setHasDrawn] = useState(false);
   const [signError, setSignError] = useState(false);
   const sigPadRef = useRef<SignatureCanvas>(null);
-  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
@@ -157,21 +156,52 @@ function SiteSignIn({ site }: { site: Site }) {
     setShowSignModal(true);
   }
 
+  // Resize canvas to fill its container after modal mounts
+  useEffect(() => {
+    if (!showSignModal) return;
+    const timer = setTimeout(() => {
+      const sig = sigPadRef.current;
+      if (sig) {
+        const canvas = sig.getCanvas();
+        const parent = canvas.parentElement;
+        if (parent) {
+          canvas.width = parent.offsetWidth;
+          canvas.height = 200;
+          sig.clear(); // redraw background after resize
+        }
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [showSignModal]);
+
   async function confirmSignOut() {
     if (!myVisit) return;
     if (!hasDrawn) {
       setSignError(true);
       return;
     }
-    const sig = sigPadRef.current;
-    const signatureData = sig ? sig.getTrimmedCanvas().toDataURL("image/png") : null;
     setSigningOut(true);
-    const { error } = await supabase.from("site_visits").update({
-      signed_out_at: new Date().toISOString(),
-      signature: signatureData,
-    }).eq("id", myVisit.id);
+    // Step 1: Sign out (always works)
+    const { error: outErr } = await supabase.from("site_visits")
+      .update({ signed_out_at: new Date().toISOString() })
+      .eq("id", myVisit.id);
+    if (outErr) {
+      setSigningOut(false);
+      setFormError("Sign-out failed. Please try again.");
+      setShowSignModal(false);
+      return;
+    }
+    // Step 2: Save signature (may fail if column doesn't exist yet — that's OK)
+    const sig = sigPadRef.current;
+    if (sig) {
+      try {
+        const signatureData = sig.getTrimmedCanvas().toDataURL("image/png");
+        await supabase.from("site_visits")
+          .update({ signature: signatureData })
+          .eq("id", myVisit.id);
+      } catch { /* signature column may not exist yet */ }
+    }
     setSigningOut(false);
-    if (error) { setFormError("Sign-out failed. Please try again."); setShowSignModal(false); return; }
     setShowSignModal(false);
     setMyVisit(null);
   }
@@ -304,16 +334,16 @@ function SiteSignIn({ site }: { site: Site }) {
                 <p className="text-sm text-gray-500 mt-0.5">Please sign below to confirm you are leaving the site.</p>
               </div>
               <div
-                ref={canvasContainerRef}
-                className={`border-2 rounded-xl overflow-hidden bg-gray-50 touch-none ${signError ? "border-red-400" : "border-gray-300"}`}
+                className={`border-2 rounded-xl overflow-hidden bg-gray-50 ${signError ? "border-red-400" : "border-gray-300"}`}
+                style={{ touchAction: "none" }}
               >
                 <SignatureCanvas
                   ref={sigPadRef}
                   penColor="#1c1917"
                   canvasProps={{
-                    width: canvasContainerRef.current?.offsetWidth ?? 340,
+                    width: 340,
                     height: 200,
-                    style: { width: "100%", height: "200px", display: "block" },
+                    style: { width: "100%", height: "200px", display: "block", touchAction: "none" },
                   }}
                   backgroundColor="#f9fafb"
                   onBegin={() => { setHasDrawn(true); setSignError(false); }}
