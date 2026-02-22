@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import SignatureCanvas from "react-signature-canvas";
 import { supabase } from "@/lib/supabase";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
@@ -15,6 +16,7 @@ interface SiteVisit {
   signed_in_at: string;
   signed_out_at: string | null;
   site_id: string;
+  signature?: string | null;
 }
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
@@ -85,6 +87,8 @@ function SiteSignIn({ site }: { site: Site }) {
 
   const [myVisit, setMyVisit] = useState<SiteVisit | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [showSignModal, setShowSignModal] = useState(false);
+  const sigPadRef = useRef<SignatureCanvas>(null);
 
   const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
@@ -144,12 +148,25 @@ function SiteSignIn({ site }: { site: Site }) {
     setTimeout(() => setSuccess(false), 4000);
   }
 
-  async function handleSignOut() {
+  function openSignModal() {
+    setShowSignModal(true);
+  }
+
+  async function confirmSignOut() {
     if (!myVisit) return;
+    const sig = sigPadRef.current;
+    if (!sig || sig.isEmpty()) {
+      return; // keep modal open, user must sign
+    }
+    const signatureData = sig.getTrimmedCanvas().toDataURL("image/png");
     setSigningOut(true);
-    const { error } = await supabase.from("site_visits").update({ signed_out_at: new Date().toISOString() }).eq("id", myVisit.id);
+    const { error } = await supabase.from("site_visits").update({
+      signed_out_at: new Date().toISOString(),
+      signature: signatureData,
+    }).eq("id", myVisit.id);
     setSigningOut(false);
-    if (error) { setFormError("Sign-out failed. Please try again."); return; }
+    if (error) { setFormError("Sign-out failed. Please try again."); setShowSignModal(false); return; }
+    setShowSignModal(false);
     setMyVisit(null);
   }
 
@@ -235,9 +252,9 @@ function SiteSignIn({ site }: { site: Site }) {
                     Signed in at {formatTime(myVisit.signed_in_at)}
                   </div>
                 </div>
-                <button onClick={handleSignOut} disabled={signingOut}
+                <button onClick={openSignModal} disabled={signingOut}
                   className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-                  {signingOut ? "…" : "Sign Out"}
+                  Sign Out
                 </button>
               </div>
               {editingTime ? (
@@ -268,6 +285,50 @@ function SiteSignIn({ site }: { site: Site }) {
                   Edit sign-in time
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Signature modal */}
+        {showSignModal && myVisit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-gray-900">Sign Out</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Please sign below to confirm you are leaving the site.</p>
+              </div>
+              <div className="border-2 border-gray-300 rounded-xl overflow-hidden bg-gray-50 touch-none">
+                <SignatureCanvas
+                  ref={sigPadRef}
+                  penColor="#1c1917"
+                  canvasProps={{ className: "w-full", width: 400, height: 180 }}
+                  backgroundColor="#f9fafb"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={() => sigPadRef.current?.clear()}
+                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 underline"
+                >
+                  Clear
+                </button>
+                <p className="text-xs text-gray-400 italic">Sign with your finger</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmSignOut}
+                  disabled={signingOut}
+                  className="flex-1 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                >
+                  {signingOut ? "Signing Out…" : "Confirm Sign Out"}
+                </button>
+                <button
+                  onClick={() => setShowSignModal(false)}
+                  className="px-4 py-3 rounded-xl border border-gray-300 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
