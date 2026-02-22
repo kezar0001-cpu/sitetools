@@ -120,8 +120,9 @@ function SiteSignIn({ site }: { site: Site }) {
 
   async function handleSignOut(id: string) {
     setSigningOut(id);
-    await supabase.from("site_visits").update({ signed_out_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("site_visits").update({ signed_out_at: new Date().toISOString() }).eq("id", id);
     setSigningOut(null);
+    if (error) { setFormError("Sign-out failed. Please try again."); return; }
     fetchOnSite();
   }
 
@@ -239,14 +240,16 @@ function SiteSignIn({ site }: { site: Site }) {
 export default function Home() {
   const [site, setSite] = useState<Site | null>(null);
   const [ready, setReady] = useState(false);
+  const [lookupError, setLookupError] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const slug = params.get("site");
     if (slug) {
-      supabase.from("sites").select("*").eq("slug", slug).single()
-        .then(({ data }) => {
-          if (data) setSite(data as Site);
+      supabase.from("sites").select("*").eq("slug", slug).maybeSingle()
+        .then(({ data, error }) => {
+          if (error) { setLookupError(true); }
+          else if (data) { setSite(data as Site); }
           setReady(true);
         });
     } else {
@@ -255,6 +258,19 @@ export default function Home() {
   }, []);
 
   if (!ready) return null;
+
+  if (lookupError) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full text-center space-y-4">
+        <h2 className="text-xl font-extrabold text-gray-900">Something went wrong</h2>
+        <p className="text-sm text-gray-500">Could not load site information. Please try again or scan the QR code.</p>
+        <button onClick={() => window.location.reload()}
+          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2.5 px-6 rounded-xl text-sm transition-colors">
+          Retry
+        </button>
+      </div>
+    </div>
+  );
 
   if (!site) return <NoSiteScreen />;
 
