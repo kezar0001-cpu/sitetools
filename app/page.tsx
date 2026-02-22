@@ -1,100 +1,249 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
+type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
+
+interface SiteVisit {
+  id: string;
+  full_name: string;
+  company_name: string;
+  visitor_type: VisitorType;
+  signed_in_at: string;
+  signed_out_at: string | null;
+}
+
+const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
+
+const TYPE_COLOURS: Record<VisitorType, string> = {
+  Worker: "bg-blue-100 text-blue-800",
+  Subcontractor: "bg-purple-100 text-purple-800",
+  Visitor: "bg-green-100 text-green-800",
+  Delivery: "bg-orange-100 text-orange-800",
+};
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [visitorType, setVisitorType] = useState<VisitorType>("Worker");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [onSite, setOnSite] = useState<SiteVisit[]>([]);
+  const [loadingList, setLoadingList] = useState(true);
+  const [signingOut, setSigningOut] = useState<string | null>(null);
+
+  async function fetchOnSite() {
+    const { data, error } = await supabase
+      .from("site_visits")
+      .select("*")
+      .is("signed_out_at", null)
+      .order("signed_in_at", { ascending: false });
+    if (!error && data) setOnSite(data as SiteVisit[]);
+    setLoadingList(false);
+  }
+
+  useEffect(() => {
+    fetchOnSite();
+  }, []);
+
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    if (!fullName.trim() || !companyName.trim()) {
+      setFormError("Please fill in all fields.");
+      return;
+    }
+    setSubmitting(true);
+    const { error } = await supabase.from("site_visits").insert({
+      full_name: fullName.trim(),
+      company_name: companyName.trim(),
+      visitor_type: visitorType,
+    });
+    setSubmitting(false);
+    if (error) {
+      setFormError("Sign in failed. Please try again.");
+      return;
+    }
+    setSuccess(true);
+    setFullName("");
+    setCompanyName("");
+    setVisitorType("Worker");
+    fetchOnSite();
+    setTimeout(() => setSuccess(false), 5000);
+  }
+
+  async function handleSignOut(id: string) {
+    setSigningOut(id);
+    await supabase
+      .from("site_visits")
+      .update({ signed_out_at: new Date().toISOString() })
+      .eq("id", id);
+    setSigningOut(null);
+    fetchOnSite();
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
+          <div className="bg-yellow-600 text-white rounded-lg p-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
+            <p className="text-xs font-medium text-yellow-800">Construction Site Sign In / Sign Out</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-5 pb-10 space-y-6">
+
+        {/* Sign In Form */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-extrabold text-gray-900">Sign In to Site</h2>
+          </div>
+
+          {success && (
+            <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-4 text-base font-semibold">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Signed in successfully! Welcome to site.
+            </div>
+          )}
+
+          {formError && (
+            <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-4 text-base font-semibold">
+              {formError}
+            </div>
+          )}
+
+          <form onSubmit={handleSignIn} className="space-y-5">
+            <div>
+              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">
+                Full Name
+              </label>
+              <input
+                id="full_name"
+                type="text"
+                placeholder="e.g. Jane Smith"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                autoComplete="name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">
+                Company Name
+              </label>
+              <input
+                id="company_name"
+                type="text"
+                placeholder="e.g. Acme Constructions"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                autoComplete="organization"
+              />
+            </div>
+
+            <div>
+              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">
+                Visitor Type
+              </label>
+              <select
+                id="visitor_type"
+                value={visitorType}
+                onChange={(e) => setVisitorType(e.target.value as VisitorType)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+              >
+                {VISITOR_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-5 rounded-2xl transition-colors text-xl shadow-md mt-1"
+            >
+              {submitting ? "Signing In…" : "Sign In to Site"}
+            </button>
+          </form>
+        </div>
+
+        {/* On-Site Register */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
+              <h2 className="text-lg font-extrabold text-gray-900">Currently On Site</h2>
+            </div>
+            <span className="text-sm font-semibold text-gray-500 bg-gray-100 rounded-full px-3 py-1">
+              {onSite.length} {onSite.length === 1 ? "person" : "people"}
+            </span>
+          </div>
+
+          {loadingList ? (
+            <div className="text-center py-10 text-gray-400 text-sm">Loading…</div>
+          ) : onSite.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">No one is currently signed in.</div>
+          ) : (
+            <ul className="space-y-3">
+              {onSite.map((v) => (
+                <li key={v.id} className="flex items-center justify-between gap-3 border border-gray-100 rounded-xl px-4 py-3 bg-gray-50">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-gray-900 text-sm truncate">{v.full_name}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
+                        {v.visitor_type}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5 truncate">{v.company_name}</div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      Signed in {formatDate(v.signed_in_at)} at {formatTime(v.signed_in_at)}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSignOut(v.id)}
+                    disabled={signingOut === v.id}
+                    className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+                  >
+                    {signingOut === v.id ? "…" : "Sign Out"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4 space-y-1">
+        <p>SiteSign &copy; {new Date().getFullYear()} — Construction Site Access Management</p>
+        <p><a href="/admin" className="text-gray-500 hover:text-yellow-400 transition-colors text-xs">Admin</a></p>
       </footer>
     </div>
   );
