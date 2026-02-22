@@ -180,28 +180,31 @@ function SiteSignIn({ site }: { site: Site }) {
       setSignError(true);
       return;
     }
+    // Capture signature data from the raw canvas BEFORE any async work
+    let signatureData: string | null = null;
+    const sig = sigPadRef.current;
+    if (sig) {
+      const canvas = sig.getCanvas();
+      signatureData = canvas.toDataURL("image/png");
+    }
     setSigningOut(true);
-    // Step 1: Sign out (always works)
-    const { error: outErr } = await supabase.from("site_visits")
-      .update({ signed_out_at: new Date().toISOString() })
+    // Single update with both signed_out_at and signature
+    const updatePayload: Record<string, string | null> = {
+      signed_out_at: new Date().toISOString(),
+    };
+    if (signatureData) {
+      updatePayload.signature = signatureData;
+    }
+    const { error } = await supabase.from("site_visits")
+      .update(updatePayload)
       .eq("id", myVisit.id);
-    if (outErr) {
-      setSigningOut(false);
-      setFormError("Sign-out failed. Please try again.");
+    setSigningOut(false);
+    if (error) {
+      // Show the actual error so we can diagnose
+      setFormError(`Sign-out failed: ${error.message}`);
       setShowSignModal(false);
       return;
     }
-    // Step 2: Save signature (may fail if column doesn't exist yet — that's OK)
-    const sig = sigPadRef.current;
-    if (sig) {
-      try {
-        const signatureData = sig.getTrimmedCanvas().toDataURL("image/png");
-        await supabase.from("site_visits")
-          .update({ signature: signatureData })
-          .eq("id", myVisit.id);
-      } catch { /* signature column may not exist yet */ }
-    }
-    setSigningOut(false);
     setShowSignModal(false);
     setMyVisit(null);
   }
