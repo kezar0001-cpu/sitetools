@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
+
+interface Site { id: string; name: string; slug: string; }
 
 interface SiteVisit {
   id: string;
@@ -12,6 +14,7 @@ interface SiteVisit {
   visitor_type: VisitorType;
   signed_in_at: string;
   signed_out_at: string | null;
+  site_id: string;
 }
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
@@ -26,12 +29,102 @@ const TYPE_COLOURS: Record<VisitorType, string> = {
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short" });
 }
+function makeSlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
+    "-" + Math.random().toString(36).slice(2, 7);
+}
 
-export default function Home() {
+const HEADER_SVG = (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+  </svg>
+);
+
+// ─── Site Picker ──────────────────────────────────────────────────────────────
+
+function SitePicker({ onSelect }: { onSelect: (site: Site) => void }) {
+  const [sites, setSites] = useState<Site[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.from("sites").select("*").order("created_at", { ascending: false })
+      .then(({ data }) => { if (data) setSites(data as Site[]); setLoading(false); });
+  }, []);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!newName.trim()) return;
+    setCreating(true);
+    const slug = makeSlug(newName.trim());
+    const { data, error } = await supabase.from("sites").insert({ name: newName.trim(), slug }).select().single();
+    setCreating(false);
+    if (error || !data) { setError("Could not create site. Try again."); return; }
+    onSelect(data as Site);
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
+          <div className="bg-yellow-600 text-white rounded-lg p-2">{HEADER_SVG}</div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
+            <p className="text-xs font-medium text-yellow-800">Construction Site Sign In / Sign Out</p>
+          </div>
+        </div>
+      </header>
+      <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-6 pb-10 space-y-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
+          <h2 className="text-xl font-extrabold text-gray-900 mb-4">Create a New Site</h2>
+          {error && <div className="mb-3 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
+          <form onSubmit={handleCreate} className="flex gap-3">
+            <input type="text" placeholder="e.g. Riverside Apartments" value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="flex-1 border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+            <button type="submit" disabled={creating || !newName.trim()}
+              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-extrabold px-5 py-4 rounded-xl transition-colors text-base shadow-md shrink-0">
+              {creating ? "…" : "Create"}
+            </button>
+          </form>
+        </div>
+        {!loading && sites.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
+            <h2 className="text-lg font-extrabold text-gray-900 mb-4">Or Select an Existing Site</h2>
+            <ul className="space-y-2">
+              {sites.map((s) => (
+                <li key={s.id}>
+                  <button onClick={() => onSelect(s)}
+                    className="w-full text-left flex items-center justify-between gap-3 border border-gray-200 rounded-xl px-4 py-3.5 hover:border-yellow-400 hover:bg-yellow-50 transition-colors group">
+                    <span className="font-bold text-gray-900 group-hover:text-yellow-900">{s.name}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 group-hover:text-yellow-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {loading && <div className="text-center py-10 text-gray-400 text-sm">Loading sites…</div>}
+      </main>
+      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4 space-y-1">
+        <p>SiteSign &copy; {new Date().getFullYear()} — Construction Site Access Management</p>
+        <p><a href="/admin" className="text-gray-500 hover:text-yellow-400 transition-colors text-xs">Admin</a></p>
+      </footer>
+    </div>
+  );
+}
+
+// ─── Sign-In view for a specific site ────────────────────────────────────────
+
+function SiteSignIn({ site, onChangeSite }: { site: Site; onChangeSite: () => void }) {
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [visitorType, setVisitorType] = useState<VisitorType>("Worker");
@@ -43,75 +136,59 @@ export default function Home() {
   const [loadingList, setLoadingList] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
 
-  async function fetchOnSite() {
+  const fetchOnSite = useCallback(async () => {
     const { data, error } = await supabase
-      .from("site_visits")
-      .select("*")
-      .is("signed_out_at", null)
+      .from("site_visits").select("*")
+      .eq("site_id", site.id).is("signed_out_at", null)
       .order("signed_in_at", { ascending: false });
     if (!error && data) setOnSite(data as SiteVisit[]);
     setLoadingList(false);
-  }
+  }, [site.id]);
 
-  useEffect(() => {
-    fetchOnSite();
-  }, []);
+  useEffect(() => { fetchOnSite(); }, [fetchOnSite]);
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    if (!fullName.trim() || !companyName.trim()) {
-      setFormError("Please fill in all fields.");
-      return;
-    }
+    if (!fullName.trim() || !companyName.trim()) { setFormError("Please fill in all fields."); return; }
     setSubmitting(true);
     const { error } = await supabase.from("site_visits").insert({
-      full_name: fullName.trim(),
-      company_name: companyName.trim(),
-      visitor_type: visitorType,
+      full_name: fullName.trim(), company_name: companyName.trim(),
+      visitor_type: visitorType, site_id: site.id,
     });
     setSubmitting(false);
-    if (error) {
-      setFormError("Sign in failed. Please try again.");
-      return;
-    }
+    if (error) { setFormError("Sign in failed. Please try again."); return; }
     setSuccess(true);
-    setFullName("");
-    setCompanyName("");
-    setVisitorType("Worker");
+    setFullName(""); setCompanyName(""); setVisitorType("Worker");
     fetchOnSite();
     setTimeout(() => setSuccess(false), 5000);
   }
 
   async function handleSignOut(id: string) {
     setSigningOut(id);
-    await supabase
-      .from("site_visits")
-      .update({ signed_out_at: new Date().toISOString() })
-      .eq("id", id);
+    await supabase.from("site_visits").update({ signed_out_at: new Date().toISOString() }).eq("id", id);
     setSigningOut(null);
     fetchOnSite();
   }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header */}
       <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="bg-yellow-600 text-white rounded-lg p-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="bg-yellow-600 text-white rounded-lg p-2 shrink-0">{HEADER_SVG}</div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight truncate">{site.name}</h1>
+              <p className="text-xs font-medium text-yellow-800">Site Sign In / Sign Out</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
-            <p className="text-xs font-medium text-yellow-800">Construction Site Sign In / Sign Out</p>
-          </div>
+          <button onClick={onChangeSite} className="shrink-0 text-yellow-800 hover:text-yellow-900 text-xs font-bold underline">
+            Change site
+          </button>
         </div>
       </header>
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-5 pb-10 space-y-6">
-
         {/* Sign In Form */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-5">
@@ -122,7 +199,6 @@ export default function Home() {
             </div>
             <h2 className="text-xl font-extrabold text-gray-900">Sign In to Site</h2>
           </div>
-
           {success && (
             <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-4 text-base font-semibold">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -131,65 +207,31 @@ export default function Home() {
               Signed in successfully! Welcome to site.
             </div>
           )}
-
           {formError && (
-            <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-4 text-base font-semibold">
-              {formError}
-            </div>
+            <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-4 text-base font-semibold">{formError}</div>
           )}
-
           <form onSubmit={handleSignIn} className="space-y-5">
             <div>
-              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">
-                Full Name
-              </label>
-              <input
-                id="full_name"
-                type="text"
-                placeholder="e.g. Jane Smith"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                autoComplete="name"
-              />
+              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">Full Name</label>
+              <input id="full_name" type="text" placeholder="e.g. Jane Smith" value={fullName}
+                onChange={(e) => setFullName(e.target.value)} autoComplete="name"
+                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
             </div>
-
             <div>
-              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">
-                Company Name
-              </label>
-              <input
-                id="company_name"
-                type="text"
-                placeholder="e.g. Acme Constructions"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                autoComplete="organization"
-              />
+              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">Company Name</label>
+              <input id="company_name" type="text" placeholder="e.g. Acme Constructions" value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization"
+                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
             </div>
-
             <div>
-              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">
-                Visitor Type
-              </label>
-              <select
-                id="visitor_type"
-                value={visitorType}
-                onChange={(e) => setVisitorType(e.target.value as VisitorType)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-              >
-                {VISITOR_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
+              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">Visitor Type</label>
+              <select id="visitor_type" value={visitorType} onChange={(e) => setVisitorType(e.target.value as VisitorType)}
+                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
+                {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-5 rounded-2xl transition-colors text-xl shadow-md mt-1"
-            >
+            <button type="submit" disabled={submitting}
+              className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-5 rounded-2xl transition-colors text-xl shadow-md mt-1">
               {submitting ? "Signing In…" : "Sign In to Site"}
             </button>
           </form>
@@ -206,7 +248,6 @@ export default function Home() {
               {onSite.length} {onSite.length === 1 ? "person" : "people"}
             </span>
           </div>
-
           {loadingList ? (
             <div className="text-center py-10 text-gray-400 text-sm">Loading…</div>
           ) : onSite.length === 0 ? (
@@ -218,20 +259,13 @@ export default function Home() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-gray-900 text-sm truncate">{v.full_name}</span>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
-                        {v.visitor_type}
-                      </span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>{v.visitor_type}</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5 truncate">{v.company_name}</div>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      Signed in {formatDate(v.signed_in_at)} at {formatTime(v.signed_in_at)}
-                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">Signed in {formatDate(v.signed_in_at)} at {formatTime(v.signed_in_at)}</div>
                   </div>
-                  <button
-                    onClick={() => handleSignOut(v.id)}
-                    disabled={signingOut === v.id}
-                    className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-                  >
+                  <button onClick={() => handleSignOut(v.id)} disabled={signingOut === v.id}
+                    className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
                     {signingOut === v.id ? "…" : "Sign Out"}
                   </button>
                 </li>
@@ -247,4 +281,37 @@ export default function Home() {
       </footer>
     </div>
   );
+}
+
+// ─── Page root ────────────────────────────────────────────────────────────────
+
+export default function Home() {
+  const [site, setSite] = useState<Site | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const slug = params.get("site");
+    if (slug) {
+      supabase.from("sites").select("*").eq("slug", slug).single()
+        .then(({ data }) => {
+          if (data) setSite(data as Site);
+          setReady(true);
+        });
+    } else {
+      setReady(true);
+    }
+  }, []);
+
+  if (!ready) return null;
+
+  if (!site) return <SitePicker onSelect={(s) => {
+    setSite(s);
+    window.history.replaceState(null, "", `/?site=${s.slug}`);
+  }} />;
+
+  return <SiteSignIn site={site} onChangeSite={() => {
+    setSite(null);
+    window.history.replaceState(null, "", "/");
+  }} />;
 }

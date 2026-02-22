@@ -24,3 +24,18 @@ create policy "anon_select"
   for select
   to anon
   using (true);
+
+-- Policy: allow anonymous updates (required for sign-out)
+create policy "anon_update"
+  on public.site_visits
+  for update
+  to anon
+  using (true)
+  with check (true);
+
+-- Policy: allow anonymous deletes (required for admin manual deletion)
+create policy "anon_delete"
+  on public.site_visits
+  for delete
+  to anon
+  using (true);

@@ -128,6 +128,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addCompany, setAddCompany] = useState("");
+  const [addType, setAddType] = useState<VisitorType>("Worker");
+  const [addSignedIn, setAddSignedIn] = useState("");
+  const [addSignedOut, setAddSignedOut] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const [filterDate, setFilterDate] = useState("");
   const [filterType, setFilterType] = useState<VisitorType | "">("");
@@ -153,6 +164,37 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       .update({ signed_out_at: new Date().toISOString() })
       .eq("id", id);
     setSigningOut(null);
+    fetchVisits();
+  }
+
+  async function handleDelete(id: string) {
+    setDeleting(id);
+    await supabase.from("site_visits").delete().eq("id", id);
+    setDeleting(null);
+    setConfirmDelete(null);
+    fetchVisits();
+  }
+
+  async function handleAddVisit(e: React.FormEvent) {
+    e.preventDefault();
+    setAddError(null);
+    if (!addName.trim() || !addCompany.trim()) {
+      setAddError("Full name and company are required.");
+      return;
+    }
+    setAdding(true);
+    const payload: Record<string, string> = {
+      full_name: addName.trim(),
+      company_name: addCompany.trim(),
+      visitor_type: addType,
+    };
+    if (addSignedIn) payload.signed_in_at = new Date(addSignedIn).toISOString();
+    if (addSignedOut) payload.signed_out_at = new Date(addSignedOut).toISOString();
+    const { error } = await supabase.from("site_visits").insert(payload);
+    setAdding(false);
+    if (error) { setAddError("Failed to add record. Please try again."); return; }
+    setAddName(""); setAddCompany(""); setAddType("Worker"); setAddSignedIn(""); setAddSignedOut("");
+    setShowAddForm(false);
     fetchVisits();
   }
 
@@ -246,6 +288,75 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
 
+        {/* Add Visit panel */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <button
+            onClick={() => { setShowAddForm((v) => !v); setAddError(null); }}
+            className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </div>
+              <span className="font-bold text-gray-900 text-sm">Add Visit Manually</span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${showAddForm ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showAddForm && (
+            <form onSubmit={handleAddVisit} className="px-6 pb-6 pt-2 border-t border-gray-100 space-y-4">
+              {addError && (
+                <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{addError}</div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_name">Full Name *</label>
+                  <input id="add_name" type="text" value={addName} onChange={(e) => setAddName(e.target.value)}
+                    placeholder="e.g. Jane Smith"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_company">Company Name *</label>
+                  <input id="add_company" type="text" value={addCompany} onChange={(e) => setAddCompany(e.target.value)}
+                    placeholder="e.g. Acme Constructions"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_type">Visitor Type *</label>
+                  <select id="add_type" value={addType} onChange={(e) => setAddType(e.target.value as VisitorType)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
+                    {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_signed_in">Signed In (optional — defaults to now)</label>
+                  <input id="add_signed_in" type="datetime-local" value={addSignedIn} onChange={(e) => setAddSignedIn(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_signed_out">Signed Out (optional — leave blank if still on site)</label>
+                  <input id="add_signed_out" type="datetime-local" value={addSignedOut} onChange={(e) => setAddSignedOut(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="submit" disabled={adding}
+                  className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
+                  {adding ? "Adding…" : "Add Visit"}
+                </button>
+                <button type="button" onClick={() => { setShowAddForm(false); setAddError(null); }}
+                  className="text-sm font-semibold text-gray-500 hover:text-gray-800 px-3 py-2.5">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 col-span-2 sm:col-span-1">
@@ -335,7 +446,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Type</th>
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signed In</th>
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signed Out</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Action</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -360,15 +471,42 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          {v.signed_out_at === null && (
-                            <button
-                              onClick={() => handleSignOut(v.id)}
-                              disabled={signingOut === v.id}
-                              className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              {signingOut === v.id ? "…" : "Sign Out"}
-                            </button>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {v.signed_out_at === null && (
+                              <button
+                                onClick={() => handleSignOut(v.id)}
+                                disabled={signingOut === v.id}
+                                className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                {signingOut === v.id ? "…" : "Sign Out"}
+                              </button>
+                            )}
+                            {confirmDelete === v.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-red-600 font-semibold">Delete?</span>
+                                <button
+                                  onClick={() => handleDelete(v.id)}
+                                  disabled={deleting === v.id}
+                                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                  {deleting === v.id ? "…" : "Yes"}
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDelete(null)}
+                                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDelete(v.id)}
+                                className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -387,15 +525,36 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                           {v.visitor_type}
                         </span>
                       </div>
-                      {v.signed_out_at === null && (
-                        <button
-                          onClick={() => handleSignOut(v.id)}
-                          disabled={signingOut === v.id}
-                          className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                        >
-                          {signingOut === v.id ? "…" : "Sign Out"}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {v.signed_out_at === null && (
+                          <button
+                            onClick={() => handleSignOut(v.id)}
+                            disabled={signingOut === v.id}
+                            className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            {signingOut === v.id ? "…" : "Sign Out"}
+                          </button>
+                        )}
+                        {confirmDelete === v.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDelete(v.id)}
+                              disabled={deleting === v.id}
+                              className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                            >
+                              {deleting === v.id ? "…" : "Del?"}
+                            </button>
+                            <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 px-1.5 py-1.5">✕</button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDelete(v.id)}
+                            className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-xs text-gray-500">{v.company_name}</p>
                     <p className="text-xs text-gray-400">In: {fmt(v.signed_in_at)}</p>
