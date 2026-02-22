@@ -186,6 +186,10 @@ function SiteSignIn({ site }: { site: Site }) {
     if (sig) {
       const canvas = sig.getCanvas();
       signatureData = canvas.toDataURL("image/png");
+      console.log("Signature data length:", signatureData?.length);
+      console.log("Signature preview:", signatureData?.substring(0, 100));
+    } else {
+      console.log("No signature canvas ref");
     }
     setSigningOut(true);
     // Single update with both signed_out_at and signature
@@ -195,6 +199,7 @@ function SiteSignIn({ site }: { site: Site }) {
     if (signatureData) {
       updatePayload.signature = signatureData;
     }
+    console.log("Update payload:", { ...updatePayload, signature: updatePayload.signature?.substring(0, 50) + "..." });
     const { error } = await supabase.from("site_visits")
       .update(updatePayload)
       .eq("id", myVisit.id);
@@ -205,6 +210,7 @@ function SiteSignIn({ site }: { site: Site }) {
       setShowSignModal(false);
       return;
     }
+    console.log("Sign-out successful with signature");
     setShowSignModal(false);
     setMyVisit(null);
   }
