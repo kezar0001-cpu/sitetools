@@ -310,9 +310,14 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
       setAddError("Email, password, and site are required."); return;
     }
     setAdding(true);
+    const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch("/api/create-editor", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: newEmail.trim(), password: newPassword, org_id: orgId, site_id: newSiteId, requesting_user_id: currentUserId }),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ email: newEmail.trim(), password: newPassword, org_id: orgId, site_id: newSiteId }),
     });
     const json = await res.json();
     setAdding(false);
@@ -443,10 +448,12 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   const [filterType, setFilterType] = useState<VisitorType | "">("");
 
   const fetchVisits = useCallback(async () => {
+    if (!activeSite) { setVisits([]); setLoading(false); return; }
     setLoading(true);
-    let query = supabase.from("site_visits").select("*").order("signed_in_at", { ascending: false });
-    if (activeSite) query = query.eq("site_id", activeSite.id);
-    const { data, error } = await query;
+    const { data, error } = await supabase
+      .from("site_visits").select("*")
+      .eq("site_id", activeSite.id)
+      .order("signed_in_at", { ascending: false });
     if (!error && data) setVisits(data as SiteVisit[]);
     setLoading(false);
   }, [activeSite]);
@@ -457,19 +464,21 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
   async function handleSignOut(id: string) {
     setSigningOut(id);
-    await supabase
+    const { error } = await supabase
       .from("site_visits")
       .update({ signed_out_at: new Date().toISOString() })
       .eq("id", id);
     setSigningOut(null);
+    if (error) { alert("Sign-out failed. Please try again."); return; }
     fetchVisits();
   }
 
   async function handleDelete(id: string) {
     setDeleting(id);
-    await supabase.from("site_visits").delete().eq("id", id);
+    const { error } = await supabase.from("site_visits").delete().eq("id", id);
     setDeleting(null);
     setConfirmDelete(null);
+    if (error) { alert("Delete failed. Please try again."); return; }
     fetchVisits();
   }
 

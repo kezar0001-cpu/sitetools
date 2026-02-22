@@ -8,18 +8,29 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  const { email, password, org_id, site_id, requesting_user_id } = await req.json();
+  // Extract the real user from the Authorization header — never trust the body
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+  const token = authHeader.slice(7);
+  const { data: { user: caller }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+  if (authErr || !caller) {
+    return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+  }
 
-  if (!email || !password || !org_id || !site_id || !requesting_user_id) {
+  const { email, password, org_id, site_id } = await req.json();
+
+  if (!email || !password || !org_id || !site_id) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
-  // Verify the requesting user is an admin of this org
+  // Verify the ACTUAL caller is an admin of this org
   const { data: membership, error: memErr } = await supabaseAdmin
     .from("org_members")
     .select("role")
     .eq("org_id", org_id)
-    .eq("user_id", requesting_user_id)
+    .eq("user_id", caller.id)
     .single();
 
   if (memErr || !membership || membership.role !== "admin") {
