@@ -37,8 +37,12 @@ create table if not exists public.site_visits (
   visitor_type  text        not null check (visitor_type in ('Worker', 'Subcontractor', 'Visitor', 'Delivery')),
   signed_in_at  timestamptz not null default now(),
   signed_out_at timestamptz,
-  site_id       uuid
+  site_id       uuid,
+  signature     text
 );
+
+-- Add signature column if table already exists
+alter table public.site_visits add column if not exists signature text;
 
 -- ─── STEP 2: Add missing columns & foreign keys safely ───────────────────────
 
