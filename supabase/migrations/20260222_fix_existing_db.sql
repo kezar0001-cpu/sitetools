@@ -95,35 +95,46 @@ drop policy if exists "org_members_delete" on public.org_members;
 
 create or replace function public.get_my_org_ids()
 returns setof uuid
-language sql security definer set search_path = public
+language plpgsql security definer set search_path = public, auth, extensions
 as $$
-  select org_id from org_members where user_id = auth.uid();
+begin
+  return query select org_id from public.org_members where user_id = auth.uid();
+end;
 $$;
 
 create or replace function public.is_org_admin(p_org_id uuid)
 returns boolean
-language sql security definer set search_path = public
+language plpgsql security definer set search_path = public, auth, extensions
 as $$
-  select exists(
-    select 1 from org_members
+begin
+  return exists(
+    select 1 from public.org_members
     where org_id = p_org_id and user_id = auth.uid() and role = 'admin'
   );
+end;
 $$;
 
 create or replace function public.org_has_members(p_org_id uuid)
 returns boolean
-language sql security definer set search_path = public
+language plpgsql security definer set search_path = public, auth, extensions
 as $$
-  select exists(select 1 from org_members where org_id = p_org_id);
+begin
+  return exists(select 1 from public.org_members where org_id = p_org_id);
+end;
 $$;
 
 create or replace function public.get_my_site_id(p_org_id uuid)
 returns uuid
-language sql security definer set search_path = public
+language plpgsql security definer set search_path = public, auth, extensions
 as $$
-  select site_id from org_members
+declare
+  result uuid;
+begin
+  select site_id into result from public.org_members
   where org_id = p_org_id and user_id = auth.uid()
   limit 1;
+  return result;
+end;
 $$;
 
 -- ─── 5. Policies (using helper functions) ─────────────────────────────────────
