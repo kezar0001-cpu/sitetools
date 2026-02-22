@@ -13,7 +13,7 @@ entire session.
 
 Memory = accumulated understanding of codebase + user preferences. Like a colleague who's worked here months.
 
-**project_id:** site-signin
+**project_id:** kezar0001-cpu/sitetools
 
 ## NON-NEGOTIABLE: Memory-First Development
 

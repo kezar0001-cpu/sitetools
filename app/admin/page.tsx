@@ -939,6 +939,7 @@ export default function AdminPage() {
   const [org, setOrg] = useState<Organisation | null>(null);
   const [member, setMember] = useState<OrgMember | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -948,7 +949,7 @@ export default function AdminPage() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session);
       if (session) setUserId(session.user.id);
-      else { setUserId(null); setOrg(null); setMember(null); }
+      else { setUserId(null); setOrg(null); setMember(null); setDbError(null); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -957,12 +958,23 @@ export default function AdminPage() {
   useEffect(() => {
     if (!userId) return;
     setLoadingOrg(true);
+    setDbError(null);
     supabase.from("org_members").select("*").eq("user_id", userId).limit(1).maybeSingle()
-      .then(async ({ data: mem }) => {
+      .then(async ({ data: mem, error: memErr }) => {
+        if (memErr) {
+          setDbError(`org_members error ${memErr.code}: ${memErr.message}`);
+          setLoadingOrg(false);
+          return;
+        }
         if (mem) {
           setMember(mem as OrgMember);
-          const { data: orgData } = await supabase
+          const { data: orgData, error: orgErr } = await supabase
             .from("organisations").select("*").eq("id", (mem as OrgMember).org_id).single();
+          if (orgErr) {
+            setDbError(`organisations error ${orgErr.code}: ${orgErr.message}`);
+            setLoadingOrg(false);
+            return;
+          }
           if (orgData) setOrg(orgData as Organisation);
         }
         setLoadingOrg(false);
@@ -981,6 +993,22 @@ export default function AdminPage() {
   if (loadingOrg) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <p className="text-gray-400 text-sm">Loading…</p>
+    </div>
+  );
+
+  // DB error — show it clearly so it can be diagnosed
+  if (dbError) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow border border-red-200 p-8 space-y-4">
+        <h2 className="text-lg font-extrabold text-red-700">Database Error</h2>
+        <p className="text-sm text-gray-600">The app could not load your data. This usually means the SQL migration has not been run yet in Supabase.</p>
+        <pre className="bg-red-50 border border-red-200 rounded-lg p-4 text-xs text-red-800 whitespace-pre-wrap break-all">{dbError}</pre>
+        <p className="text-xs text-gray-500">Run <strong>RESET_AND_FIX.sql</strong> in the Supabase SQL Editor, then refresh this page.</p>
+        <button onClick={() => { setDbError(null); setLoadingOrg(true); setMember(null); setOrg(null); }}
+          className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
+          Retry
+        </button>
+      </div>
     </div>
   );
 
