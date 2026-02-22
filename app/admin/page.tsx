@@ -18,6 +18,7 @@ interface SiteVisit {
   signed_in_at: string;
   signed_out_at: string | null;
   site_id: string;
+  signature?: string | null;
 }
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
@@ -448,6 +449,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   const [signingOut, setSigningOut] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [viewingSig, setViewingSig] = useState<string | null>(null);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
@@ -832,6 +834,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Type</th>
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signed In</th>
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signed Out</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signature</th>
                       <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Actions</th>
                     </tr>
                   </thead>
@@ -887,6 +890,15 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
                               On site
                             </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {v.signature ? (
+                            <button onClick={() => setViewingSig(v.signature!)} className="hover:opacity-80 transition-opacity">
+                              <img src={v.signature} alt="Signature" className="h-8 w-auto rounded border border-gray-200" />
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -1031,6 +1043,11 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                         <span className="text-green-700 font-semibold">Still on site</span>
                       )}
                     </p>
+                    {v.signature && (
+                      <button onClick={() => setViewingSig(v.signature!)} className="mt-1 hover:opacity-80 transition-opacity">
+                        <img src={v.signature} alt="Signature" className="h-8 w-auto rounded border border-gray-200" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1038,6 +1055,22 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
           )}
         </div>
       </main>
+
+      {/* Signature viewer modal */}
+      {viewingSig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setViewingSig(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-3" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-gray-900">Visitor Signature</h3>
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 p-2">
+              <img src={viewingSig} alt="Signature" className="w-full h-auto" />
+            </div>
+            <button onClick={() => setViewingSig(null)}
+              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm transition-colors">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4">
         <p>SiteSign Admin &copy; {new Date().getFullYear()}</p>
