@@ -88,7 +88,10 @@ function SiteSignIn({ site }: { site: Site }) {
   const [myVisit, setMyVisit] = useState<SiteVisit | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const [signError, setSignError] = useState(false);
   const sigPadRef = useRef<SignatureCanvas>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
 
   const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
@@ -149,16 +152,19 @@ function SiteSignIn({ site }: { site: Site }) {
   }
 
   function openSignModal() {
+    setHasDrawn(false);
+    setSignError(false);
     setShowSignModal(true);
   }
 
   async function confirmSignOut() {
     if (!myVisit) return;
-    const sig = sigPadRef.current;
-    if (!sig || sig.isEmpty()) {
-      return; // keep modal open, user must sign
+    if (!hasDrawn) {
+      setSignError(true);
+      return;
     }
-    const signatureData = sig.getTrimmedCanvas().toDataURL("image/png");
+    const sig = sigPadRef.current;
+    const signatureData = sig ? sig.getTrimmedCanvas().toDataURL("image/png") : null;
     setSigningOut(true);
     const { error } = await supabase.from("site_visits").update({
       signed_out_at: new Date().toISOString(),
@@ -297,17 +303,28 @@ function SiteSignIn({ site }: { site: Site }) {
                 <h3 className="text-lg font-extrabold text-gray-900">Sign Out</h3>
                 <p className="text-sm text-gray-500 mt-0.5">Please sign below to confirm you are leaving the site.</p>
               </div>
-              <div className="border-2 border-gray-300 rounded-xl overflow-hidden bg-gray-50 touch-none">
+              <div
+                ref={canvasContainerRef}
+                className={`border-2 rounded-xl overflow-hidden bg-gray-50 touch-none ${signError ? "border-red-400" : "border-gray-300"}`}
+              >
                 <SignatureCanvas
                   ref={sigPadRef}
                   penColor="#1c1917"
-                  canvasProps={{ className: "w-full", width: 400, height: 180 }}
+                  canvasProps={{
+                    width: canvasContainerRef.current?.offsetWidth ?? 340,
+                    height: 200,
+                    style: { width: "100%", height: "200px", display: "block" },
+                  }}
                   backgroundColor="#f9fafb"
+                  onBegin={() => { setHasDrawn(true); setSignError(false); }}
                 />
               </div>
+              {signError && (
+                <p className="text-xs text-red-500 font-semibold -mt-1">Please sign before confirming.</p>
+              )}
               <div className="flex justify-between items-center">
                 <button
-                  onClick={() => sigPadRef.current?.clear()}
+                  onClick={() => { sigPadRef.current?.clear(); setHasDrawn(false); setSignError(false); }}
                   className="text-xs font-semibold text-gray-500 hover:text-gray-800 underline"
                 >
                   Clear
