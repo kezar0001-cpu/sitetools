@@ -156,14 +156,18 @@ function OrgSetupScreen({ userId, onDone }: { userId: string; onDone: (org: Orga
     setError(null);
     if (!orgName.trim()) return;
     setCreating(true);
-    const { data: org, error: orgErr } = await supabase
-      .from("organisations").insert({ name: orgName.trim() }).select().single();
-    if (orgErr || !org) { setError("Could not create organisation."); setCreating(false); return; }
+    // Generate UUID client-side — the SELECT policy on organisations requires
+    // membership, which doesn't exist yet, so .select() after INSERT would fail.
+    const orgId = crypto.randomUUID();
+    const { error: orgErr } = await supabase
+      .from("organisations").insert({ id: orgId, name: orgName.trim() });
+    if (orgErr) { setError("Could not create organisation."); setCreating(false); return; }
     const { data: member, error: memErr } = await supabase
-      .from("org_members").insert({ org_id: org.id, user_id: userId, role: "admin" }).select().single();
+      .from("org_members").insert({ org_id: orgId, user_id: userId, role: "admin" }).select().single();
     setCreating(false);
     if (memErr || !member) { setError("Could not set up membership."); return; }
-    onDone(org as Organisation, member as OrgMember);
+    const org: Organisation = { id: orgId, name: orgName.trim(), created_at: new Date().toISOString() };
+    onDone(org, member as OrgMember);
   }
 
   return (
