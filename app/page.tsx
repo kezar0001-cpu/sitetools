@@ -86,6 +86,7 @@ function SiteSignIn({ site }: { site: Site }) {
   const [formError, setFormError] = useState<string | null>(null);
 
   const [myVisit, setMyVisit] = useState<SiteVisit | null>(null);
+  const [loadingSession, setLoadingSession] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -95,6 +96,31 @@ function SiteSignIn({ site }: { site: Site }) {
   const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
   const [editTimeSaving, setEditTimeSaving] = useState(false);
+
+  // Check for existing active visit on mount
+  useEffect(() => {
+    const storedVisitId = localStorage.getItem(`active_visit_${site.id}`);
+    if (!storedVisitId) {
+      setLoadingSession(false);
+      return;
+    }
+    // Fetch the visit from DB to verify it's still active
+    supabase.from("site_visits")
+      .select("*")
+      .eq("id", storedVisitId)
+      .eq("site_id", site.id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!error && data && !data.signed_out_at) {
+          // Visit exists and is still active
+          setMyVisit(data as SiteVisit);
+        } else {
+          // Visit doesn't exist or already signed out - clear localStorage
+          localStorage.removeItem(`active_visit_${site.id}`);
+        }
+        setLoadingSession(false);
+      });
+  }, [site.id]);
 
   function startEditTime(v: SiteVisit) {
     const d = new Date(v.signed_in_at);
@@ -145,6 +171,8 @@ function SiteSignIn({ site }: { site: Site }) {
       signed_out_at: null,
     };
     setMyVisit(newVisit);
+    // Store visit ID in localStorage for session persistence
+    localStorage.setItem(`active_visit_${site.id}`, visitId);
     setSuccess(true);
     setFullName(""); setCompanyName(""); setVisitorType("Worker");
     setTimeout(() => setSuccess(false), 4000);
@@ -211,6 +239,8 @@ function SiteSignIn({ site }: { site: Site }) {
       return;
     }
     console.log("Sign-out successful with signature");
+    // Clear localStorage session
+    localStorage.removeItem(`active_visit_${site.id}`);
     setShowSignModal(false);
     setMyVisit(null);
   }
@@ -230,53 +260,63 @@ function SiteSignIn({ site }: { site: Site }) {
       </header>
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-5 pb-10 space-y-6">
-        {/* Sign In Form */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1.5">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-extrabold text-gray-900">Sign In to Site</h2>
+        {/* Loading state while checking for existing session */}
+        {loadingSession && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-yellow-400 border-t-transparent"></div>
+            <p className="mt-3 text-sm text-gray-500">Checking for active session...</p>
           </div>
-          {success && (
-            <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-4 text-base font-semibold">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-              Signed in successfully! Welcome to site.
+        )}
+
+        {/* Sign In Form - only show if not loading and no active visit */}
+        {!loadingSession && !myVisit && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-extrabold text-gray-900">Sign In to Site</h2>
             </div>
-          )}
-          {formError && (
-            <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-4 text-base font-semibold">{formError}</div>
-          )}
-          <form onSubmit={handleSignIn} className="space-y-5">
-            <div>
-              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">Full Name</label>
-              <input id="full_name" type="text" placeholder="e.g. Jane Smith" value={fullName}
-                onChange={(e) => setFullName(e.target.value)} autoComplete="name"
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-            </div>
-            <div>
-              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">Company Name</label>
-              <input id="company_name" type="text" placeholder="e.g. Acme Constructions" value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization"
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-            </div>
-            <div>
-              <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">Visitor Type</label>
-              <select id="visitor_type" value={visitorType} onChange={(e) => setVisitorType(e.target.value as VisitorType)}
-                className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <button type="submit" disabled={submitting}
-              className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-5 rounded-2xl transition-colors text-xl shadow-md mt-1">
-              {submitting ? "Signing In…" : "Sign In to Site"}
-            </button>
-          </form>
-        </div>
+            {success && (
+              <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-4 text-base font-semibold">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                Signed in successfully! Welcome to site.
+              </div>
+            )}
+            {formError && (
+              <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-4 text-base font-semibold">{formError}</div>
+            )}
+            <form onSubmit={handleSignIn} className="space-y-5">
+              <div>
+                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">Full Name</label>
+                <input id="full_name" type="text" placeholder="e.g. Jane Smith" value={fullName}
+                  onChange={(e) => setFullName(e.target.value)} autoComplete="name"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">Company Name</label>
+                <input id="company_name" type="text" placeholder="e.g. Acme Constructions" value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">Visitor Type</label>
+                <select id="visitor_type" value={visitorType} onChange={(e) => setVisitorType(e.target.value as VisitorType)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
+                  {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <button type="submit" disabled={submitting}
+                className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-5 rounded-2xl transition-colors text-xl shadow-md mt-1">
+                {submitting ? "Signing In…" : "Sign In to Site"}
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* My sign-in card — only shown after this visitor signs in */}
         {myVisit && (
