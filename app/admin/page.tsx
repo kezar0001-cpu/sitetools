@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 
 interface Organisation { id: string; name: string; created_at: string; }
-interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor"; site_id: string | null; }
+interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
 interface Site { id: string; name: string; slug: string; org_id: string; }
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
@@ -305,10 +305,12 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
   const [open, setOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState<"editor" | "viewer">("editor");
   const [newSiteId, setNewSiteId] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   const fetchMembers = useCallback(async () => {
     const { data } = await supabase.from("org_members").select("*").eq("org_id", orgId);
@@ -317,11 +319,14 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
-  async function handleAddEditor(e: React.FormEvent) {
+  async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
     setAddError(null);
-    if (!newEmail.trim() || !newPassword || !newSiteId) {
-      setAddError("Email, password, and site are required."); return;
+    if (!newEmail.trim() || !newPassword) {
+      setAddError("Email and password are required."); return;
+    }
+    if (newRole === "editor" && !newSiteId) {
+      setAddError("Editors must be assigned to a site."); return;
     }
     setAdding(true);
     const { data: { session } } = await supabase.auth.getSession();
@@ -331,12 +336,12 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
         "Content-Type": "application/json",
         ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
-      body: JSON.stringify({ email: newEmail.trim(), password: newPassword, org_id: orgId, site_id: newSiteId }),
+      body: JSON.stringify({ email: newEmail.trim(), password: newPassword, org_id: orgId, role: newRole, site_id: newRole === "editor" ? newSiteId : null }),
     });
     const json = await res.json();
     setAdding(false);
-    if (!res.ok) { setAddError(json.error ?? "Failed to create editor."); return; }
-    setNewEmail(""); setNewPassword(""); setNewSiteId("");
+    if (!res.ok) { setAddError(json.error ?? "Failed to create user."); return; }
+    setNewEmail(""); setNewPassword(""); setNewRole("editor"); setNewSiteId("");
     fetchMembers();
   }
 
@@ -346,6 +351,14 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
     const { error } = await supabase.from("org_members").delete().eq("id", memberId);
     setRemovingId(null);
     if (error) { setAddError("Failed to remove member."); return; }
+    fetchMembers();
+  }
+
+  async function handleRoleChange(memberId: string, newRole: "admin" | "editor" | "viewer") {
+    setUpdatingRoleId(memberId);
+    const { error } = await supabase.from("org_members").update({ role: newRole }).eq("id", memberId);
+    setUpdatingRoleId(null);
+    if (error) { setAddError("Failed to update role."); return; }
     fetchMembers();
   }
 
@@ -372,9 +385,22 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
             <ul className="space-y-2">
               {members.map((m) => (
                 <li key={m.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-4 py-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.role === "admin" ? "bg-yellow-100 text-yellow-800" : "bg-blue-100 text-blue-800"}`}>{m.role}</span>
+                      {m.user_id === currentUserId ? (
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.role === "admin" ? "bg-yellow-100 text-yellow-800" : m.role === "editor" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}`}>{m.role}</span>
+                      ) : (
+                        <select
+                          value={m.role}
+                          onChange={(e) => handleRoleChange(m.id, e.target.value as "admin" | "editor" | "viewer")}
+                          disabled={updatingRoleId === m.id}
+                          className="text-xs font-bold px-2 py-0.5 rounded-full border-0 focus:ring-2 focus:ring-yellow-400 disabled:opacity-50 bg-gray-100"
+                        >
+                          <option value="admin">admin</option>
+                          <option value="editor">editor</option>
+                          <option value="viewer">viewer</option>
+                        </select>
+                      )}
                       <span className="text-xs text-gray-500 font-mono truncate">{m.user_id === currentUserId ? "(you)" : m.user_id.slice(0, 8) + "\u2026"}</span>
                     </div>
                     {m.site_id && <p className="text-xs text-gray-500 mt-0.5">Site: {orgSites.find((s) => s.id === m.site_id)?.name ?? m.site_id.slice(0, 8)}</p>}
@@ -390,13 +416,13 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
             </ul>
           )}
           <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs font-bold text-gray-700 mb-3">Add Editor</p>
+            <p className="text-xs font-bold text-gray-700 mb-3">Add Team Member</p>
             {addError && <div className="mb-3 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{addError}</div>}
-            <form onSubmit={handleAddEditor} className="space-y-3">
+            <form onSubmit={handleAddMember} className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
-                  <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="editor@example.com"
+                  <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@example.com"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
                 </div>
                 <div>
@@ -404,18 +430,28 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
                   <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 6 characters"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
                 </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to Site</label>
-                  <select value={newSiteId} onChange={(e) => setNewSiteId(e.target.value)}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Role</label>
+                  <select value={newRole} onChange={(e) => setNewRole(e.target.value as "editor" | "viewer")}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                    <option value="">Select a site\u2026</option>
-                    {orgSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    <option value="editor">Editor (can manage assigned site)</option>
+                    <option value="viewer">Viewer (read-only access)</option>
                   </select>
                 </div>
+                {newRole === "editor" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to Site</label>
+                    <select value={newSiteId} onChange={(e) => setNewSiteId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
+                      <option value="">Select a site\u2026</option>
+                      {orgSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               <button type="submit" disabled={adding}
                 className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
-                {adding ? "Creating\u2026" : "Create Editor Account"}
+                {adding ? "Creating\u2026" : "Create Account"}
               </button>
             </form>
           </div>

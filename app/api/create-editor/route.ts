@@ -19,10 +19,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid session." }, { status: 401 });
   }
 
-  const { email, password, org_id, site_id } = await req.json();
+  const { email, password, org_id, role, site_id } = await req.json();
 
-  if (!email || !password || !org_id || !site_id) {
+  if (!email || !password || !org_id || !role) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+  }
+
+  if (role === "editor" && !site_id) {
+    return NextResponse.json({ error: "Editors must be assigned to a site." }, { status: 400 });
+  }
+
+  if (!["editor", "viewer"].includes(role)) {
+    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
   }
 
   // Verify the ACTUAL caller is an admin of this org
@@ -48,12 +56,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: createErr?.message ?? "Failed to create user." }, { status: 500 });
   }
 
-  // Add them as an editor in the org, scoped to the selected site
+  // Add them to the org with the specified role
   const { error: insertErr } = await supabaseAdmin.from("org_members").insert({
     org_id,
     user_id: newUser.user.id,
-    role: "editor",
-    site_id,
+    role,
+    site_id: role === "editor" ? site_id : null,
   });
 
   if (insertErr) {
