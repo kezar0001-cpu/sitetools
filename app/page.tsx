@@ -152,15 +152,41 @@ function SiteSignIn({ site }: { site: Site }) {
     e.preventDefault();
     setFormError(null);
     if (!fullName.trim() || !companyName.trim()) { setFormError("Please fill in all fields."); return; }
+    // Open signature modal instead of signing in directly
+    setShowSignModal(true);
+  }
+
+  async function confirmSignIn() {
+    if (!hasDrawn) {
+      setSignError(true);
+      return;
+    }
+    // Capture signature data from the raw canvas BEFORE any async work
+    let signatureData: string | null = null;
+    const sig = sigPadRef.current;
+    if (sig) {
+      const canvas = sig.getCanvas();
+      signatureData = canvas.toDataURL("image/png");
+    }
     setSubmitting(true);
     const visitId = crypto.randomUUID();
-    const { error } = await supabase.from("site_visits").insert({
+    const insertPayload: Record<string, unknown> = {
       id: visitId,
-      full_name: fullName.trim(), company_name: companyName.trim(),
-      visitor_type: visitorType, site_id: site.id,
-    });
+      full_name: fullName.trim(),
+      company_name: companyName.trim(),
+      visitor_type: visitorType,
+      site_id: site.id,
+    };
+    if (signatureData) {
+      insertPayload.signature = signatureData;
+    }
+    const { error } = await supabase.from("site_visits").insert(insertPayload);
     setSubmitting(false);
-    if (error) { setFormError("Sign in failed. Please try again."); return; }
+    if (error) {
+      setFormError(`Sign in failed: ${error.message}`);
+      setShowSignModal(false);
+      return;
+    }
     const newVisit: SiteVisit = {
       id: visitId,
       full_name: fullName.trim(),
@@ -169,19 +195,15 @@ function SiteSignIn({ site }: { site: Site }) {
       site_id: site.id,
       signed_in_at: new Date().toISOString(),
       signed_out_at: null,
+      signature: signatureData,
     };
     setMyVisit(newVisit);
     // Store visit ID in localStorage for session persistence
     localStorage.setItem(`active_visit_${site.id}`, visitId);
+    setShowSignModal(false);
     setSuccess(true);
     setFullName(""); setCompanyName(""); setVisitorType("Worker");
     setTimeout(() => setSuccess(false), 4000);
-  }
-
-  function openSignModal() {
-    setHasDrawn(false);
-    setSignError(false);
-    setShowSignModal(true);
   }
 
   // Resize canvas to fill its container after modal mounts
@@ -204,44 +226,17 @@ function SiteSignIn({ site }: { site: Site }) {
 
   async function confirmSignOut() {
     if (!myVisit) return;
-    if (!hasDrawn) {
-      setSignError(true);
-      return;
-    }
-    // Capture signature data from the raw canvas BEFORE any async work
-    let signatureData: string | null = null;
-    const sig = sigPadRef.current;
-    if (sig) {
-      const canvas = sig.getCanvas();
-      signatureData = canvas.toDataURL("image/png");
-      console.log("Signature data length:", signatureData?.length);
-      console.log("Signature preview:", signatureData?.substring(0, 100));
-    } else {
-      console.log("No signature canvas ref");
-    }
     setSigningOut(true);
-    // Single update with both signed_out_at and signature
-    const updatePayload: Record<string, string | null> = {
-      signed_out_at: new Date().toISOString(),
-    };
-    if (signatureData) {
-      updatePayload.signature = signatureData;
-    }
-    console.log("Update payload:", { ...updatePayload, signature: updatePayload.signature?.substring(0, 50) + "..." });
     const { error } = await supabase.from("site_visits")
-      .update(updatePayload)
+      .update({ signed_out_at: new Date().toISOString() })
       .eq("id", myVisit.id);
     setSigningOut(false);
     if (error) {
-      // Show the actual error so we can diagnose
       setFormError(`Sign-out failed: ${error.message}`);
-      setShowSignModal(false);
       return;
     }
-    console.log("Sign-out successful with signature");
     // Clear localStorage session
     localStorage.removeItem(`active_visit_${site.id}`);
-    setShowSignModal(false);
     setMyVisit(null);
   }
 
@@ -337,9 +332,9 @@ function SiteSignIn({ site }: { site: Site }) {
                     Signed in at {formatTime(myVisit.signed_in_at)}
                   </div>
                 </div>
-                <button onClick={openSignModal} disabled={signingOut}
+                <button onClick={confirmSignOut} disabled={signingOut}
                   className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-                  Sign Out
+                  {signingOut ? "Signing Out..." : "Sign Out"}
                 </button>
               </div>
               {editingTime ? (
@@ -374,13 +369,13 @@ function SiteSignIn({ site }: { site: Site }) {
           </div>
         )}
 
-        {/* Signature modal */}
-        {showSignModal && myVisit && (
+        {/* Signature modal for sign-in */}
+        {showSignModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
               <div>
-                <h3 className="text-lg font-extrabold text-gray-900">Sign Out</h3>
-                <p className="text-sm text-gray-500 mt-0.5">Please sign below to confirm you are leaving the site.</p>
+                <h3 className="text-lg font-extrabold text-gray-900">Sign In to Site</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Please sign below to confirm your arrival at the site.</p>
               </div>
               <div
                 className={`border-2 rounded-xl overflow-hidden bg-gray-50 ${signError ? "border-red-400" : "border-gray-300"}`}
@@ -412,11 +407,11 @@ function SiteSignIn({ site }: { site: Site }) {
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={confirmSignOut}
-                  disabled={signingOut}
-                  className="flex-1 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+                  onClick={confirmSignIn}
+                  disabled={submitting}
+                  className="flex-1 bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 font-bold py-3 rounded-xl text-sm transition-colors"
                 >
-                  {signingOut ? "Signing Out…" : "Confirm Sign Out"}
+                  {submitting ? "Signing In…" : "Confirm Sign In"}
                 </button>
                 <button
                   onClick={() => setShowSignModal(false)}
