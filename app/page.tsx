@@ -37,39 +37,196 @@ const HEADER_SVG = (
   </svg>
 );
 
-// ─── No-site screen ────────────────────────────────────────────────────────────────
+// ─── Landing Page ────────────────────────────────────────────────────────────────
 
 function NoSiteScreen() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="bg-yellow-600 text-white rounded-lg p-2">{HEADER_SVG}</div>
-          <div>
-            <h1 className="text-2xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
-            <p className="text-xs font-medium text-yellow-800">Construction Site Sign In / Sign Out</p>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
+      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-lg">
+        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-yellow-600 text-white rounded-lg p-2">{HEADER_SVG}</div>
+            <div>
+              <h1 className="text-2xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
+              <p className="text-xs font-medium text-yellow-800">Construction Site Access Management</p>
+            </div>
           </div>
+          <a href="/admin" className="hidden sm:block bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
+            Admin Login
+          </a>
         </div>
       </header>
-      <main className="flex-1 flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full text-center space-y-4">
-          <div className="mx-auto bg-yellow-100 text-yellow-700 rounded-full w-14 h-14 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-12 space-y-16">
+        {/* Hero Section */}
+        <section className="text-center space-y-6">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-400 rounded-2xl shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-yellow-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <h2 className="text-xl font-extrabold text-gray-900">Scan the QR Code</h2>
-          <p className="text-sm text-gray-500">
-            Use the QR code posted at the site entrance to sign in. This page can&apos;t be accessed directly.
+          <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight">
+            Streamline Your Site<br />Access Management
+          </h2>
+          <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
+            A modern, paperless solution for tracking workers, subcontractors, visitors, and deliveries at construction sites with digital signatures and real-time monitoring.
           </p>
-          <p className="text-xs text-gray-400 pt-2">
-            Are you an admin?{" "}
-            <a href="/admin" className="text-yellow-700 font-semibold hover:underline">Log in here</a>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+            <div className="bg-yellow-100 border-2 border-yellow-400 rounded-xl px-6 py-3 flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+              </svg>
+              <div className="text-left">
+                <p className="text-xs font-semibold text-yellow-800 uppercase">Get Started</p>
+                <p className="text-sm font-bold text-yellow-900">Scan the QR code at your site</p>
+              </div>
+            </div>
+            <a href="/admin" className="sm:hidden bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
+              Admin Login
+            </a>
+          </div>
+        </section>
+
+        {/* Features Grid */}
+        <section className="space-y-8">
+          <h3 className="text-3xl font-extrabold text-gray-900 text-center">Key Features</h3>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Feature 1 */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
+              <div className="bg-blue-100 text-blue-700 rounded-lg w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Digital Sign In/Out</h4>
+              <p className="text-sm text-gray-600">
+                Workers sign in and out digitally with their name, company, and visitor type. No more paper logbooks or clipboards.
+              </p>
+            </div>
+
+            {/* Feature 2 */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
+              <div className="bg-purple-100 text-purple-700 rounded-lg w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Digital Signatures</h4>
+              <p className="text-sm text-gray-600">
+                Capture signatures on sign-in for verification and compliance. Touch-friendly signature pad works on any device.
+              </p>
+            </div>
+
+            {/* Feature 3 */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
+              <div className="bg-green-100 text-green-700 rounded-lg w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Real-Time Tracking</h4>
+              <p className="text-sm text-gray-600">
+                See who&apos;s currently on site in real-time. Track sign-in/out times and calculate duration automatically.
+              </p>
+            </div>
+
+            {/* Feature 4 */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
+              <div className="bg-yellow-100 text-yellow-700 rounded-lg w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Export Reports</h4>
+              <p className="text-sm text-gray-600">
+                Export visit data in CSV, XLSX, or PDF formats. Filter by date ranges and generate professional reports.
+              </p>
+            </div>
+
+            {/* Feature 5 */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
+              <div className="bg-red-100 text-red-700 rounded-lg w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Multi-Site Support</h4>
+              <p className="text-sm text-gray-600">
+                Manage multiple construction sites from one dashboard. Each site gets its own QR code for easy access.
+              </p>
+            </div>
+
+            {/* Feature 6 */}
+            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
+              <div className="bg-indigo-100 text-indigo-700 rounded-lg w-12 h-12 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Role-Based Access</h4>
+              <p className="text-sm text-gray-600">
+                Admin, editor, and viewer roles ensure team members have appropriate access levels for their responsibilities.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works */}
+        <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-8 sm:p-12 space-y-8">
+          <h3 className="text-3xl font-extrabold text-gray-900 text-center">How It Works</h3>
+          <div className="grid sm:grid-cols-3 gap-8">
+            <div className="text-center space-y-3">
+              <div className="mx-auto bg-yellow-400 text-yellow-900 rounded-full w-16 h-16 flex items-center justify-center font-extrabold text-2xl shadow-lg">
+                1
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Scan QR Code</h4>
+              <p className="text-sm text-gray-600">
+                Workers scan the unique QR code posted at the site entrance using their phone camera.
+              </p>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="mx-auto bg-yellow-400 text-yellow-900 rounded-full w-16 h-16 flex items-center justify-center font-extrabold text-2xl shadow-lg">
+                2
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Sign In</h4>
+              <p className="text-sm text-gray-600">
+                Enter name, company, visitor type, and provide a digital signature to confirm arrival.
+              </p>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="mx-auto bg-yellow-400 text-yellow-900 rounded-full w-16 h-16 flex items-center justify-center font-extrabold text-2xl shadow-lg">
+                3
+              </div>
+              <h4 className="text-lg font-bold text-gray-900">Sign Out</h4>
+              <p className="text-sm text-gray-600">
+                When leaving, scan the QR code again and tap sign out. All data is tracked automatically.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl shadow-lg p-8 sm:p-12 text-center space-y-6">
+          <h3 className="text-3xl font-extrabold text-yellow-900">Ready to Get Started?</h3>
+          <p className="text-lg text-yellow-800 max-w-2xl mx-auto">
+            Scan the QR code at your construction site to sign in, or contact your site administrator for access.
           </p>
-        </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="/admin" className="bg-yellow-900 hover:bg-yellow-950 text-white font-bold px-8 py-4 rounded-xl transition-colors text-lg shadow-md">
+              Admin Dashboard
+            </a>
+          </div>
+        </section>
       </main>
-      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4">
-        <p>SiteSign &copy; {new Date().getFullYear()} — Construction Site Access Management</p>
+
+      <footer className="bg-gray-900 text-gray-400 py-8">
+        <div className="max-w-6xl mx-auto px-4 text-center space-y-2">
+          <p className="font-semibold">SiteSign &copy; {new Date().getFullYear()}</p>
+          <p className="text-sm">Construction Site Access Management System</p>
+          <div className="flex justify-center gap-6 pt-2">
+            <a href="/admin" className="text-gray-500 hover:text-yellow-400 transition-colors text-sm font-medium">Admin Login</a>
+          </div>
+        </div>
       </footer>
     </div>
   );
