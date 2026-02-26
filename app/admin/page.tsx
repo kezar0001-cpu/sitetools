@@ -498,6 +498,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
   const [filterDate, setFilterDate] = useState("");
   const [filterType, setFilterType] = useState<VisitorType | "">("");
+  const [csvDateRange, setCsvDateRange] = useState<"all" | "today" | "week" | "month">("all");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSignedIn, setEditSignedIn] = useState("");
@@ -603,20 +604,56 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   const onSiteCount = visits.filter((v) => v.signed_out_at === null).length;
 
   function exportCSV() {
-    const headers = ["Full Name", "Company", "Visitor Type", "Signed In", "Signed Out"];
-    const rows = filtered.map((v) => [
-      `"${v.full_name.replace(/"/g, '""')}"`,
-      `"${v.company_name.replace(/"/g, '""')}"`,
-      v.visitor_type,
-      fmt(v.signed_in_at),
-      v.signed_out_at ? fmt(v.signed_out_at) : "Still on site",
-    ]);
+    // Filter visits by date range
+    const now = new Date();
+    let rangeFiltered = filtered;
+    
+    if (csvDateRange === "today") {
+      const today = now.toISOString().slice(0, 10);
+      rangeFiltered = filtered.filter((v) => v.signed_in_at.startsWith(today));
+    } else if (csvDateRange === "week") {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      rangeFiltered = filtered.filter((v) => new Date(v.signed_in_at) >= weekAgo);
+    } else if (csvDateRange === "month") {
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      rangeFiltered = filtered.filter((v) => new Date(v.signed_in_at) >= monthAgo);
+    }
+
+    // Properly formatted CSV headers with quoted strings
+    const headers = ["Full Name", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration (hours)"];
+    
+    const rows = rangeFiltered.map((v) => {
+      const signInDate = new Date(v.signed_in_at);
+      const signOutDate = v.signed_out_at ? new Date(v.signed_out_at) : null;
+      
+      // Calculate duration in hours
+      let duration = "";
+      if (signOutDate) {
+        const hours = (signOutDate.getTime() - signInDate.getTime()) / (1000 * 60 * 60);
+        duration = hours.toFixed(2);
+      } else {
+        duration = "On site";
+      }
+      
+      return [
+        `"${v.full_name.replace(/"/g, '""')}"`,
+        `"${v.company_name.replace(/"/g, '""')}"`,
+        `"${v.visitor_type}"`,
+        `"${signInDate.toLocaleDateString()}"`,
+        `"${signInDate.toLocaleTimeString()}"`,
+        signOutDate ? `"${signOutDate.toLocaleDateString()}"` : "Still on site",
+        signOutDate ? `"${signOutDate.toLocaleTimeString()}"` : "",
+        `"${duration}"`
+      ];
+    });
+    
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `site-visits-${new Date().toISOString().slice(0, 10)}.csv`;
+    const rangeName = csvDateRange === "all" ? "all" : csvDateRange;
+    a.download = `site-visits-${activeSite?.slug || "export"}-${rangeName}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -842,6 +879,22 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
               {VISITOR_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-0">
+            <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="csv_range">
+              CSV Export Range
+            </label>
+            <select
+              id="csv_range"
+              value={csvDateRange}
+              onChange={(e) => setCsvDateRange(e.target.value as "all" | "today" | "week" | "month")}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today Only</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
             </select>
           </div>
           {(filterDate || filterType) && (
