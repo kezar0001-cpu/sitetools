@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Organisation { id: string; name: string; created_at: string; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
@@ -197,7 +200,7 @@ function OrgSetupScreen({ userId, onDone }: { userId: string; onDone: (org: Orga
           </div>
           <button type="submit" disabled={creating || !orgName.trim()}
             className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold py-3 rounded-xl transition-colors text-sm shadow">
-            {creating ? "Creating\u2026" : "Create Organisation"}
+            {creating ? "Creating…" : "Create Organisation"}
           </button>
         </form>
       </div>
@@ -268,11 +271,11 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded }: {
         <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
           {error && <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
           <form onSubmit={handleCreate} className="flex gap-2">
-            <input type="text" placeholder="New site name\u2026" value={newName} onChange={(e) => setNewName(e.target.value)}
+            <input type="text" placeholder="New site name…" value={newName} onChange={(e) => setNewName(e.target.value)}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
             <button type="submit" disabled={creating || !newName.trim()}
               className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2.5 rounded-lg text-sm transition-colors shrink-0">
-              {creating ? "\u2026" : "Create"}
+              {creating ? "…" : "Create"}
             </button>
           </form>
           {sites.length > 0 && (
@@ -401,14 +404,14 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
                           <option value="viewer">viewer</option>
                         </select>
                       )}
-                      <span className="text-xs text-gray-500 font-mono truncate">{m.user_id === currentUserId ? "(you)" : m.user_id.slice(0, 8) + "\u2026"}</span>
+                      <span className="text-xs text-gray-500 font-mono truncate">{m.user_id === currentUserId ? "(you)" : m.user_id.slice(0, 8) + "…"}</span>
                     </div>
                     {m.site_id && <p className="text-xs text-gray-500 mt-0.5">Site: {orgSites.find((s) => s.id === m.site_id)?.name ?? m.site_id.slice(0, 8)}</p>}
                   </div>
                   {m.user_id !== currentUserId && (
                     <button onClick={() => handleRemove(m.id, m.user_id)} disabled={removingId === m.id}
                       className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0 disabled:opacity-50">
-                      {removingId === m.id ? "\u2026" : "Remove"}
+                      {removingId === m.id ? "…" : "Remove"}
                     </button>
                   )}
                 </li>
@@ -443,7 +446,7 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
                     <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to Site</label>
                     <select value={newSiteId} onChange={(e) => setNewSiteId(e.target.value)}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                      <option value="">Select a site\u2026</option>
+                      <option value="">Select a site…</option>
                       {orgSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                   </div>
@@ -451,7 +454,7 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
               </div>
               <button type="submit" disabled={adding}
                 className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
-                {adding ? "Creating\u2026" : "Create Account"}
+                {adding ? "Creating…" : "Create Account"}
               </button>
             </form>
           </div>
@@ -603,8 +606,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
   const onSiteCount = visits.filter((v) => v.signed_out_at === null).length;
 
-  function exportCSV() {
-    // Filter visits by date range
+  function getFilteredDataByRange() {
     const now = new Date();
     let rangeFiltered = filtered;
     
@@ -618,15 +620,17 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       rangeFiltered = filtered.filter((v) => new Date(v.signed_in_at) >= monthAgo);
     }
+    return rangeFiltered;
+  }
 
-    // Properly formatted CSV headers with quoted strings
+  function prepareExportData() {
+    const rangeFiltered = getFilteredDataByRange();
     const headers = ["Full Name", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration (hours)"];
     
     const rows = rangeFiltered.map((v) => {
       const signInDate = new Date(v.signed_in_at);
       const signOutDate = v.signed_out_at ? new Date(v.signed_out_at) : null;
       
-      // Calculate duration in hours
       let duration = "";
       if (signOutDate) {
         const hours = (signOutDate.getTime() - signInDate.getTime()) / (1000 * 60 * 60);
@@ -636,18 +640,24 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
       }
       
       return [
-        `"${v.full_name.replace(/"/g, '""')}"`,
-        `"${v.company_name.replace(/"/g, '""')}"`,
-        `"${v.visitor_type}"`,
-        `"${signInDate.toLocaleDateString()}"`,
-        `"${signInDate.toLocaleTimeString()}"`,
-        signOutDate ? `"${signOutDate.toLocaleDateString()}"` : "Still on site",
-        signOutDate ? `"${signOutDate.toLocaleTimeString()}"` : "",
-        `"${duration}"`
+        v.full_name,
+        v.company_name,
+        v.visitor_type,
+        signInDate.toLocaleDateString(),
+        signInDate.toLocaleTimeString(),
+        signOutDate ? signOutDate.toLocaleDateString() : "Still on site",
+        signOutDate ? signOutDate.toLocaleTimeString() : "",
+        duration
       ];
     });
     
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    return { headers, rows, count: rangeFiltered.length };
+  }
+
+  function exportCSV() {
+    const { headers, rows } = prepareExportData();
+    const csvRows = rows.map((r) => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`));
+    const csv = [headers.join(","), ...csvRows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -656,6 +666,67 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
     a.download = `site-visits-${activeSite?.slug || "export"}-${rangeName}-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportXLSX() {
+    const { headers, rows } = prepareExportData();
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 20 }, // Full Name
+      { wch: 25 }, // Company
+      { wch: 15 }, // Visitor Type
+      { wch: 15 }, // Sign-In Date
+      { wch: 15 }, // Sign-In Time
+      { wch: 15 }, // Sign-Out Date
+      { wch: 15 }, // Sign-Out Time
+      { wch: 18 }  // Duration
+    ];
+    
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Site Visits");
+    const rangeName = csvDateRange === "all" ? "all" : csvDateRange;
+    XLSX.writeFile(workbook, `site-visits-${activeSite?.slug || "export"}-${rangeName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
+  function exportPDF() {
+    const { headers, rows, count } = prepareExportData();
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Site Visits Report - ${activeSite?.name || 'Export'}`, 14, 15);
+    
+    // Add metadata
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const rangeName = csvDateRange === "all" ? "All Time" : csvDateRange === "today" ? "Today" : csvDateRange === "week" ? "Last 7 Days" : "Last 30 Days";
+    doc.text(`Range: ${rangeName} | Total Records: ${count} | Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+    
+    // Add table
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: 28,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [250, 204, 21], textColor: [113, 63, 18], fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 20 }
+      }
+    });
+    
+    const fileName = `site-visits-${activeSite?.slug || "export"}-${csvDateRange}-${new Date().toISOString().slice(0, 10)}.pdf`;
+    doc.save(fileName);
   }
 
   return (
@@ -837,17 +908,40 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Showing</p>
             <p className="text-4xl font-extrabold text-gray-900">{filtered.length}</p>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex items-center justify-center">
-            <button
-              onClick={exportCSV}
-              disabled={filtered.length === 0}
-              className="flex items-center gap-2 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors w-full justify-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export CSV
-            </button>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Export Data</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={exportCSV}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                CSV
+              </button>
+              <button
+                onClick={exportXLSX}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                XLSX
+              </button>
+              <button
+                onClick={exportPDF}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                PDF
+              </button>
+            </div>
           </div>
         </div>
 
@@ -918,81 +1012,81 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
               {/* Desktop table */}
               <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-left">
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Full Name</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Company</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Type</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signed In</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signed Out</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Signature</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">Actions</th>
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-yellow-400">
+                    <tr className="text-left">
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Full Name</th>
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Company</th>
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Type</th>
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed In</th>
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed Out</th>
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signature</th>
+                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap text-center">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-200 bg-white">
                     {filtered.map((v) => editingId === v.id ? (
-                      <tr key={v.id} className="bg-yellow-50">
-                        <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{v.full_name}</td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.company_name}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
+                      <tr key={v.id} className="bg-yellow-50 border-l-4 border-yellow-400">
+                        <td className="px-5 py-4 font-bold text-gray-900 whitespace-nowrap">{v.full_name}</td>
+                        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.company_name}</td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
                             {v.visitor_type}
                           </span>
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-5 py-3">
                           <input type="datetime-local" value={editSignedIn} onChange={(e) => setEditSignedIn(e.target.value)}
-                            className="border border-yellow-400 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                            className="border-2 border-yellow-400 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500 shadow-sm" />
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-5 py-3">
                           <input type="datetime-local" value={editSignedOut} onChange={(e) => setEditSignedOut(e.target.value)}
-                            className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+                            className="border-2 border-gray-300 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400 shadow-sm" />
                           {editSignedOut && (
-                            <button onClick={() => setEditSignedOut("")} className="ml-1 text-xs text-gray-400 hover:text-gray-600">✕</button>
+                            <button onClick={() => setEditSignedOut("")} className="ml-1 text-xs text-gray-400 hover:text-gray-700 font-bold">✕</button>
                           )}
                         </td>
-                        <td className="px-4 py-2 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                        <td className="px-5 py-3 whitespace-nowrap" colSpan={2}>
+                          <div className="flex items-center gap-2 justify-center">
                             <button onClick={() => handleSaveEdit(v.id)} disabled={editSaving || !editSignedIn}
-                              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors">
+                              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm hover:shadow">
                               {editSaving ? "…" : "Save"}
                             </button>
                             <button onClick={() => setEditingId(null)}
-                              className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1.5">
+                              className="text-xs font-bold text-gray-600 hover:text-gray-900 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors">
                               Cancel
                             </button>
                           </div>
                         </td>
                       </tr>
                     ) : (
-                      <tr key={v.id} className={v.signed_out_at === null ? "bg-green-50" : ""}>
-                        <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{v.full_name}</td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{v.company_name}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
+                      <tr key={v.id} className={`transition-all ${v.signed_out_at === null ? "bg-green-50 hover:bg-green-100 border-l-4 border-green-400" : "hover:bg-gray-50 border-l-4 border-transparent"}`}>
+                        <td className="px-5 py-4 font-bold text-gray-900 whitespace-nowrap">{v.full_name}</td>
+                        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.company_name}</td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full shadow-sm ${TYPE_COLOURS[v.visitor_type]}`}>
                             {v.visitor_type}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{fmt(v.signed_in_at)}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-5 py-4 text-gray-700 whitespace-nowrap font-medium">{fmt(v.signed_in_at)}</td>
+                        <td className="px-5 py-4 whitespace-nowrap">
                           {v.signed_out_at ? (
-                            <span className="text-gray-600">{fmt(v.signed_out_at)}</span>
+                            <span className="text-gray-700 font-medium">{fmt(v.signed_out_at)}</span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-green-700 font-semibold text-xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
+                            <span className="inline-flex items-center gap-1.5 text-green-700 font-bold text-xs bg-green-100 px-2.5 py-1 rounded-full">
+                              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                               On site
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-5 py-4 whitespace-nowrap">
                           {v.signature ? (
-                            <button onClick={() => setViewingSig(v.signature!)} className="hover:opacity-80 transition-opacity">
-                              <img src={v.signature} alt="Signature" className="h-8 w-auto rounded border border-gray-200" />
+                            <button onClick={() => setViewingSig(v.signature!)} className="hover:opacity-80 transition-opacity hover:scale-105 transform">
+                              <img src={v.signature} alt="Signature" className="h-10 w-auto rounded-lg border-2 border-gray-200 shadow-sm" />
                             </button>
                           ) : (
-                            <span className="text-xs text-gray-300">—</span>
+                            <span className="text-xs text-gray-400 font-medium">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-5 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => startEdit(v)}
