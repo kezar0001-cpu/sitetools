@@ -14,7 +14,64 @@ alter table public.org_members
   add constraint org_members_role_check 
   check (role in ('admin', 'editor', 'viewer'));
 
--- ─── STEP 2: Update RLS policies for viewer role ─────────────────────────────
+-- ─── STEP 2: Create/update security definer helper functions ────────────────
+
+-- Helper to get user's org IDs (bypasses RLS to avoid recursion)
+create or replace function public.get_my_org_ids()
+returns setof uuid
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+begin
+  return query
+    select org_id from public.org_members where user_id = auth.uid();
+end;
+$$;
+
+-- Helper to check if user is admin of an org
+create or replace function public.is_org_admin(p_org_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+begin
+  return exists (
+    select 1 from public.org_members
+    where org_id = p_org_id
+      and user_id = auth.uid()
+      and role = 'admin'
+  );
+end;
+$$;
+
+-- Helper to check if user is admin or editor for a site
+create or replace function public.can_manage_site(p_site_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+begin
+  return exists (
+    select 1 from public.sites s
+    inner join public.org_members m on s.org_id = m.org_id
+    where s.id = p_site_id
+      and m.user_id = auth.uid()
+      and (
+        m.role = 'admin'
+        or (m.role = 'editor' and m.site_id = p_site_id)
+      )
+  );
+end;
+$$;
+
+grant execute on function public.get_my_org_ids() to authenticated;
+grant execute on function public.is_org_admin(uuid) to authenticated;
+grant execute on function public.can_manage_site(uuid) to authenticated;
+
+-- ─── STEP 3: Update RLS policies for viewer role ─────────────────────────────
 
 -- Drop existing policies
 drop policy if exists "org_members_select" on public.org_members;
@@ -32,188 +89,83 @@ drop policy if exists "site_visits_insert" on public.site_visits;
 drop policy if exists "site_visits_update" on public.site_visits;
 drop policy if exists "site_visits_delete" on public.site_visits;
 
--- Recreate org_members policies
--- All authenticated users can view members of their own org
+-- Recreate org_members policies using helper functions
 create policy "org_members_select" on public.org_members
-  for select using (
-    org_id in (
-      select org_id from public.org_members 
-      where user_id = auth.uid()
-    )
-  );
+  for select using (org_id in (select public.get_my_org_ids()));
 
--- Only admins can add new members
 create policy "org_members_insert" on public.org_members
-  for insert with check (
-    exists (
-      select 1 from public.org_members
-      where org_id = org_members.org_id
-        and user_id = auth.uid()
-        and role = 'admin'
-    )
-  );
+  for insert with check (public.is_org_admin(org_id));
 
--- Only admins can update member roles
 create policy "org_members_update" on public.org_members
-  for update using (
-    exists (
-      select 1 from public.org_members m
-      where m.org_id = org_members.org_id
-        and m.user_id = auth.uid()
-        and m.role = 'admin'
-    )
-  );
+  for update using (public.is_org_admin(org_id));
 
--- Only admins can remove members
 create policy "org_members_delete" on public.org_members
-  for delete using (
-    exists (
-      select 1 from public.org_members m
-      where m.org_id = org_members.org_id
-        and m.user_id = auth.uid()
-        and m.role = 'admin'
-    )
-  );
+  for delete using (public.is_org_admin(org_id));
 
--- Recreate sites policies
--- All org members can view sites in their org
+-- Recreate sites policies using helper functions
 create policy "sites_select" on public.sites
-  for select using (
-    org_id in (
-      select org_id from public.org_members 
-      where user_id = auth.uid()
-    )
-  );
+  for select using (org_id in (select public.get_my_org_ids()));
 
--- Only admins can create sites
 create policy "sites_insert" on public.sites
-  for insert with check (
-    exists (
-      select 1 from public.org_members
-      where org_id = sites.org_id
-        and user_id = auth.uid()
-        and role = 'admin'
-    )
-  );
+  for insert with check (public.is_org_admin(org_id));
 
--- Admins can update any site, editors can update their assigned site
 create policy "sites_update" on public.sites
-  for update using (
-    exists (
-      select 1 from public.org_members
-      where org_id = sites.org_id
-        and user_id = auth.uid()
-        and (
-          role = 'admin'
-          or (role = 'editor' and site_id = sites.id)
-        )
-    )
-  );
+  for update using (public.can_manage_site(id));
 
--- Only admins can delete sites
 create policy "sites_delete" on public.sites
-  for delete using (
-    exists (
-      select 1 from public.org_members
-      where org_id = sites.org_id
-        and user_id = auth.uid()
-        and role = 'admin'
-    )
-  );
+  for delete using (public.is_org_admin(org_id));
 
--- Recreate site_visits policies
--- All org members can view visits for sites in their org
+-- Helper to get sites user can view
+create or replace function public.get_my_site_ids()
+returns setof uuid
+language plpgsql
+security definer
+set search_path = public, auth, extensions
+as $$
+begin
+  return query
+    select s.id from public.sites s
+    inner join public.org_members m on s.org_id = m.org_id
+    where m.user_id = auth.uid();
+end;
+$$;
+
+grant execute on function public.get_my_site_ids() to authenticated;
+
+-- Recreate site_visits policies using helper functions
 create policy "site_visits_select" on public.site_visits
-  for select using (
-    site_id in (
-      select s.id from public.sites s
-      inner join public.org_members m on s.org_id = m.org_id
-      where m.user_id = auth.uid()
-    )
-  );
+  for select using (site_id in (select public.get_my_site_ids()));
 
--- Admins and editors can add visits to sites in their org
--- Editors can only add to their assigned site
 create policy "site_visits_insert" on public.site_visits
-  for insert with check (
-    exists (
-      select 1 from public.sites s
-      inner join public.org_members m on s.org_id = m.org_id
-      where s.id = site_visits.site_id
-        and m.user_id = auth.uid()
-        and (
-          m.role = 'admin'
-          or (m.role = 'editor' and m.site_id = s.id)
-        )
-    )
-  );
+  for insert with check (public.can_manage_site(site_id));
 
--- Admins and editors can update visits
--- Editors can only update visits for their assigned site
 create policy "site_visits_update" on public.site_visits
-  for update using (
-    exists (
-      select 1 from public.sites s
-      inner join public.org_members m on s.org_id = m.org_id
-      where s.id = site_visits.site_id
-        and m.user_id = auth.uid()
-        and (
-          m.role = 'admin'
-          or (m.role = 'editor' and m.site_id = s.id)
-        )
-    )
-  );
+  for update using (public.can_manage_site(site_id));
 
--- Only admins can delete visits
 create policy "site_visits_delete" on public.site_visits
   for delete using (
-    exists (
-      select 1 from public.sites s
-      inner join public.org_members m on s.org_id = m.org_id
-      where s.id = site_visits.site_id
-        and m.user_id = auth.uid()
-        and m.role = 'admin'
+    site_id in (
+      select s.id from public.sites s
+      where public.is_org_admin(s.org_id)
     )
   );
 
--- ─── STEP 3: Update organisations policies ───────────────────────────────────
+-- ─── STEP 4: Update organisations policies ───────────────────────────────────
 
 drop policy if exists "organisations_select" on public.organisations;
 drop policy if exists "organisations_insert" on public.organisations;
 drop policy if exists "organisations_update" on public.organisations;
 drop policy if exists "organisations_delete" on public.organisations;
 
--- All org members can view their org
+-- Recreate organisations policies using helper functions
 create policy "organisations_select" on public.organisations
-  for select using (
-    id in (
-      select org_id from public.org_members 
-      where user_id = auth.uid()
-    )
-  );
+  for select using (id in (select public.get_my_org_ids()));
 
--- Any authenticated user can create an org (they become admin)
 create policy "organisations_insert" on public.organisations
   for insert with check (auth.uid() is not null);
 
--- Only admins can update org details
 create policy "organisations_update" on public.organisations
-  for update using (
-    exists (
-      select 1 from public.org_members
-      where org_id = organisations.id
-        and user_id = auth.uid()
-        and role = 'admin'
-    )
-  );
+  for update using (public.is_org_admin(id));
 
--- Only admins can delete org
 create policy "organisations_delete" on public.organisations
-  for delete using (
-    exists (
-      select 1 from public.org_members
-      where org_id = organisations.id
-        and user_id = auth.uid()
-        and role = 'admin'
-    )
-  );
+  for delete using (public.is_org_admin(id));
