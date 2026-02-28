@@ -71,7 +71,7 @@ function AuthScreen({ onAuth }: { onAuth: () => void }) {
       const { error } = await supabase.auth.signUp({ email, password });
       setLoading(false);
       if (error) { setError(error.message); return; }
-      
+
       setInfo("Check your email to confirm your account, then log in.");
       setMode("login");
     } else {
@@ -235,11 +235,10 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = t
               {sites.map((s) => (
                 <li key={s.id}>
                   <button onClick={() => { onSelect(s); setOpen(false); }}
-                    className={`w-full text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
-                      current?.id === s.id
-                        ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
-                        : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
-                    }`}>
+                    className={`w-full text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-colors ${current?.id === s.id
+                      ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
+                      : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
+                      }`}>
                     <span className="text-sm truncate">{s.name}</span>
                     {current?.id === s.id && <span className="text-xs text-yellow-700 shrink-0">Active</span>}
                   </button>
@@ -253,7 +252,7 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = t
   );
 }
 
-                
+
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
 function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
@@ -264,7 +263,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   const [activeSite, setActiveSite] = useState<Site | null>(null);
   const [orgSites, setOrgSites] = useState<Site[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-    const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -287,7 +286,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   }, [isAdmin, org.id]);
 
 
-  
+
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
@@ -414,7 +413,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   function getFilteredDataByRange() {
     const now = new Date();
     let rangeFiltered = filtered;
-    
+
     if (csvDateRange === "today") {
       const today = now.toISOString().slice(0, 10);
       rangeFiltered = filtered.filter((v) => v.signed_in_at.startsWith(today));
@@ -431,11 +430,11 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   function prepareExportData() {
     const rangeFiltered = getFilteredDataByRange();
     const headers = ["Full Name", "Mobile", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration (hours)"];
-    
+
     const rows = rangeFiltered.map((v) => {
       const signInDate = new Date(v.signed_in_at);
       const signOutDate = v.signed_out_at ? new Date(v.signed_out_at) : null;
-      
+
       let duration = "";
       if (signOutDate) {
         const hours = (signOutDate.getTime() - signInDate.getTime()) / (1000 * 60 * 60);
@@ -443,7 +442,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
       } else {
         duration = "On site";
       }
-      
+
       return [
         v.full_name,
         v.phone_number ?? "",
@@ -456,7 +455,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
         duration
       ];
     });
-    
+
     return { headers, rows, count: rangeFiltered.length };
   }
 
@@ -477,7 +476,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   function exportXLSX() {
     const { headers, rows } = prepareExportData();
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    
+
     // Set column widths
     worksheet['!cols'] = [
       { wch: 20 }, // Full Name
@@ -490,7 +489,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
       { wch: 15 }, // Sign-Out Time
       { wch: 18 }  // Duration
     ];
-    
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Site Visits");
     const rangeName = csvDateRange === "all" ? "all" : csvDateRange;
@@ -500,18 +499,18 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   function exportPDF() {
     const { headers, rows, count } = prepareExportData();
     const doc = new jsPDF();
-    
+
     // Add title
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text(`Site Visits Report - ${activeSite?.name || 'Export'}`, 14, 15);
-    
+
     // Add metadata
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     const rangeName = csvDateRange === "all" ? "All Time" : csvDateRange === "today" ? "Today" : csvDateRange === "week" ? "Last 7 Days" : "Last 30 Days";
     doc.text(`Range: ${rangeName} | Total Records: ${count} | Generated: ${new Date().toLocaleDateString()}`, 14, 22);
-    
+
     // Add table
     autoTable(doc, {
       head: [headers],
@@ -531,7 +530,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
         7: { cellWidth: 20 }
       }
     });
-    
+
     const fileName = `site-visits-${activeSite?.slug || "export"}-${csvDateRange}-${new Date().toISOString().slice(0, 10)}.pdf`;
     doc.save(fileName);
   }
@@ -659,9 +658,9 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
         {/* Organization management (admin only) */}
         {isAdmin && (
-          <UnifiedOrgManagementPanel 
-            org={org} 
-            member={member} 
+          <UnifiedOrgManagementPanel
+            org={org}
+            member={member}
             orgSites={orgSites}
             onOrgDeleted={onOrgDeleted}
             onOrgUpdated={onOrgUpdate}
@@ -759,73 +758,73 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
         {/* Add Visit panel (hidden for viewers) */}
         {!isViewer && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <button
-            onClick={() => { setShowAddForm((v) => !v); setAddError(null); }}
-            className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <button
+              onClick={() => { setShowAddForm((v) => !v); setAddError(null); }}
+              className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <span className="font-bold text-gray-900 text-sm">Add Visit Manually</span>
               </div>
-              <span className="font-bold text-gray-900 text-sm">Add Visit Manually</span>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${showAddForm ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${showAddForm ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
-          {showAddForm && (
-            <form onSubmit={handleAddVisit} className="px-6 pb-6 pt-2 border-t border-gray-100 space-y-4">
-              {addError && (
-                <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{addError}</div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_name">Full Name *</label>
-                  <input id="add_name" type="text" value={addName} onChange={(e) => setAddName(e.target.value)}
-                    placeholder="e.g. Jane Smith"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+            {showAddForm && (
+              <form onSubmit={handleAddVisit} className="px-6 pb-6 pt-2 border-t border-gray-100 space-y-4">
+                {addError && (
+                  <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{addError}</div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_name">Full Name *</label>
+                    <input id="add_name" type="text" value={addName} onChange={(e) => setAddName(e.target.value)}
+                      placeholder="e.g. Jane Smith"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_company">Company Name *</label>
+                    <input id="add_company" type="text" value={addCompany} onChange={(e) => setAddCompany(e.target.value)}
+                      placeholder="e.g. Acme Constructions"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_type">Visitor Type *</label>
+                    <select id="add_type" value={addType} onChange={(e) => setAddType(e.target.value as VisitorType)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
+                      {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_signed_in">Signed In (optional — defaults to now)</label>
+                    <input id="add_signed_in" type="datetime-local" value={addSignedIn} onChange={(e) => setAddSignedIn(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_signed_out">Signed Out (optional — leave blank if still on site)</label>
+                    <input id="add_signed_out" type="datetime-local" value={addSignedOut} onChange={(e) => setAddSignedOut(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_company">Company Name *</label>
-                  <input id="add_company" type="text" value={addCompany} onChange={(e) => setAddCompany(e.target.value)}
-                    placeholder="e.g. Acme Constructions"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                <div className="flex gap-3 pt-1">
+                  <button type="submit" disabled={adding}
+                    className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
+                    {adding ? "Adding…" : "Add Visit"}
+                  </button>
+                  <button type="button" onClick={() => { setShowAddForm(false); setAddError(null); }}
+                    className="text-sm font-semibold text-gray-500 hover:text-gray-800 px-3 py-2.5">
+                    Cancel
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_type">Visitor Type *</label>
-                  <select id="add_type" value={addType} onChange={(e) => setAddType(e.target.value as VisitorType)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                    {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_signed_in">Signed In (optional — defaults to now)</label>
-                  <input id="add_signed_in" type="datetime-local" value={addSignedIn} onChange={(e) => setAddSignedIn(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_signed_out">Signed Out (optional — leave blank if still on site)</label>
-                  <input id="add_signed_out" type="datetime-local" value={addSignedOut} onChange={(e) => setAddSignedOut(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-                </div>
-              </div>
-              <div className="flex gap-3 pt-1">
-                <button type="submit" disabled={adding}
-                  className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
-                  {adding ? "Adding…" : "Add Visit"}
-                </button>
-                <button type="button" onClick={() => { setShowAddForm(false); setAddError(null); }}
-                  className="text-sm font-semibold text-gray-500 hover:text-gray-800 px-3 py-2.5">
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+              </form>
+            )}
+          </div>
         )}
 
         {/* Stats row */}
@@ -1034,50 +1033,50 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                           )}
                         </td>
                         {!isViewer && (
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => startEdit(v)}
-                              className="text-blue-500 hover:text-blue-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-                            >
-                              Edit
-                            </button>
-                            {v.signed_out_at === null && (
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
                               <button
-                                onClick={() => handleSignOut(v.id)}
-                                disabled={signingOut === v.id}
-                                className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                                onClick={() => startEdit(v)}
+                                className="text-blue-500 hover:text-blue-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
                               >
-                                {signingOut === v.id ? "…" : "Sign Out"}
+                                Edit
                               </button>
-                            )}
-                            {confirmDelete === v.id ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-red-600 font-semibold">Delete?</span>
+                              {v.signed_out_at === null && (
                                 <button
-                                  onClick={() => handleDelete(v.id)}
-                                  disabled={deleting === v.id}
-                                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                                  onClick={() => handleSignOut(v.id)}
+                                  disabled={signingOut === v.id}
+                                  className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
                                 >
-                                  {deleting === v.id ? "…" : "Yes"}
+                                  {signingOut === v.id ? "…" : "Sign Out"}
                                 </button>
+                              )}
+                              {confirmDelete === v.id ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs text-red-600 font-semibold">Delete?</span>
+                                  <button
+                                    onClick={() => handleDelete(v.id)}
+                                    disabled={deleting === v.id}
+                                    className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                                  >
+                                    {deleting === v.id ? "…" : "Yes"}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDelete(null)}
+                                    className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
                                 <button
-                                  onClick={() => setConfirmDelete(null)}
-                                  className="text-xs font-semibold text-gray-500 hover:text-gray-800 px-2"
+                                  onClick={() => setConfirmDelete(v.id)}
+                                  className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
                                 >
-                                  No
+                                  Delete
                                 </button>
-                              </div>
-                            ) : (
-                              <button
-                                onClick={() => setConfirmDelete(v.id)}
-                                className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                              >
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                              )}
+                            </div>
+                          </td>
                         )}
                       </tr>
                     ))}
@@ -1131,42 +1130,42 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                         </span>
                       </div>
                       {!isViewer && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => startEdit(v)}
-                          className="text-blue-500 hover:text-blue-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        {v.signed_out_at === null && (
+                        <div className="flex items-center gap-1.5 shrink-0">
                           <button
-                            onClick={() => handleSignOut(v.id)}
-                            disabled={signingOut === v.id}
-                            className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                            onClick={() => startEdit(v)}
+                            className="text-blue-500 hover:text-blue-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
                           >
-                            {signingOut === v.id ? "…" : "Sign Out"}
+                            Edit
                           </button>
-                        )}
-                        {confirmDelete === v.id ? (
-                          <div className="flex items-center gap-1">
+                          {v.signed_out_at === null && (
                             <button
-                              onClick={() => handleDelete(v.id)}
-                              disabled={deleting === v.id}
-                              className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                              onClick={() => handleSignOut(v.id)}
+                              disabled={signingOut === v.id}
+                              className="bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
                             >
-                              {deleting === v.id ? "…" : "Del?"}
+                              {signingOut === v.id ? "…" : "Sign Out"}
                             </button>
-                            <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 px-1.5 py-1.5">✕</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDelete(v.id)}
-                            className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
+                          )}
+                          {confirmDelete === v.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handleDelete(v.id)}
+                                disabled={deleting === v.id}
+                                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-colors"
+                              >
+                                {deleting === v.id ? "…" : "Del?"}
+                              </button>
+                              <button onClick={() => setConfirmDelete(null)} className="text-xs text-gray-500 px-1.5 py-1.5">✕</button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setConfirmDelete(v.id)}
+                              className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                     {v.phone_number && <p className="text-xs text-gray-500">{v.phone_number}</p>}
@@ -1239,6 +1238,7 @@ export default function AdminPage() {
   const [org, setOrg] = useState<Organisation | null>(null);
   const [member, setMember] = useState<OrgMember | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
+  const [orgFetched, setOrgFetched] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1246,17 +1246,20 @@ export default function AdminPage() {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
+      } else {
+        setOrgFetched(true);
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
-      } else { 
-        setUserId(null); 
-        setOrg(null); 
-        setMember(null); 
-        setDbError(null); 
+      } else {
+        setUserId(null);
+        setOrg(null);
+        setMember(null);
+        setDbError(null);
+        setOrgFetched(true);
       }
     });
     return () => subscription.unsubscribe();
@@ -1272,6 +1275,7 @@ export default function AdminPage() {
         if (memErr) {
           setDbError(`org_members error ${memErr.code}: ${memErr.message}`);
           setLoadingOrg(false);
+          setOrgFetched(true);
           return;
         }
         if (mem) {
@@ -1281,19 +1285,21 @@ export default function AdminPage() {
           if (orgErr) {
             setDbError(`organisations error ${orgErr.code}: ${orgErr.message}`);
             setLoadingOrg(false);
+            setOrgFetched(true);
             return;
           }
           if (orgData) setOrg(orgData as Organisation);
         }
         setLoadingOrg(false);
+        setOrgFetched(true);
       });
   }, [userId]);
 
   useEffect(() => {
-    if (authed && !loadingOrg && !dbError && (!org || !member)) {
+    if (authed && orgFetched && !loadingOrg && !dbError && (!org || !member)) {
       router.replace("/admin/orgs");
     }
-  }, [authed, loadingOrg, dbError, org, member, router]);
+  }, [authed, orgFetched, loadingOrg, dbError, org, member, router]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -1304,7 +1310,7 @@ export default function AdminPage() {
   if (!authed) return <AuthScreen onAuth={() => setAuthed(true)} />;
 
   // Loading org membership
-  if (loadingOrg) return (
+  if (loadingOrg || !orgFetched) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <p className="text-gray-400 text-sm">Loading…</p>
     </div>

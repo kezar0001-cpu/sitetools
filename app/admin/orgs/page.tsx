@@ -16,6 +16,7 @@ export default function OrgsPage() {
   const [org, setOrg] = useState<Organisation | null>(null);
   const [member, setMember] = useState<OrgMember | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
+  const [orgFetched, setOrgFetched] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
   async function handleLogout() {
@@ -28,6 +29,8 @@ export default function OrgsPage() {
       if (session) {
         setUserId(session.user.id);
         setUserEmail(session.user.email || "");
+      } else {
+        setOrgFetched(true);
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -35,12 +38,13 @@ export default function OrgsPage() {
       if (session) {
         setUserId(session.user.id);
         setUserEmail(session.user.email || "");
-      } else { 
-        setUserId(null); 
+      } else {
+        setUserId(null);
         setUserEmail("");
-        setOrg(null); 
-        setMember(null); 
-        setDbError(null); 
+        setOrg(null);
+        setMember(null);
+        setDbError(null);
+        setOrgFetched(true);
       }
     });
     return () => subscription.unsubscribe();
@@ -56,6 +60,7 @@ export default function OrgsPage() {
         if (memErr) {
           setDbError(`org_members error ${memErr.code}: ${memErr.message}`);
           setLoadingOrg(false);
+          setOrgFetched(true);
           return;
         }
         if (mem) {
@@ -65,20 +70,22 @@ export default function OrgsPage() {
           if (orgErr) {
             setDbError(`organisations error ${orgErr.code}: ${orgErr.message}`);
             setLoadingOrg(false);
+            setOrgFetched(true);
             return;
           }
           if (orgData) setOrg(orgData as Organisation);
         }
         setLoadingOrg(false);
+        setOrgFetched(true);
       });
   }, [userId]);
 
   // Redirect to main admin if user has an org
   useEffect(() => {
-    if (authed && !loadingOrg && !dbError && org && member) {
+    if (authed && orgFetched && !loadingOrg && !dbError && org && member) {
       router.replace("/admin");
     }
-  }, [authed, loadingOrg, dbError, org, member, router]);
+  }, [authed, orgFetched, loadingOrg, dbError, org, member, router]);
 
   if (authed === null) return null;
 
@@ -125,7 +132,7 @@ export default function OrgsPage() {
   }
 
   // Loading org membership
-  if (loadingOrg) return (
+  if (loadingOrg || !orgFetched) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <p className="text-gray-400 text-sm">Loading…</p>
     </div>
@@ -198,7 +205,7 @@ export default function OrgsPage() {
           </div>
         </div>
       </header>
-      
+
       {/* Main Content */}
       <main className="flex-1">
         <NoOrgDashboard
