@@ -29,12 +29,28 @@ export function PendingInvitationsView({ userEmail }: { userEmail: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const fetchInvitations = useCallback(async () => {
-    const { data } = await supabase
+    if (!userEmail) {
+      setInvitations([]);
+      setError("Sign in to view invitations.");
+      return;
+    }
+
+    const { data, error: fetchError } = await supabase
       .from("org_invitations")
       .select("*, organisations(*)")
       .eq("email", userEmail)
       .eq("status", "pending")
       .gt("expires_at", new Date().toISOString());
+
+    if (fetchError) {
+      console.warn("Failed to fetch invitations", fetchError);
+      const permissionDenied = fetchError.message?.toLowerCase().includes("permission");
+      setError(permissionDenied
+        ? "You can only view invitations sent to your signed-in email address."
+        : fetchError.message);
+      setInvitations([]);
+      return;
+    }
 
     if (data) {
       const invitesWithOrgs = data.map((inv: OrgInvitation & { organisations?: Organisation }) => ({
@@ -42,6 +58,7 @@ export function PendingInvitationsView({ userEmail }: { userEmail: string }) {
         org: inv.organisations,
       }));
       setInvitations(invitesWithOrgs);
+      setError(null);
     }
   }, [userEmail]);
 
@@ -90,8 +107,6 @@ export function PendingInvitationsView({ userEmail }: { userEmail: string }) {
     fetchInvitations();
   }
 
-  if (invitations.length === 0) return null;
-
   return (
     <div className="bg-blue-50 border-2 border-blue-400 rounded-2xl p-6 space-y-4">
       <div className="flex items-center gap-2">
@@ -107,39 +122,43 @@ export function PendingInvitationsView({ userEmail }: { userEmail: string }) {
         </div>
       )}
 
-      <ul className="space-y-3">
-        {invitations.map((inv) => (
-          <li key={inv.id} className="bg-white rounded-xl border border-blue-200 p-4 space-y-3">
-            <div>
-              <h4 className="text-base font-bold text-gray-900">{inv.org?.name || "Unknown Organization"}</h4>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                  {inv.role}
-                </span>
-                <span className="text-xs text-gray-500">
-                  Expires {new Date(inv.expires_at).toLocaleDateString()}
-                </span>
+      {invitations.length === 0 && !error ? (
+        <p className="text-sm text-blue-900">No pending invitations for {userEmail || "your current account"}.</p>
+      ) : (
+        <ul className="space-y-3">
+          {invitations.map((inv) => (
+            <li key={inv.id} className="bg-white rounded-xl border border-blue-200 p-4 space-y-3">
+              <div>
+                <h4 className="text-base font-bold text-gray-900">{inv.org?.name || "Unknown Organization"}</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                    {inv.role}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    Expires {new Date(inv.expires_at).toLocaleDateString()}
+                  </span>
+                </div>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleAccept(inv.id)}
-                disabled={accepting === inv.id || declining === inv.id}
-                className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors"
-              >
-                {accepting === inv.id ? "Accepting…" : "Accept"}
-              </button>
-              <button
-                onClick={() => handleDecline(inv.id)}
-                disabled={accepting === inv.id || declining === inv.id}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 disabled:opacity-60 text-gray-700 font-bold px-4 py-2 rounded-lg text-sm transition-colors"
-              >
-                {declining === inv.id ? "Declining…" : "Decline"}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleAccept(inv.id)}
+                  disabled={accepting === inv.id || declining === inv.id}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                >
+                  {accepting === inv.id ? "Accepting…" : "Accept"}
+                </button>
+                <button
+                  onClick={() => handleDecline(inv.id)}
+                  disabled={accepting === inv.id || declining === inv.id}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 disabled:opacity-60 text-gray-700 font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                >
+                  {declining === inv.id ? "Declining…" : "Decline"}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

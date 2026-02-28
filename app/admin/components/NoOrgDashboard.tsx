@@ -131,7 +131,11 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
     setRequesting(false);
     
     if (error) {
-      setError(error.message);
+      if (error.code === "23505" || error.code === "409" || error.message?.toLowerCase().includes("duplicate")) {
+        setError("You already have a pending request for this organisation. Please wait for an admin to respond or withdraw the existing request first.");
+      } else {
+        setError(error.message);
+      }
       return;
     }
     
