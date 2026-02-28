@@ -194,29 +194,41 @@ export function UnifiedOrgManagementPanel({
     const { data } = await supabase.from("org_members").select("*").eq("org_id", org.id);
     if (!data) return;
     
-    // Fetch user emails for each member
+    // Fetch user emails for each member using auth.users
     const membersWithEmails = await Promise.all(
       (data as OrgMember[]).map(async (member) => {
         try {
+          // Try to get user from auth.users via RPC
           const { data: userData, error: userError } = await supabase.rpc('get_user_by_id', {
             p_user_id: member.user_id
           });
           
-          if (userError || !userData || userData.length === 0) {
+          if (!userError && userData && userData.length > 0) {
             return {
               ...member,
-              email: member.user_id // Fallback to user_id if email lookup fails
+              email: userData[0]?.email || userData[0]?.user_metadata?.email || member.user_id
             };
           }
           
+          // Fallback: try to fetch from auth.users directly (if permissions allow)
+          const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(member.user_id);
+          
+          if (!authError && user?.email) {
+            return {
+              ...member,
+              email: user.email
+            };
+          }
+          
+          // Last resort: display user_id with a note
           return {
             ...member,
-            email: userData[0]?.email || member.user_id
+            email: `${member.user_id.substring(0, 8)}... (ID)`
           };
         } catch {
           return {
             ...member,
-            email: member.user_id // Fallback to user_id if error occurs
+            email: `${member.user_id.substring(0, 8)}... (ID)`
           };
         }
       })
