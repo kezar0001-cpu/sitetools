@@ -250,212 +250,7 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = t
   );
 }
 
-// ─── Members Panel (admin only) ─────────────────────────────────────────────
-
-function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSites: Site[]; currentUserId: string }) {
-  const [members, setMembers] = useState<OrgMember[]>([]);
-  const [editorSiteIds, setEditorSiteIds] = useState<Record<string, string[]>>({});
-  const [open, setOpen] = useState(false);
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"editor" | "viewer">("editor");
-  const [newSiteIds, setNewSiteIds] = useState<string[]>([]);
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
-
-  const fetchMembers = useCallback(async () => {
-    const { data } = await supabase.from("org_members").select("*").eq("org_id", orgId);
-    if (!data) return;
-    setMembers(data as OrgMember[]);
-    const editorIds = (data as OrgMember[]).filter((m) => m.role === "editor").map((m) => m.id);
-    if (editorIds.length === 0) {
-      setEditorSiteIds({});
-      return;
-    }
-    const { data: sitesData } = await supabase
-      .from("org_member_sites")
-      .select("org_member_id, site_id")
-      .in("org_member_id", editorIds);
-    const map: Record<string, string[]> = {};
-    editorIds.forEach((id) => { map[id] = []; });
-    (sitesData || []).forEach((row: { org_member_id: string; site_id: string }) => {
-      if (!map[row.org_member_id]) map[row.org_member_id] = [];
-      map[row.org_member_id].push(row.site_id);
-    });
-    setEditorSiteIds(map);
-  }, [orgId]);
-
-  useEffect(() => { fetchMembers(); }, [fetchMembers]);
-
-  function toggleNewSite(siteId: string) {
-    setNewSiteIds((prev) =>
-      prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId]
-    );
-  }
-
-  async function handleAddMember(e: React.FormEvent) {
-    e.preventDefault();
-    setAddError(null);
-    if (!newEmail.trim() || !newPassword) {
-      setAddError("Email and password are required."); return;
-    }
-    if (newRole === "editor" && newSiteIds.length === 0) {
-      setAddError("Editors must be assigned to at least one site."); return;
-    }
-    setAdding(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch("/api/create-editor", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify({
-        email: newEmail.trim(),
-        password: newPassword,
-        org_id: orgId,
-        role: newRole,
-        site_ids: newRole === "editor" ? newSiteIds : [],
-      }),
-    });
-    const json = await res.json();
-    setAdding(false);
-    if (!res.ok) { setAddError(json.error ?? "Failed to create user."); return; }
-    setNewEmail(""); setNewPassword(""); setNewRole("editor"); setNewSiteIds([]);
-    fetchMembers();
-  }
-
-  async function handleRemove(memberId: string, userId: string) {
-    if (userId === currentUserId) return;
-    setRemovingId(memberId);
-    const { error } = await supabase.from("org_members").delete().eq("id", memberId);
-    setRemovingId(null);
-    if (error) { setAddError("Failed to remove member."); return; }
-    fetchMembers();
-  }
-
-  async function handleRoleChange(memberId: string, newRole: "admin" | "editor" | "viewer") {
-    setUpdatingRoleId(memberId);
-    const { error } = await supabase.from("org_members").update({ role: newRole }).eq("id", memberId);
-    setUpdatingRoleId(null);
-    if (error) { setAddError("Failed to update role."); return; }
-    fetchMembers();
-  }
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      <button onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors">
-        <div className="flex items-center gap-2">
-          <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </div>
-          <span className="font-bold text-gray-900 text-sm">Team Members</span>
-          <span className="text-xs text-gray-400 font-medium">({members.length})</span>
-        </div>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && (
-        <div className="border-t border-gray-100 px-6 pb-6 pt-4 space-y-5">
-          {members.length > 0 && (
-            <ul className="space-y-2">
-              {members.map((m) => (
-                <li key={m.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {m.user_id === currentUserId ? (
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${m.role === "admin" ? "bg-yellow-100 text-yellow-800" : m.role === "editor" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}`}>{m.role}</span>
-                      ) : (
-                        <select
-                          value={m.role}
-                          onChange={(e) => handleRoleChange(m.id, e.target.value as "admin" | "editor" | "viewer")}
-                          disabled={updatingRoleId === m.id}
-                          className="text-xs font-bold px-2 py-0.5 rounded-full border-0 focus:ring-2 focus:ring-yellow-400 disabled:opacity-50 bg-gray-100"
-                        >
-                          <option value="admin">admin</option>
-                          <option value="editor">editor</option>
-                          <option value="viewer">viewer</option>
-                        </select>
-                      )}
-                      <span className="text-xs text-gray-500 font-mono truncate">{m.user_id === currentUserId ? "(you)" : m.user_id.slice(0, 8) + "…"}</span>
-                    </div>
-                    {m.role === "editor" && (() => {
-                      const ids = editorSiteIds[m.id]?.length ? editorSiteIds[m.id] : (m.site_id ? [m.site_id] : []);
-                      const names = ids.map((sid) => orgSites.find((s) => s.id === sid)?.name ?? sid.slice(0, 8));
-                      return names.length ? <p className="text-xs text-gray-500 mt-0.5">Sites: {names.join(", ")}</p> : null;
-                    })()}
-                  </div>
-                  {m.user_id !== currentUserId && (
-                    <button onClick={() => handleRemove(m.id, m.user_id)} disabled={removingId === m.id}
-                      className="text-red-500 hover:text-red-700 text-xs font-bold px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0 disabled:opacity-50">
-                      {removingId === m.id ? "…" : "Remove"}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="border-t border-gray-100 pt-4">
-            <p className="text-xs font-bold text-gray-700 mb-3">Add Team Member</p>
-            {addError && <div className="mb-3 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{addError}</div>}
-            <form onSubmit={handleAddMember} className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
-                  <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@example.com"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Temporary Password</label>
-                  <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 6 characters"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Role</label>
-                  <select value={newRole} onChange={(e) => setNewRole(e.target.value as "editor" | "viewer")}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                    <option value="editor">Editor (can manage assigned sites)</option>
-                    <option value="viewer">Viewer (read-only access)</option>
-                  </select>
-                </div>
-                {newRole === "editor" && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to sites (at least one)</label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {orgSites.map((s) => (
-                        <label key={s.id} className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={newSiteIds.includes(s.id)}
-                            onChange={() => toggleNewSite(s.id)}
-                            className="w-4 h-4 text-yellow-400 border-gray-300 rounded focus:ring-yellow-400"
-                          />
-                          <span className="text-sm text-gray-700">{s.name}</span>
-                        </label>
-                      ))}
-                      {orgSites.length === 0 && <span className="text-xs text-gray-500">No sites yet. Create one above.</span>}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <button type="submit" disabled={adding}
-                className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors">
-                {adding ? "Creating…" : "Create Account"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
+                
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
 function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
@@ -466,13 +261,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   const [activeSite, setActiveSite] = useState<Site | null>(null);
   const [orgSites, setOrgSites] = useState<Site[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [orgPanelOpen, setOrgPanelOpen] = useState(false);
-  const [orgName, setOrgName] = useState(org.name);
-  const [orgDescription, setOrgDescription] = useState(org.description ?? "");
-  const [orgIsPublic, setOrgIsPublic] = useState(!!org.is_public);
-  const [orgSaving, setOrgSaving] = useState(false);
-  const [orgError, setOrgError] = useState<string | null>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
+    const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -495,31 +284,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
   }, [isAdmin, org.id]);
 
 
-  useEffect(() => {
-    setOrgName(org.name);
-    setOrgDescription(org.description ?? "");
-    setOrgIsPublic(!!org.is_public);
-  }, [org.id, org.name, org.description, org.is_public]);
-
-  async function saveOrg(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isAdmin || !onOrgUpdate) return;
-    setOrgError(null);
-    setOrgSaving(true);
-    const { data, error } = await supabase
-      .from("organisations")
-      .update({ name: orgName.trim(), description: orgDescription.trim() || null, is_public: orgIsPublic })
-      .eq("id", org.id)
-      .select("*")
-      .single();
-    setOrgSaving(false);
-    if (error || !data) {
-      setOrgError(error?.message ?? "Could not save.");
-      return;
-    }
-    onOrgUpdate(data as Organisation);
-  }
-
+  
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
@@ -880,79 +645,13 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
         {/* Organization management (admin only) */}
         {isAdmin && onOrgUpdate && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <button
-              onClick={() => setOrgPanelOpen((v) => !v)}
-              className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <span className="font-bold text-gray-900 text-sm">Organization</span>
-                <span className="text-xs text-gray-500 font-medium">Name, description, visibility</span>
-              </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${orgPanelOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {orgPanelOpen && (
-              <div className="border-t border-gray-100 px-6 pb-6 pt-4 space-y-4">
-                {orgError && (
-                  <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{orgError}</div>
-                )}
-                <form onSubmit={saveOrg} className="space-y-4 max-w-xl">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="org_edit_name">Organization name</label>
-                    <input
-                      id="org_edit_name"
-                      type="text"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      required
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="org_edit_desc">Description (optional)</label>
-                    <textarea
-                      id="org_edit_desc"
-                      value={orgDescription}
-                      onChange={(e) => setOrgDescription(e.target.value)}
-                      rows={3}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="org_edit_public"
-                      type="checkbox"
-                      checked={orgIsPublic}
-                      onChange={(e) => setOrgIsPublic(e.target.checked)}
-                      className="w-4 h-4 text-yellow-400 border-gray-300 rounded focus:ring-yellow-400"
-                    />
-                    <label htmlFor="org_edit_public" className="text-sm text-gray-700">
-                      <span className="font-semibold">Discoverable</span> — allow users to find and request to join this organization
-                    </label>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={orgSaving || !orgName.trim()}
-                    className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
-                  >
-                    {orgSaving ? "Saving…" : "Save changes"}
-                  </button>
-                </form>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Members panel (admin only) */}
-        {isAdmin && (
-          <MembersPanel orgId={org.id} orgSites={orgSites} currentUserId={member.user_id} />
+          <UnifiedOrgManagementPanel 
+            org={org} 
+            member={member} 
+            orgSites={orgSites}
+            onOrgDeleted={onOrgDeleted}
+            onOrgUpdated={onOrgUpdate}
+          />
         )}
 
         {/* QR Code panel */}
@@ -1043,17 +742,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
             </div>
           )}
         </div>
-
-        {/* Organization Management - Admin Only */}
-        {isAdmin && (
-          <UnifiedOrgManagementPanel 
-            org={org} 
-            member={member} 
-            orgSites={orgSites}
-            onOrgDeleted={onOrgDeleted}
-            onOrgUpdated={onOrgUpdate}
-          />
-        )}
 
         {/* Add Visit panel (hidden for viewers) */}
         {!isViewer && (
