@@ -11,6 +11,7 @@ interface Site { id: string; name: string; slug: string; logo_url?: string | nul
 interface SiteVisit {
   id: string;
   full_name: string;
+  phone_number?: string;
   company_name: string;
   visitor_type: VisitorType;
   signed_in_at: string;
@@ -236,6 +237,7 @@ function NoSiteScreen() {
 
 function SiteSignIn({ site }: { site: Site }) {
   const [fullName, setFullName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [visitorType, setVisitorType] = useState<VisitorType>("Worker");
   const [submitting, setSubmitting] = useState(false);
@@ -308,7 +310,16 @@ function SiteSignIn({ site }: { site: Site }) {
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    if (!fullName.trim() || !companyName.trim()) { setFormError("Please fill in all fields."); return; }
+    if (!fullName.trim() || !phoneNumber.trim() || !companyName.trim()) {
+      setFormError("Please fill in all fields.");
+      return;
+    }
+    // Basic phone validation (lenient, supports +, spaces, hyphens)
+    const normalizedPhone = phoneNumber.replace(/[\s()-]/g, "");
+    if (!/^\+?\d{8,15}$/.test(normalizedPhone)) {
+      setFormError("Please enter a valid mobile number.");
+      return;
+    }
     // Open signature modal instead of signing in directly
     setShowSignModal(true);
   }
@@ -330,6 +341,7 @@ function SiteSignIn({ site }: { site: Site }) {
     const insertPayload: Record<string, unknown> = {
       id: visitId,
       full_name: fullName.trim(),
+      phone_number: phoneNumber.trim(),
       company_name: companyName.trim(),
       visitor_type: visitorType,
       site_id: site.id,
@@ -347,6 +359,7 @@ function SiteSignIn({ site }: { site: Site }) {
     const newVisit: SiteVisit = {
       id: visitId,
       full_name: fullName.trim(),
+      phone_number: phoneNumber.trim(),
       company_name: companyName.trim(),
       visitor_type: visitorType,
       site_id: site.id,
@@ -359,7 +372,7 @@ function SiteSignIn({ site }: { site: Site }) {
     localStorage.setItem(`active_visit_${site.id}`, visitId);
     setShowSignModal(false);
     setSuccess(true);
-    setFullName(""); setCompanyName(""); setVisitorType("Worker");
+    setFullName(""); setPhoneNumber(""); setCompanyName(""); setVisitorType("Worker");
     setTimeout(() => setSuccess(false), 4000);
   }
 
@@ -451,21 +464,54 @@ function SiteSignIn({ site }: { site: Site }) {
             <form onSubmit={handleSignIn} className="space-y-5">
               <div>
                 <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">Full Name</label>
-                <input id="full_name" type="text" placeholder="e.g. Jane Smith" value={fullName}
-                  onChange={(e) => setFullName(e.target.value)} autoComplete="name"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                <input
+                  id="full_name"
+                  type="text"
+                  placeholder="e.g. Jane Smith"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="phone_number">Mobile Number</label>
+                <input
+                  id="phone_number"
+                  type="tel"
+                  placeholder="e.g. 0412 345 678"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  autoComplete="tel"
+                  inputMode="tel"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                />
               </div>
               <div>
                 <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">Company Name</label>
-                <input id="company_name" type="text" placeholder="e.g. Acme Constructions" value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                <input
+                  id="company_name"
+                  type="text"
+                  placeholder="e.g. Acme Constructions"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  autoComplete="organization"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                />
               </div>
               <div>
                 <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">Visitor Type</label>
-                <select id="visitor_type" value={visitorType} onChange={(e) => setVisitorType(e.target.value as VisitorType)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                  {VISITOR_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                <select
+                  id="visitor_type"
+                  value={visitorType}
+                  onChange={(e) => setVisitorType(e.target.value as VisitorType)}
+                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                >
+                  {VISITOR_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
                 </select>
               </div>
               <button type="submit" disabled={submitting}
