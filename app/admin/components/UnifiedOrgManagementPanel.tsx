@@ -517,39 +517,38 @@ export function UnifiedOrgManagementPanel({
           return;
         }
 
-        // Add user to organization
-        const { error: addError } = await supabase
+        // Add user to organization (and get inserted row id)
+        const { data: newMember, error: addError } = await supabase
           .from("org_members")
           .insert({
             org_id: org.id,
             user_id: foundUser.id,
             role: newMemberRole,
-            site_id: newMemberRole === "editor" && newMemberSiteIds.length > 0 ? newMemberSiteIds[0] : null
-          });
-        
-        if (addError) {
-          setMemberError("Failed to add user to organization.");
+            site_id: newMemberRole === "editor" && newMemberSiteIds.length > 0 ? newMemberSiteIds[0] : null,
+          })
+          .select("id")
+          .maybeSingle();
+
+        if (addError || !newMember) {
+          // Unique constraint (org_id, user_id) will raise an error if already a member.
+          setMemberError(addError?.message ?? "Failed to add user to organization.");
           return;
         }
-        
-        // Add site assignments for editors
+
+        // Add site assignments for editors (best-effort; keep org_members.site_id for compatibility)
         if (newMemberRole === "editor" && newMemberSiteIds.length > 0) {
-          const { data: newMember } = await supabase
-            .from("org_members")
-            .select("id")
-            .eq("org_id", org.id)
-            .eq("user_id", foundUser.id)
-            .single();
-            
-          if (newMember) {
-            await supabase
-              .from("org_member_sites")
-              .insert(
-                newMemberSiteIds.map(siteId => ({
-                  org_member_id: newMember.id,
-                  site_id: siteId
-                }))
-              );
+          const { error: sitesErr } = await supabase
+            .from("org_member_sites")
+            .insert(
+              newMemberSiteIds.map((siteId) => ({
+                org_member_id: newMember.id,
+                site_id: siteId,
+              }))
+            );
+
+          if (sitesErr) {
+            setMemberError(sitesErr.message ?? "Failed to assign sites to editor.");
+            return;
           }
         }
         

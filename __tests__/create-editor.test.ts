@@ -12,7 +12,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockGetUser = vi.fn();
 const mockSelectSingle = vi.fn();
 const mockCreateUser = vi.fn();
-const mockInsert = vi.fn();
+const mockMaybeSingle = vi.fn();
+const mockInsertMemberSites = vi.fn();
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
@@ -30,9 +31,16 @@ vi.mock("@supabase/supabase-js", () => ({
               }),
             }),
           }),
-          insert: () => ({ select: () => ({ single: mockInsert }) }),
+          insert: () => ({ select: () => ({ maybeSingle: mockMaybeSingle }) }),
         };
       }
+
+      if (table === "org_member_sites") {
+        return {
+          insert: mockInsertMemberSites,
+        };
+      }
+
       return {};
     },
   }),
@@ -98,7 +106,8 @@ describe("POST /api/create-editor", () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     mockSelectSingle.mockResolvedValue({ data: { role: "admin" }, error: null });
     mockCreateUser.mockResolvedValue({ data: { user: { id: "new-editor" } }, error: null });
-    mockInsert.mockResolvedValue({ error: null });
+    mockMaybeSingle.mockResolvedValue({ data: { id: "new-member" }, error: null });
+    mockInsertMemberSites.mockResolvedValue({ error: null });
 
     const res = await callRoute(
       { email: "editor@test.com", password: "123456", org_id: "org-1", site_id: "site-1" },
@@ -114,7 +123,8 @@ describe("POST /api/create-editor", () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "real-admin" } }, error: null });
     mockSelectSingle.mockResolvedValue({ data: { role: "admin" }, error: null });
     mockCreateUser.mockResolvedValue({ data: { user: { id: "new-editor" } }, error: null });
-    mockInsert.mockResolvedValue({ error: null });
+    mockMaybeSingle.mockResolvedValue({ data: { id: "new-member" }, error: null });
+    mockInsertMemberSites.mockResolvedValue({ error: null });
 
     const res = await callRoute(
       {

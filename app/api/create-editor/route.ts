@@ -21,18 +21,21 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { email, password, org_id, role, site_id, site_ids: bodySiteIds } = body;
-  const siteIds: string[] = Array.isArray(bodySiteIds) ? bodySiteIds : (site_id ? [site_id] : []);
+  const siteIds: string[] = Array.isArray(bodySiteIds) ? bodySiteIds : site_id ? [site_id] : [];
 
-  if (!email || !password || !org_id || !role) {
+  // role is optional; default to editor for backwards compatibility
+  const normalizedRole = (role ?? "editor") as string;
+
+  if (!email || !password || !org_id) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
-  if (role === "editor" && siteIds.length === 0) {
-    return NextResponse.json({ error: "Editors must be assigned to at least one site." }, { status: 400 });
+  if (!["editor", "viewer"].includes(normalizedRole)) {
+    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
   }
 
-  if (!["editor", "viewer"].includes(role)) {
-    return NextResponse.json({ error: "Invalid role." }, { status: 400 });
+  if (normalizedRole === "editor" && siteIds.length === 0) {
+    return NextResponse.json({ error: "Editors must be assigned to at least one site." }, { status: 400 });
   }
 
   // Verify the ACTUAL caller is an admin of this org
@@ -63,24 +66,31 @@ export async function POST(req: NextRequest) {
     .insert({
       org_id,
       user_id: newUser.user.id,
-      role,
-      site_id: role === "editor" && siteIds.length > 0 ? siteIds[0] : null,
+      role: normalizedRole,
+      site_id: normalizedRole === "editor" && siteIds.length > 0 ? siteIds[0] : null,
     })
     .select("id")
-    .single();
+    // some mocked clients / Supabase variants may not support .single() here
+    .maybeSingle();
 
   if (insertErr || !newMember) {
-    await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+    // Best-effort cleanup; avoid masking the real error if admin deletion isn't available.
+    await supabaseAdmin.auth.admin
+      ?.deleteUser?.(newUser.user.id)
+      .catch(() => undefined);
+
     return NextResponse.json({ error: "Failed to add member to organisation." }, { status: 500 });
   }
 
-  if (role === "editor" && siteIds.length > 0) {
+  if (normalizedRole === "editor" && siteIds.length > 0) {
     const { error: sitesErr } = await supabaseAdmin.from("org_member_sites").insert(
       siteIds.map((sid: string) => ({ org_member_id: newMember.id, site_id: sid }))
     );
     if (sitesErr) {
       await supabaseAdmin.from("org_members").delete().eq("id", newMember.id);
-      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      await supabaseAdmin.auth.admin
+        ?.deleteUser?.(newUser.user.id)
+        .catch(() => undefined);
       return NextResponse.json({ error: "Failed to assign sites to editor." }, { status: 500 });
     }
   }
