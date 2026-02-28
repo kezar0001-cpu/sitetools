@@ -1,3 +1,4 @@
+import { OrgInvitation, OrgJoinRequest } from "./types";
 import { useOrgManagement } from "./useOrgManagement";
 
 export function OverviewTab({ orgState }: { orgState: ReturnType<typeof useOrgManagement> }) {
@@ -89,7 +90,7 @@ export function OverviewTab({ orgState }: { orgState: ReturnType<typeof useOrgMa
                 <div className="bg-purple-50 rounded-lg p-4">
                     <div className="text-purple-600 text-sm font-medium">Pending Requests</div>
                     <div className="text-2xl font-bold text-purple-900">
-                        {invitations.filter((i: any) => i.status === "pending").length + joinRequests.filter((r: any) => r.status === "pending").length}
+                        {invitations.filter((i: OrgInvitation) => i.status === "pending").length + joinRequests.filter((r: OrgJoinRequest) => r.status === "pending").length}
                     </div>
                 </div>
             </div>

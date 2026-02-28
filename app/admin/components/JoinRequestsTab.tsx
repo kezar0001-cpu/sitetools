@@ -1,3 +1,4 @@
+import { OrgJoinRequest } from "./types";
 import { useOrgManagement } from "./useOrgManagement";
 
 export function JoinRequestsTab({ orgState }: { orgState: ReturnType<typeof useOrgManagement> }) {
@@ -17,7 +18,7 @@ export function JoinRequestsTab({ orgState }: { orgState: ReturnType<typeof useO
                 <p className="text-gray-500 text-sm">No pending join requests.</p>
             ) : (
                 <div className="space-y-2">
-                    {joinRequests.map((request: any) => (
+                    {joinRequests.map((request: OrgJoinRequest) => (
                         <div key={request.id} className="border border-gray-200 rounded-lg p-4">
                             <div className="flex items-center justify-between">
                                 <div>

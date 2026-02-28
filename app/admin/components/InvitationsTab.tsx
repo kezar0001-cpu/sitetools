@@ -1,3 +1,4 @@
+import { OrgInvitation, Site } from "./types";
 import { useOrgManagement } from "./useOrgManagement";
 
 export function InvitationsTab({ orgState }: { orgState: ReturnType<typeof useOrgManagement> }) {
@@ -41,7 +42,7 @@ export function InvitationsTab({ orgState }: { orgState: ReturnType<typeof useOr
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     >
                         <option value="">No site assignment</option>
-                        {orgSites.map((site: any) => (
+                        {orgSites.map((site: Site) => (
                             <option key={site.id} value={site.id}>{site.name}</option>
                         ))}
                     </select>
@@ -62,7 +63,7 @@ export function InvitationsTab({ orgState }: { orgState: ReturnType<typeof useOr
                     <p className="text-gray-500 text-sm">No invitations sent yet.</p>
                 ) : (
                     <div className="space-y-2">
-                        {invitations.map((invitation: any) => (
+                        {invitations.map((invitation: OrgInvitation) => (
                             <div key={invitation.id} className="border border-gray-200 rounded-lg p-4">
                                 <div className="flex items-center justify-between">
                                     <div>

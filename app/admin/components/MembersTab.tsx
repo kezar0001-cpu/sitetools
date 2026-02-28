@@ -1,3 +1,4 @@
+import { OrgMember, Site } from "./types";
 import { useOrgManagement } from "./useOrgManagement";
 
 export function MembersTab({ orgState }: { orgState: ReturnType<typeof useOrgManagement> }) {
@@ -105,7 +106,7 @@ export function MembersTab({ orgState }: { orgState: ReturnType<typeof useOrgMan
                         <div>
                             <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to sites</label>
                             <div className="space-y-2">
-                                {orgSites.map((site: any) => (
+                                {orgSites.map((site: Site) => (
                                     <label key={site.id} className="flex items-center gap-2 text-sm">
                                         <input
                                             type="checkbox"
@@ -146,7 +147,7 @@ export function MembersTab({ orgState }: { orgState: ReturnType<typeof useOrgMan
                     <p className="text-gray-500 text-sm">No members yet.</p>
                 ) : (
                     <div className="space-y-2">
-                        {members.map((memberItem: any) => (
+                        {members.map((memberItem: OrgMember) => (
                             <div key={memberItem.id} className="border border-gray-200 rounded-lg p-4">
                                 <div className="flex items-center justify-between">
                                     <div>
