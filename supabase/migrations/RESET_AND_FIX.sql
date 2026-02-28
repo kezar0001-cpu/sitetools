@@ -136,6 +136,9 @@ end; $$;
 create or replace function public.get_user_by_email(p_email text) returns table(id uuid, email text) language plpgsql security definer as $$
 begin return query select u.id, u.email::text from auth.users u where u.email = p_email; end; $$;
 
+create or replace function public.get_user_by_id(p_user_id uuid) returns table(id uuid, email text) language plpgsql security definer as $$
+begin return query select u.id, u.email::text from auth.users u where u.id = p_user_id; end; $$;
+
 create or replace function public.approve_join_request(p_request_id uuid, p_role text, p_site_id uuid default null) returns json language plpgsql security definer as $$
 declare v_request public.org_join_requests%rowtype;
 begin
@@ -147,14 +150,121 @@ begin
   return json_build_object('success', true, 'message', 'Request approved');
 end; $$;
 
+-- Grant execute on all functions
+grant execute on function public.get_my_org_ids() to authenticated;
+grant execute on function public.is_org_admin(uuid) to authenticated;
+grant execute on function public.generate_org_join_code(uuid, int) to authenticated;
+grant execute on function public.get_user_by_email(text) to authenticated;
+grant execute on function public.get_user_by_id(uuid) to authenticated;
+grant execute on function public.approve_join_request(uuid, text, uuid) to authenticated;
+
 -- ─── STEP 5: Policies ────────────────────────────────────────────────────────
 
-drop policy if exists "auth_select_visits" on public.site_visits;
+-- Drop all known policies before recreating
+drop policy if exists "org_members_select_orgs"       on public.organisations;
+drop policy if exists "org_insert"                     on public.organisations;
+drop policy if exists "org_admin_update"               on public.organisations;
+drop policy if exists "org_members_select"             on public.org_members;
+drop policy if exists "org_members_insert"             on public.org_members;
+drop policy if exists "org_members_update"             on public.org_members;
+drop policy if exists "org_members_delete"             on public.org_members;
+drop policy if exists "anon_select_sites"              on public.sites;
+drop policy if exists "auth_select_sites"              on public.sites;
+drop policy if exists "auth_insert_sites"              on public.sites;
+drop policy if exists "auth_update_sites"              on public.sites;
+drop policy if exists "auth_delete_sites"              on public.sites;
+drop policy if exists "anon_insert_visits"             on public.site_visits;
+drop policy if exists "anon_select_visits"             on public.site_visits;
+drop policy if exists "anon_update_visits"             on public.site_visits;
+drop policy if exists "anon_delete_visits"             on public.site_visits;
+drop policy if exists "auth_insert_visits"             on public.site_visits;
+drop policy if exists "auth_select_visits"             on public.site_visits;
+drop policy if exists "auth_update_visits"             on public.site_visits;
+drop policy if exists "auth_delete_visits"             on public.site_visits;
+drop policy if exists "org_admin_invitations"          on public.org_invitations;
+drop policy if exists "user_read_own_invitations"      on public.org_invitations;
+drop policy if exists "user_update_own_invitations"    on public.org_invitations;
+drop policy if exists "org_admin_join_requests_select" on public.org_join_requests;
+drop policy if exists "org_admin_join_requests_update" on public.org_join_requests;
+drop policy if exists "auth_join_requests_insert"      on public.org_join_requests;
+drop policy if exists "org_members_sites_select"       on public.org_member_sites;
+drop policy if exists "org_admin_member_sites_all"     on public.org_member_sites;
+
+-- organisations
+create policy "org_members_select_orgs" on public.organisations for select to authenticated
+  using (id in (select public.get_my_org_ids()));
+create policy "org_insert" on public.organisations for insert to authenticated
+  with check (true);
+create policy "org_admin_update" on public.organisations for update to authenticated
+  using (public.is_org_admin(id));
+
+-- org_members
+create policy "org_members_select" on public.org_members for select to authenticated
+  using (org_id in (select public.get_my_org_ids()));
+create policy "org_members_insert" on public.org_members for insert to authenticated
+  with check (
+    public.is_org_admin(org_id)
+    or not exists (select 1 from public.org_members om where om.org_id = org_members.org_id)
+  );
+create policy "org_members_update" on public.org_members for update to authenticated
+  using (public.is_org_admin(org_id));
+create policy "org_members_delete" on public.org_members for delete to authenticated
+  using (public.is_org_admin(org_id));
+
+-- sites
+create policy "anon_select_sites" on public.sites for select to anon using (true);
+create policy "auth_select_sites" on public.sites for select to authenticated
+  using (org_id in (select public.get_my_org_ids()));
+create policy "auth_insert_sites" on public.sites for insert to authenticated
+  with check (public.is_org_admin(org_id));
+create policy "auth_update_sites" on public.sites for update to authenticated
+  using (public.is_org_admin(org_id));
+create policy "auth_delete_sites" on public.sites for delete to authenticated
+  using (public.is_org_admin(org_id));
+
+-- site_visits: anon (public visitors) full CRUD for sign-in/out flow
+create policy "anon_insert_visits" on public.site_visits for insert to anon with check (true);
+create policy "anon_select_visits" on public.site_visits for select to anon using (true);
+create policy "anon_update_visits" on public.site_visits for update to anon using (true) with check (true);
+create policy "anon_delete_visits" on public.site_visits for delete to anon using (true);
+
+-- site_visits: authenticated scoped to their org's sites
+create policy "auth_insert_visits" on public.site_visits for insert to authenticated with check (true);
 create policy "auth_select_visits" on public.site_visits for select to authenticated
-using (site_id in (select id from public.sites where org_id in (select public.get_my_org_ids())));
+  using (site_id in (select id from public.sites where org_id in (select public.get_my_org_ids())));
+create policy "auth_update_visits" on public.site_visits for update to authenticated using (true) with check (true);
+create policy "auth_delete_visits" on public.site_visits for delete to authenticated using (true);
 
-drop policy if exists "org_admin_invitations" on public.org_invitations;
+-- org_invitations: admins manage all; invited user can view/respond to their own
 create policy "org_admin_invitations" on public.org_invitations for all to authenticated
-using (public.is_org_admin(org_id));
+  using (public.is_org_admin(org_id))
+  with check (public.is_org_admin(org_id));
+create policy "user_read_own_invitations" on public.org_invitations for select to authenticated
+  using (email = (select email from auth.users where id = auth.uid()));
+create policy "user_update_own_invitations" on public.org_invitations for update to authenticated
+  using (email = (select email from auth.users where id = auth.uid()))
+  with check (email = (select email from auth.users where id = auth.uid()));
 
--- (Add other policies as needed following this pattern)
+-- org_join_requests
+create policy "org_admin_join_requests_select" on public.org_join_requests for select to authenticated
+  using (public.is_org_admin(org_id) or user_id = auth.uid());
+create policy "org_admin_join_requests_update" on public.org_join_requests for update to authenticated
+  using (public.is_org_admin(org_id));
+create policy "auth_join_requests_insert" on public.org_join_requests for insert to authenticated
+  with check (user_id = auth.uid());
+
+-- org_member_sites
+create policy "org_members_sites_select" on public.org_member_sites for select to authenticated
+  using (org_member_id in (
+    select id from public.org_members where org_id in (select public.get_my_org_ids())
+  ));
+create policy "org_admin_member_sites_all" on public.org_member_sites for all to authenticated
+  using (org_member_id in (
+    select id from public.org_members
+    where org_id in (select org_id from public.org_members where user_id = auth.uid() and role = 'admin')
+  ));
+
+-- ─── DONE ─────────────────────────────────────────────────────────────────────
+-- Verify with:
+--   select schemaname, tablename, policyname from pg_policies where schemaname = 'public' order by tablename, policyname;
+--   select routine_name from information_schema.routines where routine_schema = 'public' and routine_type = 'FUNCTION';

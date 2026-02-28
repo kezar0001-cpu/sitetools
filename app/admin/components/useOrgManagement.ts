@@ -99,21 +99,18 @@ export function useOrgManagement(
             (data as OrgMember[]).map(async (m) => {
                 try {
                     const { data: userData, error: userError } = await supabase.rpc('get_user_by_id', { p_user_id: m.user_id });
-                    if (!userError && userData && userData.length > 0) {
-                        return { ...m, email: userData[0]?.email || userData[0]?.user_metadata?.email || m.user_id };
+                    if (!userError && Array.isArray(userData) && userData.length > 0 && userData[0]?.email) {
+                        return { ...m, email: userData[0].email as string };
                     }
-                    const { data: { user }, error: authError } = await supabase.auth.admin.getUserById(m.user_id);
-                    if (!authError && user?.email) {
-                        return { ...m, email: user.email };
-                    }
-                    return { ...m, email: `${m.user_id.substring(0, 8)}... (ID)` };
                 } catch {
-                    return { ...m, email: `${m.user_id.substring(0, 8)}... (ID)` };
+                    // RPC not yet deployed — fall through to ID display
                 }
+                return { ...m, email: `${m.user_id.substring(0, 8)}…` };
             })
         );
         setMembers(membersWithEmails);
     }, [org.id]);
+
 
     useEffect(() => {
         if (!isAdmin) return;
