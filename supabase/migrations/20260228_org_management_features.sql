@@ -300,72 +300,144 @@ $$ language plpgsql security definer;
 -- RLS Policies for new tables
 
 -- org_transfer_requests
-alter table public.org_transfer_requests enable row level security;
+do $$
+begin
+    if not exists (
+        select 1 from pg_tables 
+        where tablename = 'org_transfer_requests' 
+        and rowsecurity = true
+    ) then
+        alter table public.org_transfer_requests enable row level security;
+    end if;
+end $$;
 
-create policy "Users can view their own transfer requests"
-  on public.org_transfer_requests for select
-  using (
-    from_user_id = auth.uid() or
-    to_user_id = auth.uid() or
-    exists (
-      select 1 from org_members
-      where org_members.org_id = org_transfer_requests.org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'org_transfer_requests' 
+        and policyname = 'Users can view their own transfer requests'
+    ) then
+        create policy "Users can view their own transfer requests"
+          on public.org_transfer_requests for select
+          using (
+            from_user_id = auth.uid() or
+            to_user_id = auth.uid() or
+            exists (
+              select 1 from org_members
+              where org_members.org_id = org_transfer_requests.org_id
+                and org_members.user_id = auth.uid()
+                and org_members.role = 'admin'
+            )
+          );
+    end if;
+end $$;
 
-create policy "Admins can create transfer requests"
-  on public.org_transfer_requests for insert
-  with check (
-    exists (
-      select 1 from org_members
-      where org_members.org_id = org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'org_transfer_requests' 
+        and policyname = 'Admins can create transfer requests'
+    ) then
+        create policy "Admins can create transfer requests"
+          on public.org_transfer_requests for insert
+          with check (
+            exists (
+              select 1 from org_members
+              where org_members.org_id = org_id
+                and org_members.user_id = auth.uid()
+                and org_members.role = 'admin'
+            )
+          );
+    end if;
+end $$;
 
-create policy "Target users can update transfer requests"
-  on public.org_transfer_requests for update
-  using (to_user_id = auth.uid())
-  with check (to_user_id = auth.uid());
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'org_transfer_requests' 
+        and policyname = 'Target users can update transfer requests'
+    ) then
+        create policy "Target users can update transfer requests"
+          on public.org_transfer_requests for update
+          using (to_user_id = auth.uid())
+          with check (to_user_id = auth.uid());
+    end if;
+end $$;
 
 -- org_deletion_requests
-alter table public.org_deletion_requests enable row level security;
+do $$
+begin
+    if not exists (
+        select 1 from pg_tables 
+        where tablename = 'org_deletion_requests' 
+        and rowsecurity = true
+    ) then
+        alter table public.org_deletion_requests enable row level security;
+    end if;
+end $$;
 
-create policy "Org admins can view deletion requests"
-  on public.org_deletion_requests for select
-  using (
-    exists (
-      select 1 from org_members
-      where org_members.org_id = org_deletion_requests.org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'org_deletion_requests' 
+        and policyname = 'Org admins can view deletion requests'
+    ) then
+        create policy "Org admins can view deletion requests"
+          on public.org_deletion_requests for select
+          using (
+            exists (
+              select 1 from org_members
+              where org_members.org_id = org_id
+                and org_members.user_id = auth.uid()
+                and org_members.role = 'admin'
+            )
+          );
+    end if;
+end $$;
 
-create policy "Org admins can create deletion requests"
-  on public.org_deletion_requests for insert
-  with check (
-    exists (
-      select 1 from org_members
-      where org_members.org_id = org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'org_deletion_requests' 
+        and policyname = 'Org admins can create deletion requests'
+    ) then
+        create policy "Org admins can create deletion requests"
+          on public.org_deletion_requests for insert
+          with check (
+            exists (
+              select 1 from org_members
+              where org_members.org_id = org_id
+                and org_members.user_id = auth.uid()
+                and org_members.role = 'admin'
+            )
+          );
+    end if;
+end $$;
 
-create policy "Org admins can approve deletion requests"
-  on public.org_deletion_requests for update
-  using (
-    exists (
-      select 1 from org_members
-      where org_members.org_id = org_id
-        and org_members.user_id = auth.uid()
-        and org_members.role = 'admin'
-    )
-  );
+do $$
+begin
+    if not exists (
+        select 1 from pg_policies 
+        where tablename = 'org_deletion_requests' 
+        and policyname = 'Org admins can approve deletion requests'
+    ) then
+        create policy "Org admins can approve deletion requests"
+          on public.org_deletion_requests for update
+          using (
+            exists (
+              select 1 from org_members
+              where org_members.org_id = org_id
+                and org_members.user_id = auth.uid()
+                and org_members.role = 'admin'
+            )
+          );
+    end if;
+end $$;
 
 -- Function to get user by email (for admin use)
 create or replace function get_user_by_email(p_email text)
@@ -379,8 +451,21 @@ begin
 end;
 $$ language plpgsql security definer;
 
+-- Function to get user by ID (for admin use)
+create or replace function get_user_by_id(p_user_id uuid)
+returns table(id uuid, email text, created_at timestamptz) as $$
+begin
+    return query
+    select u.id, u.email, u.created_at
+    from auth.users u
+    where u.id = p_user_id
+    limit 1;
+end;
+$$ language plpgsql security definer;
+
 -- Grant access to authenticated users
 grant execute on function get_user_by_email(text) to authenticated;
+grant execute on function get_user_by_id(uuid) to authenticated;
 
 -- Update existing organisations table RLS to include join_code
 drop policy if exists "org_select_organisations" on public.organisations;

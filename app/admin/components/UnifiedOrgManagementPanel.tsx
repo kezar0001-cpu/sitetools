@@ -20,6 +20,8 @@ interface OrgMember {
   user_id: string; 
   role: "admin" | "editor" | "viewer"; 
   site_id: string | null; 
+  created_at?: string; 
+  email?: string; 
 }
 
 interface Site { 
@@ -94,6 +96,7 @@ export function UnifiedOrgManagementPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Auto-hide notifications
   useEffect(() => {
@@ -190,7 +193,36 @@ export function UnifiedOrgManagementPanel({
   const fetchMembers = useCallback(async () => {
     const { data } = await supabase.from("org_members").select("*").eq("org_id", org.id);
     if (!data) return;
-    setMembers(data as OrgMember[]);
+    
+    // Fetch user emails for each member
+    const membersWithEmails = await Promise.all(
+      (data as OrgMember[]).map(async (member) => {
+        try {
+          const { data: userData, error: userError } = await supabase.rpc('get_user_by_id', {
+            p_user_id: member.user_id
+          });
+          
+          if (userError || !userData || userData.length === 0) {
+            return {
+              ...member,
+              email: member.user_id // Fallback to user_id if email lookup fails
+            };
+          }
+          
+          return {
+            ...member,
+            email: userData[0]?.email || member.user_id
+          };
+        } catch {
+          return {
+            ...member,
+            email: member.user_id // Fallback to user_id if error occurs
+          };
+        }
+      })
+    );
+    
+    setMembers(membersWithEmails);
     // TODO: Implement editor site assignments when needed
     // const editorIds = (data as OrgMember[]).filter((m) => m.role === "editor").map((m) => m.id);
     // if (editorIds.length === 0) {
@@ -449,11 +481,20 @@ export function UnifiedOrgManagementPanel({
       if (isExistingUser) {
         // Add existing user directly to organization
         // First, try to find the user in auth.users by email
-        const { data: userData, error: userError } = await supabase.rpc('get_user_by_email', {
-          email: newMemberEmail.trim()
-        });
+        let userData;
+        let userError;
         
-        if (userError || !userData) {
+        try {
+          const result = await supabase.rpc('get_user_by_email', {
+            p_email: newMemberEmail.trim()
+          });
+          userData = result.data;
+          userError = result.error;
+        } catch (err) {
+          userError = err;
+        }
+        
+        if (userError || !userData || userData.length === 0) {
           setMemberError("User not found. Please check the email address or create a new account.");
           return;
         }
@@ -653,66 +694,86 @@ export function UnifiedOrgManagementPanel({
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
+      {/* Collapsible Header */}
+      <div className="border-b border-gray-200">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+        >
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 text-blue-700 rounded-lg p-2">
+            <div className="bg-yellow-400 text-yellow-900 rounded-lg p-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
-            <div>
-              <h2 className="text-lg font-extrabold text-gray-900">Organization Management</h2>
-              <p className="text-sm text-gray-600">{org.name}</p>
+            <div className="text-left">
+              <h2 className="text-lg font-bold text-gray-900">Organization Management</h2>
+              <p className="text-sm text-gray-500">Manage members, invitations, and settings</p>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-8 px-6" aria-label="Tabs">
-          {[
-            { id: "overview", name: "Overview", icon: "📊" },
-            { id: "members", name: "Members", icon: "👥" },
-            { id: "invitations", name: "Invitations", icon: "✉️" },
-            { id: "requests", name: "Join Requests", icon: "📝" },
-            { id: "settings", name: "Settings", icon: "⚙️" }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id as "overview" | "members" | "invitations" | "requests" | "settings");
-                setError(null);
-                setSuccess(null);
-              }}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                activeTab === tab.id
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+              {members.length} members
+            </span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`h-5 w-5 text-gray-400 transition-transform ${isCollapsed ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
             >
-              <span className="mr-2">{tab.icon}</span>
-              {tab.name}
-              {tab.id === "invitations" && invitations.filter(i => i.status === "pending").length > 0 && (
-                <span className="ml-2 bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
-                  {invitations.filter(i => i.status === "pending").length}
-                </span>
-              )}
-              {tab.id === "requests" && joinRequests.filter(r => r.status === "pending").length > 0 && (
-                <span className="ml-2 bg-yellow-100 text-yellow-600 text-xs font-bold px-2 py-1 rounded-full">
-                  {joinRequests.filter(r => r.status === "pending").length}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="p-6">
+      {/* Collapsible Content */}
+      {!isCollapsed && (
+        <>
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200">
+            <nav className="flex space-x-8 px-6" aria-label="Tabs">
+              {[
+                { id: "overview", name: "Overview", icon: "📊" },
+                { id: "members", name: "Members", icon: "👥" },
+                { id: "invitations", name: "Invitations", icon: "✉️" },
+                { id: "requests", name: "Join Requests", icon: "📝" },
+                { id: "settings", name: "Settings", icon: "⚙️" }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id as "overview" | "members" | "invitations" | "requests" | "settings");
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === tab.id
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                  }`}
+                >
+                  <span className="mr-2">{tab.icon}</span>
+                  {tab.name}
+                  {tab.id === "invitations" && invitations.filter(i => i.status === "pending").length > 0 && (
+                    <span className="ml-2 bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
+                      {invitations.filter(i => i.status === "pending").length}
+                    </span>
+                  )}
+                  {tab.id === "requests" && joinRequests.filter(r => r.status === "pending").length > 0 && (
+                    <span className="ml-2 bg-yellow-100 text-yellow-600 text-xs font-bold px-2 py-1 rounded-full">
+                      {joinRequests.filter(r => r.status === "pending").length}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
         {error && (
           <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">
             {error}
@@ -961,7 +1022,7 @@ export function UnifiedOrgManagementPanel({
                     <div key={memberItem.id} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{memberItem.user_id}</p>
+                          <p className="text-sm font-medium text-gray-900">{memberItem.email || memberItem.user_id}</p>
                           <p className="text-xs text-gray-500">Role: {memberItem.role}</p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1212,7 +1273,9 @@ export function UnifiedOrgManagementPanel({
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
