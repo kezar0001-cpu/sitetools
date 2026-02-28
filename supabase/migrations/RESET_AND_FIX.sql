@@ -17,6 +17,7 @@ create table if not exists public.sites (
   name       text        not null,
   slug       text        not null unique,
   org_id     uuid,
+  logo_url   text,
   created_at timestamptz not null default now()
 );
 
@@ -48,6 +49,9 @@ alter table public.site_visits add column if not exists signature text;
 
 alter table public.sites
   add column if not exists org_id uuid;
+
+alter table public.sites
+  add column if not exists logo_url text;
 
 alter table public.site_visits
   add column if not exists site_id uuid;

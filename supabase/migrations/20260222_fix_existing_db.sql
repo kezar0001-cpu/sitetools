@@ -28,6 +28,9 @@ alter table public.org_members enable row level security;
 alter table public.sites
   add column if not exists org_id uuid references public.organisations(id) on delete cascade;
 
+alter table public.sites
+  add column if not exists logo_url text;
+
 do $$ begin
   if exists (select 1 from information_schema.columns where table_name = 'sites' and column_name = 'user_id') then
     alter table public.sites drop column user_id;

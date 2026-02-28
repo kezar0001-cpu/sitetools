@@ -9,6 +9,7 @@ interface Site {
   id: string;
   name: string;
   slug: string;
+  logo_url?: string | null;
 }
 
 export default function PrintQRPage() {
@@ -81,6 +82,7 @@ export default function PrintQRPage() {
               bgColor="#ffffff"
               fgColor="#1c1917"
               level="H"
+              imageSettings={site.logo_url ? { src: site.logo_url, height: 78, width: 78, excavate: true } : undefined}
               className="print:w-64 print:h-64"
             />
           </div>

@@ -12,7 +12,7 @@ import { PendingInvitationsView } from "./components/PendingInvitationsView";
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
-interface Site { id: string; name: string; slug: string; org_id: string; }
+interface Site { id: string; name: string; slug: string; org_id: string; logo_url?: string | null; }
 interface OrgInvitation { id: string; org_id: string; email: string; role: string; site_id: string | null; status: string; created_at: string; expires_at: string; }
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
@@ -41,6 +41,21 @@ function fmt(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" }) +
     " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function isAllowedLogoUrl(src: string) {
+  const v = src.trim();
+  if (!v) return true;
+  if (v.startsWith("/")) return true; // same-origin asset
+  if (v.startsWith("data:image/")) return true; // inline image
+  try {
+    const u = new URL(v);
+    if (u.protocol === "https:") return true;
+    if (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function toLocalDateValue(iso: string) {
@@ -652,6 +667,9 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
   const [activeSite, setActiveSite] = useState<Site | null>(null);
   const [orgSites, setOrgSites] = useState<Site[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [logoDraft, setLogoDraft] = useState("");
+  const [logoSaving, setLogoSaving] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email ?? null));
@@ -664,6 +682,11 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
         .then(({ data }) => { if (data) setActiveSite(data as Site); });
     }
   }, [isAdmin, member.site_id]);
+
+  useEffect(() => {
+    setLogoDraft(activeSite?.logo_url ?? "");
+    setLogoError(null);
+  }, [activeSite?.id, activeSite?.logo_url]);
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
@@ -910,6 +933,31 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
     doc.save(fileName);
   }
 
+  async function saveSiteLogo() {
+    if (!activeSite) return;
+    setLogoError(null);
+    const next = logoDraft.trim();
+    if (!isAllowedLogoUrl(next)) {
+      setLogoError("Logo must be an https URL, a /path asset, or a data:image/... URL.");
+      return;
+    }
+    setLogoSaving(true);
+    const { data, error } = await supabase
+      .from("sites")
+      .update({ logo_url: next || null })
+      .eq("id", activeSite.id)
+      .select("*")
+      .single();
+    setLogoSaving(false);
+    if (error || !data) {
+      setLogoError(error?.message ?? "Could not save logo.");
+      return;
+    }
+    const updated = data as Site;
+    setActiveSite(updated);
+    setOrgSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
@@ -969,7 +1017,8 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                   size={160}
                   bgColor="#ffffff"
                   fgColor="#1c1917"
-                  level="M"
+                  level={activeSite.logo_url ? "H" : "M"}
+                  imageSettings={activeSite.logo_url ? { src: activeSite.logo_url, height: 44, width: 44, excavate: true } : undefined}
                 />
               </div>
               <div className="text-center sm:text-left space-y-2">
@@ -982,6 +1031,38 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                     ? `${window.location.origin}/?site=${activeSite.slug}`
                     : ""}
                 </p>
+                {isAdmin && (
+                  <div className="pt-2 space-y-2 max-w-md">
+                    <p className="text-xs font-bold text-gray-700">Optional logo (embedded in the QR)</p>
+                    {logoError && (
+                      <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">
+                        {logoError}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        value={logoDraft}
+                        onChange={(e) => setLogoDraft(e.target.value)}
+                        placeholder="https://… or /logo.png or data:image/png;base64,…"
+                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                      />
+                      <button
+                        onClick={saveSiteLogo}
+                        disabled={logoSaving}
+                        className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2 rounded-lg text-sm transition-colors shrink-0"
+                      >
+                        {logoSaving ? "Saving…" : "Save"}
+                      </button>
+                      <button
+                        onClick={() => { setLogoDraft(""); setLogoError(null); }}
+                        type="button"
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-lg text-sm transition-colors shrink-0"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <a
                   href={`/print-qr/${activeSite.slug}`}
                   target="_blank"

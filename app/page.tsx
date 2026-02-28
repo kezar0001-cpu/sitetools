@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
-interface Site { id: string; name: string; slug: string; }
+interface Site { id: string; name: string; slug: string; logo_url?: string | null; }
 
 interface SiteVisit {
   id: string;
@@ -402,7 +402,13 @@ function SiteSignIn({ site }: { site: Site }) {
       <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="bg-yellow-600 text-white rounded-lg p-2 shrink-0">{HEADER_SVG}</div>
+            <div className="bg-yellow-600 text-white rounded-lg p-2 shrink-0">
+              {site.logo_url ? (
+                <img src={site.logo_url} alt={`${site.name} logo`} className="h-7 w-7 object-contain" />
+              ) : (
+                HEADER_SVG
+              )}
+            </div>
             <div className="min-w-0">
               <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight truncate">{site.name}</h1>
               <p className="text-xs font-medium text-yellow-800">Site Sign In / Sign Out</p>
