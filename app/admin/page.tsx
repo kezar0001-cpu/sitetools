@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPanel";
-import { NoOrgDashboard } from "./components/NoOrgDashboard";
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
@@ -52,7 +53,7 @@ function toLocalDateValue(iso: string) {
 
 // ─── Auth Screen (Sign Up / Log In) ─────────────────────────────────────────
 
-function AuthScreen({ onAuth }: { onAuth: () => void }) {
+export function AuthScreen({ onAuth }: { onAuth: () => void }) {
   const [mode, setMode] = useState<"login" | "signup" | "browse-orgs">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -597,7 +598,16 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <Link
+              href="/admin/orgs"
+              className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-yellow-900 text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+              </svg>
+              Add / Join Org
+            </Link>
             {userEmail && (
               <span className="hidden sm:block text-xs font-medium text-yellow-800 truncate max-w-[180px]">{userEmail}</span>
             )}
@@ -1201,6 +1211,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 // ─── Page root ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>("");
@@ -1291,17 +1302,19 @@ export default function AdminPage() {
     </div>
   );
 
-  // No org yet — show no-org dashboard for organization-less accounts
-  if (!org || !member) return (
-    <NoOrgDashboard 
-      userId={userId!} 
-      userEmail={userEmail} 
-      onOrgJoined={() => {
-        // Refresh to load the new organization
-        window.location.reload();
-      }}
-    />
-  );
+  useEffect(() => {
+    if (authed && !loadingOrg && !dbError && (!org || !member)) {
+      router.replace("/admin/orgs");
+    }
+  }, [authed, loadingOrg, dbError, org, member, router]);
+
+  if (!org || !member) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-500 text-sm">Redirecting you to organisation setup…</p>
+      </div>
+    );
+  }
 
   return <AdminDashboard org={org} member={member} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
     setOrg(null);
