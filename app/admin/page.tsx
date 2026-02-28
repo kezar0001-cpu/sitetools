@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
@@ -41,21 +41,6 @@ function fmt(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" }) +
     " " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function isAllowedLogoUrl(src: string) {
-  const v = src.trim();
-  if (!v) return true;
-  if (v.startsWith("/")) return true; // same-origin asset
-  if (v.startsWith("data:image/")) return true; // inline image
-  try {
-    const u = new URL(v);
-    if (u.protocol === "https:") return true;
-    if (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) return true;
-    return false;
-  } catch {
-    return false;
-  }
 }
 
 function toLocalDateValue(iso: string) {
@@ -406,10 +391,11 @@ function OrgSetupScreen({ userId, userEmail, onDone }: { userId: string; userEma
 
 // ─── Site Switcher (admin only) ─────────────────────────────────────────────
 
-function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded }: {
+function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = true }: {
   current: Site | null; orgId: string;
   onSelect: (s: Site | null) => void;
   onSitesLoaded?: (sites: Site[]) => void;
+  canAddSites?: boolean;
 }) {
   const [sites, setSites] = useState<Site[]>([]);
   const [newName, setNewName] = useState("");
@@ -460,20 +446,22 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded }: {
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
           </svg>
-          {open ? "Close" : "Switch / Add Site"}
+          {open ? "Close" : sites.length > 0 ? "Switch site" : (canAddSites ? "Switch / Add Site" : "Switch site")}
         </button>
       </div>
       {open && (
         <div className="mt-4 space-y-4 border-t border-gray-100 pt-4">
           {error && <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
-          <form onSubmit={handleCreate} className="flex gap-2">
-            <input type="text" placeholder="New site name…" value={newName} onChange={(e) => setNewName(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
-            <button type="submit" disabled={creating || !newName.trim()}
-              className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2.5 rounded-lg text-sm transition-colors shrink-0">
-              {creating ? "…" : "Create"}
-            </button>
-          </form>
+          {canAddSites && (
+            <form onSubmit={handleCreate} className="flex gap-2">
+              <input type="text" placeholder="New site name…" value={newName} onChange={(e) => setNewName(e.target.value)}
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+              <button type="submit" disabled={creating || !newName.trim()}
+                className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2.5 rounded-lg text-sm transition-colors shrink-0">
+                {creating ? "…" : "Create"}
+              </button>
+            </form>
+          )}
           {sites.length > 0 && (
             <ul className="space-y-1.5">
               {sites.map((s) => (
@@ -501,11 +489,12 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded }: {
 
 function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSites: Site[]; currentUserId: string }) {
   const [members, setMembers] = useState<OrgMember[]>([]);
+  const [editorSiteIds, setEditorSiteIds] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"editor" | "viewer">("editor");
-  const [newSiteId, setNewSiteId] = useState("");
+  const [newSiteIds, setNewSiteIds] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -513,10 +502,33 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
 
   const fetchMembers = useCallback(async () => {
     const { data } = await supabase.from("org_members").select("*").eq("org_id", orgId);
-    if (data) setMembers(data as OrgMember[]);
+    if (!data) return;
+    setMembers(data as OrgMember[]);
+    const editorIds = (data as OrgMember[]).filter((m) => m.role === "editor").map((m) => m.id);
+    if (editorIds.length === 0) {
+      setEditorSiteIds({});
+      return;
+    }
+    const { data: sitesData } = await supabase
+      .from("org_member_sites")
+      .select("org_member_id, site_id")
+      .in("org_member_id", editorIds);
+    const map: Record<string, string[]> = {};
+    editorIds.forEach((id) => { map[id] = []; });
+    (sitesData || []).forEach((row: { org_member_id: string; site_id: string }) => {
+      if (!map[row.org_member_id]) map[row.org_member_id] = [];
+      map[row.org_member_id].push(row.site_id);
+    });
+    setEditorSiteIds(map);
   }, [orgId]);
 
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
+
+  function toggleNewSite(siteId: string) {
+    setNewSiteIds((prev) =>
+      prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId]
+    );
+  }
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
@@ -524,8 +536,8 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
     if (!newEmail.trim() || !newPassword) {
       setAddError("Email and password are required."); return;
     }
-    if (newRole === "editor" && !newSiteId) {
-      setAddError("Editors must be assigned to a site."); return;
+    if (newRole === "editor" && newSiteIds.length === 0) {
+      setAddError("Editors must be assigned to at least one site."); return;
     }
     setAdding(true);
     const { data: { session } } = await supabase.auth.getSession();
@@ -535,12 +547,18 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
         "Content-Type": "application/json",
         ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
-      body: JSON.stringify({ email: newEmail.trim(), password: newPassword, org_id: orgId, role: newRole, site_id: newRole === "editor" ? newSiteId : null }),
+      body: JSON.stringify({
+        email: newEmail.trim(),
+        password: newPassword,
+        org_id: orgId,
+        role: newRole,
+        site_ids: newRole === "editor" ? newSiteIds : [],
+      }),
     });
     const json = await res.json();
     setAdding(false);
     if (!res.ok) { setAddError(json.error ?? "Failed to create user."); return; }
-    setNewEmail(""); setNewPassword(""); setNewRole("editor"); setNewSiteId("");
+    setNewEmail(""); setNewPassword(""); setNewRole("editor"); setNewSiteIds([]);
     fetchMembers();
   }
 
@@ -602,7 +620,11 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
                       )}
                       <span className="text-xs text-gray-500 font-mono truncate">{m.user_id === currentUserId ? "(you)" : m.user_id.slice(0, 8) + "…"}</span>
                     </div>
-                    {m.site_id && <p className="text-xs text-gray-500 mt-0.5">Site: {orgSites.find((s) => s.id === m.site_id)?.name ?? m.site_id.slice(0, 8)}</p>}
+                    {m.role === "editor" && (() => {
+                      const ids = editorSiteIds[m.id]?.length ? editorSiteIds[m.id] : (m.site_id ? [m.site_id] : []);
+                      const names = ids.map((sid) => orgSites.find((s) => s.id === sid)?.name ?? sid.slice(0, 8));
+                      return names.length ? <p className="text-xs text-gray-500 mt-0.5">Sites: {names.join(", ")}</p> : null;
+                    })()}
                   </div>
                   {m.user_id !== currentUserId && (
                     <button onClick={() => handleRemove(m.id, m.user_id)} disabled={removingId === m.id}
@@ -633,18 +655,27 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Role</label>
                   <select value={newRole} onChange={(e) => setNewRole(e.target.value as "editor" | "viewer")}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                    <option value="editor">Editor (can manage assigned site)</option>
+                    <option value="editor">Editor (can manage assigned sites)</option>
                     <option value="viewer">Viewer (read-only access)</option>
                   </select>
                 </div>
                 {newRole === "editor" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to Site</label>
-                    <select value={newSiteId} onChange={(e) => setNewSiteId(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent">
-                      <option value="">Select a site…</option>
-                      {orgSites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to sites (at least one)</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {orgSites.map((s) => (
+                        <label key={s.id} className="inline-flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newSiteIds.includes(s.id)}
+                            onChange={() => toggleNewSite(s.id)}
+                            className="w-4 h-4 text-yellow-400 border-gray-300 rounded focus:ring-yellow-400"
+                          />
+                          <span className="text-sm text-gray-700">{s.name}</span>
+                        </label>
+                      ))}
+                      {orgSites.length === 0 && <span className="text-xs text-gray-500">No sites yet. Create one above.</span>}
+                    </div>
                   </div>
                 )}
               </div>
@@ -662,31 +693,73 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
-function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: OrgMember; onLogout: () => void }) {
+function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
+  org: Organisation; member: OrgMember; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void;
+}) {
   const isAdmin = member.role === "admin";
+  const isViewer = member.role === "viewer";
   const [activeSite, setActiveSite] = useState<Site | null>(null);
   const [orgSites, setOrgSites] = useState<Site[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [orgPanelOpen, setOrgPanelOpen] = useState(false);
+  const [orgName, setOrgName] = useState(org.name);
+  const [orgDescription, setOrgDescription] = useState(org.description ?? "");
+  const [orgIsPublic, setOrgIsPublic] = useState(!!org.is_public);
+  const [orgSaving, setOrgSaving] = useState(false);
+  const [orgError, setOrgError] = useState<string | null>(null);
   const [logoDraft, setLogoDraft] = useState("");
-  const [logoSaving, setLogoSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email ?? null));
   }, []);
 
-  // Editors: auto-load their assigned site
+  // Editors and viewers: load sites they can access (RLS returns assigned sites for editors, all for viewers)
   useEffect(() => {
-    if (!isAdmin && member.site_id) {
-      supabase.from("sites").select("*").eq("id", member.site_id).single()
-        .then(({ data }) => { if (data) setActiveSite(data as Site); });
+    if (!isAdmin && org.id) {
+      supabase.from("sites").select("*").eq("org_id", org.id).order("created_at", { ascending: false })
+        .then(({ data }) => {
+          if (data) {
+            const list = data as Site[];
+            setOrgSites(list);
+            if (list.length > 0) setActiveSite((prev) => prev && list.some((s) => s.id === prev.id) ? prev : list[0]);
+          }
+        });
     }
-  }, [isAdmin, member.site_id]);
+  }, [isAdmin, org.id]);
 
   useEffect(() => {
     setLogoDraft(activeSite?.logo_url ?? "");
     setLogoError(null);
   }, [activeSite?.id, activeSite?.logo_url]);
+
+  useEffect(() => {
+    setOrgName(org.name);
+    setOrgDescription(org.description ?? "");
+    setOrgIsPublic(!!org.is_public);
+  }, [org.id, org.name, org.description, org.is_public]);
+
+  async function saveOrg(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isAdmin || !onOrgUpdate) return;
+    setOrgError(null);
+    setOrgSaving(true);
+    const { data, error } = await supabase
+      .from("organisations")
+      .update({ name: orgName.trim(), description: orgDescription.trim() || null, is_public: orgIsPublic })
+      .eq("id", org.id)
+      .select("*")
+      .single();
+    setOrgSaving(false);
+    if (error || !data) {
+      setOrgError(error?.message ?? "Could not save.");
+      return;
+    }
+    onOrgUpdate(data as Organisation);
+  }
+
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState<string | null>(null);
@@ -933,27 +1006,49 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
     doc.save(fileName);
   }
 
-  async function saveSiteLogo() {
+  async function uploadLogo(file: File) {
     if (!activeSite) return;
     setLogoError(null);
-    const next = logoDraft.trim();
-    if (!isAllowedLogoUrl(next)) {
-      setLogoError("Logo must be an https URL, a /path asset, or a data:image/... URL.");
+    setLogoUploading(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const form = new FormData();
+    form.set("site_id", activeSite.id);
+    form.set("file", file);
+    const res = await fetch("/api/upload-site-logo", {
+      method: "POST",
+      headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      body: form,
+    });
+    const json = await res.json().catch(() => ({}));
+    setLogoUploading(false);
+    if (!res.ok) {
+      setLogoError(json.error ?? "Upload failed.");
       return;
     }
-    setLogoSaving(true);
+    const logoUrl = json.logo_url as string;
+    setLogoDraft(logoUrl);
+    const updated = { ...activeSite, logo_url: logoUrl };
+    setActiveSite(updated);
+    setOrgSites((prev) => prev.map((s) => (s.id === activeSite.id ? updated : s)));
+  }
+
+  async function removeLogo() {
+    if (!activeSite) return;
+    setLogoError(null);
+    setLogoUploading(true);
     const { data, error } = await supabase
       .from("sites")
-      .update({ logo_url: next || null })
+      .update({ logo_url: null })
       .eq("id", activeSite.id)
       .select("*")
       .single();
-    setLogoSaving(false);
+    setLogoUploading(false);
     if (error || !data) {
-      setLogoError(error?.message ?? "Could not save logo.");
+      setLogoError(error?.message ?? "Could not remove logo.");
       return;
     }
     const updated = data as Site;
+    setLogoDraft("");
     setActiveSite(updated);
     setOrgSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }
@@ -995,9 +1090,106 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 space-y-6">
 
-        {/* Site switcher (admin only) */}
-        {isAdmin && (
-          <SiteSwitcher current={activeSite} orgId={org.id} onSelect={setActiveSite} onSitesLoaded={setOrgSites} />
+        {/* Site switcher (admin + editor) or read-only site selector (viewer) */}
+        {(isAdmin || member.role === "editor") && (
+          <SiteSwitcher
+            current={activeSite}
+            orgId={org.id}
+            onSelect={setActiveSite}
+            onSitesLoaded={setOrgSites}
+            canAddSites={isAdmin}
+          />
+        )}
+        {member.role === "viewer" && orgSites.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Viewing site</p>
+            <select
+              value={activeSite?.id ?? ""}
+              onChange={(e) => {
+                const id = e.target.value;
+                const s = orgSites.find((x) => x.id === id);
+                if (s) setActiveSite(s);
+              }}
+              className="mt-1 w-full max-w-sm border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            >
+              {orgSites.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Read-only access. You can view visits but not edit.</p>
+          </div>
+        )}
+
+        {/* Organization management (admin only) */}
+        {isAdmin && onOrgUpdate && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setOrgPanelOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <span className="font-bold text-gray-900 text-sm">Organization</span>
+                <span className="text-xs text-gray-500 font-medium">Name, description, visibility</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-400 transition-transform ${orgPanelOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {orgPanelOpen && (
+              <div className="border-t border-gray-100 px-6 pb-6 pt-4 space-y-4">
+                {orgError && (
+                  <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{orgError}</div>
+                )}
+                <form onSubmit={saveOrg} className="space-y-4 max-w-xl">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="org_edit_name">Organization name</label>
+                    <input
+                      id="org_edit_name"
+                      type="text"
+                      value={orgName}
+                      onChange={(e) => setOrgName(e.target.value)}
+                      required
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="org_edit_desc">Description (optional)</label>
+                    <textarea
+                      id="org_edit_desc"
+                      value={orgDescription}
+                      onChange={(e) => setOrgDescription(e.target.value)}
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="org_edit_public"
+                      type="checkbox"
+                      checked={orgIsPublic}
+                      onChange={(e) => setOrgIsPublic(e.target.checked)}
+                      className="w-4 h-4 text-yellow-400 border-gray-300 rounded focus:ring-yellow-400"
+                    />
+                    <label htmlFor="org_edit_public" className="text-sm text-gray-700">
+                      <span className="font-semibold">Discoverable</span> — allow users to find and request to join this organization
+                    </label>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={orgSaving || !orgName.trim()}
+                    className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
+                  >
+                    {orgSaving ? "Saving…" : "Save changes"}
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Members panel (admin only) */}
@@ -1039,27 +1231,37 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                         {logoError}
                       </div>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 items-center">
                       <input
-                        value={logoDraft}
-                        onChange={(e) => setLogoDraft(e.target.value)}
-                        placeholder="https://… or /logo.png or data:image/png;base64,…"
-                        className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                        ref={logoFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) uploadLogo(f);
+                          e.target.value = "";
+                        }}
                       />
                       <button
-                        onClick={saveSiteLogo}
-                        disabled={logoSaving}
+                        type="button"
+                        onClick={() => logoFileInputRef.current?.click()}
+                        disabled={logoUploading}
                         className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2 rounded-lg text-sm transition-colors shrink-0"
                       >
-                        {logoSaving ? "Saving…" : "Save"}
+                        {logoUploading ? "Uploading…" : "Upload logo"}
                       </button>
-                      <button
-                        onClick={() => { setLogoDraft(""); setLogoError(null); }}
-                        type="button"
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-lg text-sm transition-colors shrink-0"
-                      >
-                        Clear
-                      </button>
+                      {activeSite.logo_url && (
+                        <button
+                          type="button"
+                          onClick={removeLogo}
+                          disabled={logoUploading}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-lg text-sm transition-colors shrink-0"
+                        >
+                          Remove logo
+                        </button>
+                      )}
+                      <span className="text-xs text-gray-500">PNG, JPEG, WebP or SVG, max 2 MB</span>
                     </div>
                   </div>
                 )}
@@ -1092,7 +1294,8 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
           </>
         )}
 
-        {/* Add Visit panel */}
+        {/* Add Visit panel (hidden for viewers) */}
+        {!isViewer && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <button
             onClick={() => { setShowAddForm((v) => !v); setAddError(null); }}
@@ -1160,6 +1363,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
             </form>
           )}
         </div>
+        )}
 
         {/* Stats row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1290,11 +1494,11 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                       <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed In</th>
                       <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed Out</th>
                       <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signature</th>
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap text-center">Actions</th>
+                      {!isViewer && <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap text-center">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
-                    {filtered.map((v) => editingId === v.id ? (
+                    {filtered.map((v) => !isViewer && editingId === v.id ? (
                       <tr key={v.id} className="bg-yellow-50 border-l-4 border-yellow-400">
                         <td className="px-5 py-4 font-bold text-gray-900 whitespace-nowrap">{v.full_name}</td>
                         <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.company_name}</td>
@@ -1356,6 +1560,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                             <span className="text-xs text-gray-400 font-medium">—</span>
                           )}
                         </td>
+                        {!isViewer && (
                         <td className="px-5 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <button
@@ -1400,6 +1605,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                             )}
                           </div>
                         </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1408,7 +1614,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
 
               {/* Mobile card list */}
               <ul className="sm:hidden divide-y divide-gray-100">
-                {filtered.map((v) => editingId === v.id ? (
+                {filtered.map((v) => !isViewer && editingId === v.id ? (
                   <li key={v.id} className="px-4 py-4 space-y-3 bg-yellow-50">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-gray-900 text-sm">{v.full_name}</span>
@@ -1451,6 +1657,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                           {v.visitor_type}
                         </span>
                       </div>
+                      {!isViewer && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           onClick={() => startEdit(v)}
@@ -1487,6 +1694,7 @@ function AdminDashboard({ org, member, onLogout }: { org: Organisation; member: 
                           </button>
                         )}
                       </div>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500">{v.company_name}</p>
                     <p className="text-xs text-gray-400">In: {fmt(v.signed_in_at)}</p>
@@ -1632,5 +1840,5 @@ export default function AdminPage() {
     <OrgSetupScreen userId={userId!} userEmail={userEmail} onDone={(o, m) => { setOrg(o); setMember(m); }} />
   );
 
-  return <AdminDashboard org={org} member={member} onLogout={handleLogout} />;
+  return <AdminDashboard org={org} member={member} onLogout={handleLogout} onOrgUpdate={setOrg} />;
 }

@@ -111,9 +111,18 @@ Enhanced setup screen with three modes:
 5. User becomes member upon approval
 
 ### Role Management
-- **Admin**: Full organization access, can manage members and sites
-- **Editor**: Can manage assigned site visitors and data
-- **Viewer**: Read-only access to organization data
+
+Roles are enforced in the UI and (where applicable) in the database:
+
+| Role    | Organization | Sites | Members / Invites / Join requests | Visits (assigned or all) |
+|---------|--------------|-------|------------------------------------|---------------------------|
+| **Admin** | Can view and edit org name, description, discoverability | Create, edit, delete; switch between all org sites | Full management | Full CRUD on all org sites |
+| **Editor** | View only (no org settings) | One or more assigned sites; switch between them; no create/delete | No access | Full CRUD for their assigned sites only |
+| **Viewer** | View only | Can switch between all org sites (read-only list) | No access | Read-only: view visits and signatures, no add/edit/sign-out/delete |
+
+- **Admin**: Full organization access — edit organization details, create and manage sites, manage members/invitations/join requests, and manage all visits across sites.
+- **Editor**: Assigned sites (one or more) — can only see and manage their assigned site’s visits on those sites only. Cannot create sites or manage members. Assignments stored in `org_member_sites`.
+- **Viewer**: Read-only — can view all org sites and their visits (and export). No add visit, edit, sign out, or delete.
 
 ## Security Features
 
@@ -132,10 +141,10 @@ Enhanced setup screen with three modes:
 ## QR Code Enhancement
 
 ### Site Logo Support
-- Admins can upload logos to QR codes
-- Supports HTTPS URLs, local paths, and data URIs
-- Logo validation for security
-- Higher error correction when logo present
+- Admins upload logo **files** (no URL required) from the admin dashboard.
+- Supported formats: PNG, JPEG, WebP, SVG (max 2 MB). Files are stored in Supabase Storage and the public URL is saved to the site.
+- The API route `/api/upload-site-logo` checks that the caller is an org admin for the site; the bucket `site-logos` is created automatically if missing (public read).
+- Higher QR error correction (H) is used when a logo is present.
 
 ## API Endpoints
 
@@ -165,10 +174,11 @@ The system has been tested with:
 
 ### For Admins
 1. Create organization or accept admin invitation
-2. Use InvitationsPanel to invite team members
-3. Monitor JoinRequestsPanel for new requests
-4. Manage existing members via MembersPanel
-5. Customize QR codes with organization logos
+2. Use **Organization** (collapsible panel) to view and edit org name, description, and discoverability
+3. Use InvitationsPanel to invite team members
+4. Monitor JoinRequestsPanel for new requests
+5. Manage existing members via MembersPanel
+6. Customize QR codes by uploading a logo per site (Upload logo in the QR Code panel)
 
 ### For Users
 1. Sign up for account
@@ -185,8 +195,9 @@ The system has been tested with:
 
 Potential improvements:
 - Email notification system
-- Organization settings and preferences
 - Advanced member permissions
 - Audit logs and activity tracking
 - Bulk member operations
 - Organization templates
+
+*(Organization settings — name, description, discoverability — are available in the admin Organization panel.)*

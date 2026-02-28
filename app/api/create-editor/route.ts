@@ -19,14 +19,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid session." }, { status: 401 });
   }
 
-  const { email, password, org_id, role, site_id } = await req.json();
+  const body = await req.json();
+  const { email, password, org_id, role, site_id, site_ids: bodySiteIds } = body;
+  const siteIds: string[] = Array.isArray(bodySiteIds) ? bodySiteIds : (site_id ? [site_id] : []);
 
   if (!email || !password || !org_id || !role) {
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
-  if (role === "editor" && !site_id) {
-    return NextResponse.json({ error: "Editors must be assigned to a site." }, { status: 400 });
+  if (role === "editor" && siteIds.length === 0) {
+    return NextResponse.json({ error: "Editors must be assigned to at least one site." }, { status: 400 });
   }
 
   if (!["editor", "viewer"].includes(role)) {
@@ -56,18 +58,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: createErr?.message ?? "Failed to create user." }, { status: 500 });
   }
 
-  // Add them to the org with the specified role
-  const { error: insertErr } = await supabaseAdmin.from("org_members").insert({
-    org_id,
-    user_id: newUser.user.id,
-    role,
-    site_id: role === "editor" ? site_id : null,
-  });
+  const { data: newMember, error: insertErr } = await supabaseAdmin
+    .from("org_members")
+    .insert({
+      org_id,
+      user_id: newUser.user.id,
+      role,
+      site_id: role === "editor" && siteIds.length > 0 ? siteIds[0] : null,
+    })
+    .select("id")
+    .single();
 
-  if (insertErr) {
-    // Roll back the created user if member insert fails
+  if (insertErr || !newMember) {
     await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
-    return NextResponse.json({ error: "Failed to assign editor to site." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to add member to organisation." }, { status: 500 });
+  }
+
+  if (role === "editor" && siteIds.length > 0) {
+    const { error: sitesErr } = await supabaseAdmin.from("org_member_sites").insert(
+      siteIds.map((sid: string) => ({ org_member_id: newMember.id, site_id: sid }))
+    );
+    if (sitesErr) {
+      await supabaseAdmin.from("org_members").delete().eq("id", newMember.id);
+      await supabaseAdmin.auth.admin.deleteUser(newUser.user.id);
+      return NextResponse.json({ error: "Failed to assign sites to editor." }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ ok: true, user_id: newUser.user.id });
