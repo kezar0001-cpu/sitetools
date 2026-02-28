@@ -18,6 +18,7 @@ type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 interface SiteVisit {
   id: string;
   full_name: string;
+  phone_number?: string | null;
   company_name: string;
   visitor_type: VisitorType;
   signed_in_at: string;
@@ -427,7 +428,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
   function prepareExportData() {
     const rangeFiltered = getFilteredDataByRange();
-    const headers = ["Full Name", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration (hours)"];
+    const headers = ["Full Name", "Mobile", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration (hours)"];
     
     const rows = rangeFiltered.map((v) => {
       const signInDate = new Date(v.signed_in_at);
@@ -443,6 +444,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
       
       return [
         v.full_name,
+        v.phone_number ?? "",
         v.company_name,
         v.visitor_type,
         signInDate.toLocaleDateString(),
@@ -477,6 +479,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
     // Set column widths
     worksheet['!cols'] = [
       { wch: 20 }, // Full Name
+      { wch: 16 }, // Mobile
       { wch: 25 }, // Company
       { wch: 15 }, // Visitor Type
       { wch: 15 }, // Sign-In Date
@@ -932,24 +935,26 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
             <div className="text-center py-16 text-gray-400 text-sm">No records match the current filters.</div>
           ) : (
             <>
-              {/* Desktop table */}
-              <div className="hidden sm:block overflow-x-auto">
+              {/* Desktop table - responsive with horizontal scroll */}
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-yellow-400">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-yellow-400 sticky top-0">
                     <tr className="text-left">
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Full Name</th>
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Company</th>
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Type</th>
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed In</th>
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed Out</th>
-                      <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signature</th>
-                      {!isViewer && <th className="px-5 py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap text-center">Actions</th>}
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Full Name</th>
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Mobile</th>
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Company</th>
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Type</th>
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed In</th>
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signed Out</th>
+                      <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap">Signature</th>
+                      {!isViewer && <th className="px-3 lg:px-5 py-3 lg:py-4 font-bold text-gray-700 uppercase text-xs tracking-wider whitespace-nowrap text-center">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {filtered.map((v) => !isViewer && editingId === v.id ? (
                       <tr key={v.id} className="bg-yellow-50 border-l-4 border-yellow-400">
                         <td className="px-5 py-4 font-bold text-gray-900 whitespace-nowrap">{v.full_name}</td>
+                        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.phone_number || "—"}</td>
                         <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.company_name}</td>
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${TYPE_COLOURS[v.visitor_type]}`}>
@@ -983,6 +988,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                     ) : (
                       <tr key={v.id} className={`transition-all ${v.signed_out_at === null ? "bg-green-50 hover:bg-green-100 border-l-4 border-green-400" : "hover:bg-gray-50 border-l-4 border-transparent"}`}>
                         <td className="px-5 py-4 font-bold text-gray-900 whitespace-nowrap">{v.full_name}</td>
+                        <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.phone_number || "—"}</td>
                         <td className="px-5 py-4 text-gray-700 whitespace-nowrap">{v.company_name}</td>
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span className={`text-xs font-bold px-2.5 py-1 rounded-full shadow-sm ${TYPE_COLOURS[v.visitor_type]}`}>
@@ -1061,8 +1067,8 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                 </table>
               </div>
 
-              {/* Mobile card list */}
-              <ul className="sm:hidden divide-y divide-gray-100">
+              {/* Mobile card list - hidden on medium screens and up */}
+              <ul className="md:hidden divide-y divide-gray-100">
                 {filtered.map((v) => !isViewer && editingId === v.id ? (
                   <li key={v.id} className="px-4 py-4 space-y-3 bg-yellow-50">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1145,6 +1151,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                       </div>
                       )}
                     </div>
+                    {v.phone_number && <p className="text-xs text-gray-500">{v.phone_number}</p>}
                     <p className="text-xs text-gray-500">{v.company_name}</p>
                     <p className="text-xs text-gray-400">In: {fmt(v.signed_in_at)}</p>
                     <p className="text-xs text-gray-400">
