@@ -707,7 +707,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
   const [orgIsPublic, setOrgIsPublic] = useState(!!org.is_public);
   const [orgSaving, setOrgSaving] = useState(false);
   const [orgError, setOrgError] = useState<string | null>(null);
-  const [logoDraft, setLogoDraft] = useState("");
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -730,10 +729,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
     }
   }, [isAdmin, org.id]);
 
-  useEffect(() => {
-    setLogoDraft(activeSite?.logo_url ?? "");
-    setLogoError(null);
-  }, [activeSite?.id, activeSite?.logo_url]);
 
   useEffect(() => {
     setOrgName(org.name);
@@ -1026,7 +1021,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
       return;
     }
     const logoUrl = json.logo_url as string;
-    setLogoDraft(logoUrl);
     const updated = { ...activeSite, logo_url: logoUrl };
     setActiveSite(updated);
     setOrgSites((prev) => prev.map((s) => (s.id === activeSite.id ? updated : s)));
@@ -1048,7 +1042,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
       return;
     }
     const updated = data as Site;
-    setLogoDraft("");
     setActiveSite(updated);
     setOrgSites((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
   }
