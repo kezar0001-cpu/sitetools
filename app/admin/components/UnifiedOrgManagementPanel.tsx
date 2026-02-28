@@ -481,20 +481,25 @@ export function UnifiedOrgManagementPanel({
       if (isExistingUser) {
         // Add existing user directly to organization
         // First, try to find the user in auth.users by email
-        let userData;
-        let userError;
+        let lookupError: unknown = null;
+        let foundUser: { id: string; email?: string } | null = null;
         
         try {
           const result = await supabase.rpc('get_user_by_email', {
             p_email: newMemberEmail.trim()
           });
-          userData = result.data;
-          userError = result.error;
+          if (Array.isArray(result.data)) {
+            foundUser = result.data[0] ?? null;
+          } else if (result.data) {
+            // Some Supabase setups may return a single object instead of an array
+            foundUser = result.data as { id: string; email?: string };
+          }
+          lookupError = result.error;
         } catch (err) {
-          userError = err;
+          lookupError = err;
         }
         
-        if (userError || !userData || userData.length === 0) {
+        if (lookupError || !foundUser) {
           setMemberError("User not found. Please check the email address or create a new account.");
           return;
         }
@@ -504,20 +509,20 @@ export function UnifiedOrgManagementPanel({
           .from("org_members")
           .select("*")
           .eq("org_id", org.id)
-          .eq("user_id", userData.id)
-          .single();
-        
+          .eq("user_id", foundUser.id)
+          .maybeSingle();
+
         if (existingMember) {
           setMemberError("User is already a member of this organization.");
           return;
         }
-        
+
         // Add user to organization
         const { error: addError } = await supabase
           .from("org_members")
           .insert({
             org_id: org.id,
-            user_id: userData.id,
+            user_id: foundUser.id,
             role: newMemberRole,
             site_id: newMemberRole === "editor" && newMemberSiteIds.length > 0 ? newMemberSiteIds[0] : null
           });
@@ -533,7 +538,7 @@ export function UnifiedOrgManagementPanel({
             .from("org_members")
             .select("id")
             .eq("org_id", org.id)
-            .eq("user_id", userData.id)
+            .eq("user_id", foundUser.id)
             .single();
             
           if (newMember) {
