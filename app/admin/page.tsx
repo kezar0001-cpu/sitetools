@@ -82,7 +82,7 @@ function AuthScreen({ onAuth }: { onAuth: () => void }) {
     setInfo(null);
     setLoading(true);
     if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({ email, password });
       setLoading(false);
       if (error) { setError(error.message); return; }
       

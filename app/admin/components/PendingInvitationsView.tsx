@@ -37,7 +37,7 @@ export function PendingInvitationsView({ userEmail }: { userEmail: string }) {
       .gt("expires_at", new Date().toISOString());
 
     if (data) {
-      const invitesWithOrgs = data.map((inv: Record<string, unknown>) => ({
+      const invitesWithOrgs = data.map((inv: OrgInvitation & { organisations?: Organisation }) => ({
         ...inv,
         org: inv.organisations,
       }));
