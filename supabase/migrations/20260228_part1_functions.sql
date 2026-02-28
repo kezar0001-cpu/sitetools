@@ -4,7 +4,7 @@ create or replace function get_user_by_email(p_email text)
 returns table(id uuid, email text, created_at timestamptz) as $$
 begin
     return query
-    select u.id, u.email, u.created_at
+    select u.id, u.email::text, u.created_at
     from auth.users u
     where u.email = lower(p_email)
     limit 1;
@@ -16,7 +16,7 @@ create or replace function get_user_by_id(p_user_id uuid)
 returns table(id uuid, email text, created_at timestamptz) as $$
 begin
     return query
-    select u.id, u.email, u.created_at
+    select u.id, u.email::text, u.created_at
     from auth.users u
     where u.id = p_user_id
     limit 1;

@@ -984,10 +984,22 @@ export function UnifiedOrgManagementPanel({
                     onChange={(e) => setNewMemberRole(e.target.value as "admin" | "editor" | "viewer")}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   >
-                    <option value="admin">Admin (full organization management)</option>
-                    <option value="editor">Editor (can manage visits for assigned sites)</option>
-                    <option value="viewer">Viewer (read-only access)</option>
+                    {isExistingUser ? (
+                      <>
+                        <option value="admin">Admin (full organization management)</option>
+                        <option value="editor">Editor (can manage visits for assigned sites)</option>
+                        <option value="viewer">Viewer (read-only access)</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="editor">Editor (can manage visits for assigned sites)</option>
+                        <option value="viewer">Viewer (read-only access)</option>
+                      </>
+                    )}
                   </select>
+                  {!isExistingUser && (
+                    <p className="text-xs text-gray-500 mt-1">💡 New users can be created as Editor or Viewer. Promote to Admin after creation using the role dropdown in Existing Members.</p>
+                  )}
                 </div>
                 {newMemberRole === "editor" && (
                   <div>
