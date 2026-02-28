@@ -87,7 +87,8 @@ export function UnifiedOrgManagementPanel({
   org, 
   member, 
   orgSites, 
-  onOrgDeleted 
+  onOrgDeleted,
+  onOrgUpdated 
 }: UnifiedOrgManagementPanelProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "members" | "invitations" | "requests" | "settings">("overview");
   const [loading, setLoading] = useState(false);
@@ -101,8 +102,26 @@ export function UnifiedOrgManagementPanel({
   
   const [invitations, setInvitations] = useState<OrgInvitation[]>([]);
   const [joinRequests, setJoinRequests] = useState<OrgJoinRequest[]>([]);
+  const [members, setMembers] = useState<OrgMember[]>([]);
+  // const [editorSiteIds, setEditorSiteIds] = useState<Record<string, string[]>>({});
   // const [transferRequests, setTransferRequests] = useState<any[]>([]);
   // const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
+  
+  // Organization details state
+  const [orgName, setOrgName] = useState(org.name);
+  const [orgDescription, setOrgDescription] = useState(org.description ?? "");
+  const [orgIsPublic, setOrgIsPublic] = useState(!!org.is_public);
+  const [savingOrg, setSavingOrg] = useState(false);
+  
+  // Member management state
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberPassword, setNewMemberPassword] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState<"editor" | "viewer">("editor");
+  const [newMemberSiteIds, setNewMemberSiteIds] = useState<string[]>([]);
+  const [addingMember, setAddingMember] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
   
   // Form states
   const [newInvitationEmail, setNewInvitationEmail] = useState("");
@@ -152,6 +171,59 @@ export function UnifiedOrgManagementPanel({
     }
   }, [org.id]);
 
+  const fetchMembers = useCallback(async () => {
+    const { data } = await supabase.from("org_members").select("*").eq("org_id", org.id);
+    if (!data) return;
+    setMembers(data as OrgMember[]);
+    // TODO: Implement editor site assignments when needed
+    // const editorIds = (data as OrgMember[]).filter((m) => m.role === "editor").map((m) => m.id);
+    // if (editorIds.length === 0) {
+    //   setEditorSiteIds({});
+    //   return;
+    // }
+    // const { data: sitesData } = await supabase
+    //   .from("org_member_sites")
+    //   .select("org_member_id, site_id")
+    //   .in("org_member_id", editorIds);
+    // const map: Record<string, string[]> = {};
+    // editorIds.forEach((id) => { map[id] = []; });
+    // (sitesData || []).forEach((row: { org_member_id: string; site_id: string }) => {
+    //   if (!map[row.org_member_id]) map[row.org_member_id] = [];
+    //   map[row.org_member_id].push(row.site_id);
+    // });
+    // setEditorSiteIds(map);
+  }, [org.id]);
+
+  async function saveOrgDetails(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setSavingOrg(true);
+    
+    const { data, error } = await supabase
+      .from("organisations")
+      .update({ 
+        name: orgName.trim(), 
+        description: orgDescription.trim() || null, 
+        is_public: orgIsPublic 
+      })
+      .eq("id", org.id)
+      .select("*")
+      .single();
+    
+    setSavingOrg(false);
+    if (error || !data) {
+      setError(error?.message ?? "Could not save organization details.");
+      return;
+    }
+    
+    setSuccess("Organization details saved successfully!");
+    // Call onOrgUpdated if provided
+    if (onOrgUpdated) {
+      onOrgUpdated(data as Organisation);
+    }
+  }
+
   // const fetchTransferRequests = useCallback(async () => {
   //   const { data } = await supabase
   //     .from("org_transfer_requests")
@@ -188,7 +260,8 @@ export function UnifiedOrgManagementPanel({
         await Promise.all([
           fetchJoinCode(),
           fetchInvitations(),
-          fetchJoinRequests()
+          fetchJoinRequests(),
+          fetchMembers()
           // fetchTransferRequests(),
           // fetchDeletionRequests()
         ]);
@@ -200,7 +273,14 @@ export function UnifiedOrgManagementPanel({
     };
     
     loadData();
-  }, [activeTab, isAdmin, fetchJoinCode, fetchInvitations, fetchJoinRequests]);
+  }, [activeTab, isAdmin, fetchJoinCode, fetchInvitations, fetchJoinRequests, fetchMembers]);
+
+  // Sync organization details when org prop changes
+  useEffect(() => {
+    setOrgName(org.name);
+    setOrgDescription(org.description ?? "");
+    setOrgIsPublic(!!org.is_public);
+  }, [org.id, org.name, org.description, org.is_public]);
 
   // Action handlers
   async function generateJoinCode() {
@@ -321,6 +401,76 @@ export function UnifiedOrgManagementPanel({
     fetchJoinRequests();
   }
 
+  // Member management functions
+  function toggleNewMemberSite(siteId: string) {
+    setNewMemberSiteIds((prev) =>
+      prev.includes(siteId) ? prev.filter((id) => id !== siteId) : [...prev, siteId]
+    );
+  }
+
+  async function handleAddMember(e: React.FormEvent) {
+    e.preventDefault();
+    setMemberError(null);
+    if (!newMemberEmail.trim() || !newMemberPassword) {
+      setMemberError("Email and password are required."); 
+      return;
+    }
+    if (newMemberRole === "editor" && newMemberSiteIds.length === 0) {
+      setMemberError("Editors must be assigned to at least one site."); 
+      return;
+    }
+    setAddingMember(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch("/api/create-editor", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({
+        email: newMemberEmail.trim(),
+        password: newMemberPassword,
+        org_id: org.id,
+        role: newMemberRole,
+        site_ids: newMemberRole === "editor" ? newMemberSiteIds : [],
+      }),
+    });
+    const json = await res.json();
+    setAddingMember(false);
+    if (!res.ok) { 
+      setMemberError(json.error ?? "Failed to create user."); 
+      return; 
+    }
+    setNewMemberEmail(""); 
+    setNewMemberPassword(""); 
+    setNewMemberRole("editor"); 
+    setNewMemberSiteIds([]);
+    fetchMembers();
+  }
+
+  async function handleRemoveMember(memberId: string, userId: string) {
+    if (userId === member.user_id) return;
+    setRemovingMemberId(memberId);
+    const { error } = await supabase.from("org_members").delete().eq("id", memberId);
+    setRemovingMemberId(null);
+    if (error) { 
+      setMemberError("Failed to remove member."); 
+      return; 
+    }
+    fetchMembers();
+  }
+
+  async function handleRoleChange(memberId: string, newRole: "admin" | "editor" | "viewer") {
+    setUpdatingMemberId(memberId);
+    const { error } = await supabase.from("org_members").update({ role: newRole }).eq("id", memberId);
+    setUpdatingMemberId(null);
+    if (error) { 
+      setMemberError("Failed to update role."); 
+      return; 
+    }
+    fetchMembers();
+  }
+
   async function requestTransfer() {
     if (!transferEmail.trim()) {
       setError("Please enter an email address");
@@ -373,7 +523,7 @@ export function UnifiedOrgManagementPanel({
     
     const { data, error } = await supabase.rpc("request_org_deletion", {
       p_org_id: org.id,
-      p_reason: deletionReason
+      p_reason: deletionReason.trim()
     });
     
     setLoading(false);
@@ -481,10 +631,74 @@ export function UnifiedOrgManagementPanel({
         {/* Overview Tab */}
         {activeTab === "overview" && !loading && (
           <div className="space-y-6">
+            {/* Organization Details */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-gray-900">Organization Details</h3>
+              <form onSubmit={saveOrgDetails} className="space-y-4 max-w-xl">
+                {error && (
+                  <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>
+                )}
+                {success && (
+                  <div className="bg-green-50 border border-green-300 text-green-700 rounded-xl px-4 py-3 text-sm font-semibold">{success}</div>
+                )}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="org_name">Organization name</label>
+                  <input
+                    id="org_name"
+                    type="text"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="org_desc">Description (optional)</label>
+                  <textarea
+                    id="org_desc"
+                    value={orgDescription}
+                    onChange={(e) => setOrgDescription(e.target.value)}
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="org_public"
+                    type="checkbox"
+                    checked={orgIsPublic}
+                    onChange={(e) => setOrgIsPublic(e.target.checked)}
+                    className="w-4 h-4 text-yellow-400 border-gray-300 rounded focus:ring-yellow-400"
+                  />
+                  <label htmlFor="org_public" className="text-sm text-gray-700">
+                    <span className="font-semibold">Make organization discoverable</span>
+                    <span className="text-gray-500 block text-xs">Allow users to find and request to join</span>
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={savingOrg}
+                    className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  >
+                    {savingOrg ? "Saving…" : "Save changes"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setOrgName(org.name); setOrgDescription(org.description || ""); setOrgIsPublic(org.is_public || false); }}
+                    className="text-gray-500 hover:text-gray-700 text-sm font-medium px-3 py-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-blue-50 rounded-lg p-4">
                 <div className="text-blue-600 text-sm font-medium">Total Members</div>
-                <div className="text-2xl font-bold text-blue-900">{/* Member count would go here */}</div>
+                <div className="text-2xl font-bold text-blue-900">{members.length}</div>
               </div>
               <div className="bg-green-50 rounded-lg p-4">
                 <div className="text-green-600 text-sm font-medium">Active Sites</div>
@@ -503,17 +717,17 @@ export function UnifiedOrgManagementPanel({
               <h3 className="text-sm font-bold text-gray-900">Quick Actions</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
+                  onClick={() => setActiveTab("members")}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-sm font-medium">Manage Members</span>
+                  <span className="text-blue-500">→</span>
+                </button>
+                <button
                   onClick={() => setActiveTab("invitations")}
                   className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <span className="text-sm font-medium">Send Invitation</span>
-                  <span className="text-blue-500">→</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("settings")}
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <span className="text-sm font-medium">Generate Join Code</span>
                   <span className="text-blue-500">→</span>
                 </button>
               </div>
@@ -523,12 +737,124 @@ export function UnifiedOrgManagementPanel({
 
         {/* Members Tab */}
         {activeTab === "members" && !loading && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-bold text-gray-900">Organization Members</h3>
-            <p className="text-sm text-gray-600">Manage organization members and their roles.</p>
-            {/* Members management would go here - this would integrate with existing MembersPanel */}
-            <div className="bg-gray-50 rounded-lg p-8 text-center">
-              <p className="text-gray-500 text-sm">Member management panel would be integrated here</p>
+          <div className="space-y-6">
+            {/* Add new member form */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-gray-900">Add New Member</h3>
+              {memberError && (
+                <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{memberError}</div>
+              )}
+              <form onSubmit={handleAddMember} className="space-y-4 max-w-xl">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_email">Email address</label>
+                  <input 
+                    id="member_email" 
+                    type="email" 
+                    value={newMemberEmail} 
+                    onChange={(e) => setNewMemberEmail(e.target.value)} 
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_password">Password</label>
+                  <input 
+                    id="member_password" 
+                    type="password" 
+                    value={newMemberPassword} 
+                    onChange={(e) => setNewMemberPassword(e.target.value)} 
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_role">Role</label>
+                  <select 
+                    id="member_role" 
+                    value={newMemberRole} 
+                    onChange={(e) => setNewMemberRole(e.target.value as "editor" | "viewer")}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                  >
+                    <option value="editor">Editor (can manage visits for assigned sites)</option>
+                    <option value="viewer">Viewer (read-only access)</option>
+                  </select>
+                </div>
+                {newMemberRole === "editor" && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Assign to sites</label>
+                    <div className="space-y-2">
+                      {orgSites.map((site) => (
+                        <label key={site.id} className="flex items-center gap-2 text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={newMemberSiteIds.includes(site.id)} 
+                            onChange={() => toggleNewMemberSite(site.id)}
+                            className="w-4 h-4 text-blue-400 border-gray-300 rounded focus:ring-blue-400" 
+                          />
+                          <span>{site.name}</span>
+                        </label>
+                      ))}
+                      {orgSites.length === 0 && <span className="text-xs text-gray-500">No sites yet. Create one first.</span>}
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button 
+                    type="submit" 
+                    disabled={addingMember}
+                    className="bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  >
+                    {addingMember ? "Adding…" : "Add Member"}
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => { setNewMemberEmail(""); setNewMemberPassword(""); setNewMemberRole("editor"); setNewMemberSiteIds([]); }}
+                    className="text-gray-500 hover:text-gray-700 text-sm font-medium px-3 py-2"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Existing members list */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-gray-900">Existing Members</h3>
+              {members.length === 0 ? (
+                <p className="text-gray-500 text-sm">No members yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {members.map((memberItem) => (
+                    <div key={memberItem.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{memberItem.user_id}</p>
+                          <p className="text-xs text-gray-500">Role: {memberItem.role}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <select 
+                            value={memberItem.role} 
+                            onChange={(e) => handleRoleChange(memberItem.id, e.target.value as "admin" | "editor" | "viewer")}
+                            disabled={updatingMemberId === memberItem.id}
+                            className="text-xs border border-gray-300 rounded px-2 py-1"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="editor">Editor</option>
+                            <option value="viewer">Viewer</option>
+                          </select>
+                          <button 
+                            onClick={() => handleRemoveMember(memberItem.id, memberItem.user_id)} 
+                            disabled={removingMemberId === memberItem.id || memberItem.user_id === member.user_id}
+                            className="text-red-500 hover:text-red-700 text-xs font-medium disabled:opacity-50"
+                          >
+                            {removingMemberId === memberItem.id ? "Removing…" : "Remove"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

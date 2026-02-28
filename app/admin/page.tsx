@@ -644,7 +644,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
         )}
 
         {/* Organization management (admin only) */}
-        {isAdmin && onOrgUpdate && (
+        {isAdmin && (
           <UnifiedOrgManagementPanel 
             org={org} 
             member={member} 
