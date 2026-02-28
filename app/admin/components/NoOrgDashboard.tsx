@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { JoinOrgPanel } from "./JoinOrgPanel";
 import { PendingInvitationsView } from "./PendingInvitationsView";
@@ -30,6 +30,10 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
   const [publicOrgs, setPublicOrgs] = useState<Organisation[]>([]);
   const [joinMessage, setJoinMessage] = useState("");
   const [requesting, setRequesting] = useState(false);
+
+  useEffect(() => {
+    fetchPublicOrgs();
+  }, []);
 
   async function fetchPublicOrgs() {
     const { data } = await supabase
@@ -330,6 +334,18 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
         {/* Main Content */}
         <main className="flex-1 p-6">
           <div className="max-w-4xl mx-auto space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">
+                {error}
+              </div>
+            )}
+            
+            {success && (
+              <div className="bg-green-50 border border-green-300 text-green-700 rounded-xl px-4 py-3 text-sm font-semibold">
+                {success}
+              </div>
+            )}
+
             {/* Join Organization Panel */}
             <JoinOrgPanel userId={userId} onOrgJoined={onOrgJoined} />
 

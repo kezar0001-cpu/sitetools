@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -53,7 +54,7 @@ function toLocalDateValue(iso: string) {
 
 // ─── Auth Screen (Sign Up / Log In) ─────────────────────────────────────────
 
-export function AuthScreen({ onAuth }: { onAuth: () => void }) {
+function AuthScreen({ onAuth }: { onAuth: () => void }) {
   const [mode, setMode] = useState<"login" | "signup" | "browse-orgs">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1019,7 +1020,14 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                         <td className="px-5 py-4 whitespace-nowrap">
                           {v.signature ? (
                             <button onClick={() => setViewingSig(v.signature!)} className="hover:opacity-80 transition-opacity hover:scale-105 transform">
-                              <img src={v.signature} alt="Signature" className="h-10 w-auto rounded-lg border-2 border-gray-200 shadow-sm" />
+                              <Image
+                                src={v.signature}
+                                alt="Signature"
+                                width={160}
+                                height={64}
+                                unoptimized
+                                className="h-10 w-auto rounded-lg border-2 border-gray-200 shadow-sm"
+                              />
                             </button>
                           ) : (
                             <span className="text-xs text-gray-400 font-medium">—</span>
@@ -1174,7 +1182,14 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
                     </p>
                     {v.signature && (
                       <button onClick={() => setViewingSig(v.signature!)} className="mt-1 hover:opacity-80 transition-opacity">
-                        <img src={v.signature} alt="Signature" className="h-8 w-auto rounded border border-gray-200" />
+                        <Image
+                          src={v.signature}
+                          alt="Signature"
+                          width={140}
+                          height={56}
+                          unoptimized
+                          className="h-8 w-auto rounded border border-gray-200"
+                        />
                       </button>
                     )}
                   </li>
@@ -1191,7 +1206,14 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-3" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-bold text-gray-900">Visitor Signature</h3>
             <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 p-2">
-              <img src={viewingSig} alt="Signature" className="w-full h-auto" />
+              <Image
+                src={viewingSig}
+                alt="Signature"
+                width={480}
+                height={200}
+                unoptimized
+                className="w-full h-auto"
+              />
             </div>
             <button onClick={() => setViewingSig(null)}
               className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm transition-colors">
@@ -1214,7 +1236,6 @@ export default function AdminPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string>("");
   const [org, setOrg] = useState<Organisation | null>(null);
   const [member, setMember] = useState<OrgMember | null>(null);
   const [loadingOrg, setLoadingOrg] = useState(false);
@@ -1225,17 +1246,14 @@ export default function AdminPage() {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
-        setUserEmail(session.user.email || "");
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
-        setUserEmail(session.user.email || "");
       } else { 
         setUserId(null); 
-        setUserEmail("");
         setOrg(null); 
         setMember(null); 
         setDbError(null); 
@@ -1271,6 +1289,12 @@ export default function AdminPage() {
       });
   }, [userId]);
 
+  useEffect(() => {
+    if (authed && !loadingOrg && !dbError && (!org || !member)) {
+      router.replace("/admin/orgs");
+    }
+  }, [authed, loadingOrg, dbError, org, member, router]);
+
   async function handleLogout() {
     await supabase.auth.signOut();
   }
@@ -1301,12 +1325,6 @@ export default function AdminPage() {
       </div>
     </div>
   );
-
-  useEffect(() => {
-    if (authed && !loadingOrg && !dbError && (!org || !member)) {
-      router.replace("/admin/orgs");
-    }
-  }, [authed, loadingOrg, dbError, org, member, router]);
 
   if (!org || !member) {
     return (

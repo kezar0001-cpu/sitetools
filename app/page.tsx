@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import SignatureCanvas from "react-signature-canvas";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
@@ -417,7 +418,14 @@ function SiteSignIn({ site }: { site: Site }) {
           <div className="flex items-center gap-3 min-w-0">
             <div className="bg-yellow-600 text-white rounded-lg p-2 shrink-0">
               {site.logo_url ? (
-                <img src={site.logo_url} alt={`${site.name} logo`} className="h-7 w-7 object-contain" />
+                <Image
+                  src={site.logo_url}
+                  alt={`${site.name} logo`}
+                  width={28}
+                  height={28}
+                  className="h-7 w-7 object-contain"
+                  unoptimized
+                />
               ) : (
                 HEADER_SVG
               )}
