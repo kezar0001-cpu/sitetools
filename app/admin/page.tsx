@@ -8,12 +8,12 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { InvitationsPanel } from "./components/InvitationsPanel";
 import { JoinRequestsPanel } from "./components/JoinRequestsPanel";
-import { PendingInvitationsView } from "./components/PendingInvitationsView";
+import { OrgManagementPanel } from "./components/OrgManagementPanel";
+import { NoOrgDashboard } from "./components/NoOrgDashboard";
 
-interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; }
+interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
 interface Site { id: string; name: string; slug: string; org_id: string; logo_url?: string | null; }
-interface OrgInvitation { id: string; org_id: string; email: string; role: string; site_id: string | null; status: string; created_at: string; expires_at: string; }
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
@@ -155,239 +155,6 @@ function AuthScreen({ onAuth }: { onAuth: () => void }) {
   );
 }
 
-// ─── Org Setup Screen ───────────────────────────────────────────────────────
-
-function OrgSetupScreen({ userId, userEmail, onDone }: { userId: string; userEmail: string; onDone: (org: Organisation, member: OrgMember) => void }) {
-  const [mode, setMode] = useState<"create" | "join" | "browse">("create");
-  const [orgName, setOrgName] = useState("");
-  const [orgDescription, setOrgDescription] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [publicOrgs, setPublicOrgs] = useState<Organisation[]>([]);
-  const [joinMessage, setJoinMessage] = useState("");
-  const [requesting, setRequesting] = useState(false);
-  const [pendingInvitations, setPendingInvitations] = useState<OrgInvitation[]>([]);
-
-  useEffect(() => {
-    // Check for pending invitations
-    supabase
-      .from("org_invitations")
-      .select("*")
-      .eq("email", userEmail)
-      .eq("status", "pending")
-      .gt("expires_at", new Date().toISOString())
-      .then(({ data }) => {
-        if (data) setPendingInvitations(data as OrgInvitation[]);
-      });
-  }, [userEmail]);
-
-  useEffect(() => {
-    if (mode === "browse") {
-      supabase
-        .from("organisations")
-        .select("*")
-        .eq("is_public", true)
-        .then(({ data }) => {
-          if (data) setPublicOrgs(data as Organisation[]);
-        });
-    }
-  }, [mode]);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!orgName.trim()) return;
-    setCreating(true);
-    const orgId = crypto.randomUUID();
-    const { error: orgErr } = await supabase
-      .from("organisations")
-      .insert({ 
-        id: orgId, 
-        name: orgName.trim(),
-        description: orgDescription.trim() || null,
-        is_public: isPublic
-      });
-    if (orgErr) { setError("Could not create organisation."); setCreating(false); return; }
-    const memberId = crypto.randomUUID();
-    const { error: memErr } = await supabase
-      .from("org_members").insert({ id: memberId, org_id: orgId, user_id: userId, role: "admin" });
-    setCreating(false);
-    if (memErr) {
-      await supabase.from("organisations").delete().eq("id", orgId);
-      setError("Could not set up membership."); return;
-    }
-    const org: Organisation = { id: orgId, name: orgName.trim(), created_at: new Date().toISOString(), is_public: isPublic, description: orgDescription.trim() || null };
-    const member: OrgMember = { id: memberId, org_id: orgId, user_id: userId, role: "admin", site_id: null };
-    onDone(org, member);
-  }
-
-  async function handleRequestJoin(orgId: string) {
-    setError(null);
-    setRequesting(true);
-    const { error } = await supabase
-      .from("org_join_requests")
-      .insert({ org_id: orgId, user_id: userId, message: joinMessage.trim() || null });
-    setRequesting(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setMode("create");
-    setError(null);
-    alert("Join request sent! An admin will review your request.");
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 py-8">
-      <div className="w-full max-w-2xl space-y-6">
-        {/* Pending Invitations */}
-        {pendingInvitations.length > 0 && (
-          <PendingInvitationsView userEmail={userEmail} />
-        )}
-
-        {/* Main Card */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 space-y-6">
-          <div>
-            <h1 className="text-xl font-extrabold text-gray-900">
-              {mode === "create" ? "Create your Organisation" : mode === "browse" ? "Browse Organizations" : "Join Organization"}
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {mode === "create" 
-                ? "Create a new organization to manage your construction sites." 
-                : mode === "browse"
-                ? "Browse and request to join existing organizations."
-                : "Request to join an organization."}
-            </p>
-          </div>
-
-          {/* Mode Switcher */}
-          <div className="flex gap-2 border-b border-gray-200 pb-4">
-            <button
-              onClick={() => setMode("create")}
-              className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                mode === "create" 
-                  ? "bg-yellow-400 text-yellow-900" 
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              Create New
-            </button>
-            <button
-              onClick={() => setMode("browse")}
-              className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                mode === "browse" 
-                  ? "bg-yellow-400 text-yellow-900" 
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              Browse & Join
-            </button>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">
-              {error}
-            </div>
-          )}
-
-          {/* Create Mode */}
-          {mode === "create" && (
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="org_name">
-                  Organisation Name *
-                </label>
-                <input
-                  id="org_name"
-                  type="text"
-                  value={orgName}
-                  onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="e.g. Acme Constructions"
-                  autoFocus
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="org_desc">
-                  Description (optional)
-                </label>
-                <textarea
-                  id="org_desc"
-                  value={orgDescription}
-                  onChange={(e) => setOrgDescription(e.target.value)}
-                  placeholder="Brief description of your organization"
-                  rows={3}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  id="is_public"
-                  type="checkbox"
-                  checked={isPublic}
-                  onChange={(e) => setIsPublic(e.target.checked)}
-                  className="w-4 h-4 text-yellow-400 border-gray-300 rounded focus:ring-yellow-400"
-                />
-                <label htmlFor="is_public" className="text-sm text-gray-700">
-                  <span className="font-semibold">Make organization discoverable</span>
-                  <span className="text-gray-500 block text-xs">Allow users to find and request to join</span>
-                </label>
-              </div>
-              <button
-                type="submit"
-                disabled={creating || !orgName.trim()}
-                className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold py-3 rounded-xl transition-colors text-sm shadow"
-              >
-                {creating ? "Creating…" : "Create Organisation"}
-              </button>
-            </form>
-          )}
-
-          {/* Browse Mode */}
-          {mode === "browse" && (
-            <div className="space-y-4">
-              {publicOrgs.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">
-                  No public organizations available. Create your own or ask an admin to invite you.
-                </p>
-              ) : (
-                <ul className="space-y-3">
-                  {publicOrgs.map((org) => (
-                    <li key={org.id} className="border border-gray-200 rounded-xl p-4 space-y-3">
-                      <div>
-                        <h3 className="text-base font-bold text-gray-900">{org.name}</h3>
-                        {org.description && (
-                          <p className="text-sm text-gray-600 mt-1">{org.description}</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <textarea
-                          placeholder="Optional message to admin (e.g., your role, experience)"
-                          value={joinMessage}
-                          onChange={(e) => setJoinMessage(e.target.value)}
-                          rows={2}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                        />
-                        <button
-                          onClick={() => handleRequestJoin(org.id)}
-                          disabled={requesting}
-                          className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold py-2 rounded-lg text-sm transition-colors"
-                        >
-                          {requesting ? "Sending…" : "Request to Join"}
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Site Switcher (admin only) ─────────────────────────────────────────────
 
@@ -693,8 +460,8 @@ function MembersPanel({ orgId, orgSites, currentUserId }: { orgId: string; orgSi
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
-function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
-  org: Organisation; member: OrgMember; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void;
+function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
+  org: Organisation; member: OrgMember; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
 }) {
   const isAdmin = member.role === "admin";
   const isViewer = member.role === "viewer";
@@ -1282,6 +1049,12 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate }: {
         {/* Organization Management - Admin Only */}
         {isAdmin && (
           <>
+            <OrgManagementPanel 
+              org={org} 
+              member={member} 
+              onOrgDeleted={onOrgDeleted}
+              onOrgUpdated={onOrgUpdate}
+            />
             <InvitationsPanel orgId={org.id} orgSites={orgSites} />
             <JoinRequestsPanel orgId={org.id} orgSites={orgSites} />
           </>
@@ -1828,10 +1601,20 @@ export default function AdminPage() {
     </div>
   );
 
-  // No org yet — show setup screen
+  // No org yet — show no-org dashboard for organization-less accounts
   if (!org || !member) return (
-    <OrgSetupScreen userId={userId!} userEmail={userEmail} onDone={(o, m) => { setOrg(o); setMember(m); }} />
+    <NoOrgDashboard 
+      userId={userId!} 
+      userEmail={userEmail} 
+      onOrgJoined={() => {
+        // Refresh to load the new organization
+        window.location.reload();
+      }}
+    />
   );
 
-  return <AdminDashboard org={org} member={member} onLogout={handleLogout} onOrgUpdate={setOrg} />;
+  return <AdminDashboard org={org} member={member} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
+    setOrg(null);
+    setMember(null);
+  }} />;
 }
