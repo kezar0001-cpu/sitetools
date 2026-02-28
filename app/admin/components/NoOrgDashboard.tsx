@@ -141,90 +141,62 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
 
   if (mode === "browse") {
     return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        {/* Header */}
-        <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-600 text-white rounded-lg p-2">
+      <div className="flex-1 p-6">
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="text-center space-y-4">
+            <h2 className="text-3xl font-extrabold text-gray-900">Welcome to SiteSign</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Get started by creating your own organization or joining an existing one to manage your construction sites.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <button
+              onClick={() => setMode("create")}
+              className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-left hover:shadow-xl transition-shadow group"
+            >
+              <div className="bg-yellow-100 text-yellow-700 rounded-lg w-12 h-12 flex items-center justify-center mb-4 group-hover:bg-yellow-200 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
                 </svg>
               </div>
-              <div>
-                <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
-                <p className="text-xs font-medium text-yellow-800">Construction Site Management</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Create Organization</h3>
+              <p className="text-gray-600">Set up a new organization to manage your construction sites and team members.</p>
+            </button>
+
+            <button
+              onClick={() => setMode("join")}
+              className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-left hover:shadow-xl transition-shadow group"
+            >
+              <div className="bg-blue-100 text-blue-700 rounded-lg w-12 h-12 flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-yellow-800">No Organization</span>
-            </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Join Organization</h3>
+              <p className="text-gray-600">Browse public organizations or use a join code to access an existing organization.</p>
+            </button>
           </div>
-        </header>
 
-        {/* Main Content */}
-        <main className="flex-1 p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Welcome */}
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-              <h2 className="text-2xl font-extrabold text-gray-900 mb-4">Welcome to SiteSign!</h2>
-              <p className="text-gray-600 mb-6">
-                You&apos;re all set up with an account. To get started, you can either create your own organization or join an existing one.
-              </p>
-              
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setMode("create")}
-                  className="bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold px-6 py-3 rounded-xl transition-colors"
-                >
-                  Create Organization
-                </button>
-                <button
-                  onClick={() => { setMode("join"); fetchPublicOrgs(); }}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 py-3 rounded-xl transition-colors"
-                >
-                  Browse Organizations
-                </button>
-              </div>
-            </div>
-
-            {/* Pending Invitations */}
-            <PendingInvitationsView userEmail={userEmail} />
-
-            {/* Join Organization Panel */}
-            <JoinOrgPanel userId={userId} onOrgJoined={onOrgJoined} />
-          </div>
-        </main>
+          {/* Pending Invitations */}
+          <PendingInvitationsView userId={userId} onOrgJoined={onOrgJoined} />
+        </div>
       </div>
     );
   }
 
   if (mode === "create") {
     return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        {/* Header */}
-        <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-600 text-white rounded-lg p-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">Create Organization</h1>
-                <p className="text-xs font-medium text-yellow-800">Set up your construction site management</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setMode("browse")}
-              className="text-yellow-800 hover:text-yellow-900 font-medium text-sm"
-            >
-              ← Back
-            </button>
+      <div className="flex-1 p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div>
+            <h2 className="text-2xl font-extrabold text-gray-900">Create Your Organization</h2>
+            <p className="text-sm text-gray-500 mt-1">This is the company or group that manages your sites.</p>
           </div>
-        </header>
 
+          {error && (
+            <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">
+              {error}
         {/* Main Content */}
         <main className="flex-1 flex items-center justify-center p-6">
           <div className="w-full max-w-md">
