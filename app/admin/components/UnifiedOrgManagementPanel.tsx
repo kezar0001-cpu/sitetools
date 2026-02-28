@@ -95,6 +95,21 @@ export function UnifiedOrgManagementPanel({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Auto-hide notifications
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
   // State for different sections
   const [joinCode, setJoinCode] = useState("");
   const [joinCodeExpiry, setJoinCodeExpiry] = useState("");
@@ -116,8 +131,9 @@ export function UnifiedOrgManagementPanel({
   // Member management state
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newMemberPassword, setNewMemberPassword] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState<"editor" | "viewer">("editor");
+  const [newMemberRole, setNewMemberRole] = useState<"admin" | "editor" | "viewer">("editor");
   const [newMemberSiteIds, setNewMemberSiteIds] = useState<string[]>([]);
+  const [isExistingUser, setIsExistingUser] = useState(false);
   const [addingMember, setAddingMember] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
@@ -411,41 +427,124 @@ export function UnifiedOrgManagementPanel({
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
     setMemberError(null);
-    if (!newMemberEmail.trim() || !newMemberPassword) {
-      setMemberError("Email and password are required."); 
+    
+    if (!newMemberEmail.trim()) {
+      setMemberError("Email is required."); 
       return;
     }
+    
+    if (!isExistingUser && !newMemberPassword) {
+      setMemberError("Password is required for new users."); 
+      return;
+    }
+    
     if (newMemberRole === "editor" && newMemberSiteIds.length === 0) {
       setMemberError("Editors must be assigned to at least one site."); 
       return;
     }
+    
     setAddingMember(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch("/api/create-editor", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify({
-        email: newMemberEmail.trim(),
-        password: newMemberPassword,
-        org_id: org.id,
-        role: newMemberRole,
-        site_ids: newMemberRole === "editor" ? newMemberSiteIds : [],
-      }),
-    });
-    const json = await res.json();
-    setAddingMember(false);
-    if (!res.ok) { 
-      setMemberError(json.error ?? "Failed to create user."); 
-      return; 
+    
+    try {
+      if (isExistingUser) {
+        // Add existing user directly to organization
+        // First, try to find the user in auth.users by email
+        const { data: userData, error: userError } = await supabase.rpc('get_user_by_email', {
+          email: newMemberEmail.trim()
+        });
+        
+        if (userError || !userData) {
+          setMemberError("User not found. Please check the email address or create a new account.");
+          return;
+        }
+        
+        // Check if user is already in this organization
+        const { data: existingMember } = await supabase
+          .from("org_members")
+          .select("*")
+          .eq("org_id", org.id)
+          .eq("user_id", userData.id)
+          .single();
+        
+        if (existingMember) {
+          setMemberError("User is already a member of this organization.");
+          return;
+        }
+        
+        // Add user to organization
+        const { error: addError } = await supabase
+          .from("org_members")
+          .insert({
+            org_id: org.id,
+            user_id: userData.id,
+            role: newMemberRole,
+            site_id: newMemberRole === "editor" && newMemberSiteIds.length > 0 ? newMemberSiteIds[0] : null
+          });
+        
+        if (addError) {
+          setMemberError("Failed to add user to organization.");
+          return;
+        }
+        
+        // Add site assignments for editors
+        if (newMemberRole === "editor" && newMemberSiteIds.length > 0) {
+          const { data: newMember } = await supabase
+            .from("org_members")
+            .select("id")
+            .eq("org_id", org.id)
+            .eq("user_id", userData.id)
+            .single();
+            
+          if (newMember) {
+            await supabase
+              .from("org_member_sites")
+              .insert(
+                newMemberSiteIds.map(siteId => ({
+                  org_member_id: newMember.id,
+                  site_id: siteId
+                }))
+              );
+          }
+        }
+        
+        setSuccess("User added to organization successfully!");
+      } else {
+        // Create new user and add to organization
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch("/api/create-editor", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+          },
+          body: JSON.stringify({
+            email: newMemberEmail.trim(),
+            password: newMemberPassword,
+            org_id: org.id,
+            role: newMemberRole,
+            site_ids: newMemberRole === "editor" ? newMemberSiteIds : [],
+          }),
+        });
+        const json = await res.json();
+        
+        if (!res.ok) { 
+          setMemberError(json.error ?? "Failed to create user."); 
+          return; 
+        }
+        
+        setSuccess("New user created and added to organization successfully!");
+      }
+      
+      // Reset form
+      setNewMemberEmail(""); 
+      setNewMemberPassword(""); 
+      setNewMemberRole("editor"); 
+      setNewMemberSiteIds([]);
+      setIsExistingUser(false);
+      fetchMembers();
+    } finally {
+      setAddingMember(false);
     }
-    setNewMemberEmail(""); 
-    setNewMemberPassword(""); 
-    setNewMemberRole("editor"); 
-    setNewMemberSiteIds([]);
-    fetchMembers();
   }
 
   async function handleRemoveMember(memberId: string, userId: string) {
@@ -584,7 +683,11 @@ export function UnifiedOrgManagementPanel({
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as "overview" | "members" | "invitations" | "requests" | "settings")}
+              onClick={() => {
+                setActiveTab(tab.id as "overview" | "members" | "invitations" | "requests" | "settings");
+                setError(null);
+                setSuccess(null);
+              }}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === tab.id
                   ? "border-blue-500 text-blue-600"
@@ -740,10 +843,35 @@ export function UnifiedOrgManagementPanel({
           <div className="space-y-6">
             {/* Add new member form */}
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-gray-900">Add New Member</h3>
+              <h3 className="text-sm font-bold text-gray-900">Add Member</h3>
               {memberError && (
                 <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{memberError}</div>
               )}
+              
+              {/* Existing vs New User Toggle */}
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="userType"
+                    checked={!isExistingUser}
+                    onChange={() => setIsExistingUser(false)}
+                    className="w-4 h-4 text-blue-400 border-gray-300 rounded focus:ring-blue-400"
+                  />
+                  <span className="text-sm text-gray-700">Create new user</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="userType"
+                    checked={isExistingUser}
+                    onChange={() => setIsExistingUser(true)}
+                    className="w-4 h-4 text-blue-400 border-gray-300 rounded focus:ring-blue-400"
+                  />
+                  <span className="text-sm text-gray-700">Add existing user</span>
+                </label>
+              </div>
+              
               <form onSubmit={handleAddMember} className="space-y-4 max-w-xl">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_email">Email address</label>
@@ -753,28 +881,33 @@ export function UnifiedOrgManagementPanel({
                     value={newMemberEmail} 
                     onChange={(e) => setNewMemberEmail(e.target.value)} 
                     required
+                    placeholder={isExistingUser ? "Enter existing user email" : "Enter email for new account"}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" 
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_password">Password</label>
-                  <input 
-                    id="member_password" 
-                    type="password" 
-                    value={newMemberPassword} 
-                    onChange={(e) => setNewMemberPassword(e.target.value)} 
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" 
-                  />
-                </div>
+                {!isExistingUser && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_password">Password</label>
+                    <input 
+                      id="member_password" 
+                      type="password" 
+                      value={newMemberPassword} 
+                      onChange={(e) => setNewMemberPassword(e.target.value)} 
+                      required
+                      placeholder="Create password for new user"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent" 
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="member_role">Role</label>
                   <select 
                     id="member_role" 
                     value={newMemberRole} 
-                    onChange={(e) => setNewMemberRole(e.target.value as "editor" | "viewer")}
+                    onChange={(e) => setNewMemberRole(e.target.value as "admin" | "editor" | "viewer")}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                   >
+                    <option value="admin">Admin (full organization management)</option>
                     <option value="editor">Editor (can manage visits for assigned sites)</option>
                     <option value="viewer">Viewer (read-only access)</option>
                   </select>
@@ -808,7 +941,7 @@ export function UnifiedOrgManagementPanel({
                   </button>
                   <button 
                     type="button" 
-                    onClick={() => { setNewMemberEmail(""); setNewMemberPassword(""); setNewMemberRole("editor"); setNewMemberSiteIds([]); }}
+                    onClick={() => { setNewMemberEmail(""); setNewMemberPassword(""); setNewMemberRole("editor"); setNewMemberSiteIds([]); setIsExistingUser(false); }}
                     className="text-gray-500 hover:text-gray-700 text-sm font-medium px-3 py-2"
                   >
                     Clear

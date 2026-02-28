@@ -45,6 +45,8 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
 
   async function handleCreateOrg(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
+    
     if (!orgName.trim()) {
       setError("Organization name is required");
       return;
@@ -52,6 +54,25 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
     
     setCreating(true);
     setError(null);
+    
+    // Check for duplicate organization name (case-insensitive)
+    const { data: existingOrg, error: checkError } = await supabase
+      .from("organisations")
+      .select("id")
+      .ilike("name", orgName.trim())
+      .single();
+    
+    if (checkError && checkError.code !== "PGRST116") { // PGRST116 is "not found" error
+      setError("Error checking organization name");
+      setCreating(false);
+      return;
+    }
+    
+    if (existingOrg) {
+      setError("An organization with this name already exists");
+      setCreating(false);
+      return;
+    }
     
     const { data, error } = await supabase
       .from("organisations")

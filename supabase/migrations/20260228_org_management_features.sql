@@ -203,6 +203,7 @@ begin
         if found then
             return query select false, 'A deletion request is already pending.'::text;
             return;
+        end if;
         
         -- Create deletion request for multi-admin approval
         insert into public.org_deletion_requests (org_id, requested_by, reason)
@@ -365,6 +366,21 @@ create policy "Org admins can approve deletion requests"
         and org_members.role = 'admin'
     )
   );
+
+-- Function to get user by email (for admin use)
+create or replace function get_user_by_email(p_email text)
+returns table(id uuid, email text, created_at timestamptz) as $$
+begin
+    return query
+    select u.id, u.email, u.created_at
+    from auth.users u
+    where u.email = lower(p_email)
+    limit 1;
+end;
+$$ language plpgsql security definer;
+
+-- Grant access to authenticated users
+grant execute on function get_user_by_email(text) to authenticated;
 
 -- Update existing organisations table RLS to include join_code
 drop policy if exists "org_select_organisations" on public.organisations;
