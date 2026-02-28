@@ -6,9 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { InvitationsPanel } from "./components/InvitationsPanel";
-import { JoinRequestsPanel } from "./components/JoinRequestsPanel";
-import { OrgManagementPanel } from "./components/OrgManagementPanel";
+import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPanel";
 import { NoOrgDashboard } from "./components/NoOrgDashboard";
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
@@ -1048,16 +1046,13 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
         {/* Organization Management - Admin Only */}
         {isAdmin && (
-          <>
-            <OrgManagementPanel 
-              org={org} 
-              member={member} 
-              onOrgDeleted={onOrgDeleted}
-              onOrgUpdated={onOrgUpdate}
-            />
-            <InvitationsPanel orgId={org.id} orgSites={orgSites} />
-            <JoinRequestsPanel orgId={org.id} orgSites={orgSites} />
-          </>
+          <UnifiedOrgManagementPanel 
+            org={org} 
+            member={member} 
+            orgSites={orgSites}
+            onOrgDeleted={onOrgDeleted}
+            onOrgUpdated={onOrgUpdate}
+          />
         )}
 
         {/* Add Visit panel (hidden for viewers) */}
