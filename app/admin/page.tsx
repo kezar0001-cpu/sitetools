@@ -2,14 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPanel";
+import { NoOrgDashboard } from "./components/NoOrgDashboard";
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
@@ -599,15 +598,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            <Link
-              href="/admin/orgs"
-              className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-yellow-900 text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-              </svg>
-              Add / Join Org
-            </Link>
             {userEmail && (
               <span className="hidden sm:block text-xs font-medium text-yellow-800 truncate max-w-[180px]">{userEmail}</span>
             )}
@@ -1232,7 +1222,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 // ─── Page root ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [org, setOrg] = useState<Organisation | null>(null);
@@ -1240,12 +1229,14 @@ export default function AdminPage() {
   const [loadingOrg, setLoadingOrg] = useState(false);
   const [orgFetched, setOrgFetched] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
+        setUserEmail(session.user.email || "");
       } else {
         setOrgFetched(true);
       }
@@ -1254,8 +1245,10 @@ export default function AdminPage() {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
+        setUserEmail(session.user.email || "");
       } else {
         setUserId(null);
+        setUserEmail("");
         setOrg(null);
         setMember(null);
         setDbError(null);
@@ -1295,11 +1288,7 @@ export default function AdminPage() {
       });
   }, [userId]);
 
-  useEffect(() => {
-    if (authed && orgFetched && !loadingOrg && !dbError && (!org || !member)) {
-      router.replace("/admin/orgs");
-    }
-  }, [authed, orgFetched, loadingOrg, dbError, org, member, router]);
+  // No redirect — if user has no org, show NoOrgDashboard inline in this page
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -1334,8 +1323,34 @@ export default function AdminPage() {
 
   if (!org || !member) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-500 text-sm">Redirecting you to organisation setup…</p>
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
+          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-600 text-white rounded-lg p-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
+                <p className="text-xs font-medium text-yellow-800">Welcome! Get started below.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Log Out
+            </button>
+          </div>
+        </header>
+        <main className="flex-1">
+          <NoOrgDashboard userId={userId!} userEmail={userEmail ?? ""} onOrgJoined={() => window.location.reload()} />
+        </main>
       </div>
     );
   }

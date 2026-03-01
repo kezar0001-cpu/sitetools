@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { JoinOrgPanel } from "./JoinOrgPanel";
 
@@ -10,6 +10,15 @@ interface Organisation {
   created_at: string;
   is_public?: boolean;
   description?: string | null;
+}
+
+interface PendingRequest {
+  id: string;
+  org_id: string;
+  status: string;
+  created_at: string;
+  message: string | null;
+  org_name?: string;
 }
 
 interface NoOrgDashboardProps {
@@ -29,18 +38,71 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
   const [publicOrgs, setPublicOrgs] = useState<Organisation[]>([]);
   const [joinMessage, setJoinMessage] = useState("");
   const [requesting, setRequesting] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchPublicOrgs();
-  }, []);
+  // Clear notifications when changing mode
+  function switchMode(newMode: "browse" | "create" | "join") {
+    setError(null);
+    setSuccess(null);
+    setMode(newMode);
+  }
 
-  async function fetchPublicOrgs() {
+  const fetchPublicOrgs = useCallback(async () => {
     const { data } = await supabase
       .from("organisations")
       .select("*")
       .eq("is_public", true)
       .order("created_at", { ascending: false });
     if (data) setPublicOrgs(data);
+  }, []);
+
+  const fetchPendingRequests = useCallback(async () => {
+    const { data } = await supabase
+      .from("org_join_requests")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (!data) return;
+
+    // Resolve org names
+    const withNames = await Promise.all(
+      (data as PendingRequest[]).map(async (r) => {
+        const { data: orgData } = await supabase
+          .from("organisations")
+          .select("name")
+          .eq("id", r.org_id)
+          .single();
+        return { ...r, org_name: orgData?.name || "Unknown" };
+      })
+    );
+    setPendingRequests(withNames);
+  }, [userId]);
+
+  useEffect(() => {
+    fetchPublicOrgs();
+    fetchPendingRequests();
+  }, [fetchPublicOrgs, fetchPendingRequests]);
+
+  async function cancelRequest(requestId: string) {
+    setCancellingId(requestId);
+    const { error } = await supabase
+      .from("org_join_requests")
+      .delete()
+      .eq("id", requestId)
+      .eq("user_id", userId);
+    setCancellingId(null);
+    if (error) {
+      setError("Failed to cancel request.");
+      return;
+    }
+    setSuccess("Request cancelled.");
+    fetchPendingRequests();
+  }
+
+  // Check if user already requested to join this org
+  function hasRequestedOrg(orgId: string): boolean {
+    return pendingRequests.some((r) => r.org_id === orgId && r.status === "pending");
   }
 
   async function handleCreateOrg(e: React.FormEvent) {
@@ -50,7 +112,6 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
 
     setCreating(true);
 
-    // Check for duplicate name
     const { data: existingOrg, error: checkError } = await supabase
       .from("organisations").select("id").ilike("name", orgName.trim()).single();
 
@@ -69,7 +130,6 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
 
     if (error) { setError(error.message); setCreating(false); return; }
 
-    // Add user as admin
     const { error: memberError } = await supabase
       .from("org_members")
       .insert({ org_id: data.id, user_id: userId, role: "admin", site_id: null });
@@ -82,6 +142,10 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
   }
 
   async function handleRequestJoin(orgId: string) {
+    if (hasRequestedOrg(orgId)) {
+      setError("You already have a pending request for this organisation.");
+      return;
+    }
     setRequesting(true); setError(null);
     const { error } = await supabase
       .from("org_join_requests")
@@ -98,6 +162,57 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
     }
     setSuccess("Join request sent! An admin will review your request.");
     setJoinMessage("");
+    fetchPendingRequests();
+  }
+
+  // ─── Pending requests panel (shows on all modes) ───────
+  function PendingRequestsPanel() {
+    const pending = pendingRequests.filter((r) => r.status === "pending");
+    const others = pendingRequests.filter((r) => r.status !== "pending");
+
+    if (pendingRequests.length === 0) return null;
+
+    return (
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 space-y-4">
+        <h3 className="text-lg font-bold text-gray-900">Your Join Requests</h3>
+        {pending.length > 0 && (
+          <div className="space-y-3">
+            {pending.map((r) => (
+              <div key={r.id} className="flex items-center justify-between border border-yellow-200 bg-yellow-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900">{r.org_name}</p>
+                  <p className="text-xs text-yellow-700 font-semibold">⏳ Pending review</p>
+                  {r.message && <p className="text-xs text-gray-500 mt-1 italic">&ldquo;{r.message}&rdquo;</p>}
+                  <p className="text-xs text-gray-400 mt-0.5">Sent {new Date(r.created_at).toLocaleDateString()}</p>
+                </div>
+                <button
+                  onClick={() => cancelRequest(r.id)}
+                  disabled={cancellingId === r.id}
+                  className="text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                >
+                  {cancellingId === r.id ? "…" : "Cancel"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {others.length > 0 && (
+          <div className="space-y-2">
+            {others.map((r) => (
+              <div key={r.id} className={`flex items-center justify-between rounded-xl px-4 py-3 border ${r.status === "approved" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"
+                }`}>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{r.org_name}</p>
+                  <p className={`text-xs font-semibold ${r.status === "approved" ? "text-green-700" : "text-red-700"}`}>
+                    {r.status === "approved" ? "✓ Approved" : "✕ Rejected"}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // ─── Browse mode ───────────────────────────────────────
@@ -114,8 +229,10 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
           )}
         </div>
 
+        <PendingRequestsPanel />
+
         <div className="grid md:grid-cols-2 gap-6">
-          <button onClick={() => setMode("create")}
+          <button onClick={() => switchMode("create")}
             className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-left hover:shadow-xl transition-shadow group">
             <div className="bg-yellow-100 text-yellow-700 rounded-lg w-12 h-12 flex items-center justify-center mb-4 group-hover:bg-yellow-200 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -126,7 +243,7 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
             <p className="text-gray-600">Set up a new organization to manage your construction sites and team members.</p>
           </button>
 
-          <button onClick={() => setMode("join")}
+          <button onClick={() => switchMode("join")}
             className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8 text-left hover:shadow-xl transition-shadow group">
             <div className="bg-blue-100 text-blue-700 rounded-lg w-12 h-12 flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -145,7 +262,7 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
   if (mode === "create") {
     return (
       <section className="max-w-3xl mx-auto w-full py-8 px-4 space-y-6">
-        <button onClick={() => setMode("browse")} className="text-sm font-semibold text-gray-500 hover:text-gray-800">
+        <button onClick={() => switchMode("browse")} className="text-sm font-semibold text-gray-500 hover:text-gray-800">
           ← Back to options
         </button>
         <div className="space-y-3">
@@ -188,7 +305,7 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
   if (mode === "join") {
     return (
       <section className="max-w-5xl mx-auto w-full py-8 px-4 space-y-6">
-        <button onClick={() => setMode("browse")} className="text-sm font-semibold text-gray-500 hover:text-gray-800">
+        <button onClick={() => switchMode("browse")} className="text-sm font-semibold text-gray-500 hover:text-gray-800">
           ← Back to options
         </button>
 
@@ -196,6 +313,8 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
         {success && <div className="bg-green-50 border border-green-300 text-green-700 rounded-xl px-4 py-3 text-sm font-semibold">{success}</div>}
 
         <JoinOrgPanel userId={userId} onOrgJoined={onOrgJoined} />
+
+        <PendingRequestsPanel />
 
         <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
           <h2 className="text-xl font-extrabold text-gray-900 mb-6">Public Organizations</h2>
@@ -210,19 +329,25 @@ export function NoOrgDashboard({ userId, userEmail, onOrgJoined }: NoOrgDashboar
                     {org.description && <p className="text-gray-600 mt-2">{org.description}</p>}
                     <p className="text-xs text-gray-500 mt-2">Created {new Date(org.created_at).toLocaleDateString()}</p>
                   </div>
-                  <div className="space-y-3">
-                    <textarea
-                      placeholder="Optional message to admin (e.g., your role, experience)"
-                      value={joinMessage}
-                      onChange={(e) => setJoinMessage(e.target.value)}
-                      rows={3}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                    />
-                    <button onClick={() => handleRequestJoin(org.id)} disabled={requesting}
-                      className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-bold py-3 rounded-xl text-sm transition-colors">
-                      {requesting ? "Sending…" : "Request to Join"}
-                    </button>
-                  </div>
+                  {hasRequestedOrg(org.id) ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-700 font-semibold">
+                      ⏳ Request pending — an admin will review your request.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <textarea
+                        placeholder="Optional message to admin (e.g., your role, experience)"
+                        value={joinMessage}
+                        onChange={(e) => setJoinMessage(e.target.value)}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                      />
+                      <button onClick={() => handleRequestJoin(org.id)} disabled={requesting}
+                        className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white font-bold py-3 rounded-xl text-sm transition-colors">
+                        {requesting ? "Sending…" : "Request to Join"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

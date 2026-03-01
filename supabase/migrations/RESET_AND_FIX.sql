@@ -334,6 +334,9 @@ create policy "joinreq_insert" on public.org_join_requests for insert to authent
 -- Only admins can update (approve/reject)
 create policy "joinreq_update" on public.org_join_requests for update to authenticated
   using (public.is_org_admin(org_id));
+-- Users can cancel their own pending requests
+create policy "joinreq_delete" on public.org_join_requests for delete to authenticated
+  using (user_id = auth.uid());
 
 -- === org_member_sites ===
 -- Members see site assignments in their org
