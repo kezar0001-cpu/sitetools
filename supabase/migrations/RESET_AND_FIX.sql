@@ -4,7 +4,20 @@
 -- ║  Safe to run multiple times. Drops and recreates all policies/functions.  ║
 -- ╚══════════════════════════════════════════════════════════════════════════════╝
 
--- ─── STEP 0: Drop all functions to avoid signature conflicts ─────────────────
+-- ─── STEP 0a: Drop ALL policies first (they depend on functions) ─────────────
+
+do $$
+declare pol record;
+begin
+  for pol in
+    select policyname, tablename from pg_policies where schemaname = 'public'
+  loop
+    execute format('drop policy if exists %I on public.%I', pol.policyname, pol.tablename);
+  end loop;
+end;
+$$;
+
+-- ─── STEP 0b: Drop all functions (now safe — no dependents) ──────────────────
 
 drop function if exists public.get_my_org_ids();
 drop function if exists public.is_org_admin(uuid);
