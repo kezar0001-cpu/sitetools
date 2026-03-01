@@ -25,6 +25,9 @@ export interface Site {
     org_id: string | null;
     created_by?: string | null;
     logo_url?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    geofence_radius_km?: number;
 }
 
 export interface OrgJoinRequest {

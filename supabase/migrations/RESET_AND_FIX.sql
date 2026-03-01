@@ -1,10 +1,10 @@
--- ╔══════════════════════════════════════════════════════════════════════════════╗
--- ║  SITESIGN — FULL RESET & FIX (v3.0 — Clean Redesign)                     ║
--- ║  Run this in Supabase SQL Editor (Dashboard → SQL Editor → New query)     ║
--- ║  Safe to run multiple times. Drops and recreates all policies/functions.  ║
--- ╚══════════════════════════════════════════════════════════════════════════════╝
+﻿-- ================================================================================
+-- SITESIGN - FULL RESET & FIX (v3.0 - Clean Redesign)
+-- Run this in Supabase SQL Editor (Dashboard -> SQL Editor -> New query)
+-- Safe to run multiple times. Drops and recreates all policies/functions.
+-- ================================================================================
 
--- ─── STEP 0a: Drop ALL policies first (they depend on functions) ─────────────
+-- --------- STEP 0a: Drop ALL policies first (they depend on functions) ---------------------------------------
 
 do $$
 declare pol record;
@@ -17,7 +17,7 @@ begin
 end;
 $$;
 
--- ─── STEP 0b: Drop all functions (now safe — no dependents) ──────────────────
+-- --------- STEP 0b: Drop all functions (now safe --- no dependents) ------------------------------------------------------
 
 drop function if exists public.get_my_org_ids();
 drop function if exists public.is_org_admin(uuid);
@@ -32,7 +32,7 @@ drop function if exists public.accept_invitation(uuid);
 drop function if exists public.request_org_deletion(uuid, text);
 drop function if exists public.accept_org_transfer(uuid);
 
--- ─── STEP 1: Create tables ──────────────────────────────────────────────────
+-- --------- STEP 1: Create tables ------------------------------------------------------------------------------------------------------------------------------------------------------
 
 create table if not exists public.organisations (
   id                uuid        primary key default gen_random_uuid(),
@@ -41,17 +41,21 @@ create table if not exists public.organisations (
   is_public         boolean     not null default false,
   join_code         text,
   join_code_expires timestamptz,
+  created_by        uuid,
   created_at        timestamptz not null default now()
 );
 
 create table if not exists public.sites (
-  id         uuid        primary key default gen_random_uuid(),
-  name       text        not null,
-  slug       text        not null unique,
-  org_id     uuid,
-  created_by uuid,
-  logo_url   text,
-  created_at timestamptz not null default now()
+  id                  uuid        primary key default gen_random_uuid(),
+  name                text        not null,
+  slug                text        not null unique,
+  org_id              uuid,
+  created_by          uuid,
+  logo_url            text,
+  latitude            double precision,
+  longitude           double precision,
+  geofence_radius_km  numeric     not null default 1,
+  created_at          timestamptz not null default now()
 );
 
 create table if not exists public.org_members (
@@ -65,15 +69,18 @@ create table if not exists public.org_members (
 );
 
 create table if not exists public.site_visits (
-  id            uuid        primary key default gen_random_uuid(),
-  full_name     text        not null,
-  company_name  text        not null,
-  phone_number  text,
-  visitor_type  text        not null check (visitor_type in ('Worker', 'Subcontractor', 'Visitor', 'Delivery')),
-  signed_in_at  timestamptz not null default now(),
-  signed_out_at timestamptz,
-  site_id       uuid,
-  signature     text
+  id                     uuid        primary key default gen_random_uuid(),
+  full_name              text        not null,
+  company_name           text        not null,
+  phone_number           text,
+  visitor_type           text        not null check (visitor_type in ('Worker', 'Subcontractor', 'Visitor', 'Delivery')),
+  signed_in_at           timestamptz not null default now(),
+  signed_out_at          timestamptz,
+  site_id                uuid,
+  signature              text,
+  push_subscription      jsonb,
+  geofence_notified_at   timestamptz,
+  geofence_snoozed_until timestamptz
 );
 
 create table if not exists public.org_join_requests (
@@ -98,9 +105,16 @@ create table if not exists public.org_member_sites (
 -- Add columns safely to existing tables (idempotent)
 alter table public.site_visits add column if not exists signature text;
 alter table public.site_visits add column if not exists phone_number text;
+alter table public.site_visits add column if not exists push_subscription jsonb;
+alter table public.site_visits add column if not exists geofence_notified_at timestamptz;
+alter table public.site_visits add column if not exists geofence_snoozed_until timestamptz;
 alter table public.sites add column if not exists created_by uuid;
+alter table public.sites add column if not exists latitude double precision;
+alter table public.sites add column if not exists longitude double precision;
+alter table public.sites add column if not exists geofence_radius_km numeric default 1;
+alter table public.organisations add column if not exists created_by uuid;
 
--- ─── STEP 2: Foreign keys (safe — only adds if missing) ─────────────────────
+-- --------- STEP 2: Foreign keys (safe --- only adds if missing) ---------------------------------------------------------------
 
 do $$ begin
   if not exists (select 1 from information_schema.table_constraints where constraint_name = 'sites_org_id_fkey') then
@@ -123,7 +137,7 @@ do $$ begin
   end if;
 end $$;
 
--- ─── STEP 3: Enable RLS + grants ────────────────────────────────────────────
+-- --------- STEP 3: Enable RLS + grants ------------------------------------------------------------------------------------------------------------------------------------
 
 alter table public.organisations     enable row level security;
 alter table public.org_members       enable row level security;
@@ -137,7 +151,7 @@ grant all on all tables in schema public to authenticated;
 grant select, insert, update, delete on public.sites to anon;
 grant select, insert, update, delete on public.site_visits to anon;
 
--- ─── STEP 4: SECURITY DEFINER helper functions ──────────────────────────────
+-- --------- STEP 4: SECURITY DEFINER helper functions ------------------------------------------------------------------------------------------
 -- These run with creator privileges to avoid RLS recursion and auth.users access issues.
 
 -- Returns org IDs for the current user (used in RLS policies)
@@ -255,7 +269,7 @@ grant execute on function public.generate_org_join_code(uuid, int)      to authe
 grant execute on function public.join_by_code(text, uuid)               to authenticated;
 grant execute on function public.approve_join_request(uuid, text, uuid) to authenticated;
 
--- ─── STEP 5: Drop ALL existing policies (clean slate) ────────────────────────
+-- --------- STEP 5: Drop ALL existing policies (clean slate) ------------------------------------------------------------------------
 
 do $$
 declare pol record;
@@ -270,7 +284,7 @@ begin
 end;
 $$;
 
--- ─── STEP 6: Create all RLS policies ─────────────────────────────────────────
+-- --------- STEP 6: Create all RLS policies ---------------------------------------------------------------------------------------------------------------------------
 
 -- === organisations ===
 -- Members can read their own org; anyone can browse public orgs
@@ -377,7 +391,7 @@ create policy "membersites_admin" on public.org_member_sites for all to authenti
     where org_id in (select org_id from public.org_members where user_id = auth.uid() and role = 'admin')
   ));
 
--- ─── DONE ─────────────────────────────────────────────────────────────────────
+-- --------- DONE ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 -- Verify with:
 --   select schemaname, tablename, policyname from pg_policies where schemaname = 'public' order by tablename, policyname;
 --   select routine_name from information_schema.routines where routine_schema = 'public' and routine_type = 'FUNCTION';

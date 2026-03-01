@@ -11,7 +11,7 @@ import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPane
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
-interface Site { id: string; name: string; slug: string; org_id: string | null; created_by?: string | null; logo_url?: string | null; }
+interface Site { id: string; name: string; slug: string; org_id: string | null; created_by?: string | null; logo_url?: string | null; latitude?: number | null; longitude?: number | null; geofence_radius_km?: number; }
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
@@ -258,6 +258,172 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
   );
 }
 
+
+// ─── Geofence Settings ──────────────────────────────────────────────────────
+
+const RADIUS_OPTIONS = [
+  { value: 0.5, label: "500m" },
+  { value: 1, label: "1 km" },
+  { value: 2, label: "2 km" },
+  { value: 5, label: "5 km" },
+  { value: 10, label: "10 km" },
+];
+
+function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) => void }) {
+  const [lat, setLat] = useState(site.latitude?.toString() ?? "");
+  const [lng, setLng] = useState(site.longitude?.toString() ?? "");
+  const [radius, setRadius] = useState(site.geofence_radius_km ?? 1);
+  const [saving, setSaving] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    setLat(site.latitude?.toString() ?? "");
+    setLng(site.longitude?.toString() ?? "");
+    setRadius(site.geofence_radius_km ?? 1);
+  }, [site.id, site.latitude, site.longitude, site.geofence_radius_km]);
+
+  function detectLocation() {
+    if (!navigator.geolocation) {
+      setError("Geolocation not supported by your browser.");
+      return;
+    }
+    setDetecting(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude.toFixed(6));
+        setLng(pos.coords.longitude.toFixed(6));
+        setDetecting(false);
+      },
+      (err) => {
+        setError(err.code === 1 ? "Location permission denied." : "Could not detect location.");
+        setDetecting(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  async function handleSave() {
+    setError(null);
+    setSuccess(false);
+    const latitude = lat ? parseFloat(lat) : null;
+    const longitude = lng ? parseFloat(lng) : null;
+    if ((latitude !== null && isNaN(latitude)) || (longitude !== null && isNaN(longitude))) {
+      setError("Invalid coordinates.");
+      return;
+    }
+    setSaving(true);
+    const { data, error: err } = await supabase
+      .from("sites")
+      .update({ latitude, longitude, geofence_radius_km: radius })
+      .eq("id", site.id)
+      .select("*")
+      .single();
+    setSaving(false);
+    if (err || !data) {
+      setError(err?.message ?? "Failed to save.");
+      return;
+    }
+    onUpdate(data as Site);
+    setSuccess(true);
+    setTimeout(() => setSuccess(false), 3000);
+  }
+
+  const hasLocation = site.latitude != null && site.longitude != null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="bg-green-100 text-green-700 rounded-lg p-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-sm font-extrabold text-gray-900">Geofence Settings</h3>
+          <p className="text-xs text-gray-500">Remind visitors to sign out when they leave the area</p>
+        </div>
+        {hasLocation && (
+          <span className="ml-auto text-xs font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg">Active</span>
+        )}
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>
+      )}
+      {success && (
+        <div className="bg-green-50 border border-green-300 text-green-700 rounded-xl px-4 py-3 text-sm font-semibold">Settings saved!</div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Latitude</label>
+          <input
+            type="text"
+            placeholder="e.g. -33.868820"
+            value={lat}
+            onChange={(e) => setLat(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Longitude</label>
+          <input
+            type="text"
+            placeholder="e.g. 151.209296"
+            value={lng}
+            onChange={(e) => setLng(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={detectLocation}
+        disabled={detecting}
+        className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${detecting ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        {detecting ? "Detecting…" : "Auto-detect my location"}
+      </button>
+
+      <div>
+        <label className="block text-xs font-semibold text-gray-600 mb-2">Sign-out reminder radius</label>
+        <div className="flex flex-wrap gap-2">
+          {RADIUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setRadius(opt.value)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${radius === opt.value
+                  ? "bg-green-500 text-white shadow-sm"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-400 mt-2">
+          Visitors will be reminded to sign out when they move more than {RADIUS_OPTIONS.find((o) => o.value === radius)?.label ?? `${radius}km`} from the site.
+        </p>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-bold px-5 py-3 rounded-xl text-sm transition-colors"
+      >
+        {saving ? "Saving…" : "Save Geofence Settings"}
+      </button>
+    </div>
+  );
+}
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
@@ -769,6 +935,14 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
             </div>
           )}
         </div>
+
+        {/* Geofence Settings (admin only) */}
+        {isAdmin && activeSite && (
+          <GeofenceSettings site={activeSite} onUpdate={(updated) => {
+            setActiveSite(updated);
+            setOrgSites((prev) => prev.map((s) => s.id === updated.id ? updated : s));
+          }} />
+        )}
 
         {/* Add Visit panel (hidden for viewers) */}
         {!isViewer && (

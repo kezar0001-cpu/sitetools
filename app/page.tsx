@@ -4,10 +4,14 @@ import { useEffect, useState, useRef } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
+import { useGeofence } from "@/lib/useGeofence";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
-interface Site { id: string; name: string; slug: string; logo_url?: string | null; }
+interface Site {
+  id: string; name: string; slug: string; logo_url?: string | null;
+  latitude?: number | null; longitude?: number | null; geofence_radius_km?: number;
+}
 
 interface SiteVisit {
   id: string;
@@ -411,6 +415,24 @@ function SiteSignIn({ site }: { site: Site }) {
     setMyVisit(null);
   }
 
+  // Request notification permission after sign-in
+  useEffect(() => {
+    if (myVisit && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, [myVisit]);
+
+  // Geofence tracking
+  const geofenceConfig = myVisit && site.latitude && site.longitude ? {
+    visitId: myVisit.id,
+    siteLatitude: site.latitude,
+    siteLongitude: site.longitude,
+    radiusKm: site.geofence_radius_km || 1,
+    siteUrl: `/?site=${site.slug}`,
+  } : null;
+
+  const geofence = useGeofence(geofenceConfig);
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
@@ -586,7 +608,55 @@ function SiteSignIn({ site }: { site: Site }) {
           </div>
         )}
 
-        {/* Signature modal for sign-in */}
+        {/* Geofence alert banner */}
+        {geofence.isOutsideGeofence && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-5 space-y-3 animate-pulse">
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <h3 className="text-lg font-extrabold text-red-800">You appear to have left the site</h3>
+            </div>
+            <p className="text-sm text-red-700">
+              You are {geofence.distanceKm?.toFixed(1)}km from the site.
+              {" "}If you have left, please sign out. If you&apos;re making a quick trip, tap &quot;Still on Site&quot;.
+            </p>
+            <p className="text-xs text-red-500">You will be automatically signed out in 10 minutes if no action is taken.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => { await geofence.signOutFromGeofence(); localStorage.removeItem(`active_visit_${site.id}`); setMyVisit(null); }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+              >
+                Sign Out
+              </button>
+              <button
+                onClick={geofence.snooze}
+                className="flex-1 bg-white hover:bg-gray-50 text-gray-800 font-bold py-3 rounded-xl text-sm transition-colors border-2 border-gray-300"
+              >
+                Still on Site
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Snooze active indicator */}
+        {geofence.isSnoozed && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span><strong>Location check paused</strong> — geofence alerts snoozed for 30 minutes.</span>
+          </div>
+        )}
+
+        {/* Geofence tracking status */}
+        {geofence.isTracking && !geofence.isOutsideGeofence && !geofence.isSnoozed && (
+          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs text-green-700 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block"></span>
+            Location tracking active{geofence.distanceKm !== null && ` — ${geofence.distanceKm < 0.1 ? "at site" : geofence.distanceKm.toFixed(1) + "km from site"}`}
+          </div>
+        )}  {/* Signature modal for sign-in */}
         {showSignModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
