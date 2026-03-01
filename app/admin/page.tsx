@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
@@ -1221,6 +1222,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 // ─── Page root ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [org, setOrg] = useState<Organisation | null>(null);
@@ -1228,14 +1230,12 @@ export default function AdminPage() {
   const [loadingOrg, setLoadingOrg] = useState(false);
   const [orgFetched, setOrgFetched] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
-        setUserEmail(session.user.email || "");
       } else {
         setOrgFetched(true);
       }
@@ -1244,10 +1244,8 @@ export default function AdminPage() {
       setAuthed(!!session);
       if (session) {
         setUserId(session.user.id);
-        setUserEmail(session.user.email || "");
       } else {
         setUserId(null);
-        setUserEmail("");
         setOrg(null);
         setMember(null);
         setDbError(null);
@@ -1287,7 +1285,12 @@ export default function AdminPage() {
       });
   }, [userId]);
 
-  // No redirect — if user has no org, show NoOrgDashboard inline in this page
+  // Redirect to /admin/orgs when user has no org
+  useEffect(() => {
+    if (authed && orgFetched && !loadingOrg && !dbError && (!org || !member)) {
+      router.replace("/admin/orgs");
+    }
+  }, [authed, orgFetched, loadingOrg, dbError, org, member, router]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -1321,88 +1324,10 @@ export default function AdminPage() {
   );
 
   if (!org || !member) {
+    // Still redirecting — show neutral loading screen
     return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-          <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-600 text-white rounded-lg p-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">SiteSign Admin</h1>
-                <p className="text-xs font-medium text-yellow-800">Dashboard</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap justify-end">
-              {userEmail && (
-                <span className="hidden sm:block text-xs font-medium text-yellow-800 truncate max-w-[180px]">{userEmail}</span>
-              )}
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Log Out
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-10 space-y-8">
-          {/* Welcome */}
-          <div>
-            <h2 className="text-2xl font-extrabold text-gray-900">Welcome{userEmail ? `, ${userEmail.split("@")[0]}` : ""}!</h2>
-            <p className="text-gray-500 mt-1">You&apos;re signed in. To manage sites and visitors, join or create an organization.</p>
-          </div>
-
-          {/* Organisation card */}
-          <a
-            href="/admin/orgs"
-            className="block bg-white rounded-2xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-shadow group"
-          >
-            <div className="flex items-start gap-5">
-              <div className="bg-yellow-100 text-yellow-700 rounded-lg w-14 h-14 flex items-center justify-center shrink-0 group-hover:bg-yellow-200 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 mb-1">Create or Join an Organization</h3>
-                <p className="text-gray-600 text-sm">Set up a new organization, browse public ones, or use a join code to access an existing team.</p>
-                <span className="inline-flex items-center gap-1 text-yellow-700 font-bold text-sm mt-3 group-hover:text-yellow-800">
-                  Go to Organizations
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </span>
-              </div>
-            </div>
-          </a>
-
-          {/* Info cards */}
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="text-2xl mb-2">🏗️</div>
-              <h4 className="font-bold text-gray-900 text-sm mb-1">Manage Sites</h4>
-              <p className="text-gray-500 text-xs">Create construction sites and generate QR codes for visitor sign-in.</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="text-2xl mb-2">👷</div>
-              <h4 className="font-bold text-gray-900 text-sm mb-1">Track Visitors</h4>
-              <p className="text-gray-500 text-xs">View who&apos;s on site, export reports as CSV/XLSX/PDF.</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5">
-              <div className="text-2xl mb-2">👥</div>
-              <h4 className="font-bold text-gray-900 text-sm mb-1">Team Management</h4>
-              <p className="text-gray-500 text-xs">Add admins, editors, and viewers with role-based access.</p>
-            </div>
-          </div>
-        </main>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-400 text-sm">Redirecting to organisation setup…</p>
       </div>
     );
   }
