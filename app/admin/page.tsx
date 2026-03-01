@@ -2,12 +2,15 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPanel";
+
+const MapPicker = dynamic(() => import("./components/MapPicker"), { ssr: false });
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
@@ -158,7 +161,7 @@ function AuthScreen({ onAuth }: { onAuth: () => void }) {
 // ─── Site Switcher (admin only) ─────────────────────────────────────────────
 
 function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddSites = true }: {
-  current: Site | null; orgId: string | null; userId: string;
+  current: Site | null; orgId: string | null; userId: string | null;
   onSelect: (s: Site | null) => void;
   onSitesLoaded?: (sites: Site[]) => void;
   canAddSites?: boolean;
@@ -170,10 +173,15 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    // Don't query until we have a valid userId (auth may not have resolved yet)
+    if (!orgId && !userId) return;
+
     let query = supabase.from("sites").select("*");
     if (orgId) {
       query = query.eq("org_id", orgId);
     } else {
+      // Personal sites: only fetch when userId is a real non-empty string
+      if (!userId) return;
       query = query.is("org_id", null).eq("created_by", userId);
     }
     query.order("created_at", { ascending: false })
@@ -191,10 +199,12 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
     e.preventDefault();
     setError(null);
     if (!newName.trim()) return;
+    if (!orgId && !userId) { setError("Not authenticated."); return; }
     setCreating(true);
     const slug = makeSlug(newName.trim());
-    const insertData: Record<string, string> = { name: newName.trim(), slug, created_by: userId };
-    if (orgId) insertData.org_id = orgId;
+    const insertData: Record<string, string> = { name: newName.trim(), slug };
+    if (orgId) { insertData.org_id = orgId; }
+    if (userId) { insertData.created_by = userId; }
     const { data, error } = await supabase
       .from("sites").insert(insertData).select().single();
     setCreating(false);
@@ -270,54 +280,35 @@ const RADIUS_OPTIONS = [
 ];
 
 function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) => void }) {
-  const [lat, setLat] = useState(site.latitude?.toString() ?? "");
-  const [lng, setLng] = useState(site.longitude?.toString() ?? "");
+  const [lat, setLat] = useState<number | null>(site.latitude ?? null);
+  const [lng, setLng] = useState<number | null>(site.longitude ?? null);
   const [radius, setRadius] = useState(site.geofence_radius_km ?? 1);
   const [saving, setSaving] = useState(false);
-  const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    setLat(site.latitude?.toString() ?? "");
-    setLng(site.longitude?.toString() ?? "");
+    setLat(site.latitude ?? null);
+    setLng(site.longitude ?? null);
     setRadius(site.geofence_radius_km ?? 1);
   }, [site.id, site.latitude, site.longitude, site.geofence_radius_km]);
 
-  function detectLocation() {
-    if (!navigator.geolocation) {
-      setError("Geolocation not supported by your browser.");
-      return;
-    }
-    setDetecting(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLat(pos.coords.latitude.toFixed(6));
-        setLng(pos.coords.longitude.toFixed(6));
-        setDetecting(false);
-      },
-      (err) => {
-        setError(err.code === 1 ? "Location permission denied." : "Could not detect location.");
-        setDetecting(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }
+  const handleLocationChange = useCallback((newLat: number, newLng: number) => {
+    setLat(newLat);
+    setLng(newLng);
+  }, []);
 
   async function handleSave() {
     setError(null);
     setSuccess(false);
-    const latitude = lat ? parseFloat(lat) : null;
-    const longitude = lng ? parseFloat(lng) : null;
-    if ((latitude !== null && isNaN(latitude)) || (longitude !== null && isNaN(longitude))) {
-      setError("Invalid coordinates.");
+    if (lat === null || lng === null) {
+      setError("Please set a location by searching for an address or clicking the map.");
       return;
     }
     setSaving(true);
     const { data, error: err } = await supabase
       .from("sites")
-      .update({ latitude, longitude, geofence_radius_km: radius })
+      .update({ latitude: lat, longitude: lng, geofence_radius_km: radius })
       .eq("id", site.id)
       .select("*")
       .single();
@@ -331,7 +322,7 @@ function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) 
     setTimeout(() => setSuccess(false), 3000);
   }
 
-  const hasLocation = site.latitude != null && site.longitude != null;
+  const hasLocation = lat != null && lng != null;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
@@ -344,7 +335,7 @@ function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) 
         </div>
         <div>
           <h3 className="text-sm font-extrabold text-gray-900">Geofence Settings</h3>
-          <p className="text-xs text-gray-500">Remind visitors to sign out when they leave the area</p>
+          <p className="text-xs text-gray-500">Set the site location and sign-out reminder radius</p>
         </div>
         {hasLocation && (
           <span className="ml-auto text-xs font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg">Active</span>
@@ -358,40 +349,12 @@ function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) 
         <div className="bg-green-50 border border-green-300 text-green-700 rounded-xl px-4 py-3 text-sm font-semibold">Settings saved!</div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Latitude</label>
-          <input
-            type="text"
-            placeholder="e.g. -33.868820"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Longitude</label>
-          <input
-            type="text"
-            placeholder="e.g. 151.209296"
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
-          />
-        </div>
-      </div>
-
-      <button
-        onClick={detectLocation}
-        disabled={detecting}
-        className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-60 text-gray-700 text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${detecting ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        {detecting ? "Detecting…" : "Auto-detect my location"}
-      </button>
+      {/* Map Picker */}
+      <MapPicker
+        latitude={lat}
+        longitude={lng}
+        onLocationChange={handleLocationChange}
+      />
 
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-2">Sign-out reminder radius</label>
@@ -401,8 +364,8 @@ function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) 
               key={opt.value}
               onClick={() => setRadius(opt.value)}
               className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${radius === opt.value
-                  ? "bg-green-500 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                ? "bg-green-500 text-white shadow-sm"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                 }`}
             >
               {opt.label}
@@ -428,7 +391,7 @@ function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
 function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDeleted }: {
-  org: Organisation | null; member: OrgMember | null; userId: string; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
+  org: Organisation | null; member: OrgMember | null; userId: string | null; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
 }) {
   const isPersonal = !org || !member;
   const isAdmin = isPersonal || member?.role === "admin";
@@ -1515,7 +1478,7 @@ export default function AdminPage() {
     </div>
   );
 
-  return <AdminDashboard org={org} member={member} userId={userId!} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
+  return <AdminDashboard org={org} member={member} userId={userId} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
     setOrg(null);
     setMember(null);
   }} />;
