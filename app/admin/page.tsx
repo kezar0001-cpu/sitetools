@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
@@ -12,7 +11,7 @@ import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPane
 
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
-interface Site { id: string; name: string; slug: string; org_id: string; logo_url?: string | null; }
+interface Site { id: string; name: string; slug: string; org_id: string | null; created_by?: string | null; logo_url?: string | null; }
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
@@ -158,8 +157,8 @@ function AuthScreen({ onAuth }: { onAuth: () => void }) {
 
 // ─── Site Switcher (admin only) ─────────────────────────────────────────────
 
-function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = true }: {
-  current: Site | null; orgId: string;
+function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddSites = true }: {
+  current: Site | null; orgId: string | null; userId: string;
   onSelect: (s: Site | null) => void;
   onSitesLoaded?: (sites: Site[]) => void;
   canAddSites?: boolean;
@@ -171,11 +170,17 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = t
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    supabase.from("sites").select("*").eq("org_id", orgId).order("created_at", { ascending: false })
+    let query = supabase.from("sites").select("*");
+    if (orgId) {
+      query = query.eq("org_id", orgId);
+    } else {
+      query = query.is("org_id", null).eq("created_by", userId);
+    }
+    query.order("created_at", { ascending: false })
       .then(({ data }) => {
         if (data) { setSites(data as Site[]); onSitesLoaded?.(data as Site[]); }
       });
-  }, [orgId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [orgId, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function makeSlug(name: string) {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") +
@@ -188,8 +193,10 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = t
     if (!newName.trim()) return;
     setCreating(true);
     const slug = makeSlug(newName.trim());
+    const insertData: Record<string, string> = { name: newName.trim(), slug, created_by: userId };
+    if (orgId) insertData.org_id = orgId;
     const { data, error } = await supabase
-      .from("sites").insert({ name: newName.trim(), slug, org_id: orgId }).select().single();
+      .from("sites").insert(insertData).select().single();
     setCreating(false);
     if (error || !data) { setError("Could not create site."); return; }
     const s = data as Site;
@@ -254,11 +261,12 @@ function SiteSwitcher({ current, orgId, onSelect, onSitesLoaded, canAddSites = t
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
-function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
-  org: Organisation; member: OrgMember; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
+function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDeleted }: {
+  org: Organisation | null; member: OrgMember | null; userId: string; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
 }) {
-  const isAdmin = member.role === "admin";
-  const isViewer = member.role === "viewer";
+  const isPersonal = !org || !member;
+  const isAdmin = isPersonal || member?.role === "admin";
+  const isViewer = !isPersonal && member?.role === "viewer";
   const [activeSite, setActiveSite] = useState<Site | null>(null);
   const [orgSites, setOrgSites] = useState<Site[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -272,7 +280,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
   // Editors and viewers: load sites they can access (RLS returns assigned sites for editors, all for viewers)
   useEffect(() => {
-    if (!isAdmin && org.id) {
+    if (!isAdmin && org?.id) {
       supabase.from("sites").select("*").eq("org_id", org.id).order("created_at", { ascending: false })
         .then(({ data }) => {
           if (data) {
@@ -282,7 +290,7 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
           }
         });
     }
-  }, [isAdmin, org.id]);
+  }, [isAdmin, org?.id]);
 
 
 
@@ -591,13 +599,28 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">{org.name}</h1>
+              <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">{org ? org.name : "SiteSign"}</h1>
               <p className="text-xs font-medium text-yellow-800">
-                SiteSign — <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${isAdmin ? "bg-yellow-600 text-white" : "bg-blue-100 text-blue-800"}`}>{member.role}</span>
+                {isPersonal ? (
+                  "Personal Dashboard"
+                ) : (
+                  <>SiteSign — <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${isAdmin ? "bg-yellow-600 text-white" : "bg-blue-100 text-blue-800"}`}>{member!.role}</span></>
+                )}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
+            {isPersonal && (
+              <a
+                href="/admin/orgs"
+                className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-yellow-900 text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Organizations
+              </a>
+            )}
             {userEmail && (
               <span className="hidden sm:block text-xs font-medium text-yellow-800 truncate max-w-[180px]">{userEmail}</span>
             )}
@@ -616,17 +639,18 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 space-y-6">
 
-        {/* Site switcher (admin + editor) or read-only site selector (viewer) */}
-        {(isAdmin || member.role === "editor") && (
+        {/* Site switcher (admin + editor, or personal mode) */}
+        {(isAdmin || member?.role === "editor") && (
           <SiteSwitcher
             current={activeSite}
-            orgId={org.id}
+            orgId={org?.id ?? null}
+            userId={userId}
             onSelect={setActiveSite}
             onSitesLoaded={setOrgSites}
             canAddSites={isAdmin}
           />
         )}
-        {member.role === "viewer" && orgSites.length > 0 && (
+        {isViewer && orgSites.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Viewing site</p>
             <select
@@ -646,8 +670,8 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
           </div>
         )}
 
-        {/* Organization management (admin only) */}
-        {isAdmin && (
+        {/* Organization management (admin only, only when in an org) */}
+        {isAdmin && org && member && (
           <UnifiedOrgManagementPanel
             org={org}
             member={member}
@@ -1222,7 +1246,6 @@ function AdminDashboard({ org, member, onLogout, onOrgUpdate, onOrgDeleted }: {
 // ─── Page root ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const router = useRouter();
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [org, setOrg] = useState<Organisation | null>(null);
@@ -1285,12 +1308,7 @@ export default function AdminPage() {
       });
   }, [userId]);
 
-  // Redirect to /admin/orgs when user has no org
-  useEffect(() => {
-    if (authed && orgFetched && !loadingOrg && !dbError && (!org || !member)) {
-      router.replace("/admin/orgs");
-    }
-  }, [authed, orgFetched, loadingOrg, dbError, org, member, router]);
+  // No redirect — always show the dashboard (personal or org mode)
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -1323,16 +1341,7 @@ export default function AdminPage() {
     </div>
   );
 
-  if (!org || !member) {
-    // Still redirecting — show neutral loading screen
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <p className="text-gray-400 text-sm">Redirecting to organisation setup…</p>
-      </div>
-    );
-  }
-
-  return <AdminDashboard org={org} member={member} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
+  return <AdminDashboard org={org} member={member} userId={userId!} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
     setOrg(null);
     setMember(null);
   }} />;

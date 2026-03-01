@@ -49,6 +49,7 @@ create table if not exists public.sites (
   name       text        not null,
   slug       text        not null unique,
   org_id     uuid,
+  created_by uuid,
   logo_url   text,
   created_at timestamptz not null default now()
 );
@@ -97,6 +98,7 @@ create table if not exists public.org_member_sites (
 -- Add columns safely to existing tables (idempotent)
 alter table public.site_visits add column if not exists signature text;
 alter table public.site_visits add column if not exists phone_number text;
+alter table public.sites add column if not exists created_by uuid;
 
 -- ─── STEP 2: Foreign keys (safe — only adds if missing) ─────────────────────
 
@@ -298,16 +300,28 @@ create policy "members_delete" on public.org_members for delete to authenticated
 -- === sites ===
 -- Anon can read sites (needed for QR code sign-in page)
 create policy "sites_anon_select" on public.sites for select to anon using (true);
--- Authenticated see their org's sites
+-- Authenticated see their org's sites OR their own personal sites
 create policy "sites_auth_select" on public.sites for select to authenticated
-  using (org_id in (select public.get_my_org_ids()));
--- Only admins can create/update/delete sites
+  using (
+    org_id in (select public.get_my_org_ids())
+    or (org_id is null and created_by = auth.uid())
+  );
+-- Org admins can create org sites; any user can create personal sites (org_id is null)
 create policy "sites_insert" on public.sites for insert to authenticated
-  with check (public.is_org_admin(org_id));
+  with check (
+    (org_id is not null and public.is_org_admin(org_id))
+    or (org_id is null and created_by = auth.uid())
+  );
 create policy "sites_update" on public.sites for update to authenticated
-  using (public.is_org_admin(org_id));
+  using (
+    (org_id is not null and public.is_org_admin(org_id))
+    or (org_id is null and created_by = auth.uid())
+  );
 create policy "sites_delete" on public.sites for delete to authenticated
-  using (public.is_org_admin(org_id));
+  using (
+    (org_id is not null and public.is_org_admin(org_id))
+    or (org_id is null and created_by = auth.uid())
+  );
 
 -- === site_visits ===
 -- Anon: full CRUD (public visitors sign in/out via QR code)
@@ -315,14 +329,26 @@ create policy "visits_anon_select" on public.site_visits for select to anon usin
 create policy "visits_anon_insert" on public.site_visits for insert to anon with check (true);
 create policy "visits_anon_update" on public.site_visits for update to anon using (true) with check (true);
 create policy "visits_anon_delete" on public.site_visits for delete to anon using (true);
--- Authenticated: scoped to their org's sites
+-- Authenticated: scoped to their org's sites OR their personal sites
 create policy "visits_auth_select" on public.site_visits for select to authenticated
-  using (site_id in (select id from public.sites where org_id in (select public.get_my_org_ids())));
+  using (site_id in (
+    select id from public.sites
+    where org_id in (select public.get_my_org_ids())
+       or (org_id is null and created_by = auth.uid())
+  ));
 create policy "visits_auth_insert" on public.site_visits for insert to authenticated with check (true);
 create policy "visits_auth_update" on public.site_visits for update to authenticated
-  using (site_id in (select id from public.sites where org_id in (select public.get_my_org_ids())));
+  using (site_id in (
+    select id from public.sites
+    where org_id in (select public.get_my_org_ids())
+       or (org_id is null and created_by = auth.uid())
+  ));
 create policy "visits_auth_delete" on public.site_visits for delete to authenticated
-  using (site_id in (select id from public.sites where org_id in (select public.get_my_org_ids())));
+  using (site_id in (
+    select id from public.sites
+    where org_id in (select public.get_my_org_ids())
+       or (org_id is null and created_by = auth.uid())
+  ));
 
 -- === org_join_requests ===
 -- Admins see requests for their org; users see their own requests

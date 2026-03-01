@@ -22,7 +22,8 @@ export interface Site {
     id: string;
     name: string;
     slug: string;
-    org_id: string;
+    org_id: string | null;
+    created_by?: string | null;
     logo_url?: string | null;
 }
 
