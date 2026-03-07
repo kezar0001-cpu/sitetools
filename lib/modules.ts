@@ -18,6 +18,17 @@ export interface BuildstateModule {
 
 export const MODULES: BuildstateModule[] = [
     {
+        id: "planner",
+        name: "Buildstate Planner",
+        tagline: "Civil project planning, programme tracking, and daily delivery",
+        description:
+            "Create practical programmes of work, track progress daily, manage delays, and keep site delivery aligned with planned dates.",
+        icon: "list-checks",
+        status: "live",
+        href: "/dashboard/planner",
+        color: "indigo",
+    },
+    {
         id: "site-sign-in",
         name: "Site Sign In",
         tagline: "QR-based sign in & out for every worker on site",
