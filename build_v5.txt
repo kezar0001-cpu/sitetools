@@ -1,0 +1,30 @@
+﻿  ▲ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+System.Management.Automation.RemoteException
+Failed to compile.
+System.Management.Automation.RemoteException
+./app/(app)/dashboard/planner/components/PlannerDashboardClient.tsx
+9:34  Error: 'STATUS_COLORS' is defined but never used.  @typescript-eslint/no-unused-vars
+System.Management.Automation.RemoteException
+./app/(app)/dashboard/planner/components/PlannerGanttView.tsx
+4:63  Error: 'STATUS_COLORS' is defined but never used.  @typescript-eslint/no-unused-vars
+155:50  Error: 'idx' is defined but never used.  @typescript-eslint/no-unused-vars
+281:58  Error: 'idx' is defined but never used.  @typescript-eslint/no-unused-vars
+System.Management.Automation.RemoteException
+./app/(app)/dashboard/planner/components/PlannerSheetView.tsx
+345:5  Error: 'phaseId' is defined but never used.  @typescript-eslint/no-unused-vars
+351:5  Error: 'localValues' is defined but never used.  @typescript-eslint/no-unused-vars
+System.Management.Automation.RemoteException
+./app/(app)/dashboard/planner/components/PlanWorkspaceClient.tsx
+9:3  Error: 'createWeatherDelay' is defined but never used.  @typescript-eslint/no-unused-vars
+18:46  Error: 'TASK_STATUSES' is defined but never used.  @typescript-eslint/no-unused-vars
+20:28  Error: 'statusFromPercent' is defined but never used.  @typescript-eslint/no-unused-vars
+System.Management.Automation.RemoteException
+./lib/planner/client.ts
+12:3  Error: 'DelayType' is defined but never used.  @typescript-eslint/no-unused-vars
+System.Management.Automation.RemoteException
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules

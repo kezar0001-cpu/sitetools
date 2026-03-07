@@ -1,5 +1,5 @@
-import { PlanWorkspaceClient } from "../../components/PlanWorkspaceClient";
+import { redirect } from "next/navigation";
 
 export default function PlannerTimelinePage({ params }: { params: { planId: string } }) {
-  return <PlanWorkspaceClient planId={params.planId} mode="timeline" />;
+  redirect(`/dashboard/planner/${params.planId}/gantt`);
 }

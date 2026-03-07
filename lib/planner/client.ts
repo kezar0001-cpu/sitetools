@@ -1,6 +1,17 @@
 import { supabase } from "@/lib/supabase";
 import { calculateDurationDays, normalizePercent } from "./validation";
-import { PlanPhase, PlanTask, PlannerPlanWithContext, ProjectPlan, TaskStatus, TaskUpdate } from "./types";
+import {
+  PlanPhase,
+  PlanTask,
+  PlannerPlanWithContext,
+  ProjectPlan,
+  TaskStatus,
+  TaskUpdate,
+  PublicHoliday,
+  WeatherDelayLog,
+} from "./types";
+
+// ─── Plans ───
 
 export async function fetchPlannerPlans(companyId: string): Promise<PlannerPlanWithContext[]> {
   const { data, error } = await supabase
@@ -60,11 +71,41 @@ export async function fetchPlanById(planId: string): Promise<PlannerPlanWithCont
   return (data as PlannerPlanWithContext | null) ?? null;
 }
 
+// ─── Phases ───
+
 export async function fetchPlanPhases(planId: string): Promise<PlanPhase[]> {
-  const { data, error } = await supabase.from("plan_phases").select("*").eq("plan_id", planId).order("sort_order", { ascending: true });
+  const { data, error } = await supabase
+    .from("plan_phases")
+    .select("*")
+    .eq("plan_id", planId)
+    .order("sort_order", { ascending: true });
   if (error) throw error;
   return (data ?? []) as PlanPhase[];
 }
+
+export async function createPlanPhase(input: {
+  planId: string;
+  name: string;
+  sortOrder?: number;
+  color?: string;
+  userId?: string | null;
+}): Promise<PlanPhase> {
+  const { data, error } = await supabase
+    .from("plan_phases")
+    .insert({
+      plan_id: input.planId,
+      name: input.name,
+      sort_order: input.sortOrder ?? 0,
+      color: input.color ?? null,
+      created_by: input.userId ?? null,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as PlanPhase;
+}
+
+// ─── Tasks ───
 
 export async function fetchPlanTasks(planId: string): Promise<PlanTask[]> {
   const { data, error } = await supabase
@@ -81,16 +122,34 @@ export async function createPlanTask(input: {
   planId: string;
   title: string;
   phaseId?: string | null;
+  siteId?: string | null;
+  parentTaskId?: string | null;
+  indentLevel?: number;
   sortOrder?: number;
+  plannedStart?: string | null;
+  plannedFinish?: string | null;
+  durationDays?: number | null;
+  isMilestone?: boolean;
   userId?: string | null;
 }): Promise<PlanTask> {
+  const duration =
+    input.durationDays ??
+    calculateDurationDays(input.plannedStart ?? null, input.plannedFinish ?? null);
+
   const { data, error } = await supabase
     .from("plan_tasks")
     .insert({
       plan_id: input.planId,
       phase_id: input.phaseId ?? null,
+      site_id: input.siteId ?? null,
+      parent_task_id: input.parentTaskId ?? null,
+      indent_level: input.indentLevel ?? 0,
       title: input.title,
       sort_order: input.sortOrder ?? 0,
+      planned_start: input.plannedStart ?? null,
+      planned_finish: input.plannedFinish ?? null,
+      duration_days: duration,
+      is_milestone: input.isMilestone ?? false,
       created_by: input.userId ?? null,
       updated_by: input.userId ?? null,
     })
@@ -119,11 +178,57 @@ export async function updatePlanTask(
     payload.duration_days = duration;
   }
 
-  const { data, error } = await supabase.from("plan_tasks").update(payload).eq("id", taskId).select("*").single();
+  const { data, error } = await supabase
+    .from("plan_tasks")
+    .update(payload)
+    .eq("id", taskId)
+    .select("*")
+    .single();
 
   if (error) throw error;
   return data as PlanTask;
 }
+
+export async function deletePlanTask(taskId: string): Promise<void> {
+  const { error } = await supabase.from("plan_tasks").delete().eq("id", taskId);
+  if (error) throw error;
+}
+
+export async function bulkCreateTasks(
+  planId: string,
+  tasks: Array<{
+    title: string;
+    sortOrder: number;
+    phaseId?: string | null;
+    plannedStart?: string | null;
+    plannedFinish?: string | null;
+    durationDays?: number | null;
+    indentLevel?: number;
+    wbsCode?: string | null;
+    notes?: string | null;
+  }>,
+  userId?: string | null
+): Promise<void> {
+  const rows = tasks.map((t) => ({
+    plan_id: planId,
+    title: t.title,
+    sort_order: t.sortOrder,
+    phase_id: t.phaseId ?? null,
+    planned_start: t.plannedStart ?? null,
+    planned_finish: t.plannedFinish ?? null,
+    duration_days: t.durationDays ?? calculateDurationDays(t.plannedStart ?? null, t.plannedFinish ?? null),
+    indent_level: t.indentLevel ?? 0,
+    wbs_code: t.wbsCode ?? null,
+    notes: t.notes ?? null,
+    created_by: userId ?? null,
+    updated_by: userId ?? null,
+  }));
+
+  const { error } = await supabase.from("plan_tasks").insert(rows);
+  if (error) throw error;
+}
+
+// ─── Task Updates ───
 
 export async function fetchTaskUpdates(planId: string): Promise<TaskUpdate[]> {
   const { data, error } = await supabase
@@ -164,6 +269,8 @@ export async function createTaskUpdate(input: {
   return data as TaskUpdate;
 }
 
+// ─── Revisions ───
+
 export async function createPlanRevision(input: {
   planId: string;
   summary: string;
@@ -191,6 +298,8 @@ export async function createPlanRevision(input: {
   });
   if (error) throw error;
 }
+
+// ─── Civil Starter Activities ───
 
 export async function seedCivilStarterTasks(planId: string, userId?: string | null) {
   const phaseNames = ["Mobilisation", "Civil Works", "Concrete & Finishes", "Handover"];
@@ -233,4 +342,59 @@ export async function seedCivilStarterTasks(planId: string, userId?: string | nu
   );
 
   if (taskError) throw taskError;
+}
+
+// ─── Public Holidays ───
+
+export async function fetchPublicHolidays(companyId?: string | null): Promise<PublicHoliday[]> {
+  let query = supabase
+    .from("public_holidays")
+    .select("*")
+    .order("holiday_date", { ascending: true });
+
+  if (companyId) {
+    query = query.or(`company_id.is.null,company_id.eq.${companyId}`);
+  } else {
+    query = query.is("company_id", null);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as PublicHoliday[];
+}
+
+// ─── Weather Delay Log ───
+
+export async function fetchWeatherDelays(planId: string): Promise<WeatherDelayLog[]> {
+  const { data, error } = await supabase
+    .from("weather_delay_log")
+    .select("*")
+    .eq("plan_id", planId)
+    .order("delay_date", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as WeatherDelayLog[];
+}
+
+export async function createWeatherDelay(input: {
+  planId: string;
+  taskId?: string | null;
+  delayDate?: string;
+  hoursLost: number;
+  reason?: string;
+  userId?: string | null;
+}): Promise<WeatherDelayLog> {
+  const { data, error } = await supabase
+    .from("weather_delay_log")
+    .insert({
+      plan_id: input.planId,
+      task_id: input.taskId ?? null,
+      delay_date: input.delayDate ?? new Date().toISOString().slice(0, 10),
+      hours_lost: input.hoursLost,
+      reason: input.reason?.trim() || null,
+      logged_by: input.userId ?? null,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as WeatherDelayLog;
 }

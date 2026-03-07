@@ -2,213 +2,312 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPlanRevision, createPlanTask, createTaskUpdate, fetchPlanById, fetchPlanTasks, updatePlanTask } from "@/lib/planner/client";
-import { PlanTask, TASK_PRIORITIES, TASK_STATUSES, TaskStatus } from "@/lib/planner/types";
+import {
+  createPlanRevision,
+  createPlanTask,
+  createTaskUpdate,
+  deletePlanTask,
+  fetchPlanById,
+  fetchPlanPhases,
+  fetchPlanTasks,
+  fetchPublicHolidays,
+  bulkCreateTasks,
+  updatePlanTask,
+} from "@/lib/planner/client";
+import { PlanTask, PlanPhase, PublicHoliday, TaskStatus } from "@/lib/planner/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { normalizePercent, statusFromPercent } from "@/lib/planner/validation";
+import { normalizePercent } from "@/lib/planner/validation";
+import { ImportedTask } from "@/lib/planner/import-parser";
 
-type Mode = "sheet" | "timeline" | "today";
+import { PlannerSheetView } from "./PlannerSheetView";
+import { PlannerGanttView } from "./PlannerGanttView";
+import { PlannerTodayView } from "./PlannerTodayView";
+import { PlannerImportDialog } from "./PlannerImportDialog";
 
-function asDate(value: string | null) {
-  return value ? new Date(value) : null;
-}
+type Mode = "sheet" | "gantt" | "today";
 
 export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mode }) {
   const { summary } = useWorkspace({ requireAuth: true, requireCompany: true });
   const userId = summary?.userId ?? null;
+  const companyId = summary?.activeMembership?.company_id ?? null;
+
   const [planName, setPlanName] = useState("Plan");
   const [tasks, setTasks] = useState<PlanTask[]>([]);
-  const [newTitle, setNewTitle] = useState("");
+  const [phases, setPhases] = useState<PlanPhase[]>([]);
+  const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showImport, setShowImport] = useState(false);
 
+  // ── Data loading ──
   const loadAll = useCallback(async () => {
-    const [plan, planTasks] = await Promise.all([fetchPlanById(planId), fetchPlanTasks(planId)]);
+    const [plan, planTasks, planPhases, publicHolidays] = await Promise.all([
+      fetchPlanById(planId),
+      fetchPlanTasks(planId),
+      fetchPlanPhases(planId),
+      fetchPublicHolidays(companyId),
+    ]);
     setPlanName(plan?.name ?? "Plan");
     setTasks(planTasks);
-  }, [planId]);
+    setPhases(planPhases);
+    setHolidays(publicHolidays);
+  }, [planId, companyId]);
 
   useEffect(() => {
-    loadAll().catch((err) => setError(err instanceof Error ? err.message : "Failed to load plan."));
+    setLoading(true);
+    loadAll()
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load plan."))
+      .finally(() => setLoading(false));
   }, [loadAll]);
 
-  const today = useMemo(() => new Date(), []);
-  const dateString = today.toISOString().slice(0, 10);
+  // ── Task operations ──
+  const handleAddTask = useCallback(
+    async (title: string, phaseId?: string | null) => {
+      setSaving("new");
+      try {
+        await createPlanTask({
+          planId,
+          title,
+          phaseId,
+          sortOrder: tasks.length,
+          userId,
+        });
+        await createPlanRevision({
+          planId,
+          revisionType: "task_added",
+          summary: `Added task: ${title}`,
+          userId,
+        });
+        await loadAll();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not add task.");
+      } finally {
+        setSaving(null);
+      }
+    },
+    [planId, tasks.length, userId, loadAll]
+  );
 
-  const taskBuckets = useMemo(() => {
-    const dueToday: PlanTask[] = [];
-    const overdue: PlanTask[] = [];
-    const thisWeek: PlanTask[] = [];
+  const handlePatchTask = useCallback(
+    async (taskId: string, patch: Partial<PlanTask>) => {
+      setSaving(taskId);
+      try {
+        await updatePlanTask(taskId, { ...patch, updated_by: userId });
+        await loadAll();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save task update.");
+      } finally {
+        setSaving(null);
+      }
+    },
+    [userId, loadAll]
+  );
 
-    const weekEnd = new Date(today);
-    weekEnd.setDate(today.getDate() + 7);
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      setSaving(taskId);
+      try {
+        await deletePlanTask(taskId);
+        await createPlanRevision({
+          planId,
+          revisionType: "task_deleted",
+          summary: `Deleted a task`,
+          userId,
+        });
+        await loadAll();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not delete task.");
+      } finally {
+        setSaving(null);
+      }
+    },
+    [planId, userId, loadAll]
+  );
 
-    for (const task of tasks) {
-      const due = asDate(task.planned_finish);
-      if (!due || task.status === "done") continue;
-      if (due.toDateString() === today.toDateString()) dueToday.push(task);
-      else if (due < today) overdue.push(task);
-      else if (due <= weekEnd) thisWeek.push(task);
-    }
+  const handleQuickUpdate = useCallback(
+    async (task: PlanTask, nextStatus: TaskStatus, percent: number, note?: string) => {
+      const normalizedPercent = normalizePercent(percent);
+      setSaving(task.id);
+      try {
+        await createTaskUpdate({
+          planId,
+          taskId: task.id,
+          status: nextStatus,
+          percentComplete: normalizedPercent,
+          note,
+          blocked: nextStatus === "blocked",
+          userId,
+        });
 
-    return { dueToday, overdue, thisWeek };
-  }, [tasks, today]);
+        await updatePlanTask(task.id, {
+          status: nextStatus,
+          percent_complete: normalizedPercent,
+          actual_start: task.actual_start ?? (normalizedPercent > 0 ? new Date().toISOString() : null),
+          actual_finish: normalizedPercent >= 100 ? new Date().toISOString() : null,
+          updated_by: userId,
+        });
 
-  async function handleAddTask() {
-    if (!newTitle.trim()) return;
-    setSaving("new");
-    try {
-      await createPlanTask({
+        await loadAll();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save update.");
+      } finally {
+        setSaving(null);
+      }
+    },
+    [planId, userId, loadAll]
+  );
+
+  // ── Import handler ──
+  const handleImport = useCallback(
+    async (importedTasks: ImportedTask[], projectName: string | null) => {
+      const taskRows = importedTasks.map((t, idx) => ({
+        title: t.name,
+        sortOrder: tasks.length + idx,
+        plannedStart: t.start,
+        plannedFinish: t.finish,
+        durationDays: t.durationDays,
+        indentLevel: t.outlineLevel,
+        wbsCode: t.wbsCode,
+        notes: t.notes,
+      }));
+
+      await bulkCreateTasks(planId, taskRows, userId);
+      await createPlanRevision({
         planId,
-        title: newTitle.trim(),
-        sortOrder: tasks.length,
+        revisionType: "import",
+        summary: `Imported ${importedTasks.length} tasks${projectName ? ` from "${projectName}"` : ""}`,
         userId,
       });
-      await createPlanRevision({ planId, revisionType: "task_added", summary: `Added task: ${newTitle.trim()}`, userId });
-      setNewTitle("");
       await loadAll();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not add task.");
-    } finally {
-      setSaving(null);
-    }
-  }
+    },
+    [planId, tasks.length, userId, loadAll]
+  );
 
-  async function patchTask(taskId: string, patch: Partial<PlanTask>) {
-    setSaving(taskId);
-    try {
-      await updatePlanTask(taskId, { ...patch, updated_by: userId });
-      await loadAll();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save task update.");
-    } finally {
-      setSaving(null);
-    }
-  }
+  // ── Stats ──
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const done = tasks.filter((t) => t.status === "done").length;
+    const blocked = tasks.filter((t) => t.status === "blocked").length;
+    const avgPercent = total > 0 ? Math.round(tasks.reduce((sum, t) => sum + t.percent_complete, 0) / total) : 0;
+    return { total, done, blocked, avgPercent };
+  }, [tasks]);
 
-  async function quickUpdate(task: PlanTask, nextStatus: TaskStatus, percent: number, note?: string) {
-    const normalizedPercent = normalizePercent(percent);
-    setSaving(task.id);
-    try {
-      await createTaskUpdate({
-        planId,
-        taskId: task.id,
-        status: nextStatus,
-        percentComplete: normalizedPercent,
-        note,
-        blocked: nextStatus === "blocked",
-        userId,
-      });
-
-      await updatePlanTask(task.id, {
-        status: nextStatus,
-        percent_complete: normalizedPercent,
-        actual_start: task.actual_start ?? (normalizedPercent > 0 ? new Date().toISOString() : null),
-        actual_finish: normalizedPercent >= 100 ? new Date().toISOString() : null,
-        updated_by: userId,
-      });
-
-      await loadAll();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save update.");
-    } finally {
-      setSaving(null);
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+      </div>
+    );
   }
 
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-5">
-      <div className="flex flex-wrap gap-3 items-center justify-between">
+    <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-4">
+      {/* Plan header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider font-bold text-amber-700">Buildstate Planner</p>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900">{planName}</h1>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/planner" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+              ← All Plans
+            </Link>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-1">{planName}</h1>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <Link className={`px-3 py-2 rounded-lg border ${mode === "sheet" ? "bg-slate-900 text-white" : "bg-white"}`} href={`/dashboard/planner/${planId}`}>Sheet</Link>
-          <Link className={`px-3 py-2 rounded-lg border ${mode === "timeline" ? "bg-slate-900 text-white" : "bg-white"}`} href={`/dashboard/planner/${planId}/timeline`}>Timeline</Link>
-          <Link className={`px-3 py-2 rounded-lg border ${mode === "today" ? "bg-slate-900 text-white" : "bg-white"}`} href={`/dashboard/planner/${planId}/today`}>Today</Link>
-        </div>
-      </div>
 
-      {error && <div className="text-sm rounded-lg border border-red-200 bg-red-50 text-red-700 p-3">{error}</div>}
-
-      {mode === "sheet" && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="text-left p-2">Activity</th><th className="text-left p-2">Status</th><th className="text-left p-2">% Done</th><th className="text-left p-2">Priority</th><th className="text-left p-2">Planned start</th><th className="text-left p-2">Planned finish</th><th className="text-left p-2">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => (
-                <tr key={task.id} className="border-t border-slate-100 align-top">
-                  <td className="p-2 min-w-[220px]"><input className="w-full border rounded px-2 py-1" value={task.title} onChange={(e) => setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, title: e.target.value } : t))} onBlur={() => patchTask(task.id, { title: task.title })} /></td>
-                  <td className="p-2"><select className="border rounded px-2 py-1" value={task.status} onChange={(e) => patchTask(task.id, { status: e.target.value as TaskStatus })}>{TASK_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></td>
-                  <td className="p-2"><input type="number" className="w-20 border rounded px-2 py-1" value={task.percent_complete} onChange={(e) => patchTask(task.id, { percent_complete: Number(e.target.value), status: statusFromPercent(Number(e.target.value), task.status) })} /></td>
-                  <td className="p-2"><select className="border rounded px-2 py-1" value={task.priority} onChange={(e) => patchTask(task.id, { priority: e.target.value as PlanTask["priority"] })}>{TASK_PRIORITIES.map((priority) => <option key={priority} value={priority}>{priority}</option>)}</select></td>
-                  <td className="p-2"><input type="date" className="border rounded px-2 py-1" value={task.planned_start ?? ""} onChange={(e) => patchTask(task.id, { planned_start: e.target.value || null })} /></td>
-                  <td className="p-2"><input type="date" className="border rounded px-2 py-1" value={task.planned_finish ?? ""} onChange={(e) => patchTask(task.id, { planned_finish: e.target.value || null })} /></td>
-                  <td className="p-2"><textarea className="w-full border rounded px-2 py-1" value={task.notes ?? ""} onChange={(e) => setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, notes: e.target.value } : t))} onBlur={() => patchTask(task.id, { notes: task.notes })} /></td>
-                </tr>
-              ))}
-              <tr className="border-t border-slate-200">
-                <td className="p-2"><input className="w-full border rounded px-2 py-1" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Quick add activity..." /></td>
-                <td className="p-2" colSpan={6}><button disabled={saving === "new"} onClick={handleAddTask} className="px-3 py-1.5 rounded bg-amber-500 text-slate-900 font-bold">Add row</button></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {mode === "timeline" && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-          <p className="text-sm text-slate-500">Simplified timeline (planned dates only).</p>
-          {tasks.map((task) => {
-            const start = task.planned_start ? new Date(task.planned_start) : null;
-            const finish = task.planned_finish ? new Date(task.planned_finish) : null;
-            const duration = start && finish ? Math.max(1, Math.ceil((finish.getTime() - start.getTime()) / 86400000) + 1) : 1;
-            return (
-              <div key={task.id} className="grid grid-cols-[180px_1fr] gap-3 items-center text-sm">
-                <div className="font-medium text-slate-700">{task.title}</div>
-                <div className="bg-slate-100 rounded h-8 relative overflow-hidden">
-                  <div className="absolute inset-y-1 left-2 bg-amber-400 rounded" style={{ width: `${Math.min(100, duration * 5)}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {mode === "today" && (
-        <div className="space-y-4">
-          <div className="grid md:grid-cols-3 gap-3">
-            {[{ label: "Overdue", items: taskBuckets.overdue }, { label: "Today", items: taskBuckets.dueToday }, { label: "This week", items: taskBuckets.thisWeek }].map((bucket) => (
-              <div key={bucket.label} className="bg-white border border-slate-200 rounded-2xl p-3">
-                <h3 className="font-bold text-slate-900">{bucket.label}</h3>
-                <div className="space-y-2 mt-2">
-                  {bucket.items.map((task) => (
-                    <div key={task.id} className="rounded-lg border border-slate-200 p-2">
-                      <p className="font-semibold text-slate-800">{task.title}</p>
-                      <p className="text-xs text-slate-500">Status: {task.status} • {task.percent_complete}%</p>
-                      <div className="mt-2 flex gap-2 text-xs flex-wrap">
-                        <button disabled={saving === task.id} onClick={() => quickUpdate(task, "in-progress", Math.max(task.percent_complete, 25), "Progressed on site") } className="px-2 py-1 rounded bg-blue-100">Progress</button>
-                        <button disabled={saving === task.id} onClick={() => quickUpdate(task, "blocked", task.percent_complete, "Blocked on site") } className="px-2 py-1 rounded bg-red-100">Blocked</button>
-                        <button disabled={saving === task.id} onClick={() => quickUpdate(task, "done", 100, "Completed on site") } className="px-2 py-1 rounded bg-emerald-100">Done</button>
-                      </div>
-                    </div>
-                  ))}
-                  {bucket.items.length === 0 && <p className="text-sm text-slate-500 py-4">No activities in this bucket.</p>}
-                </div>
-              </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* View tabs */}
+          <div className="flex items-center bg-slate-100 rounded-xl p-1">
+            {[
+              { key: "sheet" as const, label: "Sheet", icon: "▤" },
+              { key: "gantt" as const, label: "Gantt", icon: "▰" },
+              { key: "today" as const, label: "Today", icon: "◉" },
+            ].map((tab) => (
+              <Link
+                key={tab.key}
+                href={
+                  tab.key === "sheet"
+                    ? `/dashboard/planner/${planId}`
+                    : `/dashboard/planner/${planId}/${tab.key}`
+                }
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${mode === tab.key
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:bg-white hover:shadow-sm"
+                  }`}
+              >
+                <span className="mr-1.5">{tab.icon}</span>
+                {tab.label}
+              </Link>
             ))}
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 md:hidden">
-            <h3 className="font-bold text-slate-900">Mobile quick update ({dateString})</h3>
-            <p className="text-sm text-slate-500">Use this view on site to quickly progress activities.</p>
-          </div>
+          {/* Import button */}
+          <button
+            onClick={() => setShowImport(true)}
+            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+          >
+            📥 Import
+          </button>
         </div>
+      </div>
+
+      {/* Stats bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Total Tasks", value: stats.total, color: "text-slate-700" },
+          { label: "Completed", value: stats.done, color: "text-emerald-600" },
+          { label: "Blocked", value: stats.blocked, color: "text-red-600" },
+          { label: "Avg Progress", value: `${stats.avgPercent}%`, color: "text-blue-600" },
+        ].map((s) => (
+          <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-3 text-center">
+            <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-slate-500 font-medium">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Error display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+
+      {/* View content */}
+      {mode === "sheet" && (
+        <PlannerSheetView
+          tasks={tasks}
+          phases={phases}
+          saving={saving}
+          onAddTask={handleAddTask}
+          onPatchTask={handlePatchTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      )}
+
+      {mode === "gantt" && (
+        <PlannerGanttView
+          tasks={tasks}
+          phases={phases}
+          holidays={holidays}
+        />
+      )}
+
+      {mode === "today" && (
+        <PlannerTodayView
+          tasks={tasks}
+          saving={saving}
+          onQuickUpdate={handleQuickUpdate}
+          onPatchTask={handlePatchTask}
+        />
+      )}
+
+      {/* Import dialog */}
+      {showImport && (
+        <PlannerImportDialog
+          onImport={handleImport}
+          onClose={() => setShowImport(false)}
+        />
       )}
     </div>
   );
