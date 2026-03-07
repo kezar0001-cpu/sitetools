@@ -1,0 +1,12 @@
+{
+    "crons": [
+        {
+            "path": "/api/cron-nudge",
+            "schedule": "0 6 * * *"
+        },
+        {
+            "path": "/api/process-nudges",
+            "schedule": "0,10,20,30,40,50 * * * *"
+        }
+    ]
+}

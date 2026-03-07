@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
-import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import * as XLSX from "xlsx";
@@ -10,11 +9,9 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UnifiedOrgManagementPanel } from "./components/UnifiedOrgManagementPanel";
 
-const MapPicker = dynamic(() => import("./components/MapPicker"), { ssr: false });
-
 interface Organisation { id: string; name: string; created_at: string; is_public?: boolean; description?: string | null; join_code?: string | null; join_code_expires?: string | null; created_by?: string | null; }
 interface OrgMember { id: string; org_id: string; user_id: string; role: "admin" | "editor" | "viewer"; site_id: string | null; }
-interface Site { id: string; name: string; slug: string; org_id: string | null; created_by?: string | null; logo_url?: string | null; latitude?: number | null; longitude?: number | null; geofence_radius_km?: number; }
+interface Site { id: string; name: string; slug: string; org_id: string | null; created_by?: string | null; logo_url?: string | null; latitude?: number | null; longitude?: number | null; }
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
@@ -268,125 +265,6 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
   );
 }
 
-
-// ─── Geofence Settings ──────────────────────────────────────────────────────
-
-const RADIUS_OPTIONS = [
-  { value: 0.5, label: "500m" },
-  { value: 1, label: "1 km" },
-  { value: 2, label: "2 km" },
-  { value: 5, label: "5 km" },
-  { value: 10, label: "10 km" },
-];
-
-function GeofenceSettings({ site, onUpdate }: { site: Site; onUpdate: (s: Site) => void }) {
-  const [lat, setLat] = useState<number | null>(site.latitude ?? null);
-  const [lng, setLng] = useState<number | null>(site.longitude ?? null);
-  const [radius, setRadius] = useState(site.geofence_radius_km ?? 1);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  useEffect(() => {
-    setLat(site.latitude ?? null);
-    setLng(site.longitude ?? null);
-    setRadius(site.geofence_radius_km ?? 1);
-  }, [site.id, site.latitude, site.longitude, site.geofence_radius_km]);
-
-  const handleLocationChange = useCallback((newLat: number, newLng: number) => {
-    setLat(newLat);
-    setLng(newLng);
-  }, []);
-
-  async function handleSave() {
-    setError(null);
-    setSuccess(false);
-    if (lat === null || lng === null) {
-      setError("Please set a location by searching for an address or clicking the map.");
-      return;
-    }
-    setSaving(true);
-    const { data, error: err } = await supabase
-      .from("sites")
-      .update({ latitude: lat, longitude: lng, geofence_radius_km: radius })
-      .eq("id", site.id)
-      .select("*")
-      .single();
-    setSaving(false);
-    if (err || !data) {
-      setError(err?.message ?? "Failed to save.");
-      return;
-    }
-    onUpdate(data as Site);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
-  }
-
-  const hasLocation = lat != null && lng != null;
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="bg-green-100 text-green-700 rounded-lg p-1.5">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </div>
-        <div>
-          <h3 className="text-sm font-extrabold text-gray-900">Geofence Settings</h3>
-          <p className="text-xs text-gray-500">Set the site location and sign-out reminder radius</p>
-        </div>
-        {hasLocation && (
-          <span className="ml-auto text-xs font-bold text-green-700 bg-green-50 px-2 py-1 rounded-lg">Active</span>
-        )}
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>
-      )}
-      {success && (
-        <div className="bg-green-50 border border-green-300 text-green-700 rounded-xl px-4 py-3 text-sm font-semibold">Settings saved!</div>
-      )}
-
-      {/* Map Picker */}
-      <MapPicker
-        latitude={lat}
-        longitude={lng}
-        onLocationChange={handleLocationChange}
-      />
-
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 mb-2">Sign-out reminder radius</label>
-        <div className="flex flex-wrap gap-2">
-          {RADIUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setRadius(opt.value)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${radius === opt.value
-                ? "bg-green-500 text-white shadow-sm"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-gray-400 mt-2">
-          Visitors will be reminded to sign out when they move more than {RADIUS_OPTIONS.find((o) => o.value === radius)?.label ?? `${radius}km`} from the site.
-        </p>
-      </div>
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white font-bold px-5 py-3 rounded-xl text-sm transition-colors"
-      >
-        {saving ? "Saving…" : "Save Geofence Settings"}
-      </button>
-    </div>
-  );
-}
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
@@ -899,13 +777,7 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
           )}
         </div>
 
-        {/* Geofence Settings (admin only) */}
-        {isAdmin && activeSite && (
-          <GeofenceSettings site={activeSite} onUpdate={(updated) => {
-            setActiveSite(updated);
-            setOrgSites((prev) => prev.map((s) => s.id === updated.id ? updated : s));
-          }} />
-        )}
+
 
         {/* Add Visit panel (hidden for viewers) */}
         {!isViewer && (

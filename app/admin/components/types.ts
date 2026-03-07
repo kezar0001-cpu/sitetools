@@ -27,7 +27,6 @@ export interface Site {
     logo_url?: string | null;
     latitude?: number | null;
     longitude?: number | null;
-    geofence_radius_km?: number;
 }
 
 export interface OrgJoinRequest {
