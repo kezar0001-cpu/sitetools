@@ -10,6 +10,47 @@ import {
   WorkspaceSummary,
 } from "@/lib/workspace/types";
 
+type SupabaseErrorLike = {
+  code?: string;
+  message?: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+function asSupabaseError(error: unknown): SupabaseErrorLike {
+  return (error ?? {}) as SupabaseErrorLike;
+}
+
+function isMissingTableError(error: unknown, tableName: string): boolean {
+  const candidate = asSupabaseError(error);
+  const code = candidate.code ?? "";
+  const message = (candidate.message ?? "").toLowerCase();
+  const details = (candidate.details ?? "").toLowerCase();
+  const hint = (candidate.hint ?? "").toLowerCase();
+
+  if (code === "PGRST205") return true;
+
+  return (
+    message.includes(tableName.toLowerCase()) ||
+    details.includes(tableName.toLowerCase()) ||
+    hint.includes(tableName.toLowerCase())
+  );
+}
+
+function buildFallbackProfile(userId: string, email?: string | null, activeCompanyId: string | null = null): Profile {
+  const now = new Date().toISOString();
+  return {
+    id: userId,
+    email: email ? email.toLowerCase() : null,
+    full_name: null,
+    phone_number: null,
+    active_company_id: activeCompanyId,
+    active_site_id: null,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
 export async function getAuthenticatedUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
@@ -23,7 +64,13 @@ export async function ensureProfile(userId: string, email?: string | null): Prom
     .eq("id", userId)
     .maybeSingle();
 
-  if (profileError) throw profileError;
+  if (profileError) {
+    if (isMissingTableError(profileError, "profiles")) {
+      return buildFallbackProfile(userId, email);
+    }
+    throw profileError;
+  }
+
   if (profile) return profile as Profile;
 
   const { data, error } = await supabase
@@ -32,7 +79,13 @@ export async function ensureProfile(userId: string, email?: string | null): Prom
     .select("*")
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error, "profiles")) {
+      return buildFallbackProfile(userId, email);
+    }
+    throw error;
+  }
+
   return data as Profile;
 }
 
@@ -49,6 +102,7 @@ function pickActiveMembership(
 
   return memberships[0] ?? null;
 }
+
 type MembershipRow = Omit<CompanyMembership, "companies"> & {
   companies?: Company | Company[] | null;
 };
@@ -61,21 +115,16 @@ function normalizeMembershipCompany(value: MembershipRow["companies"]): Company 
 }
 
 export async function loadWorkspaceSummary(userId: string, email?: string | null): Promise<WorkspaceSummary> {
-  await ensureProfile(userId, email);
+  const ensuredProfile = await ensureProfile(userId, email);
 
-  const [profileRes, membershipsRes] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", userId).single(),
-    supabase
-      .from("company_memberships")
-      .select("id, company_id, user_id, role, invited_by, created_at, companies(*)")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: true }),
-  ]);
+  const membershipsRes = await supabase
+    .from("company_memberships")
+    .select("id, company_id, user_id, role, invited_by, created_at, companies(*)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
 
-  if (profileRes.error) throw profileRes.error;
   if (membershipsRes.error) throw membershipsRes.error;
 
-  const profile = profileRes.data as Profile;
   const memberships: CompanyMembership[] = (membershipsRes.data ?? []).map((row) => {
     const membership = row as MembershipRow;
     return {
@@ -84,29 +133,49 @@ export async function loadWorkspaceSummary(userId: string, email?: string | null
     };
   });
 
+  let profile: Profile = ensuredProfile ?? buildFallbackProfile(userId, email);
+
+  const profileRes = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  if (!profileRes.error && profileRes.data) {
+    profile = profileRes.data as Profile;
+  } else if (profileRes.error && !isMissingTableError(profileRes.error, "profiles")) {
+    throw profileRes.error;
+  }
+
   let activeMembership = pickActiveMembership(memberships, profile.active_company_id);
 
   if (memberships.length > 0 && !activeMembership) {
     const fallback = memberships[0];
+
     const { error } = await supabase.rpc("set_active_company", {
       p_company_id: fallback.company_id,
     });
-    if (error) throw error;
+
+    // If profile infrastructure is missing in this environment, keep UX working
+    // by falling back to in-memory active company selection.
+    if (error && !isMissingTableError(error, "profiles")) {
+      throw error;
+    }
 
     const { data: updatedProfile, error: updatedProfileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
-      .single();
-    if (updatedProfileError) throw updatedProfileError;
+      .maybeSingle();
+
+    if (!updatedProfileError && updatedProfile) {
+      profile = updatedProfile as Profile;
+    } else if (updatedProfileError && !isMissingTableError(updatedProfileError, "profiles")) {
+      throw updatedProfileError;
+    } else {
+      profile = {
+        ...profile,
+        active_company_id: fallback.company_id,
+        updated_at: new Date().toISOString(),
+      };
+    }
 
     activeMembership = fallback;
-    return {
-      userId,
-      memberships,
-      activeMembership,
-      profile: updatedProfile as Profile,
-    };
   }
 
   return {
@@ -119,7 +188,10 @@ export async function loadWorkspaceSummary(userId: string, email?: string | null
 
 export async function setActiveCompany(companyId: string): Promise<void> {
   const { data, error } = await supabase.rpc("set_active_company", { p_company_id: companyId });
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error, "profiles")) return;
+    throw error;
+  }
   if (data !== true) {
     throw new Error("Unable to set active company.");
   }
@@ -127,7 +199,10 @@ export async function setActiveCompany(companyId: string): Promise<void> {
 
 export async function setActiveSite(siteId: string): Promise<void> {
   const { data, error } = await supabase.rpc("set_active_site", { p_site_id: siteId });
-  if (error) throw error;
+  if (error) {
+    if (isMissingTableError(error, "profiles")) return;
+    throw error;
+  }
   if (data !== true) {
     throw new Error("Unable to set active site.");
   }
@@ -230,7 +305,12 @@ export async function fetchCompanyTeam(companyId: string): Promise<CompanyMember
     .select("id, email, full_name")
     .in("id", uniqueUserIds);
 
-  if (profileError) throw profileError;
+  if (profileError) {
+    if (isMissingTableError(profileError, "profiles")) {
+      return memberships.map((member) => ({ ...member, profiles: null }));
+    }
+    throw profileError;
+  }
 
   const profileMap = new Map<string, { id: string; email: string | null; full_name: string | null }>();
   for (const profile of profileRows ?? []) {
@@ -258,4 +338,3 @@ export async function fetchCompanyInvitations(companyId: string): Promise<Compan
 
   return (data ?? []) as CompanyInvitation[];
 }
-

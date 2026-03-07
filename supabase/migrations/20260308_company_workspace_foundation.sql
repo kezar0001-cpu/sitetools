@@ -232,44 +232,114 @@ where c.owner_user_id is not null
   and cm.user_id = c.owner_user_id;
 
 do $$
+declare
+  has_token boolean;
+  has_code boolean;
+  has_invite_code boolean;
+  has_invited_by boolean;
+  has_accepted_by boolean;
+  has_accepted_at boolean;
+  token_expr text;
+  invite_code_expr text;
+  invited_by_expr text;
+  accepted_by_expr text;
+  accepted_at_expr text;
 begin
   if to_regclass('public.org_invitations') is not null then
-    insert into public.company_invitations (
-      company_id,
-      email,
-      role,
-      token,
-      invite_code,
-      invited_by,
-      status,
-      expires_at,
-      accepted_by,
-      accepted_at,
-      created_at
-    )
-    select
-      i.org_id,
-      lower(i.email),
-      case
-        when lower(coalesce(i.role, 'member')) = 'admin' then 'admin'::public.company_role
-        when lower(coalesce(i.role, 'member')) = 'editor' then 'manager'::public.company_role
-        when lower(coalesce(i.role, 'member')) = 'viewer' then 'member'::public.company_role
-        else 'member'::public.company_role
-      end,
-      coalesce(nullif(i.token, ''), encode(gen_random_bytes(16), 'hex')),
-      coalesce(nullif(i.code, ''), upper(left(encode(gen_random_bytes(8), 'hex'), 8))),
-      i.invited_by,
-      case
-        when lower(coalesce(i.status, 'pending')) in ('accepted', 'revoked', 'expired') then lower(i.status)
-        else 'pending'
-      end,
-      coalesce(i.expires_at, now() + interval '14 days'),
-      i.accepted_by,
-      i.accepted_at,
-      coalesce(i.created_at, now())
-    from public.org_invitations i
-    join public.companies c on c.id = i.org_id
-    on conflict (token) do nothing;
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'org_invitations'
+        and column_name = 'token'
+    ) into has_token;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'org_invitations'
+        and column_name = 'code'
+    ) into has_code;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'org_invitations'
+        and column_name = 'invite_code'
+    ) into has_invite_code;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'org_invitations'
+        and column_name = 'invited_by'
+    ) into has_invited_by;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'org_invitations'
+        and column_name = 'accepted_by'
+    ) into has_accepted_by;
+
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'org_invitations'
+        and column_name = 'accepted_at'
+    ) into has_accepted_at;
+
+    token_expr := case when has_token then 'nullif(i.token, '''')' else 'null' end;
+
+    invite_code_expr := case
+      when has_invite_code then 'nullif(i.invite_code, '''')'
+      when has_code then 'nullif(i.code, '''')'
+      else 'null'
+    end;
+
+    invited_by_expr := case when has_invited_by then 'i.invited_by' else 'null' end;
+    accepted_by_expr := case when has_accepted_by then 'i.accepted_by' else 'null' end;
+    accepted_at_expr := case when has_accepted_at then 'i.accepted_at' else 'null' end;
+
+    execute format($sql$
+      insert into public.company_invitations (
+        company_id,
+        email,
+        role,
+        token,
+        invite_code,
+        invited_by,
+        status,
+        expires_at,
+        accepted_by,
+        accepted_at,
+        created_at
+      )
+      select
+        i.org_id,
+        lower(i.email),
+        case
+          when lower(coalesce(i.role, 'member')) = 'admin' then 'admin'::public.company_role
+          when lower(coalesce(i.role, 'member')) = 'editor' then 'manager'::public.company_role
+          when lower(coalesce(i.role, 'member')) = 'viewer' then 'member'::public.company_role
+          else 'member'::public.company_role
+        end,
+        coalesce(%s, encode(gen_random_bytes(16), 'hex')),
+        coalesce(%s, upper(left(encode(gen_random_bytes(8), 'hex'), 8))),
+        %s,
+        case
+          when lower(coalesce(i.status, 'pending')) = 'accepted' then 'accepted'
+          when lower(coalesce(i.status, 'pending')) = 'expired' then 'expired'
+          when lower(coalesce(i.status, 'pending')) in ('declined', 'revoked') then 'revoked'
+          else 'pending'
+        end,
+        coalesce(i.expires_at, now() + interval '14 days'),
+        %s,
+        %s,
+        coalesce(i.created_at, now())
+      from public.org_invitations i
+      join public.companies c on c.id = i.org_id
+      on conflict (token) do nothing
+    $sql$, token_expr, invite_code_expr, invited_by_expr, accepted_by_expr, accepted_at_expr);
   end if;
 end $$;
 
