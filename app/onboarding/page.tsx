@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { acceptCompanyInvitation, createCompany } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
-export default function OnboardingPage() {
+function OnboardingLoadingFallback() {
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
+    </div>
+  );
+}
+
+function OnboardingClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loading, error, summary } = useWorkspace({ requireAuth: true, requireCompany: false });
@@ -78,11 +86,7 @@ export default function OnboardingPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
-      </div>
-    );
+    return <OnboardingLoadingFallback />;
   }
 
   if (error) {
@@ -161,5 +165,13 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<OnboardingLoadingFallback />}>
+      <OnboardingClient />
+    </Suspense>
   );
 }
