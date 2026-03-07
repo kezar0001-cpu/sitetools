@@ -1,0 +1,32 @@
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1324"/>
+      <stop offset="1" stop-color="#1C2D48"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F9E4C4" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#EEC68E" stop-opacity="0.85"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <circle cx="1330" cy="160" r="220" fill="#D59039" fill-opacity="0.22"/>
+  <circle cx="180" cy="180" r="180" fill="#9CC7DD" fill-opacity="0.26"/>
+  <rect x="120" y="140" width="880" height="620" rx="36" fill="white" fill-opacity="0.93"/>
+  <rect x="980" y="260" width="500" height="430" rx="36" fill="url(#card)"/>
+  <rect x="170" y="230" width="330" height="240" rx="20" fill="#F4F6FA"/>
+  <rect x="530" y="230" width="420" height="110" rx="16" fill="#EDF2F7"/>
+  <rect x="530" y="360" width="350" height="30" rx="10" fill="#D1DCE9"/>
+  <rect x="530" y="405" width="260" height="30" rx="10" fill="#D1DCE9"/>
+  <rect x="170" y="500" width="780" height="200" rx="20" fill="#F7FAFC"/>
+  <rect x="220" y="540" width="310" height="120" rx="12" fill="#E7EEF6"/>
+  <rect x="560" y="540" width="160" height="120" rx="12" fill="#E7EEF6"/>
+  <rect x="740" y="540" width="160" height="120" rx="12" fill="#E7EEF6"/>
+  <text x="1015" y="345" fill="#4A2A04" font-family="Segoe UI, sans-serif" font-size="26" font-weight="700">BUILDSTATE FIELD BRIEF</text>
+  <text x="1015" y="390" fill="#5F3D0D" font-family="Segoe UI, sans-serif" font-size="18">Site: Pacific Highway Upgrade</text>
+  <text x="1015" y="424" fill="#5F3D0D" font-family="Segoe UI, sans-serif" font-size="18">Superintendent sign-ins live</text>
+  <text x="1015" y="458" fill="#5F3D0D" font-family="Segoe UI, sans-serif" font-size="18">QR compliance rate: 98%</text>
+  <text x="1015" y="492" fill="#5F3D0D" font-family="Segoe UI, sans-serif" font-size="18">Automated checkout nudges enabled</text>
+  <text x="120" y="880" fill="#D4DFEB" font-family="Segoe UI, sans-serif" font-size="42" font-weight="700">Buildstate</text>
+  <text x="120" y="922" fill="#9FB1C8" font-family="Segoe UI, sans-serif" font-size="26">Operations dashboard and field visibility</text>
+</svg>

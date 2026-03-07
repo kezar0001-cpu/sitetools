@@ -1,0 +1,15 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="vp" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1728"/>
+      <stop offset="1" stop-color="#1D2F49"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#vp)"/>
+  <circle cx="1400" cy="120" r="150" fill="#E5A043" fill-opacity="0.28"/>
+  <rect x="120" y="120" width="1360" height="660" rx="36" fill="#101A2D" stroke="#2F4361" stroke-width="4"/>
+  <polygon points="720,390 720,510 840,450" fill="#F5CF98"/>
+  <text x="180" y="220" fill="#E8EEF7" font-family="Segoe UI, sans-serif" font-size="44" font-weight="700">Buildstate Site Operations Story</text>
+  <text x="180" y="270" fill="#A8BDD6" font-family="Segoe UI, sans-serif" font-size="28">4-second launch teaser for homepage hero and ad campaigns</text>
+  <text x="180" y="700" fill="#E3C089" font-family="Segoe UI, sans-serif" font-size="24" font-weight="700">Video slot: /branding/site-operations-story.mp4</text>
+</svg>

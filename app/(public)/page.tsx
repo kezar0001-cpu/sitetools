@@ -1,10 +1,49 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { MODULES } from "@/lib/modules";
 
-export default function LandingPage() {
-    const liveModules = MODULES.filter((module) => module.status === "live");
-    const upcomingModules = MODULES.filter((module) => module.status === "coming-soon").slice(0, 6);
+interface LandingPageProps {
+  searchParams?: Record<string, string | string[] | undefined>;
+}
+
+function getFirstQueryValue(value: string | string[] | undefined): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+}
+
+export default function LandingPage({ searchParams }: LandingPageProps) {
+  const resolvedSiteSlug =
+    getFirstQueryValue(searchParams?.site) ??
+    getFirstQueryValue(searchParams?.slug) ??
+    getFirstQueryValue(searchParams?.siteSlug) ??
+    getFirstQueryValue(searchParams?.site_id);
+
+  if (resolvedSiteSlug) {
+    const forwardParams = new URLSearchParams();
+    forwardParams.set("site", resolvedSiteSlug);
+
+    if (searchParams) {
+      for (const [key, value] of Object.entries(searchParams)) {
+        if (key === "site" || key === "slug" || key === "siteSlug" || key === "site_id" || value === undefined) {
+          continue;
+        }
+
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            forwardParams.append(key, item);
+          }
+        } else {
+          forwardParams.set(key, value);
+        }
+      }
+    }
+
+    redirect(`/sign-in?${forwardParams.toString()}`);
+  }
+  const liveModules = MODULES.filter((module) => module.status === "live");
+  const upcomingModules = MODULES.filter((module) => module.status === "coming-soon").slice(0, 6);
 
     return (
         <>

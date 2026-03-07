@@ -1,0 +1,13 @@
+Use case: product teaser
+Primary request: cinematic 4-second shot of a civil site entrance sign with a QR code while morning crew walks through and a tablet dashboard overlay appears
+Scene/background: sunrise at active Australian roadwork site, orange barriers and compact machinery in distance
+Subject: sign in board, workers in PPE, subtle UI overlay showing live attendance count
+Action: camera tracks left to right while one worker scans the QR board
+Camera: 35mm, smooth slider move, shallow depth of field
+Lighting/mood: warm sunrise glow, practical and professional tone
+Color palette: slate navy, amber, concrete gray, sky blue
+Style/format: cinematic commercial, realistic, brand-safe
+Timing/beats: first second establish site, next two seconds scan event, final second reveal attendance overlay
+Audio: subtle construction ambience, no speech
+Constraints: no real company logos, no real people likeness, suitable for all ages, no watermark
+Avoid: jitter, flicker, fast chaotic movement, text glitches

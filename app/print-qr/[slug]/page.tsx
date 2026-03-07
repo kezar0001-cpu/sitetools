@@ -54,7 +54,7 @@ export default function PrintQRPage() {
   }
 
   const qrUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/?site=${site.slug}`
+    ? `${window.location.origin}/sign-in?site=${site.slug}`
     : "";
 
   return (

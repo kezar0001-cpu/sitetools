@@ -1,24 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useState } from "react";
 import { MODULES } from "@/lib/modules";
 import { ModuleCard } from "@/components/modules/ModuleCard";
+import { supabase } from "@/lib/supabase";
+import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
+import { useWorkspace } from "@/lib/workspace/useWorkspace";
+import { Project, Site } from "@/lib/workspace/types";
 
 export default function DashboardHome() {
-    const [loading, setLoading] = useState(true);
+  const { loading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
 
-    useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (!session) {
-                window.location.href = "/login";
-                return;
-            }
+  const [sites, setSites] = useState<Site[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [onSiteCount, setOnSiteCount] = useState(0);
+  const [teamCount, setTeamCount] = useState(0);
 
-            setLoading(false);
-        });
-    }, []);
+  const activeCompany = summary?.activeMembership?.companies ?? null;
+  const activeCompanyId = summary?.activeMembership?.company_id ?? null;
+  const activeRole = summary?.activeMembership?.role ?? null;
 
     if (loading) {
         return (
@@ -28,48 +29,67 @@ export default function DashboardHome() {
         );
     }
 
-    const liveModules = MODULES.filter((module) => module.status === "live");
-    const upcomingModules = MODULES.filter((module) => module.status !== "live");
+    const liveModules = MODULES.filter((m) => m.status === "live");
+    const plannedModules = MODULES.filter((m) => m.status === "coming-soon");
 
     return (
-        <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-10">
-            <section className="bg-slate-900 rounded-3xl p-8 md:p-10 text-white border border-slate-800">
-                <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-300">Buildstate workspace</p>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight mt-2">One dashboard for your construction software stack.</h1>
-                <p className="text-slate-300 text-base md:text-lg mt-4 max-w-3xl">
-                    Access live modules now and see what is planned next. Site Sign In remains your first active app, while future modules are visible as roadmap placeholders.
-                </p>
-                <div className="mt-6 flex flex-wrap gap-3">
-                    <Link href="/dashboard/site-sign-in" className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold px-5 py-3 rounded-xl text-sm">
-                        Open Site Sign In
-                    </Link>
-                    <Link href="/tools" className="border border-slate-700 hover:border-slate-500 text-white font-semibold px-5 py-3 rounded-xl text-sm">
-                        View module roadmap
-                    </Link>
+        <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-12">
+            <div className="bg-slate-900 rounded-3xl p-8 md:p-12 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute inset-0 opacity-10 pointer-events-none">
+                    <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                <path d="M0 40V0H40V40z" fill="none" stroke="currentColor" strokeWidth="1" />
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)" />
+                    </svg>
                 </div>
-            </section>
 
-            <section className="space-y-5">
-                <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Active module</h2>
-                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-emerald-200">Ready now</span>
+                <div className="relative z-10">
+                    <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-4">
+                        Welcome to Buildstate
+                    </h1>
+                    <p className="text-lg md:text-xl text-slate-400 font-medium max-w-2xl leading-relaxed">
+                        Your central hub for managing site compliance, quality, and attendance. Select an active module below to get started.
+                    </p>
+                </div>
+            </div>
+
+            <section>
+                <div className="flex items-center gap-3 mb-6">
+                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Active Modules</h2>
+                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-emerald-200">Ready to use</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {liveModules.map((module) => (
-                        <ModuleCard key={module.id} module={module} />
+                    {liveModules.map((m) => (
+                        <ModuleCard key={m.id} module={m} />
                     ))}
                 </div>
             </section>
 
-            <section className="space-y-5 border-t border-slate-200 pt-8">
-                <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Planned modules</h2>
-                <p className="text-sm text-slate-500">These cards represent upcoming Buildstate modules and intentionally route to “coming soon” placeholders.</p>
+            <section className="pt-8 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-1">Coming Soon</h2>
+                        <p className="text-slate-500 font-medium text-sm">Modules currently in development for the platform suite.</p>
+                    </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {upcomingModules.map((module) => (
-                        <ModuleCard key={module.id} module={module} />
+                    {plannedModules.map((m) => (
+                        <ModuleCard key={m.id} module={m} />
                     ))}
                 </div>
             </section>
         </div>
     );
+}
+
+function MetricCard({ title, value }: { title: string; value: number }) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+      <p className="text-xs uppercase tracking-wide text-slate-500 font-bold">{title}</p>
+      <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
+    </div>
+  );
 }

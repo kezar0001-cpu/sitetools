@@ -10,6 +10,7 @@ type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 interface Site {
   id: string; name: string; slug: string; logo_url?: string | null;
   latitude?: number | null; longitude?: number | null;
+  company_id?: string | null;
 }
 
 interface SiteVisit {
@@ -21,6 +22,7 @@ interface SiteVisit {
   signed_in_at: string;
   signed_out_at: string | null;
   site_id: string;
+  company_id?: string | null;
   signature?: string | null;
 }
 
@@ -56,7 +58,7 @@ function NoSiteScreen() {
               <p className="text-xs font-medium text-yellow-800">Construction Site Access Management</p>
             </div>
           </div>
-          <a href="/admin" className="hidden sm:block bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
+          <a href="/login" className="hidden sm:block bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
             Admin Login
           </a>
         </div>
@@ -86,7 +88,7 @@ function NoSiteScreen() {
                 <p className="text-sm font-bold text-yellow-900">Scan the QR code at your site</p>
               </div>
             </div>
-            <a href="/admin" className="sm:hidden bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
+            <a href="/login" className="sm:hidden bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
               Admin Login
             </a>
           </div>
@@ -217,7 +219,7 @@ function NoSiteScreen() {
             Scan the QR code at your construction site to sign in, or contact your site administrator for access.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/admin" className="bg-yellow-900 hover:bg-yellow-950 text-white font-bold px-8 py-4 rounded-xl transition-colors text-lg shadow-md">
+            <a href="/login" className="bg-yellow-900 hover:bg-yellow-950 text-white font-bold px-8 py-4 rounded-xl transition-colors text-lg shadow-md">
               Admin Dashboard
             </a>
           </div>
@@ -229,7 +231,7 @@ function NoSiteScreen() {
           <p className="font-semibold">SiteSign &copy; {new Date().getFullYear()}</p>
           <p className="text-sm">Construction Site Access Management System</p>
           <div className="flex justify-center gap-6 pt-2">
-            <a href="/admin" className="text-gray-500 hover:text-yellow-400 transition-colors text-sm font-medium">Admin Login</a>
+            <a href="/login" className="text-gray-500 hover:text-yellow-400 transition-colors text-sm font-medium">Admin Login</a>
           </div>
         </div>
       </footer>
@@ -350,6 +352,9 @@ function SiteSignIn({ site }: { site: Site }) {
       visitor_type: visitorType,
       site_id: site.id,
     };
+    if (site.company_id) {
+      insertPayload.company_id = site.company_id;
+    }
     if (signatureData) {
       insertPayload.signature = signatureData;
     }
@@ -367,6 +372,7 @@ function SiteSignIn({ site }: { site: Site }) {
       company_name: companyName.trim(),
       visitor_type: visitorType,
       site_id: site.id,
+      company_id: site.company_id ?? null,
       signed_in_at: new Date().toISOString(),
       signed_out_at: null,
       signature: signatureData,
@@ -656,13 +662,27 @@ function SiteSignIn({ site }: { site: Site }) {
 
       <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4 space-y-1">
         <p>SiteSign &copy; {new Date().getFullYear()} — Construction Site Access Management</p>
-        <p><a href="/admin" className="text-gray-500 hover:text-yellow-400 transition-colors text-xs">Admin</a></p>
+        <p><a href="/login" className="text-gray-500 hover:text-yellow-400 transition-colors text-xs">Admin</a></p>
       </footer>
     </div>
   );
 }
 
 // ─── Page root ────────────────────────────────────────────────────────────────
+
+const LEGACY_SITE_QUERY_KEYS = ["site", "slug", "siteSlug", "site_id"] as const;
+
+function readLegacySiteLookupValue(params: URLSearchParams): string | null {
+  for (const key of LEGACY_SITE_QUERY_KEYS) {
+    const value = params.get(key);
+    if (value) return value;
+  }
+  return null;
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 
 export default function Home() {
   const [site, setSite] = useState<Site | null>(null);
@@ -671,17 +691,25 @@ export default function Home() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const slug = params.get("site");
-    if (slug) {
-      supabase.from("sites").select("*").eq("slug", slug).maybeSingle()
-        .then(({ data, error }) => {
-          if (error) { setLookupError(true); }
-          else if (data) { setSite(data as Site); }
-          setReady(true);
-        });
-    } else {
+    const siteLookupValue = readLegacySiteLookupValue(params);
+    if (!siteLookupValue) {
       setReady(true);
+      return;
     }
+
+    const normalizedLookup = siteLookupValue.trim();
+    const lookupField = isUuid(normalizedLookup) ? "id" : "slug";
+
+    supabase
+      .from("sites")
+      .select("*")
+      .eq(lookupField, lookupField === "slug" ? normalizedLookup.toLowerCase() : normalizedLookup)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { setLookupError(true); }
+        else if (data) { setSite(data as Site); }
+        setReady(true);
+      });
   }, []);
 
   if (!ready) return null;

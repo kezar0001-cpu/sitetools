@@ -1,0 +1,28 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#20334F"/>
+      <stop offset="1" stop-color="#0A1323"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg2)"/>
+  <rect x="180" y="140" width="1240" height="620" rx="30" fill="#EFF3F8"/>
+  <rect x="240" y="210" width="540" height="470" rx="24" fill="#DCE8F4"/>
+  <rect x="840" y="210" width="520" height="220" rx="24" fill="#E9D3AE"/>
+  <rect x="840" y="460" width="520" height="220" rx="24" fill="#D7E4F0"/>
+  <rect x="990" y="278" width="170" height="170" rx="12" fill="#101A2B"/>
+  <g fill="#F5CD92">
+    <rect x="1010" y="298" width="30" height="30"/>
+    <rect x="1060" y="298" width="30" height="30"/>
+    <rect x="1110" y="298" width="30" height="30"/>
+    <rect x="1010" y="348" width="30" height="30"/>
+    <rect x="1110" y="348" width="30" height="30"/>
+    <rect x="1010" y="398" width="30" height="30"/>
+    <rect x="1060" y="398" width="30" height="30"/>
+    <rect x="1110" y="398" width="30" height="30"/>
+  </g>
+  <text x="270" y="300" fill="#12213A" font-family="Segoe UI, sans-serif" font-size="46" font-weight="700">QR Sign In Moment</text>
+  <text x="270" y="356" fill="#3F556E" font-family="Segoe UI, sans-serif" font-size="28">Workers scan and instantly log attendance.</text>
+  <text x="880" y="540" fill="#1E324C" font-family="Segoe UI, sans-serif" font-size="34" font-weight="700">No app installs</text>
+  <text x="880" y="588" fill="#49657F" font-family="Segoe UI, sans-serif" font-size="26">Just camera + secure web check-in</text>
+</svg>
