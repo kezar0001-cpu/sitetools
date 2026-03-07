@@ -37,6 +37,16 @@ function isMissingTableError(error: unknown, tableName: string): boolean {
   );
 }
 
+function referencesColumn(error: unknown, columnName: string): boolean {
+  const candidate = asSupabaseError(error);
+  const message = (candidate.message ?? "").toLowerCase();
+  const details = (candidate.details ?? "").toLowerCase();
+  const hint = (candidate.hint ?? "").toLowerCase();
+  const needle = columnName.toLowerCase();
+
+  return message.includes(needle) || details.includes(needle) || hint.includes(needle);
+}
+
 function buildFallbackProfile(userId: string, email?: string | null, activeCompanyId: string | null = null): Profile {
   const now = new Date().toISOString();
   return {
@@ -276,15 +286,31 @@ export async function fetchCompanyProjects(companyId: string): Promise<Project[]
 }
 
 export async function fetchSiteVisitsForCompanySite(companyId: string, siteId: string): Promise<SiteVisit[]> {
-  const { data, error } = await supabase
+  const scoped = await supabase
     .from("site_visits")
     .select("*")
-    .eq("company_id", companyId)
     .eq("site_id", siteId)
+    .or(`company_id.eq.${companyId},company_id.is.null`)
     .order("signed_in_at", { ascending: false });
 
-  if (error) throw error;
-  return (data ?? []) as SiteVisit[];
+  if (!scoped.error) {
+    return (scoped.data ?? []) as SiteVisit[];
+  }
+
+  // Legacy databases may not have company_id on site_visits yet.
+  // Fall back to the site-scoped query so existing registers still load.
+  if (referencesColumn(scoped.error, "company_id")) {
+    const legacy = await supabase
+      .from("site_visits")
+      .select("*")
+      .eq("site_id", siteId)
+      .order("signed_in_at", { ascending: false });
+
+    if (legacy.error) throw legacy.error;
+    return (legacy.data ?? []) as SiteVisit[];
+  }
+
+  throw scoped.error;
 }
 
 export async function fetchCompanyTeam(companyId: string): Promise<CompanyMembership[]> {
