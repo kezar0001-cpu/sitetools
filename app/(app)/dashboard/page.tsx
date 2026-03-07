@@ -1,25 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
 import { MODULES } from "@/lib/modules";
 import { ModuleCard } from "@/components/modules/ModuleCard";
-import { supabase } from "@/lib/supabase";
-import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { Project, Site } from "@/lib/workspace/types";
 
 export default function DashboardHome() {
-  const { loading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
-
-  const [sites, setSites] = useState<Site[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [onSiteCount, setOnSiteCount] = useState(0);
-  const [teamCount, setTeamCount] = useState(0);
-
-  const activeCompany = summary?.activeMembership?.companies ?? null;
-  const activeCompanyId = summary?.activeMembership?.company_id ?? null;
-  const activeRole = summary?.activeMembership?.role ?? null;
+  const { loading } = useWorkspace({ requireAuth: true, requireCompany: true });
 
     if (loading) {
         return (
@@ -85,11 +71,4 @@ export default function DashboardHome() {
     );
 }
 
-function MetricCard({ title, value }: { title: string; value: number }) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-      <p className="text-xs uppercase tracking-wide text-slate-500 font-bold">{title}</p>
-      <p className="mt-2 text-2xl font-black text-slate-900">{value}</p>
-    </div>
-  );
-}
+

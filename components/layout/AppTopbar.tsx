@@ -56,14 +56,14 @@ export function AppTopbar() {
       return { title: "Buildstate", icon: null };
     }
 
-    const module = getModule(moduleId);
-    if (!module) {
+    const currentModule = getModule(moduleId);
+    if (!currentModule) {
       return { title: "Buildstate", icon: null };
     }
 
     return {
-      title: module.name,
-      icon: getIcon(module.icon, "h-5 w-5 text-amber-500"),
+      title: currentModule.name,
+      icon: getIcon(currentModule.icon, "h-5 w-5 text-amber-500"),
     };
   }, [isDashboardHome, moduleId, pathname]);
 
@@ -142,3 +142,4 @@ export function AppTopbar() {
     </header>
   );
 }
+

@@ -1,10 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { supabase } from "@/lib/supabase";
-import { getIcon } from "@/components/icons/getIcon";
 import { Suspense } from "react";
 import { LoginClient } from "./LoginClient";
 
@@ -23,3 +18,4 @@ export default function LoginPage() {
         </Suspense>
     );
 }
+
