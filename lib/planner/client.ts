@@ -60,6 +60,30 @@ export async function createPlannerPlan(input: {
   return data as ProjectPlan;
 }
 
+export async function deletePlannerPlan(planId: string): Promise<void> {
+  const { error } = await supabase.from("project_plans").delete().eq("id", planId);
+  if (error) throw error;
+}
+
+export async function updatePlannerPlan(
+  planId: string,
+  patch: { name?: string; description?: string; status?: string; project_id?: string | null; updated_by?: string | null }
+): Promise<void> {
+  const { error } = await supabase.from("project_plans").update(patch).eq("id", planId);
+  if (error) throw error;
+}
+
+export async function updatePlanSites(planId: string, siteIds: string[]): Promise<void> {
+  const { error: delError } = await supabase.from("project_plan_sites").delete().eq("plan_id", planId);
+  if (delError) throw delError;
+  if (siteIds.length > 0) {
+    const { error: insError } = await supabase.from("project_plan_sites").insert(
+      siteIds.map((siteId) => ({ plan_id: planId, site_id: siteId }))
+    );
+    if (insError) throw insError;
+  }
+}
+
 export async function fetchPlanById(planId: string): Promise<PlannerPlanWithContext | null> {
   const { data, error } = await supabase
     .from("project_plans")

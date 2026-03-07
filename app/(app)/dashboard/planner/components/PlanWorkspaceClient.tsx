@@ -2,19 +2,25 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   createPlanRevision,
   createPlanTask,
   createTaskUpdate,
+  deletePlannerPlan,
   deletePlanTask,
   fetchPlanById,
   fetchPlanPhases,
   fetchPlanTasks,
   fetchPublicHolidays,
   bulkCreateTasks,
+  updatePlannerPlan,
+  updatePlanSites,
   updatePlanTask,
 } from "@/lib/planner/client";
-import { PlanTask, PlanPhase, PublicHoliday, TaskStatus } from "@/lib/planner/types";
+import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
+import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus } from "@/lib/planner/types";
+import { Project, Site } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { normalizePercent } from "@/lib/planner/validation";
 import { ImportedTask } from "@/lib/planner/import-parser";
@@ -23,36 +29,52 @@ import { PlannerSheetView } from "./PlannerSheetView";
 import { PlannerGanttView } from "./PlannerGanttView";
 import { PlannerTodayView } from "./PlannerTodayView";
 import { PlannerImportDialog } from "./PlannerImportDialog";
+import { PlanSettingsPanel } from "./PlanSettingsPanel";
 
 type Mode = "sheet" | "gantt" | "today";
 
 export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mode }) {
+  const router = useRouter();
   const { summary } = useWorkspace({ requireAuth: true, requireCompany: true });
   const userId = summary?.userId ?? null;
   const companyId = summary?.activeMembership?.company_id ?? null;
 
-  const [planName, setPlanName] = useState("Plan");
+  const [plan, setPlan] = useState<PlannerPlanWithContext | null>(null);
   const [tasks, setTasks] = useState<PlanTask[]>([]);
   const [phases, setPhases] = useState<PlanPhase[]>([]);
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
   // ── Data loading ──
   const loadAll = useCallback(async () => {
-    const [plan, planTasks, planPhases, publicHolidays] = await Promise.all([
+    const [planData, planTasks, planPhases, publicHolidays] = await Promise.all([
       fetchPlanById(planId),
       fetchPlanTasks(planId),
       fetchPlanPhases(planId),
       fetchPublicHolidays(companyId),
     ]);
-    setPlanName(plan?.name ?? "Plan");
+    setPlan(planData);
     setTasks(planTasks);
     setPhases(planPhases);
     setHolidays(publicHolidays);
   }, [planId, companyId]);
+
+  const loadProjectsAndSites = useCallback(async () => {
+    if (!companyId) return;
+    const [nextProjects, nextSites] = await Promise.all([
+      fetchCompanyProjects(companyId),
+      fetchCompanySites(companyId),
+    ]);
+    setProjects(nextProjects);
+    setSites(nextSites);
+  }, [companyId]);
 
   useEffect(() => {
     setLoading(true);
@@ -61,128 +83,144 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       .finally(() => setLoading(false));
   }, [loadAll]);
 
+  // Lazy-load projects + sites when settings opens
+  useEffect(() => {
+    if (showSettings) loadProjectsAndSites();
+  }, [showSettings, loadProjectsAndSites]);
+
+  // ── Plan management ──
+  const handleDeletePlan = useCallback(async () => {
+    if (!confirm(`Permanently delete "${plan?.name}"? This will delete all tasks, phases and history. This cannot be undone.`)) return;
+    setSaving("deleting");
+    try {
+      await deletePlannerPlan(planId);
+      router.push("/dashboard/planner");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete plan.");
+      setSaving(null);
+    }
+  }, [planId, plan?.name, router]);
+
+  const handleUpdateSettings = useCallback(async (
+    patch: { name?: string; description?: string; status?: PlanStatus; project_id?: string | null },
+    siteIds?: string[] | null
+  ) => {
+    setSettingsSaving(true);
+    try {
+      await updatePlannerPlan(planId, { ...patch, updated_by: userId });
+      if (siteIds !== null && siteIds !== undefined) {
+        await updatePlanSites(planId, siteIds);
+      }
+      await loadAll();
+      setShowSettings(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save settings.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  }, [planId, userId, loadAll]);
+
+  const handleArchive = useCallback(async () => {
+    if (!confirm("Archive this plan? It will be hidden from the default list.")) return;
+    setSaving("archiving");
+    try {
+      await updatePlannerPlan(planId, { status: "archived", updated_by: userId });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not archive plan.");
+    } finally {
+      setSaving(null);
+    }
+  }, [planId, userId, loadAll]);
+
   // ── Task operations ──
-  const handleAddTask = useCallback(
-    async (title: string, phaseId?: string | null) => {
-      setSaving("new");
-      try {
-        await createPlanTask({
-          planId,
-          title,
-          phaseId,
-          sortOrder: tasks.length,
-          userId,
-        });
-        await createPlanRevision({
-          planId,
-          revisionType: "task_added",
-          summary: `Added task: ${title}`,
-          userId,
-        });
-        await loadAll();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not add task.");
-      } finally {
-        setSaving(null);
-      }
-    },
-    [planId, tasks.length, userId, loadAll]
-  );
+  const handleAddTask = useCallback(async (title: string, phaseId?: string | null) => {
+    setSaving("new");
+    try {
+      await createPlanTask({ planId, title, phaseId, sortOrder: tasks.length, userId });
+      await createPlanRevision({ planId, revisionType: "task_added", summary: `Added task: ${title}`, userId });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add task.");
+    } finally {
+      setSaving(null);
+    }
+  }, [planId, tasks.length, userId, loadAll]);
 
-  const handlePatchTask = useCallback(
-    async (taskId: string, patch: Partial<PlanTask>) => {
-      setSaving(taskId);
-      try {
-        await updatePlanTask(taskId, { ...patch, updated_by: userId });
-        await loadAll();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save task update.");
-      } finally {
-        setSaving(null);
-      }
-    },
-    [userId, loadAll]
-  );
+  const handlePatchTask = useCallback(async (taskId: string, patch: Partial<PlanTask>) => {
+    setSaving(taskId);
+    try {
+      await updatePlanTask(taskId, { ...patch, updated_by: userId });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save task.");
+    } finally {
+      setSaving(null);
+    }
+  }, [userId, loadAll]);
 
-  const handleDeleteTask = useCallback(
-    async (taskId: string) => {
-      setSaving(taskId);
-      try {
-        await deletePlanTask(taskId);
-        await createPlanRevision({
-          planId,
-          revisionType: "task_deleted",
-          summary: `Deleted a task`,
-          userId,
-        });
-        await loadAll();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not delete task.");
-      } finally {
-        setSaving(null);
-      }
-    },
-    [planId, userId, loadAll]
-  );
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    setSaving(taskId);
+    try {
+      await deletePlanTask(taskId);
+      await createPlanRevision({ planId, revisionType: "task_deleted", summary: "Deleted a task", userId });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete task.");
+    } finally {
+      setSaving(null);
+    }
+  }, [planId, userId, loadAll]);
 
-  const handleQuickUpdate = useCallback(
-    async (task: PlanTask, nextStatus: TaskStatus, percent: number, note?: string) => {
-      const normalizedPercent = normalizePercent(percent);
-      setSaving(task.id);
-      try {
-        await createTaskUpdate({
-          planId,
-          taskId: task.id,
-          status: nextStatus,
-          percentComplete: normalizedPercent,
-          note,
-          blocked: nextStatus === "blocked",
-          userId,
-        });
-
-        await updatePlanTask(task.id, {
-          status: nextStatus,
-          percent_complete: normalizedPercent,
-          actual_start: task.actual_start ?? (normalizedPercent > 0 ? new Date().toISOString() : null),
-          actual_finish: normalizedPercent >= 100 ? new Date().toISOString() : null,
-          updated_by: userId,
-        });
-
-        await loadAll();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not save update.");
-      } finally {
-        setSaving(null);
-      }
-    },
-    [planId, userId, loadAll]
-  );
-
-  // ── Import handler ──
-  const handleImport = useCallback(
-    async (importedTasks: ImportedTask[], projectName: string | null) => {
-      const taskRows = importedTasks.map((t, idx) => ({
-        title: t.name,
-        sortOrder: tasks.length + idx,
-        plannedStart: t.start,
-        plannedFinish: t.finish,
-        durationDays: t.durationDays,
-        indentLevel: t.outlineLevel,
-        wbsCode: t.wbsCode,
-        notes: t.notes,
-      }));
-
-      await bulkCreateTasks(planId, taskRows, userId);
-      await createPlanRevision({
+  const handleQuickUpdate = useCallback(async (task: PlanTask, nextStatus: TaskStatus, percent: number, note?: string) => {
+    setSaving(task.id);
+    try {
+      const normPct = normalizePercent(percent);
+      await createTaskUpdate({
         planId,
-        revisionType: "import",
-        summary: `Imported ${importedTasks.length} tasks${projectName ? ` from "${projectName}"` : ""}`,
+        taskId: task.id,
+        status: nextStatus,
+        percentComplete: normPct,
+        note,
+        blocked: nextStatus === "blocked",
         userId,
       });
+      await updatePlanTask(task.id, {
+        status: nextStatus,
+        percent_complete: normPct,
+        actual_start: task.actual_start ?? (normPct > 0 ? new Date().toISOString() : null),
+        actual_finish: normPct >= 100 ? new Date().toISOString() : null,
+        updated_by: userId,
+      });
       await loadAll();
-    },
-    [planId, tasks.length, userId, loadAll]
-  );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save update.");
+    } finally {
+      setSaving(null);
+    }
+  }, [planId, userId, loadAll]);
+
+  // ── Import ──
+  const handleImport = useCallback(async (importedTasks: ImportedTask[], projectName: string | null) => {
+    const taskRows = importedTasks.map((t, idx) => ({
+      title: t.name,
+      sortOrder: tasks.length + idx,
+      plannedStart: t.start,
+      plannedFinish: t.finish,
+      durationDays: t.durationDays,
+      indentLevel: t.outlineLevel,
+      wbsCode: t.wbsCode,
+      notes: t.notes,
+    }));
+    await bulkCreateTasks(planId, taskRows, userId);
+    await createPlanRevision({
+      planId,
+      revisionType: "import",
+      summary: `Imported ${importedTasks.length} tasks${projectName ? ` from "${projectName}"` : ""}`,
+      userId,
+    });
+    await loadAll();
+  }, [planId, tasks.length, userId, loadAll]);
 
   // ── Stats ──
   const stats = useMemo(() => {
@@ -201,20 +239,29 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     );
   }
 
+  const planName = plan?.name ?? "Plan";
+  const isArchived = plan?.status === "archived";
+
   return (
     <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-4">
       {/* Plan header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard/planner" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
-              ← All Plans
-            </Link>
-          </div>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-1">{planName}</h1>
+          <Link href="/dashboard/planner" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
+            ← All Plans
+          </Link>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-1 flex items-center gap-2">
+            {planName}
+            {isArchived && (
+              <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-semibold">Archived</span>
+            )}
+          </h1>
+          {plan?.projects?.name && (
+            <p className="text-sm text-slate-500 mt-0.5">Project: {plan.projects.name}</p>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           {/* View tabs */}
           <div className="flex items-center bg-slate-100 rounded-xl p-1">
             {[
@@ -224,29 +271,72 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
             ].map((tab) => (
               <Link
                 key={tab.key}
-                href={
-                  tab.key === "sheet"
-                    ? `/dashboard/planner/${planId}`
-                    : `/dashboard/planner/${planId}/${tab.key}`
-                }
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${mode === tab.key
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-white hover:shadow-sm"
+                href={tab.key === "sheet" ? `/dashboard/planner/${planId}` : `/dashboard/planner/${planId}/${tab.key}`}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${mode === tab.key ? "bg-slate-900 text-white shadow-sm" : "text-slate-600 hover:bg-white hover:shadow-sm"
                   }`}
               >
-                <span className="mr-1.5">{tab.icon}</span>
-                {tab.label}
+                <span className="mr-1.5">{tab.icon}</span>{tab.label}
               </Link>
             ))}
           </div>
 
-          {/* Import button */}
+          {/* Action buttons */}
           <button
             onClick={() => setShowImport(true)}
-            className="px-4 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            title="Import .xml / CSV"
           >
             📥 Import
           </button>
+          <Link
+            href={`/dashboard/planner/${planId}/print`}
+            target="_blank"
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            title="Export PDF"
+          >
+            🖨︎ PDF
+          </Link>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
+            title="Plan settings"
+          >
+            ⚙ Settings
+          </button>
+
+          {/* Archive / Delete dropdown */}
+          <div className="relative group">
+            <button className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors">
+              ···
+            </button>
+            <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 w-48 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity overflow-hidden">
+              {!isArchived && (
+                <button
+                  onClick={handleArchive}
+                  disabled={!!saving}
+                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                >
+                  📦 Archive plan
+                </button>
+              )}
+              {isArchived && (
+                <button
+                  onClick={() => handleUpdateSettings({ status: "active" })}
+                  disabled={settingsSaving}
+                  className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                >
+                  ↺ Unarchive
+                </button>
+              )}
+              <button
+                onClick={handleDeletePlan}
+                disabled={saving === "deleting"}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 border-t border-slate-100"
+              >
+                🗑 Delete plan
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -265,11 +355,11 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
         ))}
       </div>
 
-      {/* Error display */}
+      {/* Error */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">✕</button>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-3">✕</button>
         </div>
       )}
 
@@ -284,15 +374,9 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           onDeleteTask={handleDeleteTask}
         />
       )}
-
       {mode === "gantt" && (
-        <PlannerGanttView
-          tasks={tasks}
-          phases={phases}
-          holidays={holidays}
-        />
+        <PlannerGanttView tasks={tasks} phases={phases} holidays={holidays} />
       )}
-
       {mode === "today" && (
         <PlannerTodayView
           tasks={tasks}
@@ -302,11 +386,18 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
         />
       )}
 
-      {/* Import dialog */}
+      {/* Modals */}
       {showImport && (
-        <PlannerImportDialog
-          onImport={handleImport}
-          onClose={() => setShowImport(false)}
+        <PlannerImportDialog onImport={handleImport} onClose={() => setShowImport(false)} />
+      )}
+      {showSettings && plan && (
+        <PlanSettingsPanel
+          plan={plan}
+          projects={projects}
+          sites={sites}
+          saving={settingsSaving}
+          onUpdate={handleUpdateSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
     </div>

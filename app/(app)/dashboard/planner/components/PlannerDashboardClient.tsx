@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PlannerCreatePlanForm } from "./PlannerCreatePlanForm";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
-import { createPlannerPlan, fetchPlannerPlans, seedCivilStarterTasks } from "@/lib/planner/client";
+import { createPlannerPlan, deletePlannerPlan, fetchPlannerPlans, seedCivilStarterTasks } from "@/lib/planner/client";
 import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
 import { Project, Site } from "@/lib/workspace/types";
 
@@ -25,6 +25,8 @@ export function PlannerDashboardClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const companyId = summary?.activeMembership?.company_id ?? null;
   const userId = summary?.userId ?? null;
@@ -53,8 +55,14 @@ export function PlannerDashboardClient() {
     const active = plans.filter((p) => p.status === "active").length;
     const draft = plans.filter((p) => p.status === "draft").length;
     const completed = plans.filter((p) => p.status === "completed").length;
-    return { total: plans.length, active, draft, completed };
+    const archived = plans.filter((p) => p.status === "archived").length;
+    return { total: plans.length, active, draft, completed, archived };
   }, [plans]);
+
+  const visiblePlans = useMemo(
+    () => showArchived ? plans : plans.filter((p) => p.status !== "archived"),
+    [plans, showArchived]
+  );
 
   if (loading) {
     return (
@@ -62,6 +70,19 @@ export function PlannerDashboardClient() {
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
       </div>
     );
+  }
+
+  async function handleDelete(plan: PlannerPlanWithContext) {
+    if (!confirm(`Permanently delete "${plan.name}"?\nAll tasks and history will be removed. This cannot be undone.`)) return;
+    setDeletingId(plan.id);
+    try {
+      await deletePlannerPlan(plan.id);
+      await loadAll(companyId!);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete plan.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleCreate(input: {
@@ -153,14 +174,25 @@ export function PlannerDashboardClient() {
       )}
 
       {/* Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-lg font-bold text-slate-900">Your Plans</h2>
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="px-4 py-2.5 rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 transition-colors shadow-sm"
-        >
-          {showCreate ? "Cancel" : "+ New Plan"}
-        </button>
+        <div className="flex items-center gap-2">
+          {planStats.archived > 0 && (
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showArchived ? "bg-slate-200 text-slate-800" : "border border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+                }`}
+            >
+              📦 Archived ({planStats.archived})
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="px-4 py-2.5 rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 transition-colors shadow-sm"
+          >
+            {showCreate ? "Cancel" : "+ New Plan"}
+          </button>
+        </div>
       </div>
 
       {/* Create form (collapsible) */}
@@ -188,10 +220,11 @@ export function PlannerDashboardClient() {
               </tr>
             </thead>
             <tbody>
-              {plans.map((plan) => {
+              {visiblePlans.map((plan) => {
                 const badge = STATUS_BADGE[plan.status] ?? STATUS_BADGE.draft;
+                const isDeleting = deletingId === plan.id;
                 return (
-                  <tr key={plan.id} className="border-t border-slate-100 hover:bg-amber-50/20 transition-colors">
+                  <tr key={plan.id} className={`border-t border-slate-100 hover:bg-amber-50/20 transition-colors ${isDeleting ? "opacity-40" : ""}`}>
                     <td className="p-3">
                       <Link
                         href={`/dashboard/planner/${plan.id}`}
@@ -218,27 +251,18 @@ export function PlannerDashboardClient() {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-1">
-                        <Link
-                          href={`/dashboard/planner/${plan.id}`}
-                          className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-                          title="Sheet view"
+                        <Link href={`/dashboard/planner/${plan.id}`} className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors" title="Sheet view">▤</Link>
+                        <Link href={`/dashboard/planner/${plan.id}/gantt`} className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors" title="Gantt">▰</Link>
+                        <Link href={`/dashboard/planner/${plan.id}/today`} className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors" title="Today">◉</Link>
+                        <Link href={`/dashboard/planner/${plan.id}/print`} target="_blank" className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors" title="Export PDF">🖨︎</Link>
+                        <button
+                          onClick={() => handleDelete(plan)}
+                          disabled={isDeleting || !!deletingId}
+                          className="px-2 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors ml-1"
+                          title="Delete plan"
                         >
-                          ▤
-                        </Link>
-                        <Link
-                          href={`/dashboard/planner/${plan.id}/gantt`}
-                          className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-                          title="Gantt view"
-                        >
-                          ▰
-                        </Link>
-                        <Link
-                          href={`/dashboard/planner/${plan.id}/today`}
-                          className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-                          title="Today view"
-                        >
-                          ◉
-                        </Link>
+                          🗑
+                        </button>
                       </div>
                     </td>
                   </tr>
