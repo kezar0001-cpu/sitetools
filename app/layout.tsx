@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const geistSans = localFont({
+  src: "./fonts/GeistVF.woff",
+  variable: "--font-geist-sans",
+  weight: "100 900",
+});
 
 export const metadata: Metadata = {
   title: "Buildstate | The toolkit for civil construction",
@@ -16,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased text-slate-900 selection:bg-amber-200 selection:text-amber-950`}>
+      <body className={`${geistSans.className} antialiased text-slate-900 selection:bg-amber-200 selection:text-amber-950`}>
         {children}
       </body>
     </html>
