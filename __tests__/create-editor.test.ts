@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 
 /**
  * Tests for the create-editor API route security fix.
@@ -57,7 +58,7 @@ async function callRoute(body: Record<string, string>, authHeader?: string) {
     body: JSON.stringify(body),
   });
   // NextRequest wraps Request — the route uses req.headers.get() and req.json()
-  return POST(req as any);
+  return POST(req as unknown as NextRequest);
 }
 
 beforeEach(() => {

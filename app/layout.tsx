@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SiteSign — Construction Site Sign In/Out",
-  description: "Digital sign in and sign out tool for construction sites. Track worker attendance, inductions, and site access in real time.",
+  title: "Buildstate | The toolkit for civil construction",
+  description: "Suite of tools for civil contractors, including digital site sign in, daily diaries, inspection test plans, and more.",
 };
 
 export default function RootLayout({
@@ -16,7 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased bg-gray-50 text-gray-900`}>
+      <body className={`${inter.className} antialiased text-slate-900 selection:bg-amber-200 selection:text-amber-950`}>
         {children}
       </body>
     </html>

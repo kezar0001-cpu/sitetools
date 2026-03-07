@@ -50,111 +50,6 @@ function toLocalDateValue(iso: string) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// ─── Auth Screen (Sign Up / Log In) ─────────────────────────────────────────
-
-function AuthScreen({ onAuth }: { onAuth: () => void }) {
-  const [mode, setMode] = useState<"login" | "signup" | "browse-orgs">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setInfo(null);
-    setLoading(true);
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({ email, password });
-      setLoading(false);
-      if (error) { setError(error.message); return; }
-
-      setInfo("Check your email to confirm your account, then log in.");
-      setMode("login");
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      setLoading(false);
-      if (error) { setError(error.message); return; }
-      onAuth();
-    }
-  }
-
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg border border-gray-200 p-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-yellow-400 text-yellow-900 rounded-lg p-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-xl font-extrabold text-gray-900">
-              {mode === "login" ? "Admin Login" : "Create Account"}
-            </h1>
-            <p className="text-xs text-gray-500">SiteSign — Site Register</p>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>
-        )}
-        {info && (
-          <div className="bg-blue-50 border border-blue-300 text-blue-700 rounded-xl px-4 py-3 text-sm font-semibold">{info}</div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="auth_email">Email</label>
-            <input
-              id="auth_email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com" autoComplete="email" autoFocus
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1" htmlFor="auth_pw">Password</label>
-            <input
-              id="auth_pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "signup" ? "Min. 6 characters" : "Your password"}
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-            />
-          </div>
-          <button
-            type="submit" disabled={loading || !email || !password}
-            className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:opacity-60 text-yellow-900 font-bold py-3 rounded-xl transition-colors text-sm shadow"
-          >
-            {loading ? "Please wait…" : mode === "login" ? "Log In" : "Create Account"}
-          </button>
-        </form>
-
-        <div className="text-center space-y-2">
-          {mode === "login" ? (
-            <p className="text-xs text-gray-500">
-              No account?{" "}
-              <button onClick={() => { setMode("signup"); setError(null); setInfo(null); }}
-                className="font-semibold text-yellow-700 hover:underline">Sign up</button>
-            </p>
-          ) : (
-            <p className="text-xs text-gray-500">
-              Already have an account?{" "}
-              <button onClick={() => { setMode("login"); setError(null); setInfo(null); }}
-                className="font-semibold text-yellow-700 hover:underline">Log in</button>
-            </p>
-          )}
-          <p className="text-xs text-gray-400">
-            <a href="/" className="hover:underline text-gray-500">← Back to site sign in</a>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 // ─── Site Switcher (admin only) ─────────────────────────────────────────────
 
 function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddSites = true }: {
@@ -283,8 +178,8 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
                     <div className="flex items-center gap-1.5">
                       <button onClick={() => { onSelect(s); setOpen(false); }}
                         className={`flex-1 text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-colors ${current?.id === s.id
-                            ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
-                            : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
+                          ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
+                          : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
                           }`}>
                         <span className="text-sm truncate">{s.name}</span>
                         {current?.id === s.id && <span className="text-xs text-yellow-700 shrink-0">Active</span>}
@@ -315,22 +210,17 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
 
 // ─── Admin Dashboard ─────────────────────────────────────────────────────────
 
-function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDeleted }: {
-  org: Organisation | null; member: OrgMember | null; userId: string | null; onLogout: () => void; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
+function AdminDashboard({ org, member, userId, onOrgUpdate, onOrgDeleted }: {
+  org: Organisation | null; member: OrgMember | null; userId: string | null; onOrgUpdate?: (org: Organisation) => void; onOrgDeleted?: () => void;
 }) {
   const isPersonal = !org || !member;
   const isAdmin = isPersonal || member?.role === "admin";
   const isViewer = !isPersonal && member?.role === "viewer";
   const [activeSite, setActiveSite] = useState<Site | null>(null);
   const [orgSites, setOrgSites] = useState<Site[]>([]);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState<string | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUserEmail(user?.email ?? null));
-  }, []);
 
   // Editors and viewers: load sites they can access (RLS returns assigned sites for editors, all for viewers)
   useEffect(() => {
@@ -691,56 +581,34 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header */}
-      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+    <div className="flex flex-col bg-transparent">
+      {/* Sub-Header */}
+      <div className="px-4 py-4 md:px-8 mb-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="bg-yellow-600 text-white rounded-lg p-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            <div className="bg-amber-100 text-amber-700 border border-amber-200 rounded-lg p-2.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2-2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight">{org ? org.name : "SiteSign"}</h1>
-              <p className="text-xs font-medium text-yellow-800">
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">{org ? org.name : "Personal Workspace"}</h1>
+              <p className="text-xs font-medium text-slate-500 mt-0.5">
                 {isPersonal ? (
-                  "Personal Dashboard"
+                  "Your private sites"
                 ) : (
-                  <>SiteSign — <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-bold ${isAdmin ? "bg-yellow-600 text-white" : "bg-blue-100 text-blue-800"}`}>{member!.role}</span></>
+                  <>Role: <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${isAdmin ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>{member!.role}</span></>
                 )}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            {isPersonal && (
-              <a
-                href="/admin/orgs"
-                className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-yellow-900 text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Organizations
-              </a>
-            )}
-            {userEmail && (
-              <span className="hidden sm:block text-xs font-medium text-yellow-800 truncate max-w-[180px]">{userEmail}</span>
-            )}
-            <button
-              onClick={onLogout}
-              className="flex items-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Log Out
-            </button>
+            {/* Action buttons could go here */}
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8 space-y-6">
+      <main className="flex-1 max-w-6xl w-full px-4 md:px-8 pb-12 space-y-6">
 
         {/* Site switcher (admin + editor, or personal mode) */}
         {(isAdmin || member?.role === "editor") && (
@@ -1347,9 +1215,7 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
         </div>
       )}
 
-      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4">
-        <p>SiteSign Admin &copy; {new Date().getFullYear()}</p>
-      </footer>
+      {/* No footer needed here, handled by AppLayout (none needed really) */}
     </div>
   );
 }
@@ -1421,13 +1287,14 @@ export default function AdminPage() {
 
   // No redirect — always show the dashboard (personal or org mode)
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-  }
-
   if (authed === null) return null;
 
-  if (!authed) return <AuthScreen onAuth={() => setAuthed(true)} />;
+  if (!authed) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    return null;
+  }
 
   // Loading org membership
   if (loadingOrg || !orgFetched) return (
@@ -1452,7 +1319,7 @@ export default function AdminPage() {
     </div>
   );
 
-  return <AdminDashboard org={org} member={member} userId={userId} onLogout={handleLogout} onOrgUpdate={setOrg} onOrgDeleted={() => {
+  return <AdminDashboard org={org} member={member} userId={userId} onOrgUpdate={setOrg} onOrgDeleted={() => {
     setOrg(null);
     setMember(null);
   }} />;
