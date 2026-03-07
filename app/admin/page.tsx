@@ -168,6 +168,8 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingSiteId, setDeletingSiteId] = useState<string | null>(null);
 
   useEffect(() => {
     // Don't query until we have a valid userId (auth may not have resolved yet)
@@ -215,6 +217,19 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
     setOpen(false);
   }
 
+  async function handleDeleteSite(siteId: string) {
+    setDeletingSiteId(siteId);
+    setError(null);
+    const { error } = await supabase.from("sites").delete().eq("id", siteId);
+    setDeletingSiteId(null);
+    setConfirmDeleteId(null);
+    if (error) { setError("Could not delete site. It may have visits or permissions attached."); return; }
+    const next = sites.filter((s) => s.id !== siteId);
+    setSites(next);
+    onSitesLoaded?.(next);
+    if (current?.id === siteId) onSelect(next[0] ?? null);
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -247,14 +262,46 @@ function SiteSwitcher({ current, orgId, userId, onSelect, onSitesLoaded, canAddS
             <ul className="space-y-1.5">
               {sites.map((s) => (
                 <li key={s.id}>
-                  <button onClick={() => { onSelect(s); setOpen(false); }}
-                    className={`w-full text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-colors ${current?.id === s.id
-                      ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
-                      : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
-                      }`}>
-                    <span className="text-sm truncate">{s.name}</span>
-                    {current?.id === s.id && <span className="text-xs text-yellow-700 shrink-0">Active</span>}
-                  </button>
+                  {confirmDeleteId === s.id ? (
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-red-300 bg-red-50">
+                      <span className="flex-1 text-sm font-semibold text-red-800 truncate">Delete &quot;{s.name}&quot;? This cannot be undone.</span>
+                      <button
+                        onClick={() => handleDeleteSite(s.id)}
+                        disabled={deletingSiteId === s.id}
+                        className="shrink-0 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                      >
+                        {deletingSiteId === s.id ? "…" : "Yes, delete"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="shrink-0 text-xs font-semibold text-gray-500 hover:text-gray-800 px-2 py-1.5"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => { onSelect(s); setOpen(false); }}
+                        className={`flex-1 text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition-colors ${current?.id === s.id
+                            ? "border-yellow-400 bg-yellow-50 text-yellow-900 font-bold"
+                            : "border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 text-gray-800 font-semibold"
+                          }`}>
+                        <span className="text-sm truncate">{s.name}</span>
+                        {current?.id === s.id && <span className="text-xs text-yellow-700 shrink-0">Active</span>}
+                      </button>
+                      {canAddSites && (
+                        <button
+                          onClick={() => setConfirmDeleteId(s.id)}
+                          title="Delete site"
+                          className="shrink-0 p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -310,6 +357,7 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
+  const [addPhone, setAddPhone] = useState("");
   const [addCompany, setAddCompany] = useState("");
   const [addType, setAddType] = useState<VisitorType>("Worker");
   const [addSignedIn, setAddSignedIn] = useState("");
@@ -406,12 +454,13 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
       visitor_type: addType,
       site_id: activeSite.id,
     };
+    if (addPhone.trim()) payload.phone_number = addPhone.trim();
     if (addSignedIn) payload.signed_in_at = new Date(addSignedIn).toISOString();
     if (addSignedOut) payload.signed_out_at = new Date(addSignedOut).toISOString();
     const { error } = await supabase.from("site_visits").insert(payload);
     setAdding(false);
     if (error) { setAddError("Failed to add record. Please try again."); return; }
-    setAddName(""); setAddCompany(""); setAddType("Worker"); setAddSignedIn(""); setAddSignedOut("");
+    setAddName(""); setAddPhone(""); setAddCompany(""); setAddType("Worker"); setAddSignedIn(""); setAddSignedOut("");
     setShowAddForm(false);
     fetchVisits();
   }
@@ -441,9 +490,27 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
     return rangeFiltered;
   }
 
+  // Format a Date to DD/MM/YYYY (consistent across all locales)
+  function fmtDate(d: Date) {
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  }
+  // Format a Date to HH:MM (24h)
+  function fmtTime(d: Date) {
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  // Convert decimal minutes to "Xh Ym" or "Ym" string
+  function fmtDuration(totalMinutes: number) {
+    const h = Math.floor(totalMinutes / 60);
+    const m = Math.round(totalMinutes % 60);
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  }
+
   function prepareExportData() {
     const rangeFiltered = getFilteredDataByRange();
-    const headers = ["Full Name", "Mobile", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration (hours)"];
+    const siteName = activeSite?.name ?? "";
+    const headers = ["Site", "Full Name", "Mobile", "Company", "Visitor Type", "Sign-In Date", "Sign-In Time", "Sign-Out Date", "Sign-Out Time", "Duration"];
 
     const rows = rangeFiltered.map((v) => {
       const signInDate = new Date(v.signed_in_at);
@@ -451,22 +518,23 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
 
       let duration = "";
       if (signOutDate) {
-        const hours = (signOutDate.getTime() - signInDate.getTime()) / (1000 * 60 * 60);
-        duration = hours.toFixed(2);
+        const mins = (signOutDate.getTime() - signInDate.getTime()) / (1000 * 60);
+        duration = fmtDuration(mins);
       } else {
         duration = "On site";
       }
 
       return [
+        siteName,
         v.full_name,
         v.phone_number ?? "",
         v.company_name,
         v.visitor_type,
-        signInDate.toLocaleDateString(),
-        signInDate.toLocaleTimeString(),
-        signOutDate ? signOutDate.toLocaleDateString() : "Still on site",
-        signOutDate ? signOutDate.toLocaleTimeString() : "",
-        duration
+        fmtDate(signInDate),
+        fmtTime(signInDate),
+        signOutDate ? fmtDate(signOutDate) : "Still on site",
+        signOutDate ? fmtTime(signOutDate) : "",
+        duration,
       ];
     });
 
@@ -491,18 +559,34 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
     const { headers, rows } = prepareExportData();
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
+    // Style header row bold + yellow background
+    const headerRange = XLSX.utils.decode_range(worksheet["!ref"] ?? "A1");
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (!worksheet[cellRef]) continue;
+      worksheet[cellRef].s = {
+        font: { bold: true, color: { rgb: "713F12" } },
+        fill: { fgColor: { rgb: "FACC15" } },
+        alignment: { horizontal: "center" },
+      };
+    }
+
     // Set column widths
-    worksheet['!cols'] = [
-      { wch: 20 }, // Full Name
+    worksheet["!cols"] = [
+      { wch: 22 }, // Site
+      { wch: 22 }, // Full Name
       { wch: 16 }, // Mobile
-      { wch: 25 }, // Company
-      { wch: 15 }, // Visitor Type
-      { wch: 15 }, // Sign-In Date
-      { wch: 15 }, // Sign-In Time
-      { wch: 15 }, // Sign-Out Date
-      { wch: 15 }, // Sign-Out Time
-      { wch: 18 }  // Duration
+      { wch: 26 }, // Company
+      { wch: 16 }, // Visitor Type
+      { wch: 14 }, // Sign-In Date
+      { wch: 12 }, // Sign-In Time
+      { wch: 16 }, // Sign-Out Date
+      { wch: 12 }, // Sign-Out Time
+      { wch: 12 }, // Duration
     ];
+
+    // Freeze top row
+    worksheet["!freeze"] = { xSplit: 0, ySplit: 1 };
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Site Visits");
@@ -512,37 +596,49 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
 
   function exportPDF() {
     const { headers, rows, count } = prepareExportData();
-    const doc = new jsPDF();
-
-    // Add title
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Site Visits Report - ${activeSite?.name || 'Export'}`, 14, 15);
-
-    // Add metadata
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    const doc = new jsPDF({ orientation: "landscape" });
+    const siteName = activeSite?.name ?? "Export";
     const rangeName = csvDateRange === "all" ? "All Time" : csvDateRange === "today" ? "Today" : csvDateRange === "week" ? "Last 7 Days" : "Last 30 Days";
-    doc.text(`Range: ${rangeName} | Total Records: ${count} | Generated: ${new Date().toLocaleDateString()}`, 14, 22);
+    const generatedOn = (() => {
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    })();
 
-    // Add table
+    // Title
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Site Visits Report — ${siteName}`, 14, 16);
+
+    // Subtitle line
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Period: ${rangeName}   |   Records: ${count}   |   Generated: ${generatedOn}`, 14, 23);
+    doc.setTextColor(0);
+
     autoTable(doc, {
       head: [headers],
       body: rows,
       startY: 28,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [250, 204, 21], textColor: [113, 63, 18], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 2.5, overflow: "linebreak" },
+      headStyles: { fillColor: [250, 204, 21], textColor: [113, 63, 18], fontStyle: "bold", halign: "center", fontSize: 8 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
       columnStyles: {
-        0: { cellWidth: 25 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 20 },
-        3: { cellWidth: 22 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 22 },
-        6: { cellWidth: 22 },
-        7: { cellWidth: 20 }
-      }
+        0: { cellWidth: 28 },  // Site
+        1: { cellWidth: 32 },  // Full Name
+        2: { cellWidth: 24 },  // Mobile
+        3: { cellWidth: 34 },  // Company
+        4: { cellWidth: 22 },  // Visitor Type
+        5: { cellWidth: 22 },  // Sign-In Date
+        6: { cellWidth: 16 },  // Sign-In Time
+        7: { cellWidth: 22 },  // Sign-Out Date
+        8: { cellWidth: 16 },  // Sign-Out Time
+        9: { cellWidth: 18 },  // Duration
+      },
+      margin: { left: 14, right: 14 },
     });
 
     const fileName = `site-visits-${activeSite?.slug || "export"}-${csvDateRange}-${new Date().toISOString().slice(0, 10)}.pdf`;
@@ -809,6 +905,12 @@ function AdminDashboard({ org, member, userId, onLogout, onOrgUpdate, onOrgDelet
                     <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_name">Full Name *</label>
                     <input id="add_name" type="text" value={addName} onChange={(e) => setAddName(e.target.value)}
                       placeholder="e.g. Jane Smith"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="add_phone">Mobile Number</label>
+                    <input id="add_phone" type="tel" value={addPhone} onChange={(e) => setAddPhone(e.target.value)}
+                      placeholder="e.g. 0412 345 678"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent" />
                   </div>
                   <div>
