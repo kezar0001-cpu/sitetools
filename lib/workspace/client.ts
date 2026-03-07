@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import {
+  Company,
   CompanyInvitation,
   CompanyMembership,
   Profile,
@@ -48,6 +49,16 @@ function pickActiveMembership(
 
   return memberships[0] ?? null;
 }
+type MembershipRow = Omit<CompanyMembership, "companies"> & {
+  companies?: Company | Company[] | null;
+};
+
+function normalizeMembershipCompany(value: MembershipRow["companies"]): Company | null {
+  if (Array.isArray(value)) {
+    return (value[0] ?? null) as Company | null;
+  }
+  return (value ?? null) as Company | null;
+}
 
 export async function loadWorkspaceSummary(userId: string, email?: string | null): Promise<WorkspaceSummary> {
   await ensureProfile(userId, email);
@@ -65,7 +76,13 @@ export async function loadWorkspaceSummary(userId: string, email?: string | null
   if (membershipsRes.error) throw membershipsRes.error;
 
   const profile = profileRes.data as Profile;
-  const memberships = (membershipsRes.data ?? []) as CompanyMembership[];
+  const memberships: CompanyMembership[] = (membershipsRes.data ?? []).map((row) => {
+    const membership = row as MembershipRow;
+    return {
+      ...membership,
+      companies: normalizeMembershipCompany(membership.companies),
+    };
+  });
 
   let activeMembership = pickActiveMembership(memberships, profile.active_company_id);
 
@@ -241,3 +258,4 @@ export async function fetchCompanyInvitations(companyId: string): Promise<Compan
 
   return (data ?? []) as CompanyInvitation[];
 }
+
