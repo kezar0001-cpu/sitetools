@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { CMS_COOKIE_NAME, getExpectedCmsSessionToken } from "@/lib/cms/constants";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "50mb",
+    },
+  },
+};
+
 const BUCKET = "public-site-media";
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
