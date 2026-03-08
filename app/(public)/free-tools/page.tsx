@@ -34,12 +34,12 @@ export default function FreeToolsPage() {
                             <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-300">Civil tools library</p>
                             <h1 className="text-3xl sm:text-4xl font-black tracking-tight mt-2">Calculators and practical tools for civil teams in the field and office.</h1>
                             <p className="text-slate-300 mt-3 max-w-3xl">
-                                Use instant tools with no login for quick checks. Move into workspace tools when you need saved data, connected projects and sites, team collaboration, and advanced capability where required.
+                                Use instant tools with no login for quick checks, then move into SiteSign for attendance records or SitePlan for delivery planning in your workspace.
                             </p>
                             <div className="mt-5 flex flex-wrap gap-3">
-                                <Link href="/free-tools/concrete-volume-calculator" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-500">Open instant tools</Link>
-                                <Link href="/tools" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">View workspace tools</Link>
-                                <Link href="/login?signup=1" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Create account</Link>
+                                <Link href="/tools/site-sign-in" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-500">Open SiteSign</Link>
+                                <Link href="/tools/planner" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Explore SitePlan</Link>
+                                <Link href="/login" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Log in</Link>
                             </div>
                         </div>
                         <div className="relative rounded-2xl border border-slate-700 overflow-hidden">

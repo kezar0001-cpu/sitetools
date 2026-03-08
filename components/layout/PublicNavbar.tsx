@@ -1,9 +1,6 @@
 import Link from "next/link";
-import { getLiveModules } from "@/lib/modules";
 
 export function PublicNavbar() {
-  const liveModules = getLiveModules();
-
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800/10 bg-white/85 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -23,25 +20,28 @@ export function PublicNavbar() {
 
             <nav className="hidden items-center gap-6 md:flex">
               <Link
+                href="/tools/site-sign-in"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              >
+                SiteSign
+              </Link>
+              <Link
+                href="/tools/planner"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              >
+                SitePlan
+              </Link>
+              <Link
                 href="/free-tools"
                 className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
               >
                 Tools Library
               </Link>
-              {liveModules.map((m) => (
-                <Link
-                  key={m.id}
-                  href={`/tools/${m.id}`}
-                  className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
-                >
-                  {m.name}
-                </Link>
-              ))}
             </nav>
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/login" className="hidden text-sm font-bold text-slate-600 transition-colors hover:text-slate-900 sm:block">
+            <Link href="/login" className="text-sm font-bold text-slate-600 transition-colors hover:text-slate-900">
               Log in
             </Link>
             <Link

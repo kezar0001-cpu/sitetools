@@ -24,7 +24,7 @@ export function PublicFooter() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Workspace Tools</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Products</h3>
             <ul className="space-y-3">
               {liveModules.map((m) => (
                 <li key={m.id}>

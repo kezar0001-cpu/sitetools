@@ -138,7 +138,7 @@ export function PlannerDashboardClient() {
 
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs uppercase tracking-widest text-amber-400 font-bold">Buildstate Planner</span>
+            <span className="text-xs uppercase tracking-widest text-amber-400 font-bold">SitePlan</span>
             <span className="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-medium">v5</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black tracking-tight">

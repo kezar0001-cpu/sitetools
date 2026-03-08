@@ -40,7 +40,7 @@ export const FREE_TOOLS: FreeTool[] = [
         status: "live",
         launchPriority: "now",
         trafficPotential: "high",
-        funnelTarget: "Connect quantities into Buildstate Planner and future estimating workflows.",
+        funnelTarget: "Connect quantities into SitePlan and future estimating workflows.",
         keywords: ["concrete volume calculator", "concrete m3 calculator", "slab volume calculator"],
         assumptions: ["All dimensions are entered in metres.", "Result excludes waste allowance and overbreak."],
         notes: ["Add 5–10% waste depending on pump setup and finish tolerance.", "For irregular pours, break the shape into multiple rectangles and total the volume."],

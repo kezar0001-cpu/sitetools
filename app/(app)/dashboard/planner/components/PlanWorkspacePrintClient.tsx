@@ -147,7 +147,7 @@ export function PlanWorkspacePrintClient({ planId }: Props) {
                 <div className="border-b-4 border-slate-900 pb-4 mb-6">
                     <div className="flex items-start justify-between">
                         <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Buildstate Planner — Project Report</p>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">SitePlan — Project Report</p>
                             <h1 className="text-3xl font-black text-slate-900">{plan.name}</h1>
                             {plan.description && <p className="text-sm text-slate-600 mt-1 max-w-2xl">{plan.description}</p>}
                         </div>
@@ -358,7 +358,7 @@ export function PlanWorkspacePrintClient({ planId }: Props) {
 
                 {/* Footer */}
                 <div className="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-400 flex justify-between">
-                    <span>Generated: {printDate} via Buildstate Planner</span>
+                    <span>Generated: {printDate} via SitePlan</span>
                     <span>{plan.name}</span>
                 </div>
             </div>
