@@ -92,3 +92,6 @@ export function getPublicMediaSlot(key: keyof typeof PUBLIC_MEDIA_SLOTS): Public
 export function getPublicVideoSlot(key: keyof typeof PUBLIC_VIDEO_SLOTS): PublicVideoSlot {
   return PUBLIC_VIDEO_SLOTS[key];
 }
+
+export type PublicMediaSlotKey = keyof typeof PUBLIC_MEDIA_SLOTS;
+export type PublicVideoSlotKey = keyof typeof PUBLIC_VIDEO_SLOTS;
