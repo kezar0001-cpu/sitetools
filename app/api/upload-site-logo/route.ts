@@ -1,18 +1,34 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  return {
+    supabaseUrl,
+    client: createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    }),
+  };
+}
 
 const BUCKET = "site-logos";
 const MAX_SIZE_MB = 2;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
 export async function POST(req: NextRequest) {
+  const supabaseCtx = getSupabaseAdmin();
+  if (!supabaseCtx) {
+    return NextResponse.json({ error: "Server misconfigured: missing Supabase environment variables." }, { status: 500 });
+  }
+
+  const { supabaseUrl, client: supabaseAdmin } = supabaseCtx;
+
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
