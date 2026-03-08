@@ -94,12 +94,15 @@ export default function SitesPage() {
     }
 
     setCreatingProject(true);
-    const { error: insertError } = await supabase.from("projects").insert({
-      company_id: activeCompanyId,
-      name: projectName.trim(),
-      site_id: projectSiteId || null,
-      status: "active",
-    });
+    const { data: newProject, error: insertError } = await supabase
+      .from("projects")
+      .insert({
+        company_id: activeCompanyId,
+        name: projectName.trim(),
+        status: "active",
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       setError(insertError.message);
@@ -107,10 +110,16 @@ export default function SitesPage() {
       return;
     }
 
+    if (projectSiteId) {
+      await supabase.from("sites").update({ project_id: newProject?.id ?? null }).eq("id", projectSiteId);
+    }
+
     setProjectName("");
     setProjectSiteId("");
     const projectRows = await fetchCompanyProjects(activeCompanyId);
     setProjects(projectRows);
+    const siteRows = await fetchCompanySites(activeCompanyId);
+    setSites(siteRows);
     setCreatingProject(false);
   }
 
@@ -120,20 +129,18 @@ export default function SitesPage() {
     setError(null);
 
     try {
-      const currentProject = projects.find((project) => project.site_id === siteId);
-
-      if (currentProject && currentProject.id !== targetProjectId) {
-        const { error: clearError } = await supabase.from("projects").update({ site_id: null }).eq("id", currentProject.id);
-        if (clearError) throw clearError;
-      }
-
-      if (targetProjectId) {
-        const { error: setErrorProject } = await supabase.from("projects").update({ site_id: siteId }).eq("id", targetProjectId);
-        if (setErrorProject) throw setErrorProject;
-      }
+      const { error: updateError } = await supabase
+        .from("sites")
+        .update({ project_id: targetProjectId || null })
+        .eq("id", siteId);
+      if (updateError) throw updateError;
 
       if (activeCompanyId) {
-        const projectRows = await fetchCompanyProjects(activeCompanyId);
+        const [siteRows, projectRows] = await Promise.all([
+          fetchCompanySites(activeCompanyId),
+          fetchCompanyProjects(activeCompanyId),
+        ]);
+        setSites(siteRows);
         setProjects(projectRows);
       }
     } catch (err) {
@@ -193,13 +200,13 @@ export default function SitesPage() {
                     <p className="font-semibold text-slate-900">{site.name}</p>
                     <p className="text-xs text-slate-500">Slug: {site.slug}</p>
                     <p className="text-xs text-slate-500">
-                      Project: {projects.find((project) => project.site_id === site.id)?.name ?? "Unassigned"}
+                      Project: {projects.find((project) => project.id === site.project_id)?.name ?? "Unassigned"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {canEditSites && (
                       <select
-                        value={projects.find((project) => project.site_id === site.id)?.id ?? ""}
+                        value={site.project_id ?? ""}
                         onChange={(e) => handleAssignSiteToProject(site.id, e.target.value)}
                         disabled={allocatingSiteId === site.id}
                         className="text-xs border border-slate-300 rounded-lg px-2 py-2 bg-white"
@@ -303,7 +310,7 @@ export default function SitesPage() {
                   <p className="text-xs text-slate-500 capitalize">Status: {project.status}</p>
                 </div>
                 <div className="text-xs text-slate-500">
-                  Linked Site: {sites.find((site) => site.id === project.site_id)?.name ?? "None"}
+                  Linked Site: {sites.find((site) => site.project_id === project.id)?.name ?? "None"}
                 </div>
               </li>
             ))}
