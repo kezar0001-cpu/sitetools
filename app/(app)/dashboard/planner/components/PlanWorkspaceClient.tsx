@@ -14,12 +14,13 @@ import {
   fetchPlanTasks,
   fetchPublicHolidays,
   bulkCreateTasks,
+  logTaskDelayEvent,
   updatePlannerPlan,
   updatePlanSites,
   updatePlanTask,
 } from "@/lib/planner/client";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
-import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus } from "@/lib/planner/types";
+import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus, DelayType } from "@/lib/planner/types";
 import { Project, Site } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { normalizePercent } from "@/lib/planner/validation";
@@ -200,6 +201,42 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     }
   }, [planId, userId, loadAll]);
 
+  const handleLogDelay = useCallback(async (input: {
+    task: PlanTask;
+    delayType: DelayType;
+    delayReason?: string;
+    councilWaitingOn?: string;
+    weatherHoursLost?: number;
+  }) => {
+    setSaving(input.task.id);
+    try {
+      await logTaskDelayEvent({
+        planId,
+        taskId: input.task.id,
+        delayType: input.delayType,
+        delayReason: input.delayReason,
+        councilWaitingOn: input.councilWaitingOn,
+        weatherHoursLost: input.weatherHoursLost,
+        userId,
+      });
+      await createPlanRevision({
+        planId,
+        revisionType: "delay_logged",
+        summary: `Delay logged on task: ${input.task.title}`,
+        payload: {
+          delayType: input.delayType,
+          weatherHoursLost: input.weatherHoursLost ?? null,
+        },
+        userId,
+      });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not log delay.");
+    } finally {
+      setSaving(null);
+    }
+  }, [planId, userId, loadAll]);
+
   // ── Import ──
   const handleImport = useCallback(async (importedTasks: ImportedTask[], projectName: string | null) => {
     const taskRows = importedTasks.map((t, idx) => ({
@@ -211,6 +248,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       indentLevel: t.outlineLevel,
       wbsCode: t.wbsCode,
       notes: t.notes,
+      percentComplete: t.percentComplete,
     }));
     await bulkCreateTasks(planId, taskRows, userId);
     await createPlanRevision({
@@ -227,8 +265,9 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     const total = tasks.length;
     const done = tasks.filter((t) => t.status === "done").length;
     const blocked = tasks.filter((t) => t.status === "blocked").length;
+    const late = tasks.filter((t) => t.actual_finish && t.planned_finish && t.actual_finish.slice(0, 10) > t.planned_finish).length;
     const avgPercent = total > 0 ? Math.round(tasks.reduce((sum, t) => sum + t.percent_complete, 0) / total) : 0;
-    return { total, done, blocked, avgPercent };
+    return { total, done, blocked, late, avgPercent };
   }, [tasks]);
 
   if (loading) {
@@ -341,11 +380,12 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: "Total Tasks", value: stats.total, color: "text-slate-700" },
           { label: "Completed", value: stats.done, color: "text-emerald-600" },
           { label: "Blocked", value: stats.blocked, color: "text-red-600" },
+          { label: "Late (Actual > Plan)", value: stats.late, color: "text-orange-600" },
           { label: "Avg Progress", value: `${stats.avgPercent}%`, color: "text-blue-600" },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-3 text-center">
@@ -382,7 +422,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           tasks={tasks}
           saving={saving}
           onQuickUpdate={handleQuickUpdate}
-          onPatchTask={handlePatchTask}
+          onLogDelay={handleLogDelay}
         />
       )}
 
