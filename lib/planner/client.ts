@@ -230,6 +230,7 @@ export async function bulkCreateTasks(
     indentLevel?: number;
     wbsCode?: string | null;
     notes?: string | null;
+    percentComplete?: number;
   }>,
   userId?: string | null
 ): Promise<void> {
@@ -244,6 +245,10 @@ export async function bulkCreateTasks(
     indent_level: t.indentLevel ?? 0,
     wbs_code: t.wbsCode ?? null,
     notes: t.notes ?? null,
+    percent_complete: normalizePercent(t.percentComplete ?? 0),
+    status: normalizePercent(t.percentComplete ?? 0) >= 100 ? "done" : normalizePercent(t.percentComplete ?? 0) > 0 ? "in-progress" : "not-started",
+    actual_start: normalizePercent(t.percentComplete ?? 0) > 0 ? (t.plannedStart ?? new Date().toISOString().slice(0, 10)) : null,
+    actual_finish: normalizePercent(t.percentComplete ?? 0) >= 100 ? (t.plannedFinish ?? new Date().toISOString().slice(0, 10)) : null,
     created_by: userId ?? null,
     updated_by: userId ?? null,
   }));
@@ -291,6 +296,61 @@ export async function createTaskUpdate(input: {
 
   if (error) throw error;
   return data as TaskUpdate;
+}
+
+
+export async function logTaskDelayEvent(input: {
+  planId: string;
+  taskId: string;
+  delayType: string;
+  delayReason?: string;
+  userId?: string | null;
+  councilWaitingOn?: string | null;
+  weatherHoursLost?: number | null;
+  delayDate?: string;
+}): Promise<void> {
+  const delayReason = input.delayReason?.trim() || null;
+
+  await createTaskUpdate({
+    planId: input.planId,
+    taskId: input.taskId,
+    status: "blocked",
+    note: delayReason ?? undefined,
+    delayReason: delayReason ?? undefined,
+    blocked: true,
+    userId: input.userId ?? null,
+  });
+
+  const taskPatch: Partial<PlanTask> & { updated_by?: string | null } = {
+    status: "blocked",
+    delay_type: input.delayType as PlanTask["delay_type"],
+    delay_reason: delayReason,
+    updated_by: input.userId ?? null,
+  };
+
+  if (input.delayType === "council") {
+    taskPatch.council_waiting_on = input.councilWaitingOn?.trim() || null;
+    taskPatch.council_submitted_date = input.delayDate ?? new Date().toISOString().slice(0, 10);
+  }
+
+  if (input.delayType === "weather") {
+    const hoursLost = Math.max(0, Number(input.weatherHoursLost ?? 0));
+    await createWeatherDelay({
+      planId: input.planId,
+      taskId: input.taskId,
+      delayDate: input.delayDate,
+      hoursLost,
+      reason: delayReason ?? undefined,
+      userId: input.userId ?? null,
+    });
+    taskPatch.weather_delay_days = Number((hoursLost / 8).toFixed(2));
+  }
+
+  if (input.delayType === "redesign") {
+    taskPatch.redesign_reason = delayReason;
+  }
+
+  await updatePlanTask(input.taskId, taskPatch);
 }
 
 // ─── Revisions ───

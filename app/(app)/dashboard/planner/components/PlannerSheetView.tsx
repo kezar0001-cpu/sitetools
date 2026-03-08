@@ -143,6 +143,12 @@ export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask
             case "planned_finish":
                 if (value !== (task.planned_finish ?? "")) await onPatchTask(taskId, { planned_finish: value || null });
                 break;
+            case "actual_start":
+                if (value !== (task.actual_start ?? "")) await onPatchTask(taskId, { actual_start: value || null });
+                break;
+            case "actual_finish":
+                if (value !== (task.actual_finish ?? "")) await onPatchTask(taskId, { actual_finish: value || null });
+                break;
             case "notes":
                 if (value !== (task.notes ?? "")) await onPatchTask(taskId, { notes: value || null });
                 break;
@@ -247,6 +253,15 @@ export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask
                                 <th className="text-left p-2 cursor-pointer select-none w-28" onClick={() => handleSort("planned_finish")}>
                                     <span className="font-semibold text-slate-700">Finish</span><SortIcon field="planned_finish" />
                                 </th>
+                                <th className="text-left p-2 w-28">
+                                    <span className="font-semibold text-slate-700">Actual Start</span>
+                                </th>
+                                <th className="text-left p-2 w-28">
+                                    <span className="font-semibold text-slate-700">Actual Finish</span>
+                                </th>
+                                <th className="text-left p-2 w-24">
+                                    <span className="font-semibold text-slate-700">Variance</span>
+                                </th>
                                 <th className="text-left p-2 cursor-pointer select-none w-24" onClick={() => handleSort("status")}>
                                     <span className="font-semibold text-slate-700">Status</span><SortIcon field="status" />
                                 </th>
@@ -318,7 +333,7 @@ export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask
                                         ))}
                                     </select>
                                 </td>
-                                <td className="p-2" colSpan={6}>
+                                <td className="p-2" colSpan={9}>
                                     <button
                                         disabled={!newTitle.trim() || saving === "new"}
                                         onClick={handleAdd}
@@ -503,6 +518,39 @@ function TaskRow({
                     value={task.planned_finish ?? ""}
                     onChange={(e) => onPatchTask(task.id, { planned_finish: e.target.value || null })}
                 />
+            </td>
+
+            {/* Actual start */}
+            <td className="p-2">
+                <input
+                    type="date"
+                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 focus:border-amber-400 outline-none transition-colors w-full"
+                    value={task.actual_start ? task.actual_start.slice(0, 10) : ""}
+                    onChange={(e) => onPatchTask(task.id, { actual_start: e.target.value || null })}
+                />
+            </td>
+
+            {/* Actual finish */}
+            <td className="p-2">
+                <input
+                    type="date"
+                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 focus:border-amber-400 outline-none transition-colors w-full"
+                    value={task.actual_finish ? task.actual_finish.slice(0, 10) : ""}
+                    onChange={(e) => onPatchTask(task.id, { actual_finish: e.target.value || null })}
+                />
+            </td>
+
+            {/* Planned vs actual variance */}
+            <td className="p-2 text-xs">
+                {task.actual_finish && task.planned_finish ? (
+                    task.actual_finish.slice(0, 10) > task.planned_finish ? (
+                        <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2 py-1 font-semibold">Late</span>
+                    ) : (
+                        <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-1 font-semibold">On time</span>
+                    )
+                ) : (
+                    <span className="text-slate-400">—</span>
+                )}
             </td>
 
             {/* Status */}

@@ -7,19 +7,26 @@ interface Props {
     tasks: PlanTask[];
     saving: string | null;
     onQuickUpdate: (task: PlanTask, status: TaskStatus, percent: number, note?: string) => Promise<void>;
-    onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+    onLogDelay: (input: {
+        task: PlanTask;
+        delayType: DelayType;
+        delayReason?: string;
+        councilWaitingOn?: string;
+        weatherHoursLost?: number;
+    }) => Promise<void>;
 }
 
 function asDate(value: string | null) {
     return value ? new Date(value) : null;
 }
 
-export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: Props) {
+export function PlannerTodayView({ tasks, saving, onQuickUpdate, onLogDelay }: Props) {
     const [selectedBucket, setSelectedBucket] = useState<"all" | "overdue" | "today" | "week">("all");
     const [delayModal, setDelayModal] = useState<PlanTask | null>(null);
     const [delayType, setDelayType] = useState<DelayType>("weather");
     const [delayNote, setDelayNote] = useState("");
     const [councilNote, setCouncilNote] = useState("");
+    const [weatherHoursLost, setWeatherHoursLost] = useState("8");
 
     const today = useMemo(() => new Date(), []);
     const dateString = today.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -61,16 +68,17 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
     );
 
     const handleLogDelay = async (task: PlanTask) => {
-        await onPatchTask(task.id, {
-            delay_type: delayType,
-            delay_reason: delayNote || null,
-            status: "blocked",
-            council_waiting_on: delayType === "council" ? councilNote || null : task.council_waiting_on,
-            council_submitted_date: delayType === "council" ? today.toISOString().slice(0, 10) : task.council_submitted_date,
+        await onLogDelay({
+            task,
+            delayType,
+            delayReason: delayNote || undefined,
+            councilWaitingOn: delayType === "council" ? councilNote || undefined : undefined,
+            weatherHoursLost: delayType === "weather" ? Number(weatherHoursLost) || 0 : undefined,
         });
         setDelayModal(null);
         setDelayNote("");
         setCouncilNote("");
+        setWeatherHoursLost("8");
     };
 
     return (
@@ -167,6 +175,11 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
                                         </span>
                                         <span>{task.percent_complete}% complete</span>
                                         {task.duration_days != null && <span>{task.duration_days}d duration</span>}
+                                        {task.actual_finish && task.planned_finish && (
+                                            <span className={task.actual_finish.slice(0, 10) > task.planned_finish ? "text-red-600 font-medium" : "text-emerald-600 font-medium"}>
+                                                {task.actual_finish.slice(0, 10) > task.planned_finish ? "Late vs plan" : "On/under plan"}
+                                            </span>
+                                        )}
                                         {task.delay_type && (
                                             <span className="text-red-600 font-medium">
                                                 ⚠ {DELAY_TYPE_LABELS[task.delay_type]}
@@ -249,6 +262,20 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
                                 />
                             </div>
 
+                            {delayType === "weather" && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Hours lost</label>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.5"
+                                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                                        value={weatherHoursLost}
+                                        onChange={(e) => setWeatherHoursLost(e.target.value)}
+                                    />
+                                </div>
+                            )}
+
                             {delayType === "council" && (
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -277,7 +304,7 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
                         </div>
                         <div className="p-5 border-t border-slate-200 flex gap-3 justify-end">
                             <button
-                                onClick={() => { setDelayModal(null); setDelayNote(""); setCouncilNote(""); }}
+                                onClick={() => { setDelayModal(null); setDelayNote(""); setCouncilNote(""); setWeatherHoursLost("8"); }}
                                 className="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors"
                             >
                                 Cancel

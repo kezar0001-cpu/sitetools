@@ -15,6 +15,7 @@ Buildstate Planner is a practical civil project planning and live delivery-track
 2. Simplified programme view (timeline)
 3. Daily operational update workflow (today/overdue)
 4. Revision-aware live execution board
+5. Programme import path for existing schedules (including Microsoft Project `.mpp`)
 
 It is not an enterprise CPM clone. It is a site-usable operational planning tool.
 It must support both greenfield planning and in-flight programme tracking for existing projects.
@@ -26,12 +27,14 @@ It must support both greenfield planning and in-flight programme tracking for ex
 - **Project:** optional parent context for plan.
 - **Site(s):** plan can attach to multiple sites via join table.
 - **Project plan:** main planning container (status + version).
+- **Programme source:** whether plan was created in Buildstate or imported from external file.
 - **Plan phase:** grouping for activities (e.g., Mobilisation, Civil Works).
 - **Task/activity:** executable unit with planned/actual dates, priority, status, progress.
 - **Dependency:** simplified predecessor→successor (FS only in MVP).
 - **Assignee/responsible:** `assigned_to` profile id.
 - **Daily update:** timestamped field update log for progress, blockages, notes.
-- **Delay/constraint:** stored on task + update level.
+- **Delay/constraint:** stored on task + update level (weather, redesign, waiting on council info, site events).
+- **Planned vs actual tracking:** captures baseline intent against real site progress.
 - **Revision trail:** lightweight event log capturing key changes.
 
 ---
@@ -101,7 +104,7 @@ It must support both greenfield planning and in-flight programme tracking for ex
 
 ### Defer
 - Full CPM engine
-- Baseline comparison suite
+- Full baseline comparison suite (beyond core planned vs actual)
 - Complex resource leveling
 - Deep earned-value analytics
 
@@ -138,7 +141,7 @@ It must support both greenfield planning and in-flight programme tracking for ex
 - Fast quick-add row for many tasks.
 - Inline date/percent edits.
 - Simple status controls.
-- Notes and delay reasons captured without heavy forms.
+- Notes and delay/event reasons captured without heavy forms.
 - Today view quick-buttons for field updates.
 - Site-originated updates are first-class (mobile-friendly progress + delay capture).
 
@@ -146,6 +149,15 @@ It must support both greenfield planning and in-flight programme tracking for ex
 - Existing programmes are a primary entry path (not edge-case).
 - Microsoft Project is a key source system.
 - Where technical constraints prevent direct binary `.mpp` parsing in-browser, workflow must still explicitly support `.mpp`-origin imports via conversion/import path.
+
+---
+
+## 8.1) Existing programme import + normalization (MVP+)
+- Accept uploaded programme files, prioritizing Microsoft Project `.mpp`.
+- Parse/import into Buildstate canonical task model (phases, tasks, dates, links where available).
+- Preserve original import metadata (source file, import timestamp, version reference).
+- Flag unmapped/ambiguous fields for user review before publish.
+- After import, treat programme identically to Buildstate-authored plans for live updates.
 
 ---
 
@@ -188,6 +200,20 @@ Starter activities include realistic sequences:
 MVP includes a dedicated Today view optimized for phone:
 - card layout
 - quick progress buttons
+- quick delay/event logging from site
 - no spreadsheet dependence for daily updates
 
 This keeps supervisor updates practical while preserving office-grade sheet editing.
+
+---
+
+## 13) Live programme tracking principle
+Planner success is measured by whether teams keep using it during delivery, not just at setup.
+
+Therefore the module must continuously support:
+- live updating of real task progress on site
+- planned vs actual comparison
+- rapid logging of delays/events (weather, redesign, council info waits, etc.)
+- controlled programme adjustments as conditions evolve
+
+The outcome is a living programme of record for delivery execution.
