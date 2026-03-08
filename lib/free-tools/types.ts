@@ -1,3 +1,5 @@
+import { ModuleId } from "@/lib/modules";
+
 export type FreeToolCategoryId =
     | "quantity-volume"
     | "materials"
@@ -61,6 +63,7 @@ export interface FreeTool {
     launchPriority: "now" | "next" | "later";
     trafficPotential: "high" | "medium" | "niche";
     funnelTarget: string;
+    primaryWorkspaceModuleId: ModuleId;
     keywords: string[];
     notes?: string[];
     assumptions?: string[];

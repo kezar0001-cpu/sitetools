@@ -4,9 +4,18 @@
  */
 
 export type ModuleStatus = "live" | "coming-soon" | "beta";
+export type ModuleId =
+    | "planner"
+    | "site-sign-in"
+    | "site-diary"
+    | "itp-builder"
+    | "inspections"
+    | "plant-checks"
+    | "incidents"
+    | "timesheets";
 
 export interface BuildstateModule {
-    id: string;
+    id: ModuleId;
     name: string;
     tagline: string;
     description: string;
