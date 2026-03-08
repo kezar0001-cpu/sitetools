@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest) {
   let body: UpsertPayload;
   try {
     body = (await request.json()) as UpsertPayload;
-  } catch (_err) {
+  } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
 
