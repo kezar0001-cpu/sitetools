@@ -10,9 +10,24 @@ This keeps the website production-safe while allowing the team to swap in approv
 
 ## Slot registry
 
+### `siteSignHeroBackground` (video)
+- **Current file/link:** `https://cdn.coverr.co/videos/coverr-construction-site-at-dusk-1579/1080p.mp4`
+- **Poster:** `public/branding/video-poster.svg`
+- **Homepage usage:** Full navy hero section background
+- **Target content:** Short looped civil operations footage (site activity / equipment / workforce)
+- **Preferred final type:** Hosted `.mp4` (plus static poster)
+- **Notes:** This video slot is separate from the hero card image slot.
+
+### `siteSignHeroCardImage`
+- **Current file:** `public/branding/hero-site-team.svg`
+- **Homepage usage:** Right-side hero card image
+- **Target content:** Product/operations visual for SiteSign
+- **Preferred final type:** `.webp` or `.jpg`
+- **Notes:** Dedicated upload/link allocation for the hero card image only.
+
 ### `siteSignHero`
 - **Current file:** `public/branding/hero-site-team.svg`
-- **Homepage usage:** Hero + SiteSign card
+- **Homepage usage:** SiteSign card/supporting image slot
 - **Target content:** QR sign-in at a real civil project gate / entry point
 - **Preferred final type:** `.webp` or `.jpg` (plus optional hero video poster)
 - **Alt text intent:** Site attendance, supervision, project access records

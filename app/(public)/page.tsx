@@ -3,7 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { MODULES } from "@/lib/modules";
-import { getPublicMediaSlot } from "@/lib/publicSiteMedia";
+import { getPublicMediaSlot, getPublicVideoSlot } from "@/lib/publicSiteMedia";
+import { readCmsHeroMediaSettings } from "@/lib/cms/heroMediaSettings";
 
 interface LandingPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -15,7 +16,7 @@ function getFirstQueryValue(value: string | string[] | undefined): string | null
   return value;
 }
 
-export default function LandingPage({ searchParams }: LandingPageProps) {
+export default async function LandingPage({ searchParams }: LandingPageProps) {
   const resolvedSiteSlug =
     getFirstQueryValue(searchParams?.site) ??
     getFirstQueryValue(searchParams?.slug) ??
@@ -48,14 +49,34 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
   const liveModules = MODULES.filter((module) => module.status === "live");
   const upcomingModules = MODULES.filter((module) => module.status === "coming-soon").slice(0, 6);
 
-  const heroMedia = getPublicMediaSlot("siteSignHero");
+  const heroMedia = getPublicMediaSlot("siteSignHeroCardImage");
+  const heroVideo = getPublicVideoSlot("siteSignHeroBackground");
   const sitePlanMedia = getPublicMediaSlot("sitePlanWorkflow");
   const workspaceMedia = getPublicMediaSlot("workspaceApps");
 
+  const resolvedHeroMedia = await readCmsHeroMediaSettings({
+    heroVideoUrl: heroVideo.src,
+    heroVideoPosterUrl: heroVideo.poster,
+    heroCardImageUrl: heroMedia.src,
+  });
+
   return (
     <>
-      <section className="bg-slate-950 text-white py-20 md:py-28">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden bg-slate-950 text-white py-20 md:py-28">
+        <video
+          className="absolute inset-0 h-full w-full object-cover opacity-35"
+          autoPlay
+          muted
+          loop
+          playsInline
+          poster={resolvedHeroMedia.heroVideoPosterUrl}
+        >
+          <source src={resolvedHeroMedia.heroVideoUrl} type="video/mp4" />
+        </video>
+        <div className="absolute inset-0 bg-slate-950/75" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.18),transparent_35%)]" />
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-amber-400/15 text-amber-300 border border-amber-400/30">
@@ -81,10 +102,10 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
               </div>
             </div>
 
-            <div className="rounded-2xl overflow-hidden border border-slate-800 bg-slate-900">
-              <Image src={heroMedia.src} alt={heroMedia.alt} width={heroMedia.width} height={heroMedia.height} className="w-full h-auto object-cover" priority />
+            <div className="rounded-2xl overflow-hidden border border-slate-800/80 bg-slate-900/85 backdrop-blur-sm">
+              <Image src={resolvedHeroMedia.heroCardImageUrl} alt={heroMedia.alt} width={heroMedia.width} height={heroMedia.height} className="w-full h-auto object-cover" priority />
               <div className="p-5 border-t border-slate-800 text-xs text-slate-400">
-                Media source: {heroMedia.sourceName}
+                Hero background video: {heroVideo.sourceName} · Hero card image: {heroMedia.sourceName}
               </div>
             </div>
           </div>
