@@ -28,6 +28,12 @@ export function PublicNavbar() {
               <Link href="/tools" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
                 Workspace Apps
               </Link>
+              <Link href="/about" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+                About
+              </Link>
+              <Link href="/contact" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+                Contact
+              </Link>
             </nav>
           </div>
 
