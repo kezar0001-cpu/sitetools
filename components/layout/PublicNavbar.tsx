@@ -3,7 +3,7 @@ import Link from "next/link";
 export function PublicNavbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800/10 bg-white/85 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/" className="group flex items-center gap-3">
@@ -14,19 +14,28 @@ export function PublicNavbar() {
               </div>
               <div>
                 <p className="text-base font-black tracking-tight text-slate-900">Buildstate</p>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Workspace apps for civil delivery</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Site Operations OS</p>
               </div>
             </Link>
 
             <nav className="hidden items-center gap-6 md:flex">
-              <Link href="/tools/site-sign-in" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+              <Link
+                href="/tools/site-sign-in"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              >
                 SiteSign
               </Link>
-              <Link href="/tools/planner" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+              <Link
+                href="/tools/planner"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              >
                 SitePlan
               </Link>
-              <Link href="/tools" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
-                Workspace Apps
+              <Link
+                href="/free-tools"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              >
+                Tools Library
               </Link>
             </nav>
           </div>
@@ -35,7 +44,10 @@ export function PublicNavbar() {
             <Link href="/login" className="text-sm font-bold text-slate-600 transition-colors hover:text-slate-900">
               Log in
             </Link>
-            <Link href="/login?signup=1" className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black">
+            <Link
+              href="/login?signup=1"
+              className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black"
+            >
               Create account
             </Link>
           </div>
