@@ -23,6 +23,7 @@ import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus,
 import { Project, Site } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { normalizePercent } from "@/lib/planner/validation";
+import { calculatePlanHealth } from "@/lib/planner/progress-utils";
 import { ImportedTask } from "@/lib/planner/import-parser";
 
 import { PlannerSheetView } from "./PlannerSheetView";
@@ -223,13 +224,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   }, [planId, tasks.length, userId, loadAll]);
 
   // ── Stats ──
-  const stats = useMemo(() => {
-    const total = tasks.length;
-    const done = tasks.filter((t) => t.status === "done").length;
-    const blocked = tasks.filter((t) => t.status === "blocked").length;
-    const avgPercent = total > 0 ? Math.round(tasks.reduce((sum, t) => sum + t.percent_complete, 0) / total) : 0;
-    return { total, done, blocked, avgPercent };
-  }, [tasks]);
+  const stats = useMemo(() => calculatePlanHealth(tasks), [tasks]);
 
   if (loading) {
     return (
@@ -341,12 +336,14 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
           { label: "Total Tasks", value: stats.total, color: "text-slate-700" },
           { label: "Completed", value: stats.done, color: "text-emerald-600" },
           { label: "Blocked", value: stats.blocked, color: "text-red-600" },
           { label: "Avg Progress", value: `${stats.avgPercent}%`, color: "text-blue-600" },
+          { label: "Delayed", value: stats.delayed, color: "text-rose-600" },
+          { label: "Due Today", value: stats.dueToday, color: "text-violet-600" },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-3 text-center">
             <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>

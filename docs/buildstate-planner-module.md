@@ -15,8 +15,9 @@ Buildstate Planner is a practical civil project planning and delivery-tracking m
 2. Simplified programme view (timeline)
 3. Daily operational update workflow (today/overdue)
 4. Revision-aware live execution board
+5. Programme import path for existing schedules (including Microsoft Project `.mpp`)
 
-It is not an enterprise CPM clone. It is a site-usable operational planning tool.
+It is not an enterprise CPM clone. It is a site-usable operational planning + live programme control tool.
 
 ---
 
@@ -25,28 +26,31 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 - **Project:** optional parent context for plan.
 - **Site(s):** plan can attach to multiple sites via join table.
 - **Project plan:** main planning container (status + version).
+- **Programme source:** whether plan was created in Buildstate or imported from external file.
 - **Plan phase:** grouping for activities (e.g., Mobilisation, Civil Works).
 - **Task/activity:** executable unit with planned/actual dates, priority, status, progress.
 - **Dependency:** simplified predecessor→successor (FS only in MVP).
 - **Assignee/responsible:** `assigned_to` profile id.
 - **Daily update:** timestamped field update log for progress, blockages, notes.
-- **Delay/constraint:** stored on task + update level.
+- **Delay/constraint:** stored on task + update level (weather, redesign, waiting on council info, site events).
+- **Planned vs actual tracking:** captures baseline intent against real site progress.
 - **Revision trail:** lightweight event log capturing key changes.
 
 ---
 
 ## 3) Product behaviour (MVP)
-1. User creates plan from planner dashboard, links project + sites.
-2. Optionally seeds civil starter activities.
-3. User adds/edits rows inline in sheet view.
-4. Dates and completion values can be edited quickly.
-5. Status auto-adjusts from completion where practical.
+1. User creates a new programme **or imports an existing programme** (priority support: Microsoft Project `.mpp`), then links project + sites.
+2. For new programmes, user can optionally seed civil starter activities.
+3. User adds/edits rows inline in sheet view and maintains plan data as site conditions change.
+4. Dates and completion values can be edited quickly as actual progress is reported.
+5. Status auto-adjusts from completion where practical, while preserving planned vs actual visibility.
 6. Daily site users operate primarily via **Today** bucketed view:
    - Overdue
    - Due today
    - This week
-7. Quick actions create daily update records and sync task status/progress.
-8. Revisions log critical events (e.g., task created).
+7. Quick actions create daily update records and sync task status/progress from site.
+8. Delays/events can be logged against tasks and updates (weather delays, redesign required, waiting on council information, other site disruptions).
+9. Programme adjustments are captured with revision events so changes remain traceable.
 
 ---
 
@@ -67,10 +71,13 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 ## 5) MVP scope discipline
 ### Must-have now
 - Plan create/list/open
+- Existing programme import (including `.mpp` mapping workflow)
 - Project + multi-site association
 - Task CRUD-ish flow (create + update)
 - Status + completion updates
+- Planned vs actual progress comparison at task level
 - Today/overdue/week workflow
+- Delay/event tracking linked to tasks and updates
 - Basic timeline representation
 - Task updates log and revision table foundations
 
@@ -83,7 +90,7 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 
 ### Defer
 - Full CPM engine
-- Baseline comparison suite
+- Full baseline comparison suite (beyond core planned vs actual)
 - Complex resource leveling
 - Deep earned-value analytics
 
@@ -120,8 +127,17 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 - Fast quick-add row for many tasks.
 - Inline date/percent edits.
 - Simple status controls.
-- Notes and delay reasons captured without heavy forms.
+- Notes and delay/event reasons captured without heavy forms.
 - Today view quick-buttons for field updates.
+
+---
+
+## 8.1) Existing programme import + normalization (MVP+)
+- Accept uploaded programme files, prioritizing Microsoft Project `.mpp`.
+- Parse/import into Buildstate canonical task model (phases, tasks, dates, links where available).
+- Preserve original import metadata (source file, import timestamp, version reference).
+- Flag unmapped/ambiguous fields for user review before publish.
+- After import, treat programme identically to Buildstate-authored plans for live updates.
 
 ---
 
@@ -164,6 +180,20 @@ Starter activities include realistic sequences:
 MVP includes a dedicated Today view optimized for phone:
 - card layout
 - quick progress buttons
+- quick delay/event logging from site
 - no spreadsheet dependence for daily updates
 
 This keeps supervisor updates practical while preserving office-grade sheet editing.
+
+---
+
+## 13) Live programme tracking principle
+Planner success is measured by whether teams keep using it during delivery, not just at setup.
+
+Therefore the module must continuously support:
+- live updating of real task progress on site
+- planned vs actual comparison
+- rapid logging of delays/events (weather, redesign, council info waits, etc.)
+- controlled programme adjustments as conditions evolve
+
+The outcome is a living programme of record for delivery execution.

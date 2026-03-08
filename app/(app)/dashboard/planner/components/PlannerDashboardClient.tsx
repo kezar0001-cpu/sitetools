@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PlannerCreatePlanForm } from "./PlannerCreatePlanForm";
+import { PlannerImportDialog } from "./PlannerImportDialog";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
-import { createPlannerPlan, deletePlannerPlan, fetchPlannerPlans, seedCivilStarterTasks } from "@/lib/planner/client";
+import { bulkCreateTasks, createPlanRevision, createPlannerPlan, deletePlannerPlan, fetchPlannerPlans, seedCivilStarterTasks } from "@/lib/planner/client";
 import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
 import { Project, Site } from "@/lib/workspace/types";
+import { ImportedTask } from "@/lib/planner/import-parser";
 
 const STATUS_BADGE: Record<PlanStatus, { bg: string; text: string; dot: string }> = {
   draft: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
@@ -27,6 +29,7 @@ export function PlannerDashboardClient() {
   const [showCreate, setShowCreate] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   const companyId = summary?.activeMembership?.company_id ?? null;
   const userId = summary?.userId ?? null;
@@ -119,6 +122,49 @@ export function PlannerDashboardClient() {
     }
   }
 
+
+  async function handleCreateFromImport(importedTasks: ImportedTask[], projectName: string | null) {
+    if (!companyId) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const plan = await createPlannerPlan({
+        companyId,
+        name: projectName?.trim() || `Imported Programme ${new Date().toLocaleDateString("en-AU")}`,
+        description: "Imported into Buildstate Planner",
+        userId,
+      });
+
+      const taskRows = importedTasks.map((t, idx) => ({
+        title: t.name,
+        sortOrder: idx,
+        plannedStart: t.start,
+        plannedFinish: t.finish,
+        durationDays: t.durationDays,
+        indentLevel: t.outlineLevel,
+        wbsCode: t.wbsCode,
+        notes: t.notes,
+      }));
+
+      await bulkCreateTasks(plan.id, taskRows, userId);
+      await createPlanRevision({
+        planId: plan.id,
+        revisionType: "import",
+        summary: `Imported ${importedTasks.length} tasks${projectName ? ` from "${projectName}"` : ""}` ,
+        payload: { source: "external_programme", imported_task_count: importedTasks.length },
+        userId,
+      });
+
+      await loadAll(companyId);
+      setShowImport(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import programme.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Hero header */}
@@ -186,6 +232,12 @@ export function PlannerDashboardClient() {
               📦 Archived ({planStats.archived})
             </button>
           )}
+          <button
+            onClick={() => setShowImport(true)}
+            className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            📥 Import Programme
+          </button>
           <button
             onClick={() => setShowCreate(!showCreate)}
             className="px-4 py-2.5 rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 transition-colors shadow-sm"
@@ -280,6 +332,10 @@ export function PlannerDashboardClient() {
           </table>
         </div>
       </div>
+
+      {showImport && (
+        <PlannerImportDialog onImport={handleCreateFromImport} onClose={() => setShowImport(false)} />
+      )}
     </div>
   );
 }
