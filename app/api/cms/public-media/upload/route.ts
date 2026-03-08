@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { CMS_COOKIE_NAME, getExpectedCmsSessionToken } from "@/lib/cms/constants";
 
 const BUCKET = "public-site-media";
-const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 const VIDEO_TYPES = ["video/mp4"];
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (file.size > MAX_SIZE_BYTES) {
-    return NextResponse.json({ error: "File must be under 10 MB." }, { status: 400 });
+    return NextResponse.json({ error: "File must be under 50 MB." }, { status: 400 });
   }
 
   const isVideo = kind === "video";
