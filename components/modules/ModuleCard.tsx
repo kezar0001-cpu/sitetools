@@ -26,7 +26,7 @@ export function ModuleCard({ module, hrefOverride }: ModuleCardProps) {
                     {getIcon(module.icon, "h-6 w-6")}
                 </div>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${isLive ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-600 border-gray-200"}`}>
-                    {isLive ? "Live" : "Planned"}
+                    {isLive ? "Workspace" : "Planned"}
                 </span>
             </div>
 
@@ -35,7 +35,7 @@ export function ModuleCard({ module, hrefOverride }: ModuleCardProps) {
             <p className="text-sm text-gray-600 leading-relaxed flex-1">{module.description}</p>
 
             <div className="mt-6 font-bold text-amber-600 text-sm flex items-center group-hover:text-amber-700">
-                {isLive ? "Open module" : "View module"}
+                {isLive ? "Use in workspace" : "View roadmap"}
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>

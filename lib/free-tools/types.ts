@@ -15,6 +15,8 @@ export interface FreeToolCategory {
 }
 
 export type ToolStatus = "live" | "planned";
+export type ToolAccess = "public" | "workspace";
+export type ToolCapability = "core" | "advanced";
 
 export interface ToolInputOption {
     label: string;
@@ -54,6 +56,8 @@ export interface FreeTool {
     seoDescription: string;
     category: FreeToolCategoryId;
     status: ToolStatus;
+    access?: ToolAccess;
+    capability?: ToolCapability;
     launchPriority: "now" | "next" | "later";
     trafficPotential: "high" | "medium" | "niche";
     funnelTarget: string;

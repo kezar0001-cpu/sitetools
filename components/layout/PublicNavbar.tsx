@@ -26,7 +26,7 @@ export function PublicNavbar() {
                 href="/free-tools"
                 className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
               >
-                Free Tools
+                Tools Library
               </Link>
               {liveModules.map((m) => (
                 <Link
@@ -48,7 +48,7 @@ export function PublicNavbar() {
               href="/login?signup=1"
               className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black"
             >
-              Start Free
+              Create account
             </Link>
           </div>
         </div>
