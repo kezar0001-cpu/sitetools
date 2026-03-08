@@ -5,6 +5,7 @@ import {
   CompanyMembership,
   Profile,
   Project,
+  ProjectWithCounts,
   Site,
   SiteVisit,
   WorkspaceSummary,
@@ -266,7 +267,7 @@ export async function createCompanyInvitation(
 export async function fetchCompanySites(companyId: string): Promise<Site[]> {
   const { data, error } = await supabase
     .from("sites")
-    .select("id, company_id, name, slug, logo_url, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, created_at")
     .eq("company_id", companyId)
     .order("created_at", { ascending: true });
 
@@ -274,15 +275,135 @@ export async function fetchCompanySites(companyId: string): Promise<Site[]> {
   return (data ?? []) as Site[];
 }
 
+/** Sites that belong to a specific project */
+export async function fetchProjectSites(projectId: string): Promise<Site[]> {
+  const { data, error } = await supabase
+    .from("sites")
+    .select("id, company_id, project_id, name, slug, logo_url, created_at")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Site[];
+}
+
+function toSlug(value: string): string {
+  const base = value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const suffix = Math.random().toString(36).slice(2, 7);
+  return `${base || "site"}-${suffix}`;
+}
+
+export async function createProjectSite(
+  projectId: string,
+  companyId: string,
+  name: string
+): Promise<Site> {
+  const slug = toSlug(name);
+  const { data, error } = await supabase
+    .from("sites")
+    .insert({
+      company_id: companyId,
+      project_id: projectId,
+      name: name.trim(),
+      slug,
+    })
+    .select("id, company_id, project_id, name, slug, logo_url, created_at")
+    .single();
+
+  if (error) throw error;
+  return data as Site;
+}
+
+export async function updateSiteProject(
+  siteId: string,
+  projectId: string | null
+): Promise<void> {
+  const { error } = await supabase
+    .from("sites")
+    .update({ project_id: projectId })
+    .eq("id", siteId);
+  if (error) throw error;
+}
+
 export async function fetchCompanyProjects(companyId: string): Promise<Project[]> {
   const { data, error } = await supabase
     .from("projects")
-    .select("id, company_id, site_id, name, status, created_at")
+    .select("id, company_id, name, description, status, created_by, created_at, updated_at")
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as Project[];
+}
+
+/**
+ * Projects with site_count and plan_count computed client-side.
+ * Use this for the project list page.
+ */
+export async function fetchCompanyProjectsWithCounts(companyId: string): Promise<ProjectWithCounts[]> {
+  const [projects, sites, plans] = await Promise.all([
+    fetchCompanyProjects(companyId),
+    fetchCompanySites(companyId),
+    supabase
+      .from("project_plans")
+      .select("id, project_id")
+      .eq("company_id", companyId)
+      .neq("status", "archived")
+      .then(({ data, error }) => {
+        if (error) throw error;
+        return (data ?? []) as { id: string; project_id: string | null }[];
+      }),
+  ]);
+
+  return projects.map((p) => ({
+    ...p,
+    site_count: sites.filter((s) => s.project_id === p.id).length,
+    plan_count: plans.filter((pl) => pl.project_id === p.id).length,
+  }));
+}
+
+export async function createProject(
+  companyId: string,
+  name: string,
+  description?: string | null,
+  userId?: string | null
+): Promise<Project> {
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({
+      company_id: companyId,
+      name: name.trim(),
+      description: description?.trim() || null,
+      status: "active",
+      created_by: userId ?? null,
+    })
+    .select("id, company_id, name, description, status, created_by, created_at, updated_at")
+    .single();
+
+  if (error) throw error;
+  return data as Project;
+}
+
+export async function updateProject(
+  projectId: string,
+  patch: { name?: string; description?: string | null; status?: Project["status"] }
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name.trim();
+  if (patch.description !== undefined) payload.description = patch.description?.trim() || null;
+  if (patch.status !== undefined) payload.status = patch.status;
+
+  const { error } = await supabase.from("projects").update(payload).eq("id", projectId);
+  if (error) throw error;
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+  if (error) throw error;
 }
 
 export async function fetchSiteVisitsForCompanySite(companyId: string, siteId: string): Promise<SiteVisit[]> {

@@ -24,6 +24,18 @@ export async function fetchPlannerPlans(companyId: string): Promise<PlannerPlanW
   return (data ?? []) as PlannerPlanWithContext[];
 }
 
+/** Plans scoped to a specific project */
+export async function fetchProjectPlans(projectId: string): Promise<PlannerPlanWithContext[]> {
+  const { data, error } = await supabase
+    .from("project_plans")
+    .select("*, projects(id,name), project_plan_sites(sites(id,name))")
+    .eq("project_id", projectId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as PlannerPlanWithContext[];
+}
+
 export async function createPlannerPlan(input: {
   companyId: string;
   projectId?: string | null;

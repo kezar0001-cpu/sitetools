@@ -48,6 +48,8 @@ export interface CompanyInvitation {
 export interface Site {
   id: string;
   company_id: string;
+  /** Project this site belongs to (nullable — legacy/standalone sites have no project) */
+  project_id: string | null;
   name: string;
   slug: string;
   logo_url: string | null;
@@ -57,10 +59,18 @@ export interface Site {
 export interface Project {
   id: string;
   company_id: string;
-  site_id: string | null;
   name: string;
+  description: string | null;
   status: "active" | "completed" | "on-hold" | "archived";
+  created_by: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+/** Project enriched with computed counts — used in list views */
+export interface ProjectWithCounts extends Project {
+  site_count: number;
+  plan_count: number;
 }
 
 export type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
