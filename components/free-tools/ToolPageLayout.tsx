@@ -1,7 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { FreeTool } from "@/lib/free-tools/types";
 import { ToolCalculator } from "@/components/free-tools/ToolCalculator";
-import { getRelatedTools } from "@/lib/free-tools/catalog";
+import { getRelatedTools, getToolAccess } from "@/lib/free-tools/catalog";
 
 interface ToolPageLayoutProps {
     tool: FreeTool;
@@ -9,14 +10,20 @@ interface ToolPageLayoutProps {
 
 export function ToolPageLayout({ tool }: ToolPageLayoutProps) {
     const relatedTools = getRelatedTools(tool);
+    const access = getToolAccess(tool);
 
     return (
         <div className="bg-slate-50 min-h-full py-12">
             <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-                <Link href="/free-tools" className="text-sm font-semibold text-slate-600 hover:text-slate-900">← Back to Free Tools</Link>
+                <Link href="/free-tools" className="text-sm font-semibold text-slate-600 hover:text-slate-900">← Back to tools library</Link>
 
                 <section className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 space-y-4">
-                    <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-700">Buildstate Free Tool</p>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-700">Civil calculator</p>
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${tool.status === "planned" ? "bg-slate-100 text-slate-700" : access === "public" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"}`}>
+                            {tool.status === "planned" ? "Planned" : access === "public" ? "Public" : "Workspace"}
+                        </span>
+                    </div>
                     <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900">{tool.name}</h1>
                     <p className="text-slate-700 text-lg max-w-3xl">{tool.longDescription}</p>
                 </section>
@@ -25,15 +32,15 @@ export function ToolPageLayout({ tool }: ToolPageLayoutProps) {
                     <ToolCalculator toolSlug={tool.slug} />
                 ) : (
                     <section className="rounded-2xl border border-slate-200 bg-white p-6">
-                        <p className="font-semibold text-slate-900">This tool is on the Buildstate roadmap.</p>
-                        <p className="text-sm text-slate-600 mt-1">We are currently prioritising high-impact calculators first and will release this one in a future batch.</p>
+                        <p className="font-semibold text-slate-900">This tool is planned for the next release wave.</p>
+                        <p className="text-sm text-slate-600 mt-1">We are shipping high-use civil calculations first, then expanding with workspace-connected workflows and advanced estimating capabilities.</p>
                     </section>
                 )}
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     <section className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 space-y-4">
-                        <h2 className="text-xl font-bold text-slate-900">How this calculator works</h2>
-                        <p className="text-sm text-slate-600">Results are instant and based on the inputs you provide. Always validate outputs against project drawings and specifications before procurement or construction.</p>
+                        <h2 className="text-xl font-bold text-slate-900">How this tool works</h2>
+                        <p className="text-sm text-slate-600">Results are instant and based on the values you provide. Validate outputs against drawings, specifications, and project controls before procurement or construction.</p>
 
                         {tool.assumptions?.length ? (
                             <div>
@@ -67,24 +74,24 @@ export function ToolPageLayout({ tool }: ToolPageLayoutProps) {
 
                     <aside className="space-y-4">
                         <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                            <p className="text-sm font-bold text-slate-900">Use this on real projects</p>
-                            <p className="text-sm text-slate-600 mt-1">Save calculations and quantities inside your Buildstate workspace.</p>
+                            <p className="text-sm font-bold text-slate-900">Need project-linked records?</p>
+                            <p className="text-sm text-slate-600 mt-1">Use workspace tools to save calculations, connect them to projects and sites, and keep teams aligned.</p>
                             <div className="mt-3 space-y-2">
-                                <Link href="/login?signup=1" className="block text-center rounded-xl bg-slate-900 text-white font-bold text-sm px-4 py-2.5 hover:bg-black">Save this in Buildstate</Link>
-                                <Link href="/tools" className="block text-center rounded-xl border border-slate-300 text-slate-700 font-bold text-sm px-4 py-2.5 hover:border-slate-400">Explore advanced modules</Link>
+                                <Link href="/login?signup=1" className="block text-center rounded-xl bg-slate-900 text-white font-bold text-sm px-4 py-2.5 hover:bg-black">Save to workspace</Link>
+                                <Link href="/tools" className="block text-center rounded-xl border border-slate-300 text-slate-700 font-bold text-sm px-4 py-2.5 hover:border-slate-400">View workspace tools</Link>
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-5">
-                            <p className="text-xs uppercase font-bold tracking-[0.2em] text-slate-500">Ad slot</p>
-                            <p className="text-sm text-slate-600 mt-2">Reserved for future ad-supported monetization on public free-tool pages only.</p>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-3 space-y-2">
+                            <Image src="/branding/hero-qr-checkin.svg" alt="Supervisor using mobile workflows on a live civil construction site" width={800} height={500} className="rounded-xl w-full h-auto" />
+                            <p className="px-1 text-xs text-slate-500">Representative civil workflow imagery for the public tools experience.</p>
                         </div>
                     </aside>
                 </div>
 
                 {relatedTools.length ? (
                     <section className="rounded-2xl border border-slate-200 bg-white p-6">
-                        <h2 className="text-xl font-bold text-slate-900 mb-4">Related free tools</h2>
+                        <h2 className="text-xl font-bold text-slate-900 mb-4">Related tools</h2>
                         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {relatedTools.map((related) => (
                                 <Link key={related.slug} href={`/free-tools/${related.slug}`} className="rounded-xl border border-slate-200 p-3 hover:border-slate-300 transition-colors">

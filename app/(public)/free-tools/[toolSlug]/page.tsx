@@ -17,12 +17,12 @@ export function generateMetadata({ params }: ToolPageProps): Metadata {
 
     if (!tool) {
         return {
-            title: "Free Tool | Buildstate",
+            title: "Tool | Buildstate Civil Tools Library",
         };
     }
 
     return {
-        title: `${tool.name} | Buildstate Free Tools`,
+        title: `${tool.name} | Buildstate Tools Library`,
         description: tool.seoDescription,
         alternates: {
             canonical: `/free-tools/${tool.slug}`,

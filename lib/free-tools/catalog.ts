@@ -19,12 +19,12 @@ const unitFactors: Record<string, number> = {
 };
 
 export const FREE_TOOL_CATEGORIES: FreeToolCategory[] = [
-    { id: "quantity-volume", label: "Quantity & Volume", description: "Core quantity takeoff and volume tools for everyday site calculations." },
+    { id: "quantity-volume", label: "Quantity & Volume", description: "Practical quantity takeoff and volume tools for day-to-day field checks." },
     { id: "materials", label: "Materials", description: "Material tonnage and ordering helpers for concrete, asphalt, gravel, and fill." },
     { id: "reinforcement", label: "Reinforcement", description: "Mesh and reinforcement calculators for slabs, footings, and civil structures." },
     { id: "earthworks", label: "Earthworks", description: "Bulk earthwork, trenching, and cut/fill calculations for civil projects." },
     { id: "geometry-setout", label: "Geometry & Setout", description: "Slope, chainage, and setout math utilities for field teams." },
-    { id: "estimating", label: "Estimating", description: "Simple rate and quantity helpers for fast early-stage pricing." },
+    { id: "estimating", label: "Estimating", description: "Early pricing tools for estimators and delivery teams." },
     { id: "conversions", label: "Conversions", description: "Unit conversions and quick measurement translators for site teams." },
     { id: "productivity", label: "Productivity", description: "Labour and output calculators to support planning and delivery." },
 ];
@@ -320,11 +320,20 @@ export const FREE_TOOLS: FreeTool[] = [
     { slug: "footing-calculator", name: "Footing Calculator", shortDescription: "Calculate strip and pad footing concrete quantities.", longDescription: "Simple footing quantity helper for tender and site planning.", seoDescription: "Footing concrete calculator.", category: "quantity-volume", status: "planned", launchPriority: "next", trafficPotential: "high", funnelTarget: "Feeds estimated quantities into planner.", keywords: ["footing calculator"] },
     { slug: "cut-fill-calculator", name: "Cut / Fill Calculator", shortDescription: "Estimate cut and fill volumes from area and level differences.", longDescription: "Early-stage earthworks balancing for civil projects.", seoDescription: "Cut fill calculator for earthworks.", category: "earthworks", status: "planned", launchPriority: "next", trafficPotential: "high", funnelTarget: "Natural link to earthworks planning modules.", keywords: ["cut fill calculator"] },
     { slug: "rebar-weight-calculator", name: "Rebar Weight Calculator", shortDescription: "Calculate reinforcement bar weight from diameter and length.", longDescription: "Quick tonnage outputs for reinforcement planning.", seoDescription: "Rebar weight calculator.", category: "reinforcement", status: "planned", launchPriority: "next", trafficPotential: "medium", funnelTarget: "Links into procurement workflows.", keywords: ["rebar weight calculator"] },
-    { slug: "chainage-offset-helper", name: "Chainage & Offset Helper", shortDescription: "Convert chainage and offsets for field setout checks.", longDescription: "Basic setout and alignment utility for supervisors.", seoDescription: "Chainage offset calculator.", category: "geometry-setout", status: "planned", launchPriority: "next", trafficPotential: "niche", funnelTarget: "Maps to field execution modules.", keywords: ["chainage calculator"] },
-    { slug: "labour-hour-calculator", name: "Labour Hour Calculator", shortDescription: "Calculate total labour hours by crew and shift length.", longDescription: "Simple helper for daywork and quick internal forecasting.", seoDescription: "Labour hour calculator for construction.", category: "productivity", status: "planned", launchPriority: "next", trafficPotential: "medium", funnelTarget: "Upgrade path into Buildstate timesheets.", keywords: ["labour hour calculator"] },
-    { slug: "rate-build-up-calculator", name: "Rate Build-Up Calculator", shortDescription: "Build simple unit rates from labour, plant, and material inputs.", longDescription: "Fast estimating helper for early pricing decisions.", seoDescription: "Construction rate build-up calculator.", category: "estimating", status: "planned", launchPriority: "later", trafficPotential: "medium", funnelTarget: "Strong bridge to advanced estimating modules.", keywords: ["rate build up calculator"] },
+    { slug: "chainage-offset-helper", name: "Chainage & Offset Helper", shortDescription: "Convert chainage and offsets for field setout checks.", longDescription: "Basic setout and alignment utility for supervisors.", seoDescription: "Chainage offset calculator.", category: "geometry-setout", status: "planned", launchPriority: "next", trafficPotential: "niche", funnelTarget: "Maps to field execution modules.", keywords: ["chainage calculator"], access: "workspace" },
+    { slug: "labour-hour-calculator", name: "Labour Hour Calculator", shortDescription: "Calculate total labour hours by crew and shift length.", longDescription: "Simple helper for daywork and quick internal forecasting.", seoDescription: "Labour hour calculator for construction.", category: "productivity", status: "planned", launchPriority: "next", trafficPotential: "medium", funnelTarget: "Upgrade path into Buildstate timesheets.", keywords: ["labour hour calculator"], access: "workspace" },
+    { slug: "rate-build-up-calculator", name: "Rate Build-Up Calculator", shortDescription: "Build simple unit rates from labour, plant, and material inputs.", longDescription: "Fast estimating helper for early pricing decisions.", seoDescription: "Construction rate build-up calculator.", category: "estimating", status: "planned", launchPriority: "later", trafficPotential: "medium", funnelTarget: "Strong bridge to advanced estimating modules.", keywords: ["rate build up calculator"], access: "workspace", capability: "advanced" },
     { slug: "pipe-volume-calculator", name: "Pipe Volume Calculator", shortDescription: "Calculate pipe internal volume for flushing and testing.", longDescription: "Utility tool for civil and services teams.", seoDescription: "Pipe volume calculator.", category: "quantity-volume", status: "planned", launchPriority: "later", trafficPotential: "niche", funnelTarget: "Connects to inspection and commissioning records.", keywords: ["pipe volume calculator"] },
 ];
+
+
+export function getToolAccess(tool: FreeTool): "public" | "workspace" {
+    return tool.access ?? "public";
+}
+
+export function getToolCapability(tool: FreeTool): "core" | "advanced" {
+    return tool.capability ?? "core";
+}
 
 export function getFreeToolBySlug(slug: string): FreeTool | undefined {
     return FREE_TOOLS.find((tool) => tool.slug === slug);

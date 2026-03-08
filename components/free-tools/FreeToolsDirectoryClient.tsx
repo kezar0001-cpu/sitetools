@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { FreeToolCategory } from "@/lib/free-tools/types";
+import { FreeToolCategory, ToolAccess, ToolCapability } from "@/lib/free-tools/types";
 
 interface FreeToolCardItem {
     slug: string;
@@ -10,6 +10,8 @@ interface FreeToolCardItem {
     shortDescription: string;
     category: string;
     status: "live" | "planned";
+    access: ToolAccess;
+    capability: ToolCapability;
     launchPriority: "now" | "next" | "later";
     trafficPotential: "high" | "medium" | "niche";
     keywords: string[];
@@ -46,7 +48,7 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
                     type="search"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search free tools (e.g. concrete, trench, asphalt)"
+                    placeholder="Search calculators and tools (e.g. concrete, trench, asphalt)"
                     className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
                 />
                 <div className="flex flex-wrap gap-2">
@@ -75,15 +77,20 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
                     <article key={tool.slug} className="rounded-2xl border border-slate-200 bg-white p-5 flex flex-col gap-3">
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-[11px] uppercase tracking-widest font-bold text-slate-500">{tool.category.replace("-", " ")}</span>
-                            <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${tool.status === "live" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>
-                                {tool.status === "live" ? "Live" : "Planned"}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${tool.status === "planned" ? "bg-slate-100 text-slate-700" : tool.access === "public" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"}`}>
+                                    {tool.status === "planned" ? "Planned" : tool.access === "public" ? "Public" : "Workspace"}
+                                </span>
+                                {tool.capability === "advanced" && tool.status !== "planned" ? (
+                                    <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Advanced</span>
+                                ) : null}
+                            </div>
                         </div>
                         <h2 className="text-lg font-bold text-slate-900">{tool.name}</h2>
                         <p className="text-sm text-slate-600 flex-grow">{tool.shortDescription}</p>
-                        <div className="text-xs text-slate-500">Priority: <span className="font-semibold">{tool.launchPriority}</span> · Traffic: <span className="font-semibold">{tool.trafficPotential}</span></div>
+                        <div className="text-xs text-slate-500">{tool.status === "planned" ? "Roadmap" : tool.access === "public" ? "No login required" : "Login required for saved workflows"}</div>
                         <Link href={`/free-tools/${tool.slug}`} className="mt-1 inline-flex justify-center rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:border-slate-400">
-                            {tool.status === "live" ? "Open tool" : "View roadmap"}
+                            {tool.status === "live" ? (tool.access === "public" ? "Open tool" : "Use in workspace") : "View roadmap"}
                         </Link>
                     </article>
                 ))}

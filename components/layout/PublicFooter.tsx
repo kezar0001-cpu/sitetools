@@ -24,7 +24,7 @@ export function PublicFooter() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Active Tools</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Workspace Tools</h3>
             <ul className="space-y-3">
               {liveModules.map((m) => (
                 <li key={m.id}>
@@ -37,7 +37,7 @@ export function PublicFooter() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Coming Soon</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Planned</h3>
             <ul className="space-y-3">
               {comingSoonModules.slice(0, 4).map((m) => (
                 <li key={m.id}>
