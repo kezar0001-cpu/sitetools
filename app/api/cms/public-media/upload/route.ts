@@ -4,13 +4,7 @@ import { CMS_COOKIE_NAME, getExpectedCmsSessionToken } from "@/lib/cms/constants
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "50mb",
-    },
-  },
-};
+export const maxRequestBodySize = "50mb";
 
 const BUCKET = "public-site-media";
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
