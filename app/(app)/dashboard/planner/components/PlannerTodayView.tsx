@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { PlanTask, TaskStatus, STATUS_COLORS, DELAY_TYPES, DELAY_TYPE_LABELS, DelayType } from "@/lib/planner/types";
+import { getTaskVarianceLabel } from "@/lib/planner/progress-utils";
 
 interface Props {
     tasks: PlanTask[];
@@ -164,6 +165,9 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
                                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-slate-500">
                                         <span>
                                             Due: {dueDate ? dueDate.toLocaleDateString("en-AU") : "No date"}
+                                        </span>
+                                        <span className={getTaskVarianceLabel(task).includes("behind") ? "text-red-600 font-medium" : "text-emerald-700 font-medium"}>
+                                            {getTaskVarianceLabel(task)}
                                         </span>
                                         <span>{task.percent_complete}% complete</span>
                                         {task.duration_days != null && <span>{task.duration_days}d duration</span>}
