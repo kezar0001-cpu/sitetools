@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { getComingSoonModules, getLiveModules } from "@/lib/modules";
+import { getLiveModules, getComingSoonModules } from "@/lib/modules";
 
 export function PublicFooter() {
   const liveModules = getLiveModules();
   const comingSoonModules = getComingSoonModules();
 
   return (
-    <footer className="mt-16 border-t border-slate-800/10 bg-slate-950 pb-8 pt-16">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <footer className="mt-16 border-t border-slate-800/10 bg-slate-950 pt-16 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-12 grid grid-cols-1 gap-12 md:grid-cols-4">
           <div>
             <Link href="/" className="mb-4 flex items-center gap-2">
@@ -18,16 +18,18 @@ export function PublicFooter() {
               </div>
               <span className="text-xl font-extrabold tracking-tight text-white">Buildstate</span>
             </Link>
-            <p className="text-sm leading-relaxed text-slate-400">Operational workspace software for civil construction teams, from sign-in to planning and delivery records.</p>
+            <p className="text-sm leading-relaxed text-slate-400">
+              Practical digital tools for Australian civil contractors, engineers, and site teams.
+            </p>
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Live products</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Products</h3>
             <ul className="space-y-3">
-              {liveModules.map((module) => (
-                <li key={module.id}>
-                  <Link href={`/tools/${module.id}`} className="text-sm text-slate-400 transition-colors hover:text-amber-300">
-                    {module.name}
+              {liveModules.map((m) => (
+                <li key={m.id}>
+                  <Link href={`/tools/${m.id}`} className="text-sm text-slate-400 transition-colors hover:text-amber-300">
+                    {m.name}
                   </Link>
                 </li>
               ))}
@@ -35,21 +37,16 @@ export function PublicFooter() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Workspace roadmap</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Planned</h3>
             <ul className="space-y-3">
-              {comingSoonModules.slice(0, 4).map((module) => (
-                <li key={module.id}>
-                  <span className="cursor-not-allowed text-sm text-slate-500">{module.name}</span>
+              {comingSoonModules.slice(0, 4).map((m) => (
+                <li key={m.id}>
+                  <span className="cursor-not-allowed text-sm text-slate-500">{m.name}</span>
                 </li>
               ))}
               <li>
                 <Link href="/tools" className="text-sm text-amber-300 transition-colors hover:text-amber-200">
-                  See all workspace apps →
-                </Link>
-              </li>
-              <li>
-                <Link href="/free-tools" className="text-sm text-slate-400 transition-colors hover:text-white">
-                  Tools Library
+                  See all tools &rarr;
                 </Link>
               </li>
             </ul>
@@ -70,7 +67,7 @@ export function PublicFooter() {
               </li>
               <li>
                 <Link href="/login" className="text-sm text-slate-400 transition-colors hover:text-white">
-                  Log in
+                  Log In
                 </Link>
               </li>
             </ul>
@@ -78,7 +75,7 @@ export function PublicFooter() {
         </div>
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 md:flex-row">
-          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Buildstate. All rights reserved.</p>
+          <p className="text-xs text-slate-500">&copy; {new Date().getFullYear()} Buildstate. All rights reserved.</p>
           <div className="flex gap-4 text-xs text-slate-500 transition-colors hover:text-slate-400">
             <Link href="/terms">Terms of Service</Link>
             <Link href="/privacy">Privacy Policy</Link>
