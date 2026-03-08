@@ -6,15 +6,22 @@ import { MODULES } from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
-export function AppSidebar() {
-  const pathname = usePathname();
-  const { summary } = useWorkspace({ requireAuth: false, requireCompany: false });
-  const activeCompany = summary?.activeMembership?.companies?.name ?? "No Company";
+interface Props {
+  mobileOpen: boolean;
+  onClose: () => void;
+}
 
+interface SidebarContentProps {
+  pathname: string;
+  activeCompany: string;
+  onNavigate?: () => void;
+}
+
+function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentProps) {
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col z-40 hidden md:flex border-r border-slate-800 shadow-xl overflow-y-auto hidden-scrollbar">
+    <>
       <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0 sticky top-0 bg-slate-900 z-10">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
+        <Link href="/dashboard" className="flex items-center gap-2.5 group" onClick={onNavigate}>
           <div className="bg-amber-400 text-amber-900 rounded-lg p-1 transition-transform group-hover:scale-105">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -33,6 +40,7 @@ export function AppSidebar() {
         <div>
           <Link
             href="/dashboard"
+            onClick={onNavigate}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm ${
               pathname === "/dashboard" ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
             }`}
@@ -44,6 +52,7 @@ export function AppSidebar() {
           </Link>
           <Link
             href="/dashboard/team"
+            onClick={onNavigate}
             className={`mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm ${
               pathname.startsWith("/dashboard/team") ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
             }`}
@@ -55,6 +64,7 @@ export function AppSidebar() {
           </Link>
           <Link
             href="/dashboard/sites"
+            onClick={onNavigate}
             className={`mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm ${
               pathname.startsWith("/dashboard/sites") ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
             }`}
@@ -75,6 +85,7 @@ export function AppSidebar() {
                 <li key={m.id}>
                   <Link
                     href={m.href}
+                    onClick={onNavigate}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium text-sm ${
                       active ? "bg-amber-400 text-amber-950 shadow-md font-bold" : "hover:bg-slate-800/50 hover:text-white"
                     }`}
@@ -95,6 +106,7 @@ export function AppSidebar() {
               <li key={m.id}>
                 <Link
                   href={m.href}
+                  onClick={onNavigate}
                   className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-medium text-sm ${
                     pathname.startsWith(m.href)
                       ? "bg-slate-800 text-white ring-1 ring-slate-700"
@@ -113,6 +125,7 @@ export function AppSidebar() {
       <div className="px-4 py-4 border-t border-slate-800 shrink-0 bg-slate-900">
         <Link
           href="/dashboard"
+          onClick={onNavigate}
           className="flex items-center gap-3 px-3 py-2 rounded-xl transition-colors font-medium text-sm hover:bg-slate-800/50 hover:text-white"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -121,6 +134,29 @@ export function AppSidebar() {
           Account
         </Link>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function AppSidebar({ mobileOpen, onClose }: Props) {
+  const pathname = usePathname();
+  const { summary } = useWorkspace({ requireAuth: false, requireCompany: false });
+  const activeCompany = summary?.activeMembership?.companies?.name ?? "No Company";
+
+  return (
+    <>
+      <aside className="fixed inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 z-40 hidden md:flex border-r border-slate-800 shadow-xl overflow-y-auto hidden-scrollbar flex-col">
+        <SidebarContent pathname={pathname} activeCompany={activeCompany} />
+      </aside>
+
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <button className="absolute inset-0 bg-black/50" onClick={onClose} aria-label="Close navigation menu" />
+          <aside className="relative w-72 max-w-[90vw] h-full bg-slate-900 text-slate-300 border-r border-slate-800 shadow-xl overflow-y-auto hidden-scrollbar flex flex-col">
+            <SidebarContent pathname={pathname} activeCompany={activeCompany} onNavigate={onClose} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

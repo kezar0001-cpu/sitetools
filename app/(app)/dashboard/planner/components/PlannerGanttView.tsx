@@ -94,10 +94,10 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
     return (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             {/* Toolbar */}
-            <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-200 bg-slate-50">
+            <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-slate-200 bg-slate-50">
                 <span className="text-sm font-semibold text-slate-700">Gantt Chart</span>
 
-                <div className="flex items-center gap-1 ml-4 bg-white border border-slate-200 rounded-lg overflow-hidden">
+                <div className="flex items-center gap-1 md:ml-4 bg-white border border-slate-200 rounded-lg overflow-hidden">
                     {(["day", "week", "month"] as const).map((level) => (
                         <button
                             key={level}
@@ -112,7 +112,7 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                     ))}
                 </div>
 
-                <label className="flex items-center gap-1.5 text-xs text-slate-600 ml-4">
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 md:ml-4">
                     <input
                         type="checkbox"
                         checked={config.showHolidays}
@@ -124,10 +124,18 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                 <div className="ml-auto text-xs text-slate-500">
                     {tasks.length} tasks • {dates.length} days
                 </div>
+
+                <div className="w-full text-[11px] text-slate-500 md:hidden">
+                    Tip: swipe horizontally to view full timeline.
+                </div>
             </div>
 
             {/* Main Gantt area */}
-            <div className="flex" style={{ height: `${Math.max(400, orderedTasks.length * ROW_HEIGHT + HEADER_HEIGHT + 40)}px` }}>
+            <div className="overflow-x-auto">
+                <div
+                    className="flex min-w-[900px]"
+                    style={{ height: `${Math.max(400, orderedTasks.length * ROW_HEIGHT + HEADER_HEIGHT + 40)}px` }}
+                >
                 {/* Left: Task grid */}
                 <div
                     className="flex-shrink-0 border-r border-slate-200 overflow-hidden"
@@ -346,6 +354,7 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                             </div>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
