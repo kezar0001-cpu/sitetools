@@ -1,23 +1,16 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { isCmsAuthenticated } from "@/lib/cms/auth";
-import { HeroMediaSettingsForm } from "./HeroMediaSettingsForm";
-import { getPublicMediaSlot, getPublicVideoSlot } from "@/lib/publicSiteMedia";
-import { readCmsHeroMediaSettings } from "@/lib/cms/heroMediaSettings";
+const CMS_COOKIE_NAME = "cms_admin_session";
 
-export default async function CmsAdminPage() {
-  if (!isCmsAuthenticated()) {
+export default function CmsAdminPage() {
+  const token = cookies().get(CMS_COOKIE_NAME)?.value;
+  const expectedToken = process.env.CMS_ADMIN_SESSION_TOKEN ?? "local-dev-cms-token";
+
+  if (!token || token !== expectedToken) {
     redirect("/cms");
   }
-
-  const defaultVideo = getPublicVideoSlot("siteSignHeroBackground");
-  const defaultImage = getPublicMediaSlot("siteSignHeroCardImage");
-  const heroMediaSettings = await readCmsHeroMediaSettings({
-    heroVideoUrl: defaultVideo.src,
-    heroVideoPosterUrl: defaultVideo.poster,
-    heroCardImageUrl: defaultImage.src,
-  });
 
   return (
     <div className="flex-1 bg-slate-50 py-16 px-4 sm:px-6 lg:px-8">
@@ -44,7 +37,14 @@ export default async function CmsAdminPage() {
           </p>
         </div>
 
-        <HeroMediaSettingsForm initialValues={heroMediaSettings} />
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+          <h2 className="text-lg font-bold text-slate-900">Next step ideas</h2>
+          <ul className="mt-3 text-sm text-slate-700 space-y-2 list-disc list-inside">
+            <li>Add content collections (pages, posts, media).</li>
+            <li>Connect to your database and APIs.</li>
+            <li>Create role-based permissions for future editors.</li>
+          </ul>
+        </div>
 
         <div>
           <Link href="/" className="text-sm font-semibold text-slate-700 hover:text-slate-900 underline">

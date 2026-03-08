@@ -34,6 +34,9 @@ export function PublicNavbar() {
               <Link href="/contact" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
                 Contact
               </Link>
+              <Link href="/cms" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+                CMS
+              </Link>
             </nav>
           </div>
 

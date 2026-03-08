@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { MODULES } from "@/lib/modules";
 import { getPublicMediaSlot, getPublicVideoSlot } from "@/lib/publicSiteMedia";
-import { readCmsHeroMediaSettings } from "@/lib/cms/heroMediaSettings";
 
 interface LandingPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -73,9 +72,9 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
           muted
           loop
           playsInline
-          poster={heroVideoPosterUrl}
+          poster={heroVideo.poster}
         >
-          <source src={heroVideoUrl} type="video/mp4" />
+          <source src={heroVideo.src} type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-slate-950/75" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.18),transparent_35%)]" />
@@ -107,7 +106,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
             </div>
 
             <div className="rounded-2xl overflow-hidden border border-slate-800/80 bg-slate-900/85 backdrop-blur-sm">
-              <Image src={heroCardImageUrl} alt={heroMedia.alt} width={heroMedia.width} height={heroMedia.height} className="w-full h-auto object-cover" priority />
+              <Image src={heroMedia.src} alt={heroMedia.alt} width={heroMedia.width} height={heroMedia.height} className="w-full h-auto object-cover" priority />
               <div className="p-5 border-t border-slate-800 text-xs text-slate-400">
                 Hero background video: {heroVideo.sourceName} · Hero card image: {heroMedia.sourceName}
               </div>
