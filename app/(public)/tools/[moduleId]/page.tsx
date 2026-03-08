@@ -49,7 +49,7 @@ export default function ToolDetailPage({ params }: { params: { moduleId: string 
 
                     {isLive ? (
                         <Link href={moduleItem.href} className="inline-flex px-5 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl">
-                            Use in workspace
+                            Use this product in workspace
                         </Link>
                     ) : (
                         <Link href="/dashboard" className="inline-flex px-5 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl">
