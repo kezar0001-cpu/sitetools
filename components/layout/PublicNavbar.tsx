@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { getCmsSettings } from "@/lib/cms/server";
 
-export function PublicNavbar() {
+export async function PublicNavbar() {
+  const settings = await getCmsSettings();
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800/10 bg-white/85 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -13,37 +16,23 @@ export function PublicNavbar() {
                 </svg>
               </div>
               <div>
-                <p className="text-base font-black tracking-tight text-slate-900">Buildstate</p>
+                <p className="text-base font-black tracking-tight text-slate-900">{settings.siteTitle}</p>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Live Workspace Apps</p>
               </div>
             </Link>
 
             <nav className="hidden items-center gap-6 md:flex">
-              <Link href="/tools/site-sign-in" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
-                SiteSign
-              </Link>
-              <Link href="/tools/planner" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
-                SitePlan
-              </Link>
-              <Link href="/tools" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
-                Workspace Apps
-              </Link>
-              <Link href="/about" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
-                About
-              </Link>
-              <Link href="/contact" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
-                Contact
-              </Link>
+              {settings.navItems.map((item) => (
+                <Link key={item.href} href={item.href} className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+                  {item.label}
+                </Link>
+              ))}
             </nav>
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-bold text-slate-600 transition-colors hover:text-slate-900">
-              Log in
-            </Link>
-            <Link href="/login?signup=1" className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black">
-              Create account
-            </Link>
+            <Link href="/login" className="text-sm font-bold text-slate-600 transition-colors hover:text-slate-900">Log in</Link>
+            <Link href="/login?signup=1" className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black">Create account</Link>
           </div>
         </div>
       </div>
