@@ -30,6 +30,7 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
         const normalized = query.trim().toLowerCase();
 
         return tools.filter((tool) => {
+            const statusMatch = tool.status === "live";
             const categoryMatch = activeCategory === "all" || tool.category === activeCategory;
             const queryMatch =
                 !normalized ||
@@ -37,7 +38,7 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
                 tool.shortDescription.toLowerCase().includes(normalized) ||
                 tool.keywords.some((keyword) => keyword.toLowerCase().includes(normalized));
 
-            return categoryMatch && queryMatch;
+            return statusMatch && categoryMatch && queryMatch;
         });
     }, [activeCategory, query, tools]);
 
@@ -81,9 +82,7 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
                                 <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${tool.status === "planned" ? "bg-slate-100 text-slate-700" : tool.access === "public" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"}`}>
                                     {tool.status === "planned" ? "Planned" : tool.access === "public" ? "Public" : "Workspace"}
                                 </span>
-                                {tool.capability === "advanced" && tool.status !== "planned" ? (
-                                    <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Advanced</span>
-                                ) : null}
+                                {tool.capability === "advanced" && tool.status !== "planned" ? <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Advanced</span> : null}
                             </div>
                         </div>
                         <h2 className="text-lg font-bold text-slate-900">{tool.name}</h2>
