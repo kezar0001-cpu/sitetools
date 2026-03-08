@@ -8,7 +8,11 @@ import { supabase } from "@/lib/supabase";
 import { setActiveCompany } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
-export function AppTopbar() {
+interface Props {
+  onMenuToggle: () => void;
+}
+
+export function AppTopbar({ onMenuToggle }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const { summary, loading, refresh } = useWorkspace({ requireAuth: false, requireCompany: false });
@@ -91,7 +95,11 @@ export function AppTopbar() {
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-30 shadow-sm shrink-0">
       <div className="flex items-center gap-3 min-w-0">
-        <button className="md:hidden p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg">
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+          aria-label="Open navigation menu"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
@@ -142,4 +150,3 @@ export function AppTopbar() {
     </header>
   );
 }
-

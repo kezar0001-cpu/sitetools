@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppTopbar } from "@/components/layout/AppTopbar";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -9,6 +10,7 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const { loading, error, summary } = useWorkspace({
     requireAuth: true,
     requireCompany: true,
@@ -39,9 +41,9 @@ export default function AppLayout({
 
   return (
     <div className="flex bg-slate-50 min-h-screen text-slate-900 selection:bg-amber-200">
-      <AppSidebar />
+      <AppSidebar mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
       <div className="flex flex-col flex-1 md:ml-64 relative min-w-0 h-screen overflow-hidden">
-        <AppTopbar />
+        <AppTopbar onMenuToggle={() => setMobileSidebarOpen((open) => !open)} />
         <main className="flex-1 overflow-y-auto hidden-scrollbar bg-slate-50/50 relative">{children}</main>
       </div>
     </div>
