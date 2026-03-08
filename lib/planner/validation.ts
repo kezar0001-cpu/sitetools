@@ -84,3 +84,43 @@ export function addWorkingDays(
 
   return current.toISOString().slice(0, 10);
 }
+
+
+/**
+ * Calculate expected progress as-of a date using planned start/finish.
+ * Returns null when planned dates are missing or invalid.
+ */
+export function calculateExpectedProgress(
+  plannedStart: string | null,
+  plannedFinish: string | null,
+  asOf: Date = new Date()
+): number | null {
+  if (!plannedStart || !plannedFinish) return null;
+
+  const start = new Date(plannedStart);
+  const finish = new Date(plannedFinish);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(finish.getTime())) return null;
+
+  if (finish.getTime() <= start.getTime()) {
+    return asOf.getTime() >= finish.getTime() ? 100 : 0;
+  }
+
+  if (asOf.getTime() <= start.getTime()) return 0;
+  if (asOf.getTime() >= finish.getTime()) return 100;
+
+  const elapsed = asOf.getTime() - start.getTime();
+  const total = finish.getTime() - start.getTime();
+  return normalizePercent((elapsed / total) * 100);
+}
+
+/** Positive value means ahead of plan, negative means behind plan. */
+export function calculateProgressVariance(
+  actualPercent: number,
+  plannedStart: string | null,
+  plannedFinish: string | null,
+  asOf: Date = new Date()
+): number | null {
+  const expected = calculateExpectedProgress(plannedStart, plannedFinish, asOf);
+  if (expected === null) return null;
+  return normalizePercent(actualPercent) - expected;
+}

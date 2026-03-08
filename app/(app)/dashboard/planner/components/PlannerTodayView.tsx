@@ -2,24 +2,27 @@
 
 import { useMemo, useState } from "react";
 import { PlanTask, TaskStatus, STATUS_COLORS, DELAY_TYPES, DELAY_TYPE_LABELS, DelayType } from "@/lib/planner/types";
+import { Site } from "@/lib/workspace/types";
 
 interface Props {
     tasks: PlanTask[];
     saving: string | null;
     onQuickUpdate: (task: PlanTask, status: TaskStatus, percent: number, note?: string) => Promise<void>;
-    onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+    onLogDelay: (task: PlanTask, input: { delayType: DelayType; delayNote?: string; councilNote?: string }) => Promise<void>;
+    sites?: Site[];
 }
 
 function asDate(value: string | null) {
     return value ? new Date(value) : null;
 }
 
-export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: Props) {
+export function PlannerTodayView({ tasks, saving, onQuickUpdate, onLogDelay, sites = [] }: Props) {
     const [selectedBucket, setSelectedBucket] = useState<"all" | "overdue" | "today" | "week">("all");
     const [delayModal, setDelayModal] = useState<PlanTask | null>(null);
     const [delayType, setDelayType] = useState<DelayType>("weather");
     const [delayNote, setDelayNote] = useState("");
     const [councilNote, setCouncilNote] = useState("");
+    const [siteFilter, setSiteFilter] = useState<string>("all");
 
     const today = useMemo(() => new Date(), []);
     const dateString = today.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -46,13 +49,19 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
     }, [tasks, today]);
 
     const displayTasks = useMemo(() => {
-        switch (selectedBucket) {
-            case "overdue": return buckets.overdue;
-            case "today": return buckets.dueToday;
-            case "week": return buckets.thisWeek;
-            default: return [...buckets.overdue, ...buckets.dueToday, ...buckets.thisWeek];
-        }
-    }, [selectedBucket, buckets]);
+        const bucketed = (() => {
+            switch (selectedBucket) {
+                case "overdue": return buckets.overdue;
+                case "today": return buckets.dueToday;
+                case "week": return buckets.thisWeek;
+                default: return [...buckets.overdue, ...buckets.dueToday, ...buckets.thisWeek];
+            }
+        })();
+
+        if (siteFilter === "all") return bucketed;
+        if (siteFilter === "unspecified") return bucketed.filter((task) => !task.site_id);
+        return bucketed.filter((task) => task.site_id === siteFilter);
+    }, [selectedBucket, buckets, siteFilter]);
 
     // Council waiting items
     const councilItems = useMemo(
@@ -61,12 +70,10 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
     );
 
     const handleLogDelay = async (task: PlanTask) => {
-        await onPatchTask(task.id, {
-            delay_type: delayType,
-            delay_reason: delayNote || null,
-            status: "blocked",
-            council_waiting_on: delayType === "council" ? councilNote || null : task.council_waiting_on,
-            council_submitted_date: delayType === "council" ? today.toISOString().slice(0, 10) : task.council_submitted_date,
+        await onLogDelay(task, {
+            delayType,
+            delayNote,
+            councilNote,
         });
         setDelayModal(null);
         setDelayNote("");
@@ -99,6 +106,21 @@ export function PlannerTodayView({ tasks, saving, onQuickUpdate, onPatchTask }: 
                         </button>
                     ))}
                 </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Site</label>
+                <select
+                    value={siteFilter}
+                    onChange={(e) => setSiteFilter(e.target.value)}
+                    className="w-full md:w-80 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                >
+                    <option value="all">All sites</option>
+                    <option value="unspecified">No site assigned</option>
+                    {sites.map((site) => (
+                        <option key={site.id} value={site.id}>{site.name}</option>
+                    ))}
+                </select>
             </div>
 
             {/* Council waiting section */}

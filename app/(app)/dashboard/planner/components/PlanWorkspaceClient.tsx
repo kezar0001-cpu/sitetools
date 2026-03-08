@@ -7,6 +7,7 @@ import {
   createPlanRevision,
   createPlanTask,
   createTaskUpdate,
+  createWeatherDelay,
   deletePlannerPlan,
   deletePlanTask,
   fetchPlanById,
@@ -22,7 +23,7 @@ import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client"
 import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus } from "@/lib/planner/types";
 import { Project, Site } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { normalizePercent } from "@/lib/planner/validation";
+import { calculateExpectedProgress, normalizePercent } from "@/lib/planner/validation";
 import { ImportedTask } from "@/lib/planner/import-parser";
 
 import { PlannerSheetView } from "./PlannerSheetView";
@@ -83,10 +84,10 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       .finally(() => setLoading(false));
   }, [loadAll]);
 
-  // Lazy-load projects + sites when settings opens
+  // Lazy-load projects + sites when settings opens, and sites for Today view filters.
   useEffect(() => {
-    if (showSettings) loadProjectsAndSites();
-  }, [showSettings, loadProjectsAndSites]);
+    if (showSettings || mode === "today") loadProjectsAndSites();
+  }, [showSettings, mode, loadProjectsAndSites]);
 
   // ── Plan management ──
   const handleDeletePlan = useCallback(async () => {
@@ -200,6 +201,68 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     }
   }, [planId, userId, loadAll]);
 
+  const handleLogDelay = useCallback(async (
+    task: PlanTask,
+    input: { delayType: PlanTask["delay_type"]; delayNote?: string; councilNote?: string }
+  ) => {
+    setSaving(task.id);
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    try {
+      await createTaskUpdate({
+        planId,
+        taskId: task.id,
+        status: "blocked",
+        percentComplete: task.percent_complete,
+        note: input.delayNote,
+        delayReason: input.delayNote,
+        blocked: true,
+        userId,
+      });
+
+      await updatePlanTask(task.id, {
+        status: "blocked",
+        delay_type: input.delayType,
+        delay_reason: input.delayNote?.trim() || null,
+        council_waiting_on: input.delayType === "council" ? input.councilNote?.trim() || null : task.council_waiting_on,
+        council_submitted_date: input.delayType === "council" ? todayIso : task.council_submitted_date,
+        weather_delay_days: input.delayType === "weather" ? (task.weather_delay_days ?? 0) + 1 : task.weather_delay_days,
+        redesign_delay_days: input.delayType === "redesign" ? (task.redesign_delay_days ?? 0) + 1 : task.redesign_delay_days,
+        redesign_reason: input.delayType === "redesign" ? input.delayNote?.trim() || task.redesign_reason : task.redesign_reason,
+        updated_by: userId,
+      });
+
+      if (input.delayType === "weather") {
+        await createWeatherDelay({
+          planId,
+          taskId: task.id,
+          delayDate: todayIso,
+          hoursLost: 8,
+          reason: input.delayNote,
+          userId,
+        });
+      }
+
+      await createPlanRevision({
+        planId,
+        revisionType: "delay_logged",
+        summary: `Delay logged for ${task.title} (${input.delayType ?? "other"})`,
+        payload: {
+          taskId: task.id,
+          delayType: input.delayType,
+          delayReason: input.delayNote ?? null,
+        },
+        userId,
+      });
+
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not log delay.");
+    } finally {
+      setSaving(null);
+    }
+  }, [planId, userId, loadAll]);
+
   // ── Import ──
   const handleImport = useCallback(async (importedTasks: ImportedTask[], projectName: string | null) => {
     const taskRows = importedTasks.map((t, idx) => ({
@@ -228,7 +291,16 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     const done = tasks.filter((t) => t.status === "done").length;
     const blocked = tasks.filter((t) => t.status === "blocked").length;
     const avgPercent = total > 0 ? Math.round(tasks.reduce((sum, t) => sum + t.percent_complete, 0) / total) : 0;
-    return { total, done, blocked, avgPercent };
+
+    const plannedProgressPoints = tasks
+      .map((t) => calculateExpectedProgress(t.planned_start, t.planned_finish))
+      .filter((n): n is number => typeof n === "number");
+    const plannedPercent = plannedProgressPoints.length > 0
+      ? Math.round(plannedProgressPoints.reduce((sum, n) => sum + n, 0) / plannedProgressPoints.length)
+      : null;
+    const variance = plannedPercent === null ? null : avgPercent - plannedPercent;
+
+    return { total, done, blocked, avgPercent, plannedPercent, variance };
   }, [tasks]);
 
   if (loading) {
@@ -341,12 +413,18 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: "Total Tasks", value: stats.total, color: "text-slate-700" },
           { label: "Completed", value: stats.done, color: "text-emerald-600" },
           { label: "Blocked", value: stats.blocked, color: "text-red-600" },
-          { label: "Avg Progress", value: `${stats.avgPercent}%`, color: "text-blue-600" },
+          { label: "Actual Progress", value: `${stats.avgPercent}%`, color: "text-blue-600" },
+          { label: "Planned Progress", value: stats.plannedPercent === null ? "—" : `${stats.plannedPercent}%`, color: "text-violet-600" },
+          {
+            label: "Variance",
+            value: stats.variance === null ? "—" : `${stats.variance > 0 ? "+" : ""}${stats.variance}%`,
+            color: stats.variance === null ? "text-slate-500" : stats.variance >= 0 ? "text-emerald-600" : "text-red-600",
+          },
         ].map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-3 text-center">
             <p className={`text-2xl font-black ${s.color}`}>{s.value}</p>
@@ -382,7 +460,8 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           tasks={tasks}
           saving={saving}
           onQuickUpdate={handleQuickUpdate}
-          onPatchTask={handlePatchTask}
+          onLogDelay={handleLogDelay}
+          sites={sites}
         />
       )}
 

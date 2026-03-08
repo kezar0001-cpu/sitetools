@@ -3,10 +3,19 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { PlannerCreatePlanForm } from "./PlannerCreatePlanForm";
+import { PlannerImportDialog } from "./PlannerImportDialog";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
-import { createPlannerPlan, deletePlannerPlan, fetchPlannerPlans, seedCivilStarterTasks } from "@/lib/planner/client";
+import {
+  bulkCreateTasks,
+  createPlanRevision,
+  createPlannerPlan,
+  deletePlannerPlan,
+  fetchPlannerPlans,
+  seedCivilStarterTasks,
+} from "@/lib/planner/client";
 import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
+import { ImportedTask } from "@/lib/planner/import-parser";
 import { Project, Site } from "@/lib/workspace/types";
 
 const STATUS_BADGE: Record<PlanStatus, { bg: string; text: string; dot: string }> = {
@@ -25,6 +34,7 @@ export function PlannerDashboardClient() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -119,6 +129,51 @@ export function PlannerDashboardClient() {
     }
   }
 
+  async function handleImportProgramme(importedTasks: ImportedTask[], projectName: string | null) {
+    if (!companyId) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const plan = await createPlannerPlan({
+        companyId,
+        name: projectName?.trim() || `Imported Programme ${new Date().toLocaleDateString("en-AU")}`,
+        description: "Imported programme",
+        userId,
+      });
+
+      await bulkCreateTasks(
+        plan.id,
+        importedTasks.map((task, idx) => ({
+          title: task.name,
+          sortOrder: idx,
+          plannedStart: task.start,
+          plannedFinish: task.finish,
+          durationDays: task.durationDays,
+          indentLevel: task.outlineLevel,
+          wbsCode: task.wbsCode,
+          notes: task.notes,
+        })),
+        userId
+      );
+
+      await createPlanRevision({
+        planId: plan.id,
+        revisionType: "import",
+        summary: `Imported ${importedTasks.length} tasks${projectName ? ` from "${projectName}"` : ""}`,
+        payload: { importedCount: importedTasks.length },
+        userId,
+      });
+
+      await loadAll(companyId);
+      setShowImport(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to import programme.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       {/* Hero header */}
@@ -192,6 +247,12 @@ export function PlannerDashboardClient() {
           >
             {showCreate ? "Cancel" : "+ New Plan"}
           </button>
+          <button
+            onClick={() => setShowImport(true)}
+            className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-colors"
+          >
+            📥 Import Programme
+          </button>
         </div>
       </div>
 
@@ -202,6 +263,13 @@ export function PlannerDashboardClient() {
           sites={sites}
           creating={busy}
           onCreate={handleCreate}
+        />
+      )}
+
+      {showImport && (
+        <PlannerImportDialog
+          onImport={handleImportProgramme}
+          onClose={() => setShowImport(false)}
         />
       )}
 
