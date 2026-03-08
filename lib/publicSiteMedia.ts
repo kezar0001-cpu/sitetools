@@ -95,3 +95,7 @@ export function getPublicVideoSlot(key: keyof typeof PUBLIC_VIDEO_SLOTS): Public
 
 export type PublicMediaSlotKey = keyof typeof PUBLIC_MEDIA_SLOTS;
 export type PublicVideoSlotKey = keyof typeof PUBLIC_VIDEO_SLOTS;
+export type PublicSlotKey = PublicMediaSlotKey | PublicVideoSlotKey;
+
+export const PUBLIC_MEDIA_SLOT_KEYS = Object.keys(PUBLIC_MEDIA_SLOTS) as PublicMediaSlotKey[];
+export const PUBLIC_VIDEO_SLOT_KEYS = Object.keys(PUBLIC_VIDEO_SLOTS) as PublicVideoSlotKey[];

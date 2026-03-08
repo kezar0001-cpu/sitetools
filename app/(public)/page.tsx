@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { MODULES } from "@/lib/modules";
-import { getPublicMediaSlot, getPublicVideoSlot } from "@/lib/publicSiteMedia";
+import { loadResolvedMediaSlots } from "@/lib/cms/publicMedia";
 
 interface LandingPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -15,7 +15,7 @@ function getFirstQueryValue(value: string | string[] | undefined): string | null
   return value;
 }
 
-export default function LandingPage({ searchParams }: LandingPageProps) {
+export default async function LandingPage({ searchParams }: LandingPageProps) {
   const resolvedSiteSlug =
     getFirstQueryValue(searchParams?.site) ??
     getFirstQueryValue(searchParams?.slug) ??
@@ -48,10 +48,12 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
   const liveModules = MODULES.filter((module) => module.status === "live");
   const upcomingModules = MODULES.filter((module) => module.status === "coming-soon").slice(0, 6);
 
-  const heroMedia = getPublicMediaSlot("siteSignHeroCardImage");
-  const heroVideo = getPublicVideoSlot("siteSignHeroBackground");
-  const sitePlanMedia = getPublicMediaSlot("sitePlanWorkflow");
-  const workspaceMedia = getPublicMediaSlot("workspaceApps");
+  const { mediaSlots, videoSlots } = await loadResolvedMediaSlots();
+
+  const heroMedia = mediaSlots.siteSignHeroCardImage;
+  const heroVideo = videoSlots.siteSignHeroBackground;
+  const sitePlanMedia = mediaSlots.sitePlanWorkflow;
+  const workspaceMedia = mediaSlots.workspaceApps;
 
   return (
     <>
