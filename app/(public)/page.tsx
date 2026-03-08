@@ -66,6 +66,9 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
                                 <Link href="/login?signup=1" className="px-6 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-center transition-colors">
                                     Create Buildstate account
                                 </Link>
+                                <Link href="/free-tools" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
+                                    Free construction tools
+                                </Link>
                                 <Link href="/tools" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
                                     View all modules
                                 </Link>
@@ -122,6 +125,19 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
                             <ModuleCard key={module.id} module={module} hrefOverride={`/tools/${module.id}`} />
                         ))}
                     </div>
+                </div>
+            </section>
+
+            <section className="py-16 bg-white border-t border-slate-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 rounded-2xl border border-slate-200 bg-slate-50 p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-700">Public Free Tools</p>
+                        <h2 className="text-2xl font-black text-slate-900 mt-1">No-login calculators for concrete, trenching, asphalt, mesh, and setout.</h2>
+                        <p className="text-slate-600 mt-2">Buildstate Free Tools are designed for quick quantity checks and practical site math, with optional upgrade paths into project workflows.</p>
+                    </div>
+                    <Link href="/free-tools" className="px-5 py-3 rounded-xl bg-slate-900 text-white font-bold whitespace-nowrap">
+                        Open free tools directory
+                    </Link>
                 </div>
             </section>
         </>
