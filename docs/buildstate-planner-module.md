@@ -10,13 +10,14 @@ Why this is strongest for MVP:
 - Works cleanly as route + nav label (`/dashboard/planner`).
 
 **Definition:**
-Buildstate Planner is a practical civil project planning and delivery-tracking module that combines:
+Buildstate Planner is a practical civil project planning and live delivery-tracking module that combines:
 1. Structured planning sheet (spreadsheet-like)
 2. Simplified programme view (timeline)
 3. Daily operational update workflow (today/overdue)
 4. Revision-aware live execution board
 
 It is not an enterprise CPM clone. It is a site-usable operational planning tool.
+It must support both greenfield planning and in-flight programme tracking for existing projects.
 
 ---
 
@@ -36,8 +37,10 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 ---
 
 ## 3) Product behaviour (MVP)
-1. User creates plan from planner dashboard, links project + sites.
-2. Optionally seeds civil starter activities.
+1. User starts in one of two ways:
+   - Create a new programme from planner dashboard, then link project + sites.
+   - Import an existing programme (especially Microsoft Project workflows), then map/import activities into Buildstate.
+2. Optionally seeds civil starter activities for new plans.
 3. User adds/edits rows inline in sheet view.
 4. Dates and completion values can be edited quickly.
 5. Status auto-adjusts from completion where practical.
@@ -46,7 +49,19 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
    - Due today
    - This week
 7. Quick actions create daily update records and sync task status/progress.
-8. Revisions log critical events (e.g., task created).
+8. Team records site-based events and constraints while works proceed (e.g., weather delay, redesign, waiting on council/RFI).
+9. Planned vs actual status is continuously visible through status, percent complete, and date variance updates.
+10. Revisions log critical events (e.g., task created, delay logged, programme adjusted).
+
+### Live tracking expectations (non-negotiable)
+- Planner is not just a schedule authoring tool; it is the live programme control surface during delivery.
+- Users must be able to update real progress from site as conditions change.
+- Programme adjustments must be normal operational workflow, not exceptional admin work.
+- Delay/event tracking must include at least:
+  - weather delays
+  - redesign-required delays
+  - waiting on information/approvals from council
+  - other evolving site constraints
 
 ---
 
@@ -67,10 +82,13 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 ## 5) MVP scope discipline
 ### Must-have now
 - Plan create/list/open
+- Existing programme import pathway (Microsoft Project-led workflow, including .mpp-origin programmes)
 - Project + multi-site association
 - Task CRUD-ish flow (create + update)
 - Status + completion updates
+- Planned vs actual tracking at task level
 - Today/overdue/week workflow
+- Delay/event logging from site updates
 - Basic timeline representation
 - Task updates log and revision table foundations
 
@@ -78,7 +96,7 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 - Drag reorder + phase collapse/expand
 - Dependency editing UI
 - Assignee directory UI
-- Bulk import from CSV/Excel
+- One-click direct binary .mpp parse/import (without pre-export)
 - Better timeline scaling and zoom
 
 ### Defer
@@ -122,6 +140,12 @@ It is not an enterprise CPM clone. It is a site-usable operational planning tool
 - Simple status controls.
 - Notes and delay reasons captured without heavy forms.
 - Today view quick-buttons for field updates.
+- Site-originated updates are first-class (mobile-friendly progress + delay capture).
+
+### Import model notes
+- Existing programmes are a primary entry path (not edge-case).
+- Microsoft Project is a key source system.
+- Where technical constraints prevent direct binary `.mpp` parsing in-browser, workflow must still explicitly support `.mpp`-origin imports via conversion/import path.
 
 ---
 
