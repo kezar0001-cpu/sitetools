@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchPlanById, fetchPlanPhases, fetchPlanTasks } from "@/lib/planner/client";
 import { PlannerPlanWithContext, PlanPhase, PlanTask, STATUS_COLORS } from "@/lib/planner/types";
+import { calculateTaskBar, generateDateRange, getTaskDateRange, groupDatesByMonth } from "@/lib/planner/gantt-utils";
 
 interface Props {
     planId: string;
@@ -59,6 +60,22 @@ export function PlanWorkspacePrintClient({ planId }: Props) {
         phase,
         tasks: tasks.filter((t) => t.phase_id === phase.id),
     })).filter((g) => g.tasks.length > 0);
+
+    const printableRows = [
+        ...groupedTasks.flatMap((group) => [
+            { type: "phase" as const, phase: group.phase },
+            ...group.tasks.map((task) => ({ type: "task" as const, task })),
+        ]),
+        ...tasks.filter((t) => !t.phase_id).map((task) => ({ type: "task" as const, task })),
+    ];
+
+    const { start: ganttStart, end: ganttEnd } = getTaskDateRange(tasks, 7);
+    const ganttDates = generateDateRange(ganttStart, ganttEnd);
+    const ganttMonthGroups = groupDatesByMonth(ganttDates);
+    const ganttContentWidth = 940;
+    const ganttDayWidth = Math.min(18, Math.max(8, Math.floor(ganttContentWidth / Math.max(1, ganttDates.length))));
+    const ganttActualWidth = ganttDates.length * ganttDayWidth;
+    const ganttRowHeight = 22;
 
     const unphasedTasks = tasks.filter((t) => !t.phase_id);
 
@@ -172,6 +189,72 @@ export function PlanWorkspacePrintClient({ planId }: Props) {
                         <span key={l.label} className={`px-2.5 py-1 rounded-full font-medium ${l.bg}`}>{l.label}</span>
                     ))}
                 </div>
+
+                <div className="page-break" />
+
+                <section>
+                    <h2 className="text-lg font-black text-slate-900 mb-3">Gantt Chart Snapshot</h2>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden" style={{ fontSize: "10px" }}>
+                        <div className="grid" style={{ gridTemplateColumns: `280px ${ganttActualWidth}px` }}>
+                            <div className="bg-slate-100 border-r border-slate-200 p-2 font-semibold text-slate-700">Task</div>
+                            <div className="bg-slate-100">
+                                <div className="flex h-6 border-b border-slate-200">
+                                    {ganttMonthGroups.map((month, idx) => (
+                                        <div
+                                            key={`month-${idx}`}
+                                            className="border-r border-slate-200 flex items-center justify-center font-semibold text-slate-700"
+                                            style={{ width: `${month.count * ganttDayWidth}px` }}
+                                        >
+                                            {month.label}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex h-6">
+                                    {ganttDates.map((date, idx) => (
+                                        <div key={`day-${idx}`} className="border-r border-slate-100 flex items-center justify-center text-slate-500" style={{ width: `${ganttDayWidth}px` }}>
+                                            {date.getDate()}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {printableRows.map((row, index) => {
+                            if (row.type === "phase") {
+                                return (
+                                    <div key={`phase-${row.phase.id}`} className="grid" style={{ gridTemplateColumns: `280px ${ganttActualWidth}px` }}>
+                                        <div className="bg-slate-800 text-white px-2 py-1 font-semibold border-r border-slate-700">{row.phase.name}</div>
+                                        <div className="bg-slate-800 border-b border-slate-700" />
+                                    </div>
+                                );
+                            }
+
+                            const bar = calculateTaskBar(row.task, ganttStart, ganttDayWidth);
+
+                            return (
+                                <div key={row.task.id} className="grid border-t border-slate-100" style={{ gridTemplateColumns: `280px ${ganttActualWidth}px` }}>
+                                    <div className="px-2 py-1 border-r border-slate-100 text-slate-700 truncate">
+                                        {index + 1}. {row.task.title}
+                                    </div>
+                                    <div className="relative" style={{ height: `${ganttRowHeight}px` }}>
+                                        {bar && (
+                                            <div
+                                                className="absolute top-1 rounded-sm"
+                                                style={{
+                                                    left: `${bar.offsetPx}px`,
+                                                    width: `${Math.max(6, bar.widthPx)}px`,
+                                                    height: `${ganttRowHeight - 6}px`,
+                                                    backgroundColor: bar.color,
+                                                    opacity: 0.8,
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
 
                 {/* Task table */}
                 {[...groupedTasks, ...(unphasedTasks.length > 0 ? [{ phase: null, tasks: unphasedTasks }] : [])].map((group, gi) => (
