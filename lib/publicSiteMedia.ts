@@ -10,6 +10,16 @@ export type PublicMediaSlot = {
   notes: string;
 };
 
+export type PublicVideoSlot = {
+  key: string;
+  src: string;
+  poster: string;
+  sourceName: string;
+  sourceUrl: string;
+  license: string;
+  notes: string;
+};
+
 /**
  * Production media slots for the public website.
  *
@@ -26,7 +36,18 @@ export const PUBLIC_MEDIA_SLOTS: Record<string, PublicMediaSlot> = {
     sourceName: "Buildstate in-house media slot",
     sourceUrl: "docs/public-site-media-sources.md#siteSignHero",
     license: "Buildstate proprietary placeholder slot",
-    notes: "Primary homepage hero slot. Replace with approved project attendance photo or 6-10s loop video poster.",
+    notes: "SiteSign product image slot for the hero media card on the right side.",
+  },
+  siteSignHeroCardImage: {
+    key: "siteSignHeroCardImage",
+    src: "/branding/hero-site-team.svg",
+    alt: "Buildstate SiteSign preview card shown in the homepage hero panel.",
+    width: 1400,
+    height: 900,
+    sourceName: "Buildstate in-house media slot",
+    sourceUrl: "docs/public-site-media-sources.md#siteSignHeroCardImage",
+    license: "Buildstate proprietary placeholder slot",
+    notes: "Dedicated upload/link allocation for the hero card image (separate from hero background video).",
   },
   sitePlanWorkflow: {
     key: "sitePlanWorkflow",
@@ -52,6 +73,22 @@ export const PUBLIC_MEDIA_SLOTS: Record<string, PublicMediaSlot> = {
   },
 };
 
+export const PUBLIC_VIDEO_SLOTS: Record<string, PublicVideoSlot> = {
+  siteSignHeroBackground: {
+    key: "siteSignHeroBackground",
+    src: "https://cdn.coverr.co/videos/coverr-construction-site-at-dusk-1579/1080p.mp4",
+    poster: "/branding/video-poster.svg",
+    sourceName: "Coverr construction footage",
+    sourceUrl: "https://coverr.co/videos/construction-site-at-dusk-1579",
+    license: "Coverr license",
+    notes: "Homepage hero section background video. Replace with approved hosted MP4 if needed.",
+  },
+};
+
 export function getPublicMediaSlot(key: keyof typeof PUBLIC_MEDIA_SLOTS): PublicMediaSlot {
   return PUBLIC_MEDIA_SLOTS[key];
+}
+
+export function getPublicVideoSlot(key: keyof typeof PUBLIC_VIDEO_SLOTS): PublicVideoSlot {
+  return PUBLIC_VIDEO_SLOTS[key];
 }
