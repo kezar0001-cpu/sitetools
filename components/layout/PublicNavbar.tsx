@@ -22,6 +22,12 @@ export function PublicNavbar() {
             </Link>
 
             <nav className="hidden items-center gap-6 md:flex">
+              <Link
+                href="/free-tools"
+                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
+              >
+                Free Tools
+              </Link>
               {liveModules.map((m) => (
                 <Link
                   key={m.id}
