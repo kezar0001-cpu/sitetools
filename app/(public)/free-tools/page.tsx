@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { FREE_TOOL_CATEGORIES, FREE_TOOLS, getToolAccess, getToolCapability } from "@/lib/free-tools/catalog";
+import { FREE_TOOLS, getToolAccess, getToolCapability, getTopVisibleCategories, rankFreeToolsByCommercialIntent } from "@/lib/free-tools/catalog";
 import { FreeToolsDirectoryClient } from "@/components/free-tools/FreeToolsDirectoryClient";
 
 export const metadata: Metadata = {
@@ -11,8 +11,12 @@ export const metadata: Metadata = {
 };
 
 export default function FreeToolsPage() {
-    const featuredTools = FREE_TOOLS.filter((tool) => tool.status === "live" && tool.launchPriority === "now").slice(0, 4);
-    const directoryTools = FREE_TOOLS.map((tool) => ({
+    const rankedTools = rankFreeToolsByCommercialIntent(FREE_TOOLS);
+    const liveTools = rankedTools.filter((tool) => tool.status === "live");
+    const comingNextTools = rankedTools.filter((tool) => tool.status === "planned" && tool.launchPriority === "next");
+    const featuredTools = liveTools.filter((tool) => tool.launchPriority === "now").slice(0, 4);
+    const visibleCategories = getTopVisibleCategories(liveTools, 2);
+    const directoryTools = liveTools.map((tool) => ({
         slug: tool.slug,
         name: tool.name,
         shortDescription: tool.shortDescription,
@@ -62,7 +66,7 @@ export default function FreeToolsPage() {
                     <div className="space-y-4 h-fit">
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
                             <h2 className="text-lg font-bold text-slate-900">Tool categories</h2>
-                            {FREE_TOOL_CATEGORIES.map((category) => (
+                            {visibleCategories.map((category) => (
                                 <div key={category.id} className="border border-slate-200 rounded-xl p-3">
                                     <p className="text-sm font-bold text-slate-900">{category.label}</p>
                                     <p className="text-xs text-slate-600 mt-1">{category.description}</p>
@@ -74,7 +78,24 @@ export default function FreeToolsPage() {
                         </div>
                     </div>
 
-                    <FreeToolsDirectoryClient categories={FREE_TOOL_CATEGORIES} tools={directoryTools} />
+                    <FreeToolsDirectoryClient categories={visibleCategories} tools={directoryTools} />
+                </section>
+
+                <section className="space-y-4">
+                    <div>
+                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Roadmap preview</p>
+                        <h2 className="text-2xl font-black text-slate-900 mt-1">Coming next</h2>
+                        <p className="text-sm text-slate-600 mt-1">Planned calculators with strong commercial intent that are queued after the live toolset.</p>
+                    </div>
+                    <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+                        {comingNextTools.map((tool) => (
+                            <article key={tool.slug} className="rounded-2xl border border-slate-200 bg-white p-5">
+                                <p className="text-xs uppercase tracking-widest font-bold text-slate-500">{tool.category.replace("-", " ")}</p>
+                                <p className="font-bold text-slate-900 mt-2">{tool.name}</p>
+                                <p className="text-sm text-slate-600 mt-1">{tool.shortDescription}</p>
+                            </article>
+                        ))}
+                    </div>
                 </section>
             </div>
         </div>

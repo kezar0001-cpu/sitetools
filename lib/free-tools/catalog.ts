@@ -1,4 +1,4 @@
-import { FreeTool, FreeToolCategory } from "@/lib/free-tools/types";
+import { FreeTool, FreeToolCategory, FreeToolCategoryId } from "@/lib/free-tools/types";
 
 const toNumber = (value: string): number => {
     const parsed = Number(value);
@@ -28,6 +28,39 @@ export const FREE_TOOL_CATEGORIES: FreeToolCategory[] = [
     { id: "conversions", label: "Conversions", description: "Unit conversions and quick measurement translators for site teams." },
     { id: "productivity", label: "Productivity", description: "Labour and output calculators to support planning and delivery." },
 ];
+
+const TRAFFIC_POTENTIAL_SCORE: Record<FreeTool["trafficPotential"], number> = {
+    high: 3,
+    medium: 2,
+    niche: 1,
+};
+
+const CATEGORY_COMMERCIAL_INTENT_SCORE: Record<FreeToolCategoryId, number> = {
+    "quantity-volume": 5,
+    materials: 5,
+    earthworks: 4,
+    reinforcement: 4,
+    estimating: 4,
+    productivity: 4,
+    "geometry-setout": 3,
+    conversions: 2,
+};
+
+const TOOL_ACCESS_SCORE: Record<"public" | "workspace", number> = {
+    public: 2,
+    workspace: 4,
+};
+
+const TOOL_CAPABILITY_SCORE: Record<"core" | "advanced", number> = {
+    core: 2,
+    advanced: 4,
+};
+
+const LAUNCH_PRIORITY_SCORE: Record<FreeTool["launchPriority"], number> = {
+    now: 3,
+    next: 2,
+    later: 1,
+};
 
 export const FREE_TOOLS: FreeTool[] = [
     {
@@ -327,6 +360,41 @@ export const FREE_TOOLS: FreeTool[] = [
 ];
 
 
+
+
+const getCommercialIntentScore = (tool: FreeTool): number => {
+    return CATEGORY_COMMERCIAL_INTENT_SCORE[tool.category] + TOOL_ACCESS_SCORE[getToolAccess(tool)] + TOOL_CAPABILITY_SCORE[getToolCapability(tool)];
+};
+
+const getConversionLikelihoodScore = (tool: FreeTool): number => {
+    const funnelScore = tool.funnelTarget.toLowerCase().includes("workflow") || tool.funnelTarget.toLowerCase().includes("planning") ? 2 : 1;
+    return LAUNCH_PRIORITY_SCORE[tool.launchPriority] + funnelScore;
+};
+
+export function rankFreeToolsByCommercialIntent(tools: FreeTool[]): FreeTool[] {
+    return [...tools].sort((a, b) => {
+        const commercialDelta = getCommercialIntentScore(b) - getCommercialIntentScore(a);
+        if (commercialDelta !== 0) return commercialDelta;
+
+        const conversionDelta = getConversionLikelihoodScore(b) - getConversionLikelihoodScore(a);
+        if (conversionDelta !== 0) return conversionDelta;
+
+        const trafficDelta = TRAFFIC_POTENTIAL_SCORE[b.trafficPotential] - TRAFFIC_POTENTIAL_SCORE[a.trafficPotential];
+        if (trafficDelta !== 0) return trafficDelta;
+
+        return a.name.localeCompare(b.name);
+    });
+}
+
+export function getTopVisibleCategories(tools: FreeTool[], minToolsPerCategory = 2): FreeToolCategory[] {
+    const toolCountByCategory = new Map<FreeToolCategoryId, number>();
+
+    tools.forEach((tool) => {
+        toolCountByCategory.set(tool.category, (toolCountByCategory.get(tool.category) ?? 0) + 1);
+    });
+
+    return FREE_TOOL_CATEGORIES.filter((category) => (toolCountByCategory.get(category.id) ?? 0) >= minToolsPerCategory);
+}
 export function getToolAccess(tool: FreeTool): "public" | "workspace" {
     return tool.access ?? "public";
 }
