@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ModuleCard } from "@/components/modules/ModuleCard";
 import { MODULES } from "@/lib/modules";
+import { PUBLIC_MEDIA } from "@/lib/public-media";
 
 interface LandingPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -43,145 +44,140 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
 
     redirect(`/sign-in?${forwardParams.toString()}`);
   }
+
   const liveModules = MODULES.filter((module) => module.status === "live");
-  const upcomingModules = MODULES.filter((module) => module.status === "coming-soon").slice(0, 6);
+  const upcomingModules = MODULES.filter((module) => module.status === "coming-soon").slice(0, 4);
 
-    return (
-        <>
-            <section className="bg-slate-950 text-white py-20 md:py-28">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-amber-400/15 text-amber-300 border border-amber-400/30">
-                        Live now: SiteSign
-                    </div>
+  const heroMedia = PUBLIC_MEDIA.siteSignHero;
+  const sitePlanMedia = PUBLIC_MEDIA.sitePlanWorkflow;
+  const workspaceMedia = PUBLIC_MEDIA.workspaceApps;
 
-                    <div className="grid lg:grid-cols-2 gap-10 items-end">
-                        <div className="space-y-6">
-                            <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
-                                Digital site attendance made simple,
-                                <span className="text-amber-400"> with QR sign in and real-time attendance registers for every project.</span>
-                            </h1>
-                            <p className="text-slate-300 text-lg leading-relaxed max-w-2xl">
-                                SiteSign is our primary live product for civil teams that need fast worker sign in/out, accurate attendance records, and instant export-ready reports.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <Link href="/tools/site-sign-in" className="px-6 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-center transition-colors">
-                                    Open SiteSign
-                                </Link>
-                                <Link href="/free-tools" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
-                                    Tools Library
-                                </Link>
-                                <Link href="/login" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
-                                    Log in
-                                </Link>
-                            </div>
-                        </div>
+  return (
+    <>
+      <section className="bg-slate-950 py-20 text-white md:py-24">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[1fr,1.1fr] lg:px-8">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-amber-300">
+              Live product focus: SiteSign
+            </div>
+            <h1 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">
+              Site attendance and delivery coordination for civil teams running live projects.
+            </h1>
+            <p className="max-w-xl text-lg leading-relaxed text-slate-300">
+              Buildstate is centered on operational workspace products. Start with SiteSign for QR check-in and attendance records, then run planning, tracking,
+              and connected project workflows across SitePlan and upcoming apps.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link href="/tools/site-sign-in" className="rounded-xl bg-amber-400 px-6 py-3 text-center font-bold text-amber-950 hover:bg-amber-500">
+                Open SiteSign
+              </Link>
+              <Link href="/tools/planner" className="rounded-xl border border-slate-700 px-6 py-3 text-center font-semibold text-white hover:border-slate-500">
+                Explore SitePlan
+              </Link>
+              <Link href="/login" className="rounded-xl border border-slate-700 px-6 py-3 text-center font-semibold text-white hover:border-slate-500">
+                Log in
+              </Link>
+            </div>
+          </div>
 
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
-                            <Image src="/branding/hero-site-team.svg" alt="Australian civil construction team coordinating field delivery" width={1200} height={760} className="w-full h-auto object-cover" priority />
-                            <div className="p-6 space-y-3 border-t border-slate-800">
-                                <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Live product</p>
-                                <div className="flex flex-wrap gap-2 text-xs">
-                                    <span className="rounded-full bg-amber-100 text-amber-800 px-2.5 py-1 font-bold">SiteSign</span>
-                                    <span className="rounded-full bg-blue-100 text-blue-800 px-2.5 py-1 font-bold">Live module</span>
-                                    <span className="rounded-full bg-slate-100 text-slate-700 px-2.5 py-1 font-bold">QR + register exports</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+          <figure className="overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-900">
+            <Image src={heroMedia.src} alt={heroMedia.alt} width={heroMedia.width} height={heroMedia.height} className="h-auto w-full" priority />
+            <figcaption className="border-t border-slate-700 px-5 py-3 text-xs text-slate-400">
+              {heroMedia.sources[0].label} · {heroMedia.sources[0].license}
+            </figcaption>
+          </figure>
+        </div>
+      </section>
 
-            <section className="py-14 bg-white border-y border-slate-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-                    <div className="max-w-3xl">
-                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Buildstate ecosystem</p>
-                        <h2 className="text-3xl font-black text-slate-900 mt-2">Buildstate brings together focused products for civil delivery.</h2>
-                        <p className="text-slate-600 mt-2">SiteSign handles attendance and gate records. SitePlan handles planning and programme control. Tools Library supports instant calculations for day-to-day field checks.</p>
-                    </div>
-                </div>
-            </section>
+      <section className="border-y border-slate-200 bg-white py-14">
+        <div className="mx-auto max-w-7xl space-y-4 px-4 sm:px-6 lg:px-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Buildstate ecosystem</p>
+          <h2 className="max-w-4xl text-3xl font-black tracking-tight text-slate-900 md:text-4xl">One umbrella brand. Live products built for civil construction delivery.</h2>
+          <p className="max-w-4xl text-slate-600">
+            SiteSign manages site attendance and field register controls. SitePlan handles practical planning and delivery tracking. Additional workspace apps are on
+            the roadmap for quality, safety, and commercial coordination.
+          </p>
+        </div>
+      </section>
 
-            <section className="py-16 bg-slate-50 border-b border-slate-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-                    <div>
-                        <h2 className="text-3xl font-black text-slate-900 tracking-tight">Core products</h2>
-                        <p className="text-slate-600 mt-2">Use SiteSign for workforce attendance and SitePlan for delivery planning inside your Buildstate workspace.</p>
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                            <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-700">SiteSign</p>
-                            <h3 className="text-2xl font-black text-slate-900 mt-2">QR sign in and live attendance registers</h3>
-                            <p className="text-slate-600 mt-2">Run daily worker sign in/out with export-ready attendance records for supervisors, compliance, and payroll support.</p>
-                            <Link href="/tools/site-sign-in" className="inline-flex mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">Open SiteSign →</Link>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                            <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-700">SitePlan</p>
-                            <h3 className="text-2xl font-black text-slate-900 mt-2">Civil planning and delivery tracking</h3>
-                            <p className="text-slate-600 mt-2">Build practical programmes, monitor daily progress, and keep project delivery aligned with planned dates and milestones.</p>
-                            <Link href="/tools/planner" className="inline-flex mt-4 text-sm font-bold text-indigo-700 hover:text-indigo-800">Explore SitePlan →</Link>
-                        </div>
-                    </div>
-                </div>
-            </section>
+      <section className="bg-slate-50 py-16">
+        <div className="mx-auto max-w-7xl space-y-8 px-4 sm:px-6 lg:px-8">
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Core products</p>
+            <h2 className="text-3xl font-black text-slate-900">Live products used on active sites</h2>
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <article className="rounded-2xl border border-slate-200 bg-white p-6">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">SiteSign</p>
+              <h3 className="mt-2 text-2xl font-black text-slate-900">Digital QR sign-in with live attendance records</h3>
+              <p className="mt-2 text-slate-600">Run daily check-in/out, maintain accurate workforce logs, and export site records for compliance and payroll support.</p>
+              <Link href="/tools/site-sign-in" className="mt-4 inline-flex text-sm font-bold text-amber-700 hover:text-amber-800">
+                Open SiteSign →
+              </Link>
+            </article>
+            <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <Image src={sitePlanMedia.src} alt={sitePlanMedia.alt} width={sitePlanMedia.width} height={sitePlanMedia.height} className="h-auto w-full" />
+              <div className="space-y-2 p-6">
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-700">SitePlan</p>
+                <h3 className="text-2xl font-black text-slate-900">Planning and delivery tracking for civil programmes</h3>
+                <p className="text-slate-600">Map work fronts, sequence tasks, monitor progress, and keep project teams aligned with planned dates and constraints.</p>
+                <Link href="/tools/planner" className="inline-flex text-sm font-bold text-indigo-700 hover:text-indigo-800">
+                  Explore SitePlan →
+                </Link>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
 
-            <section className="py-12 bg-slate-100 border-y border-slate-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-[1.2fr,0.8fr] gap-6 items-center">
-                    <div>
-                        <h2 className="text-2xl font-black text-slate-900">From products to connected delivery records</h2>
-                        <p className="text-slate-600 mt-2">SiteSign and SitePlan support daily operations, while workspace tools keep decisions tied to projects, sites, and teams.</p>
-                    </div>
-                    <video className="w-full rounded-2xl border border-slate-300 bg-slate-900" autoPlay loop muted playsInline poster="/branding/video-poster.svg">
-                        <source src="/branding/site-operations-loop.mp4" type="video/mp4" />
-                    </video>
-                </div>
-            </section>
-            <section className="py-10 bg-white border-b border-slate-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 rounded-2xl border border-slate-200 bg-slate-50 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Also part of Buildstate platform</p>
-                        <p className="text-slate-700 mt-2">Explore the broader module roadmap and upcoming connected workflows.</p>
-                    </div>
-                    <Link href="/tools" className="text-sm font-bold text-amber-700 hover:text-amber-800">
-                        View the full platform suite →
-                    </Link>
-                </div>
-            </section>
+      <section className="border-y border-slate-200 bg-white py-14">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[1.15fr,0.85fr] lg:px-8">
+          <div className="space-y-4">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Workspace apps</p>
+            <h2 className="text-3xl font-black text-slate-900">From field checks to connected delivery workflows</h2>
+            <p className="text-slate-600">
+              Buildstate workspace apps are designed for supervisors, project engineers, and teams coordinating live civil work. Attendance, planning, records, and
+              future modules stay connected to each site and project.
+            </p>
+            <Image src="/branding/video-poster.svg" alt="Field to office delivery workflow summary" width={1280} height={720} className="w-full rounded-2xl border border-slate-300" />
+          </div>
+          <figure className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+            <Image src={workspaceMedia.src} alt={workspaceMedia.alt} width={workspaceMedia.width} height={workspaceMedia.height} className="h-auto w-full" />
+            <figcaption className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500">Workspace media slot: civil coordination and connected app delivery.</figcaption>
+          </figure>
+        </div>
+      </section>
 
-            <section className="py-20 bg-slate-50" id="modules">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-                    <div className="flex items-end justify-between gap-4 flex-wrap">
-                        <div>
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Broader workspace roadmap</h2>
-                            <p className="text-slate-600 mt-2">Live products are available now, with additional modules visible so teams can plan future rollout.</p>
-                        </div>
-                        <Link href="/tools" className="text-amber-700 font-bold hover:text-amber-800 text-sm">
-                            View full roadmap →
-                        </Link>
-                    </div>
+      <section className="bg-slate-50 py-18" id="modules">
+        <div className="mx-auto max-w-7xl space-y-8 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-black tracking-tight text-slate-900">Live and planned workspace apps</h2>
+              <p className="mt-2 text-slate-600">SiteSign and SitePlan are live now, with additional applications mapped for staged rollout.</p>
+            </div>
+            <Link href="/tools" className="text-sm font-bold text-amber-700 hover:text-amber-800">
+              View all workspace apps →
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[...liveModules, ...upcomingModules].map((module) => (
+              <ModuleCard key={module.id} module={module} hrefOverride={`/tools/${module.id}`} />
+            ))}
+          </div>
+        </div>
+      </section>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {[...liveModules, ...upcomingModules].map((module) => (
-                            <ModuleCard key={module.id} module={module} hrefOverride={`/tools/${module.id}`} />
-                        ))}
-                    </div>
-                </div>
-            </section>
-
-            <section className="py-16 bg-white border-t border-slate-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 rounded-2xl border border-slate-200 bg-slate-50 p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div>
-                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-700">Tools Library</p>
-                        <h2 className="text-2xl font-black text-slate-900 mt-1">Start with instant calculators, then carry results into workspace delivery workflows.</h2>
-                        <p className="text-slate-600 mt-2">Designed for estimators, supervisors, and project engineers who need practical outputs quickly.</p>
-                    </div>
-                    <div className="w-full max-w-sm rounded-xl overflow-hidden border border-slate-200 bg-white">
-                        <Image src="/branding/hero-dashboard-summary.svg" alt="Project controls dashboard for site delivery workflows" width={720} height={460} className="w-full h-auto" />
-                    </div>
-                    <Link href="/free-tools" className="px-5 py-3 rounded-xl bg-slate-900 text-white font-bold whitespace-nowrap">
-                        View tools library
-                    </Link>
-                </div>
-            </section>
-        </>
-    );
+      <section className="border-t border-slate-200 bg-white py-12">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Supporting tools library</p>
+            <p className="mt-2 text-slate-700">Need quick calculators? The Tools Library remains available for field checks and SEO discovery.</p>
+          </div>
+          <Link href="/free-tools" className="text-sm font-bold text-slate-900 hover:text-slate-700">
+            Browse Tools Library →
+          </Link>
+        </div>
+      </section>
+    </>
+  );
 }
