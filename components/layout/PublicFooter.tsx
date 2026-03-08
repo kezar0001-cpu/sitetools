@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getLiveModules, getComingSoonModules } from "@/lib/modules";
+import { getComingSoonModules, getLiveModules } from "@/lib/modules";
 
 export function PublicFooter() {
   const liveModules = getLiveModules();
@@ -19,12 +19,12 @@ export function PublicFooter() {
               <span className="text-xl font-extrabold tracking-tight text-white">Buildstate</span>
             </Link>
             <p className="text-sm leading-relaxed text-slate-400">
-              Practical digital tools for Australian civil contractors, engineers, and site teams.
+              Operational workspace products for civil contractors, project engineers, and site supervisors.
             </p>
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Products</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Live products</h3>
             <ul className="space-y-3">
               {liveModules.map((m) => (
                 <li key={m.id}>
@@ -37,7 +37,7 @@ export function PublicFooter() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Planned</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Workspace roadmap</h3>
             <ul className="space-y-3">
               {comingSoonModules.slice(0, 4).map((m) => (
                 <li key={m.id}>
@@ -46,7 +46,12 @@ export function PublicFooter() {
               ))}
               <li>
                 <Link href="/tools" className="text-sm text-amber-300 transition-colors hover:text-amber-200">
-                  See all tools &rarr;
+                  See all workspace apps &rarr;
+                </Link>
+              </li>
+              <li>
+                <Link href="/free-tools" className="text-sm text-slate-400 transition-colors hover:text-white">
+                  Tools Library
                 </Link>
               </li>
             </ul>

@@ -14,28 +14,19 @@ export function PublicNavbar() {
               </div>
               <div>
                 <p className="text-base font-black tracking-tight text-slate-900">Buildstate</p>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Site Operations OS</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Live Workspace Apps</p>
               </div>
             </Link>
 
             <nav className="hidden items-center gap-6 md:flex">
-              <Link
-                href="/tools/site-sign-in"
-                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
-              >
+              <Link href="/tools/site-sign-in" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
                 SiteSign
               </Link>
-              <Link
-                href="/tools/planner"
-                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
-              >
+              <Link href="/tools/planner" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
                 SitePlan
               </Link>
-              <Link
-                href="/free-tools"
-                className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900"
-              >
-                Tools Library
+              <Link href="/tools" className="text-sm font-semibold text-slate-600 transition-colors hover:text-slate-900">
+                Workspace Apps
               </Link>
             </nav>
           </div>
@@ -44,10 +35,7 @@ export function PublicNavbar() {
             <Link href="/login" className="text-sm font-bold text-slate-600 transition-colors hover:text-slate-900">
               Log in
             </Link>
-            <Link
-              href="/login?signup=1"
-              className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black"
-            >
+            <Link href="/login?signup=1" className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-colors hover:bg-black">
               Create account
             </Link>
           </div>
