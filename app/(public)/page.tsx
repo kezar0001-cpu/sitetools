@@ -115,7 +115,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
         </div>
       </section>
 
-      <section className="py-14 bg-white border-y border-slate-200">
+      <section id="how-it-works" className="py-14 bg-white border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
           <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Buildstate ecosystem</p>
           <h2 className="text-3xl font-black text-slate-900 max-w-4xl">Buildstate is the umbrella platform for field operations, planning control, and connected project records.</h2>
