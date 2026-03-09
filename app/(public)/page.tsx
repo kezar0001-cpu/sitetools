@@ -59,17 +59,21 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
     <>
       <section className="relative overflow-hidden bg-slate-950 text-white py-20 md:py-28">
         <video
-          className="absolute inset-0 h-full w-full object-cover opacity-35"
+          className="absolute inset-0 h-full w-full object-cover opacity-35 hidden md:block"
           autoPlay
           muted
           loop
           playsInline
+          preload="none"
           poster={heroVideo.poster}
         >
           <source src={heroVideo.src} type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-slate-950/75" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.18),transparent_35%)]" />
+        <div className="absolute inset-0 md:hidden">
+          <Image src={heroMedia.src} alt={heroMedia.alt} fill sizes="100vw" className="object-cover opacity-25" priority />
+        </div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
@@ -77,7 +81,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-amber-400/15 text-amber-300 border border-amber-400/30">
                 Live now: SiteSign
               </div>
-              <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tight leading-tight">
                 Site attendance and workforce visibility for live civil projects.
               </h1>
               <p className="text-slate-300 text-lg leading-relaxed max-w-2xl">
@@ -88,19 +92,23 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                 <Link href="/tools/site-sign-in" className="px-6 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-center transition-colors">
                   Open SiteSign
                 </Link>
-                <Link href="/tools/planner" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
-                  Explore SitePlan
-                </Link>
                 <Link href="/login" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
                   Log in
+                </Link>
+                <Link href="/tools/planner" className="hidden sm:inline-flex px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
+                  Explore SitePlan
                 </Link>
               </div>
             </div>
 
             <div className="rounded-2xl overflow-hidden border border-slate-800/80 bg-slate-900/85 backdrop-blur-sm">
               <Image src={heroMedia.src} alt={heroMedia.alt} width={heroMedia.width} height={heroMedia.height} className="w-full h-auto object-cover" priority />
-              <div className="p-5 border-t border-slate-800 text-xs text-slate-400">
-                Hero background video: {heroVideo.sourceName} · Hero card image: {heroMedia.sourceName}
+              <div className="p-5 border-t border-slate-800">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/25 px-2.5 py-1 font-semibold">Live attendance feed</span>
+                  <span className="rounded-full bg-sky-500/15 text-sky-300 border border-sky-400/25 px-2.5 py-1 font-semibold">QR check-in from any phone</span>
+                  <span className="rounded-full bg-amber-500/15 text-amber-300 border border-amber-400/25 px-2.5 py-1 font-semibold">Export-ready records</span>
+                </div>
               </div>
             </div>
           </div>
@@ -115,6 +123,25 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
             Instead of disconnected spreadsheets and standalone checklists, Buildstate products share one practical workspace for site teams,
             project controls, and delivery managers.
           </p>
+        </div>
+      </section>
+
+      <section className="py-10 bg-white border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] font-bold text-slate-500">Site entry</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1">Scan QR and sign in within seconds.</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] font-bold text-slate-500">Supervisor view</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1">See who is still on site in real time.</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] font-bold text-slate-500">Reporting</p>
+              <p className="text-sm font-semibold text-slate-900 mt-1">Download CSV, Excel, or PDF records.</p>
+            </div>
+          </div>
         </div>
       </section>
 

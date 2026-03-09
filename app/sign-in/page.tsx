@@ -35,6 +35,7 @@ const TYPE_COLOURS: Record<VisitorType, string> = {
   Delivery: "bg-orange-100 text-orange-800",
 };
 
+
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
@@ -64,7 +65,7 @@ function NoSiteScreen() {
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-12 space-y-16">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10 sm:space-y-16">
         {/* Hero Section */}
         <section className="text-center space-y-6">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-400 rounded-2xl shadow-lg">
@@ -72,7 +73,7 @@ function NoSiteScreen() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <h2 className="text-4xl sm:text-5xl font-extrabold text-gray-900 leading-tight">
+          <h2 className="text-3xl sm:text-5xl font-extrabold text-gray-900 leading-tight">
             Streamline Your Site<br />Access Management
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
@@ -95,7 +96,7 @@ function NoSiteScreen() {
         </section>
 
         {/* Features Grid */}
-        <section className="space-y-8">
+        <section className="space-y-6 hidden sm:block">
           <h3 className="text-3xl font-extrabold text-gray-900 text-center">Key Features</h3>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Feature 1 */}
@@ -179,7 +180,7 @@ function NoSiteScreen() {
         </section>
 
         {/* How It Works */}
-        <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-8 sm:p-12 space-y-8">
+        <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 sm:p-12 space-y-8">
           <h3 className="text-3xl font-extrabold text-gray-900 text-center">How It Works</h3>
           <div className="grid sm:grid-cols-3 gap-8">
             <div className="text-center space-y-3">
@@ -213,7 +214,7 @@ function NoSiteScreen() {
         </section>
 
         {/* CTA Section */}
-        <section className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl shadow-lg p-8 sm:p-12 text-center space-y-6">
+        <section className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl shadow-lg p-6 sm:p-12 text-center space-y-5">
           <h3 className="text-3xl font-extrabold text-yellow-900">Ready to Get Started?</h3>
           <p className="text-lg text-yellow-800 max-w-2xl mx-auto">
             Scan the QR code at your construction site to sign in, or contact your site administrator for access.
@@ -497,7 +498,7 @@ function SiteSignIn({ site }: { site: Site }) {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   autoComplete="name"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -510,7 +511,7 @@ function SiteSignIn({ site }: { site: Site }) {
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   autoComplete="tel"
                   inputMode="tel"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -522,7 +523,7 @@ function SiteSignIn({ site }: { site: Site }) {
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   autoComplete="organization"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                 />
               </div>
               <div>
@@ -541,7 +542,7 @@ function SiteSignIn({ site }: { site: Site }) {
                 </select>
               </div>
               <button type="submit" disabled={submitting}
-                className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-5 rounded-2xl transition-colors text-xl shadow-md mt-1">
+                className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-4 sm:py-5 rounded-2xl transition-colors text-lg sm:text-xl shadow-md mt-1">
                 {submitting ? "Signing In…" : "Sign In to Site"}
               </button>
             </form>
