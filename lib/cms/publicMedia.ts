@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import {
   PUBLIC_MEDIA_SLOTS,
@@ -65,19 +66,27 @@ function mergeVideoSlot(base: PublicVideoSlot, row: PublicSiteMediaRow): PublicV
   };
 }
 
+const fetchEditableMediaOverridesCached = unstable_cache(
+  async (): Promise<Record<string, PublicSiteMediaRow>> => {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.from("public_site_media").select("*");
+
+    if (error || !data) {
+      console.warn("[publicSiteMedia] Falling back to defaults: ", error?.message);
+      return {};
+    }
+
+    return data.reduce<Record<string, PublicSiteMediaRow>>((acc, row) => {
+      acc[row.slot] = row as PublicSiteMediaRow;
+      return acc;
+    }, {});
+  },
+  ["public-site-media-overrides"],
+  { revalidate: 300 }
+);
+
 export async function fetchEditableMediaOverrides(): Promise<Record<string, PublicSiteMediaRow>> {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.from("public_site_media").select("*");
-
-  if (error || !data) {
-    console.warn("[publicSiteMedia] Falling back to defaults: ", error?.message);
-    return {};
-  }
-
-  return data.reduce<Record<string, PublicSiteMediaRow>>((acc, row) => {
-    acc[row.slot] = row as PublicSiteMediaRow;
-    return acc;
-  }, {});
+  return fetchEditableMediaOverridesCached();
 }
 
 export async function loadResolvedMediaSlots(): Promise<ResolvedMediaSlots> {
