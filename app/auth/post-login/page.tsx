@@ -28,7 +28,7 @@ export default function PostLoginPage() {
         return;
       }
 
-      router.replace("/dashboard");
+      router.replace("/dashboard/site-sign-in");
     }
 
     resolveNextRoute().catch(() => {

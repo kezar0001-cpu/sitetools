@@ -42,7 +42,7 @@ export function LoginClient() {
             return;
         }
 
-        window.location.href = "/dashboard";
+        window.location.href = "/auth/post-login";
     }
 
     return (
@@ -55,8 +55,8 @@ export function LoginClient() {
                         </svg>
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
-                        <p className="text-sm font-medium text-slate-500 mt-1">Sign in to the Buildstate platform</p>
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{mode === "login" ? "Welcome back to SiteSign" : "Create your SiteSign account"}</h1>
+                        <p className="text-sm font-medium text-slate-500 mt-1">Sign in to launch SiteSign for your crew</p>
                     </div>
                 </div>
 

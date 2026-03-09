@@ -34,7 +34,7 @@ function OnboardingClient() {
 
   useEffect(() => {
     if (summary && summary.memberships.length > 0) {
-      router.replace("/dashboard");
+      router.replace("/dashboard/site-sign-in");
     }
   }, [router, summary]);
 
@@ -51,7 +51,7 @@ function OnboardingClient() {
     setCreateLoading(true);
     try {
       await createCompany(companyName.trim());
-      router.replace("/dashboard");
+      router.replace("/dashboard/site-sign-in");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to create company.");
     } finally {
@@ -77,7 +77,7 @@ function OnboardingClient() {
         return;
       }
       setInfo("Invitation accepted. Redirecting to your workspace...");
-      router.replace("/dashboard");
+      router.replace("/dashboard/site-sign-in");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to join company.");
     } finally {
@@ -104,9 +104,9 @@ function OnboardingClient() {
     <div className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">Set up your Buildstate workspace</h1>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900">Set up your SiteSign workspace</h1>
           <p className="mt-2 text-slate-600 font-medium">
-            Buildstate is company-first. Create your company workspace or join one using an invite token/code.
+            Create your company workspace (or join one) to start SiteSign with your team.
           </p>
         </div>
 
@@ -118,7 +118,7 @@ function OnboardingClient() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-extrabold text-slate-900">Create a Company</h2>
+            <h2 className="text-xl font-extrabold text-slate-900">Create a Company for SiteSign</h2>
             <p className="text-sm text-slate-600 mt-1">You will be assigned as the Owner for this workspace.</p>
             <form className="mt-5 space-y-4" onSubmit={onCreateCompany}>
               <div>
@@ -135,13 +135,13 @@ function OnboardingClient() {
                 disabled={createLoading}
                 className="w-full bg-slate-900 hover:bg-black disabled:opacity-60 text-white font-bold rounded-xl px-4 py-3 text-sm"
               >
-                {createLoading ? "Creating workspace..." : "Create Workspace"}
+                {createLoading ? "Creating workspace..." : "Create SiteSign Workspace"}
               </button>
             </form>
           </section>
 
           <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-extrabold text-slate-900">Join an Existing Company</h2>
+            <h2 className="text-xl font-extrabold text-slate-900">Join an Existing SiteSign Workspace</h2>
             <p className="text-sm text-slate-600 mt-1">Use the invitation token or short invite code sent by your company admin.</p>
             <form className="mt-5 space-y-4" onSubmit={onJoinCompany}>
               <div>
@@ -158,7 +158,7 @@ function OnboardingClient() {
                 disabled={joinLoading}
                 className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-amber-900 font-bold rounded-xl px-4 py-3 text-sm"
               >
-                {joinLoading ? "Joining workspace..." : "Join Workspace"}
+                {joinLoading ? "Joining workspace..." : "Join SiteSign Workspace"}
               </button>
             </form>
           </section>

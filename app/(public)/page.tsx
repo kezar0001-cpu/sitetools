@@ -78,21 +78,17 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                 Live now: SiteSign
               </div>
               <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
-                Site attendance and workforce visibility for live civil projects.
+                Get every worker signed in with a QR code in under 2 minutes.
               </h1>
               <p className="text-slate-300 text-lg leading-relaxed max-w-2xl">
-                Buildstate is a connected workspace for project engineers and supervisors. SiteSign leads the platform with QR check-in,
-                real-time attendance registers, and export-ready records for practical site delivery.
+                SiteSign gives small civil contractors a fast on-site register: workers scan, sign in on phone, and you get live headcount with export-ready records for compliance and payroll support.
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
-                <Link href="/tools/site-sign-in" className="px-6 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-center transition-colors">
-                  Open SiteSign
+                <Link href="/login?signup=1" className="px-6 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl text-center transition-colors">
+                  Start SiteSign free
                 </Link>
-                <Link href="/tools/planner" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
-                  Explore SitePlan
-                </Link>
-                <Link href="/login" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
-                  Log in
+                                <Link href="/login" className="px-6 py-3 border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-xl text-center transition-colors">
+                  Already have an account? Log in
                 </Link>
               </div>
             </div>
@@ -107,22 +103,23 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
         </div>
       </section>
 
-      <section className="py-14 bg-white border-y border-slate-200">
+      <section id="how-it-works" className="py-14 bg-white border-y border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-5">
-          <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Buildstate ecosystem</p>
-          <h2 className="text-3xl font-black text-slate-900 max-w-4xl">Buildstate is the umbrella platform for field operations, planning control, and connected project records.</h2>
-          <p className="text-slate-600 max-w-4xl">
-            Instead of disconnected spreadsheets and standalone checklists, Buildstate products share one practical workspace for site teams,
-            project controls, and delivery managers.
-          </p>
+          <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">How SiteSign works</p>
+          <h2 className="text-3xl font-black text-slate-900 max-w-4xl">One QR poster. Live attendance register. Exports when you need them.</h2>
+          <div className="grid gap-3 md:grid-cols-3 text-sm font-semibold text-slate-700">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">1. Add your site and print its QR poster.</div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">2. Workers scan on phone to sign in/out.</div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">3. Export CSV, Excel, or PDF reports anytime.</div>
+          </div>
         </div>
       </section>
 
       <section className="py-16 bg-slate-50 border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Core products</h2>
-            <p className="text-slate-600 mt-2">SiteSign and SitePlan are the lead products for civil construction coordination and delivery tracking.</p>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Start with SiteSign</h2>
+            <p className="text-slate-600 mt-2">SiteSign is the fastest way to get practical attendance control on civil sites. SitePlan is available once you are ready for planning workflows.</p>
           </div>
           <div className="grid lg:grid-cols-2 gap-6">
             <article className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -131,7 +128,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                 <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-700">SiteSign</p>
                 <h3 className="text-2xl font-black text-slate-900 mt-2">QR sign-in and live attendance records</h3>
                 <p className="text-slate-600 mt-2">Capture worker attendance in minutes and maintain reliable site access records for compliance, supervision, and payroll support.</p>
-                <Link href="/tools/site-sign-in" className="inline-flex mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">Open SiteSign →</Link>
+                <Link href="/login?signup=1" className="inline-flex mt-4 text-sm font-bold text-amber-700 hover:text-amber-800">Start SiteSign free →</Link>
               </div>
             </article>
             <article className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -151,11 +148,11 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-[1fr,1.1fr] gap-8 items-center">
           <div className="space-y-4">
             <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Workspace apps</p>
-            <h2 className="text-3xl font-black text-slate-900">Connected apps for site diaries, inspections, plant checks, incidents, and timesheets.</h2>
+            <h2 className="text-3xl font-black text-slate-900">Buildstate also includes planning and broader workspace apps.</h2>
             <p className="text-slate-600">
               Buildstate is expanding into a full workspace suite so field records, planning updates, and delivery decisions stay connected at project level.
             </p>
-            <Link href="/tools" className="inline-flex text-sm font-bold text-slate-900 hover:text-slate-700">View product roadmap →</Link>
+            <Link href="/tools" className="inline-flex text-sm font-bold text-slate-900 hover:text-slate-700">Explore additional products →</Link>
           </div>
           <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100">
             <Image src={workspaceMedia.src} alt={workspaceMedia.alt} width={workspaceMedia.width} height={workspaceMedia.height} className="w-full h-auto object-cover" />
