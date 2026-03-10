@@ -1,10 +1,6 @@
 import Link from "next/link";
-import { getComingSoonModules, getLiveModules } from "@/lib/modules";
 
 export function PublicFooter() {
-  const liveModules = getLiveModules();
-  const comingSoonModules = getComingSoonModules();
-
   return (
     <footer className="mt-16 border-t border-slate-800/10 bg-slate-950 pt-16 pb-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -24,34 +20,42 @@ export function PublicFooter() {
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Live products</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Products</h3>
             <ul className="space-y-3">
-              {liveModules.map((m) => (
-                <li key={m.id}>
-                  <Link href={`/tools/${m.id}`} className="text-sm text-slate-400 transition-colors hover:text-amber-300">
-                    {m.name}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link href="/sitesign" className="text-sm text-slate-400 transition-colors hover:text-amber-300">
+                  SiteSign
+                </Link>
+              </li>
+              <li>
+                <Link href="/siteplan" className="text-sm text-slate-400 transition-colors hover:text-amber-300">
+                  SitePlan
+                </Link>
+              </li>
+              <li>
+                <Link href="/workspace" className="text-sm text-slate-400 transition-colors hover:text-amber-300">
+                  Workspace roadmap
+                </Link>
+              </li>
             </ul>
           </div>
 
           <div>
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Workspace roadmap</h3>
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-white">Get started</h3>
             <ul className="space-y-3">
-              {comingSoonModules.slice(0, 4).map((m) => (
-                <li key={m.id}>
-                  <span className="cursor-not-allowed text-sm text-slate-500">{m.name}</span>
-                </li>
-              ))}
               <li>
-                <Link href="/tools" className="text-sm text-amber-300 transition-colors hover:text-amber-200">
-                  See all workspace apps &rarr;
+                <Link href="/login?signup=1&intent=sitesign" className="text-sm text-amber-300 transition-colors hover:text-amber-200">
+                  Start SiteSign
                 </Link>
               </li>
               <li>
-                <Link href="/free-tools" className="text-sm text-slate-400 transition-colors hover:text-white">
-                  Tools Library
+                <Link href="/login?signup=1&intent=siteplan" className="text-sm text-slate-400 transition-colors hover:text-white">
+                  Start SitePlan
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className="text-sm text-slate-400 transition-colors hover:text-white">
+                  Log in
                 </Link>
               </li>
             </ul>
@@ -68,11 +72,6 @@ export function PublicFooter() {
               <li>
                 <Link href="/contact" className="text-sm text-slate-400 transition-colors hover:text-white">
                   Contact
-                </Link>
-              </li>
-              <li>
-                <Link href="/login" className="text-sm text-slate-400 transition-colors hover:text-white">
-                  Log In
                 </Link>
               </li>
             </ul>

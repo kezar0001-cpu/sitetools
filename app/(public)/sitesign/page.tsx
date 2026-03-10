@@ -31,7 +31,7 @@ export default function SiteSignPage() {
           <p className="text-lg text-amber-950/90 max-w-3xl">
             SiteSign helps civil construction teams run quick QR sign-in and maintain reliable workforce attendance records across active sites.
           </p>
-          <Link href="/login?signup=1" className="inline-flex px-5 py-3 rounded-xl bg-amber-950 hover:bg-black text-amber-100 font-bold">
+          <Link href="/login?signup=1&intent=sitesign" className="inline-flex px-5 py-3 rounded-xl bg-amber-950 hover:bg-black text-amber-100 font-bold">
             Start SiteSign
           </Link>
         </div>
@@ -73,7 +73,7 @@ export default function SiteSignPage() {
             <p className="text-sm uppercase tracking-[0.2em] font-bold text-amber-900">Ready to start?</p>
             <h2 className="text-2xl font-black text-amber-950 mt-2">Start using SiteSign on your next project.</h2>
           </div>
-          <Link href="/login?signup=1" className="inline-flex px-5 py-3 rounded-xl bg-amber-950 hover:bg-black text-amber-100 font-bold">
+          <Link href="/login?signup=1&intent=sitesign" className="inline-flex px-5 py-3 rounded-xl bg-amber-950 hover:bg-black text-amber-100 font-bold">
             Start SiteSign
           </Link>
         </div>
