@@ -21,7 +21,7 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
   return (
     <>
       <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0 sticky top-0 bg-slate-900 z-10">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group" onClick={onNavigate}>
+        <Link href="/dashboard/site-sign-in" className="flex items-center gap-2.5 group" onClick={onNavigate}>
           <div className="bg-amber-400 text-amber-900 rounded-lg p-1 transition-transform group-hover:scale-105">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -39,16 +39,16 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
       <div className="flex-1 py-6 px-4 space-y-8">
         <div>
           <Link
-            href="/dashboard"
+            href="/dashboard/site-sign-in"
             onClick={onNavigate}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm ${
-              pathname === "/dashboard" ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
+              pathname.startsWith("/dashboard/site-sign-in") ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
             }`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
             </svg>
-            Workspace Dashboard
+            SiteSign Workspace
           </Link>
           <Link
             href="/dashboard/team"
@@ -124,7 +124,7 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
 
       <div className="px-4 py-4 border-t border-slate-800 shrink-0 bg-slate-900">
         <Link
-          href="/dashboard"
+          href="/dashboard/site-sign-in"
           onClick={onNavigate}
           className="flex items-center gap-3 px-3 py-2 rounded-xl transition-colors font-medium text-sm hover:bg-slate-800/50 hover:text-white"
         >

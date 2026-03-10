@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { loadWorkspaceSummary } from "@/lib/workspace/client";
-import { parseProductIntent, resolveProductHome } from "@/lib/routing";
+import { hasWorkspaceMemberships } from "@/lib/workspace/client";
+import { inferProductIntentFromPath, parseProductIntent, resolveProductHome } from "@/lib/routing";
 
 export default function PostLoginPage() {
   const router = useRouter();
@@ -24,11 +24,13 @@ export default function PostLoginPage() {
 
       setMessage("Loading your workspace...");
 
-      const summary = await loadWorkspaceSummary(user.id, user.email ?? null);
-      const intent = parseProductIntent(searchParams.get("intent"));
+      const explicitIntent = parseProductIntent(searchParams.get("intent"));
+      const inferredIntent = inferProductIntentFromPath(searchParams.get("next"));
+      const intent = explicitIntent ?? inferredIntent;
       const productHome = resolveProductHome(intent);
+      const hasMembership = await hasWorkspaceMemberships(user.id, user.email ?? null);
 
-      if (summary.memberships.length === 0) {
+      if (!hasMembership) {
         const onboardingParams = new URLSearchParams();
         if (intent) onboardingParams.set("intent", intent);
         const onboardingRoute = onboardingParams.size > 0

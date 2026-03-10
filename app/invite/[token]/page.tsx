@@ -73,7 +73,7 @@ export default function InviteAcceptPage() {
             <h1 className="text-xl font-bold text-emerald-700">Invitation accepted</h1>
             <p className="mt-2 text-sm text-slate-600">You now have access to this company workspace.</p>
             <button
-              onClick={() => router.push("/dashboard")}
+              onClick={() => router.push("/dashboard/site-sign-in")}
               className="mt-6 w-full bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-xl px-4 py-3 text-sm"
             >
               Open Dashboard

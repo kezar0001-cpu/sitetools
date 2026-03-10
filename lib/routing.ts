@@ -12,3 +12,18 @@ export function resolveProductHome(intent: ProductIntent | null | undefined): st
   if (intent === "siteplan") return "/dashboard/planner";
   return "/dashboard/site-sign-in";
 }
+
+export function inferProductIntentFromPath(value: string | null | undefined): ProductIntent | null {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+
+  if (normalized.includes("siteplan") || normalized.includes("planner")) {
+    return "siteplan";
+  }
+
+  if (normalized.includes("sitesign") || normalized.includes("site-sign-in")) {
+    return "sitesign";
+  }
+
+  return null;
+}

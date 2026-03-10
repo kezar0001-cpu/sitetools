@@ -153,7 +153,7 @@ export default function ToolDetailPage({ params }: { params: { moduleId: string 
         return (
             <div className="bg-slate-50 min-h-full py-12">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-                    <Link href="/tools" className="text-sm font-semibold text-slate-600 hover:text-slate-900">← Back to workspace tools</Link>
+                    <Link href="/workspace" className="text-sm font-semibold text-slate-600 hover:text-slate-900">← Back to workspace overview</Link>
 
                     <section className="rounded-3xl bg-slate-950 text-white overflow-hidden border border-slate-900">
                         <div className="grid lg:grid-cols-2 gap-0">
@@ -169,7 +169,7 @@ export default function ToolDetailPage({ params }: { params: { moduleId: string 
                                 </div>
 
                                 <div className="flex flex-wrap gap-3">
-                                    <Link href="/login?signup=1" className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl">
+                                    <Link href={moduleItem.id === "planner" ? "/login?signup=1&intent=siteplan" : "/login?signup=1&intent=sitesign"} className="px-5 py-3 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold rounded-xl">
                                         {liveContent.primaryCtaLabel}
                                     </Link>
                                     <Link href={moduleItem.href} className="px-5 py-3 border border-slate-600 hover:border-slate-400 text-white font-semibold rounded-xl">
@@ -238,10 +238,10 @@ export default function ToolDetailPage({ params }: { params: { moduleId: string 
                             <h2 className="text-2xl font-black text-slate-900">Single login, shared workspace architecture</h2>
                             <p className="text-slate-600 mt-2">
                                 Keep one auth path at <span className="font-mono text-slate-800">/login</span>, then route teams through
-                                module dashboards under <span className="font-mono text-slate-800">/dashboard/*</span> for consistent onboarding and easier campaign targeting.
+                                product workspaces under <span className="font-mono text-slate-800">/dashboard/site-sign-in</span> and <span className="font-mono text-slate-800">/dashboard/planner</span> for consistent onboarding and easier campaign targeting.
                             </p>
                         </div>
-                        <Link href="/login" className="px-5 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl text-center whitespace-nowrap">
+                        <Link href={moduleItem.id === "planner" ? "/login?intent=siteplan" : "/login?intent=sitesign"} className="px-5 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl text-center whitespace-nowrap">
                             {liveContent.primaryCtaLabel}
                         </Link>
                     </section>
@@ -253,7 +253,7 @@ export default function ToolDetailPage({ params }: { params: { moduleId: string 
     return (
         <div className="bg-slate-50 min-h-full py-16">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-                <Link href="/tools" className="text-sm font-semibold text-slate-600 hover:text-slate-900">← Back to workspace tools</Link>
+                <Link href="/workspace" className="text-sm font-semibold text-slate-600 hover:text-slate-900">← Back to workspace overview</Link>
 
                 <section className="bg-white border border-slate-200 rounded-2xl p-8 space-y-6">
                     <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -285,8 +285,8 @@ export default function ToolDetailPage({ params }: { params: { moduleId: string 
                         </p>
                     </div>
 
-                    <Link href="/dashboard" className="inline-flex px-5 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl">
-                        View workspace overview
+                    <Link href="/dashboard/site-sign-in" className="inline-flex px-5 py-3 bg-slate-900 hover:bg-black text-white font-bold rounded-xl">
+                        Open SiteSign workspace
                     </Link>
                 </section>
             </div>

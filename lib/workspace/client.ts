@@ -197,6 +197,19 @@ export async function loadWorkspaceSummary(userId: string, email?: string | null
   };
 }
 
+export async function hasWorkspaceMemberships(userId: string, email?: string | null): Promise<boolean> {
+  await ensureProfile(userId, email);
+
+  const { data, error } = await supabase
+    .from("company_memberships")
+    .select("id")
+    .eq("user_id", userId)
+    .limit(1);
+
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 export async function setActiveCompany(companyId: string): Promise<void> {
   const { data, error } = await supabase.rpc("set_active_company", { p_company_id: companyId });
   if (error) {

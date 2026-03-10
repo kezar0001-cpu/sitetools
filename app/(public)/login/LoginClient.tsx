@@ -5,13 +5,15 @@ import { supabase } from "@/lib/supabase";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getIcon } from "@/components/icons/getIcon";
-import { parseProductIntent } from "@/lib/routing";
+import { inferProductIntentFromPath, parseProductIntent } from "@/lib/routing";
 
 export function LoginClient() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const initialMode = searchParams.get("signup") ? "signup" : "login";
-    const intent = parseProductIntent(searchParams.get("intent"));
+    const explicitIntent = parseProductIntent(searchParams.get("intent"));
+    const nextPath = searchParams.get("next");
+    const intent = explicitIntent ?? inferProductIntentFromPath(nextPath);
 
     const [mode, setMode] = useState<"login" | "signup">(initialMode);
     const [email, setEmail] = useState("");
@@ -48,6 +50,9 @@ export function LoginClient() {
         const postLoginParams = new URLSearchParams();
         if (intent) {
             postLoginParams.set("intent", intent);
+        }
+        if (nextPath) {
+            postLoginParams.set("next", nextPath);
         }
 
         const postLoginRoute = postLoginParams.size > 0

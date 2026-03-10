@@ -41,8 +41,8 @@ export default function FreeToolsPage() {
                                 Use instant tools with no login for quick checks, then move into SiteSign for attendance records or SitePlan for delivery planning in your workspace.
                             </p>
                             <div className="mt-5 flex flex-wrap gap-3">
-                                <Link href="/tools/site-sign-in" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-500">Open SiteSign</Link>
-                                <Link href="/tools/planner" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Explore SitePlan</Link>
+                                <Link href="/sitesign" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-500">Open SiteSign</Link>
+                                <Link href="/siteplan" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Explore SitePlan</Link>
                                 <Link href="/login" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Log in</Link>
                             </div>
                         </div>

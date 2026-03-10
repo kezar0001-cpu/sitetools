@@ -41,7 +41,7 @@ export default function ToolsPage() {
                         <h3 className="text-2xl font-bold">Need both attendance and planning coverage?</h3>
                         <p className="text-slate-300 mt-1">Start with SiteSign and SitePlan, then expand into additional modules as your delivery process matures.</p>
                     </div>
-                    <Link href="/login?signup=1" className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold px-5 py-3 rounded-xl whitespace-nowrap text-center">
+                    <Link href="/login?signup=1&intent=sitesign" className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold px-5 py-3 rounded-xl whitespace-nowrap text-center">
                         Create account
                     </Link>
                 </section>

@@ -82,7 +82,7 @@ export function AppTopbar({ onMenuToggle }: Props) {
     try {
       await setActiveCompany(companyId);
       await refresh();
-      router.replace("/dashboard");
+      router.replace("/dashboard/site-sign-in");
       router.refresh();
     } finally {
       setSwitching(false);
