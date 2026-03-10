@@ -31,7 +31,7 @@ export default function SitePlanPage() {
           <p className="text-lg text-blue-100 max-w-3xl">
             SitePlan gives project teams a practical planning and delivery workflow to keep programmes current, visible, and actionable.
           </p>
-          <Link href="/login?signup=1" className="inline-flex px-5 py-3 rounded-xl bg-white hover:bg-blue-100 text-blue-800 font-bold">
+          <Link href="/login?signup=1&intent=siteplan" className="inline-flex px-5 py-3 rounded-xl bg-white hover:bg-blue-100 text-blue-800 font-bold">
             Start SitePlan
           </Link>
         </div>
@@ -71,7 +71,7 @@ export default function SitePlanPage() {
             <p className="text-sm uppercase tracking-[0.2em] font-bold text-blue-900">Ready to start?</p>
             <h2 className="text-2xl font-black text-blue-950 mt-2">Start using SitePlan with your next programme.</h2>
           </div>
-          <Link href="/login?signup=1" className="inline-flex px-5 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold">
+          <Link href="/login?signup=1&intent=siteplan" className="inline-flex px-5 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white font-bold">
             Start SitePlan
           </Link>
         </div>
