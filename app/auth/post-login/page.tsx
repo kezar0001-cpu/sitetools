@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { loadWorkspaceSummary } from "@/lib/workspace/client";
@@ -57,9 +57,6 @@ function PostLoginClient() {
       router.replace("/login");
     });
   }, [router, searchParams]);
-
-  return <PostLoginLoading message={message} />;
-}
 
 export default function PostLoginPage() {
   return (
