@@ -5,12 +5,13 @@ const SITE_URL = "https://buildstate.com";
 export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
     "",
+    "/sitesign",
+    "/siteplan",
+    "/workspace",
     "/about",
     "/contact",
     "/terms",
     "/privacy",
-    "/tools",
-    "/free-tools",
     "/login",
   ];
 

@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { acceptCompanyInvitation, createCompany } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
+import { parseProductIntent, resolveProductHome } from "@/lib/routing";
 
 function OnboardingLoadingFallback() {
   return (
@@ -17,6 +18,8 @@ function OnboardingClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loading, error, summary } = useWorkspace({ requireAuth: true, requireCompany: false });
+  const intent = parseProductIntent(searchParams.get("intent"));
+  const productHome = resolveProductHome(intent);
 
   const [companyName, setCompanyName] = useState("");
   const [inviteValue, setInviteValue] = useState("");
@@ -34,9 +37,9 @@ function OnboardingClient() {
 
   useEffect(() => {
     if (summary && summary.memberships.length > 0) {
-      router.replace("/dashboard");
+      router.replace(productHome);
     }
-  }, [router, summary]);
+  }, [productHome, router, summary]);
 
   async function onCreateCompany(e: FormEvent) {
     e.preventDefault();
@@ -51,7 +54,7 @@ function OnboardingClient() {
     setCreateLoading(true);
     try {
       await createCompany(companyName.trim());
-      router.replace("/dashboard");
+      router.replace(productHome);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to create company.");
     } finally {
@@ -77,7 +80,7 @@ function OnboardingClient() {
         return;
       }
       setInfo("Invitation accepted. Redirecting to your workspace...");
-      router.replace("/dashboard");
+      router.replace(productHome);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to join company.");
     } finally {

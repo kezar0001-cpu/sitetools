@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getIcon } from "@/components/icons/getIcon";
+import { parseProductIntent } from "@/lib/routing";
 
 export function LoginClient() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const initialMode = searchParams.get("signup") ? "signup" : "login";
+    const intent = parseProductIntent(searchParams.get("intent"));
 
     const [mode, setMode] = useState<"login" | "signup">(initialMode);
     const [email, setEmail] = useState("");
@@ -42,7 +45,16 @@ export function LoginClient() {
             return;
         }
 
-        window.location.href = "/dashboard";
+        const postLoginParams = new URLSearchParams();
+        if (intent) {
+            postLoginParams.set("intent", intent);
+        }
+
+        const postLoginRoute = postLoginParams.size > 0
+            ? `/auth/post-login?${postLoginParams.toString()}`
+            : "/auth/post-login";
+
+        router.replace(postLoginRoute);
     }
 
     return (
