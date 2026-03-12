@@ -1,6 +1,5 @@
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { PublicFooter } from "@/components/layout/PublicFooter";
-import { FeedbackChatWidget } from "@/components/layout/FeedbackChatWidget";
 
 export default function PublicLayout({
   children,
@@ -12,7 +11,6 @@ export default function PublicLayout({
       <PublicNavbar />
       <main className="flex-grow flex flex-col overflow-hidden">{children}</main>
       <PublicFooter />
-      <FeedbackChatWidget />
     </div>
   );
 }
