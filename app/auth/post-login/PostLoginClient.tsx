@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { loadWorkspaceSummary } from "@/lib/workspace/client";
+import { cacheWorkspaceSummary } from "@/lib/workspace/summaryCache";
 import { parseProductIntent, resolveProductHome } from "@/lib/routing";
 
 export function PostLoginClient() {
@@ -25,6 +26,7 @@ export function PostLoginClient() {
       setMessage("Loading your workspace...");
 
       const summary = await loadWorkspaceSummary(user.id, user.email ?? null);
+      cacheWorkspaceSummary(summary);
       const intent = parseProductIntent(searchParams.get("intent"));
       const productHome = resolveProductHome(intent);
 
@@ -50,8 +52,8 @@ export function PostLoginClient() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
       <div className="bg-white border border-slate-200 rounded-2xl p-8 w-full max-w-md text-center shadow-sm">
-        <div className="mx-auto h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
-        <p className="mt-4 text-sm font-medium text-slate-600">{message}</p>
+        <p className="text-base font-semibold text-slate-800">{message}</p>
+        <p className="mt-2 text-sm text-slate-500">Taking you straight to your dashboard…</p>
       </div>
     </div>
   );
