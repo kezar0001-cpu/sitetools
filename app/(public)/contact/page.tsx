@@ -18,8 +18,8 @@ export default function ContactPage() {
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 space-y-2 text-slate-700">
           <p>
             <span className="font-semibold text-slate-900">Support email:</span>{" "}
-            <a className="text-amber-700 hover:text-amber-800" href="mailto:support@buildstate.com">
-              support@buildstate.com
+            <a className="text-amber-700 hover:text-amber-800" href="mailto:admin@buildstate.com.au">
+              admin@buildstate.com.au
             </a>
           </p>
           <p>

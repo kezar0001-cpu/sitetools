@@ -14,11 +14,13 @@ export function FeedbackChatWidget() {
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
   const [uploadedPhotoDataUrl, setUploadedPhotoDataUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const takePhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
 
   const captureScreenshot = async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
-      setStatus("Screen capture is not available in this browser.");
+      setStatus("Screen capture is not available on this device. Use Add photo to take or upload an image.");
       return;
     }
 
@@ -83,6 +85,8 @@ export function FeedbackChatWidget() {
       setStatus("We could not load that photo. Try another image.");
     };
     reader.readAsDataURL(file);
+
+    event.target.value = "";
   };
 
   const downloadAttachment = (dataUrl: string, filenamePrefix: string) => {
@@ -189,10 +193,18 @@ export function FeedbackChatWidget() {
             ) : null}
 
             <input
-              ref={photoInputRef}
+              ref={takePhotoInputRef}
               type="file"
               accept="image/*"
               capture="environment"
+              className="hidden"
+              onChange={handlePhotoUpload}
+            />
+
+            <input
+              ref={uploadPhotoInputRef}
+              type="file"
+              accept="image/*"
               className="hidden"
               onChange={handlePhotoUpload}
             />
@@ -208,21 +220,46 @@ export function FeedbackChatWidget() {
               </button>
               <button
                 type="button"
-                onClick={() => photoInputRef.current?.click()}
+                onClick={() => setShowPhotoOptions((current) => !current)}
                 className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
-                Upload photo
+                Add photo
               </button>
             </div>
 
+            {showPhotoOptions ? (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    takePhotoInputRef.current?.click();
+                    setShowPhotoOptions(false);
+                  }}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Take photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    uploadPhotoInputRef.current?.click();
+                    setShowPhotoOptions(false);
+                  }}
+                  className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Upload photo
+                </button>
+              </div>
+            ) : null}
+
             <button
               type="button"
-                onClick={handleSubmit}
-                disabled={isSending}
-                className="w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-              >
-                {isSending ? "Opening email..." : "Send feedback"}
-              </button>
+              onClick={handleSubmit}
+              disabled={isSending}
+              className="w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {isSending ? "Opening email..." : "Send feedback"}
+            </button>
 
             {status ? <p className="text-xs text-slate-500">{status}</p> : null}
           </div>
