@@ -1,6 +1,15 @@
+"use client";
+
 import Link from "next/link";
+import { useRef } from "react";
 
 export function PublicNavbar() {
+  const mobileMenuRef = useRef<HTMLDetailsElement>(null);
+
+  const closeMobileMenu = () => {
+    mobileMenuRef.current?.removeAttribute("open");
+  };
+
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800/10 bg-white/90 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -25,7 +34,7 @@ export function PublicNavbar() {
               Start SiteSign
             </Link>
 
-            <details className="md:hidden relative">
+            <details ref={mobileMenuRef} className="md:hidden relative">
               <summary className="list-none cursor-pointer p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100">
                 <span className="sr-only">Toggle navigation menu</span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
@@ -33,12 +42,12 @@ export function PublicNavbar() {
                 </svg>
               </summary>
               <div className="absolute right-0 top-12 w-56 rounded-2xl border border-slate-200 bg-white shadow-sm p-2 space-y-1">
-                <Link href="/sitesign" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">SiteSign</Link>
-                <Link href="/siteplan" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">SitePlan</Link>
-                <Link href="/workspace" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Workspace</Link>
-                <Link href="/about" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">About</Link>
-                <Link href="/contact" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Contact</Link>
-                <Link href="/login" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Log in</Link>
+                <Link onClick={closeMobileMenu} href="/sitesign" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">SiteSign</Link>
+                <Link onClick={closeMobileMenu} href="/siteplan" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">SitePlan</Link>
+                <Link onClick={closeMobileMenu} href="/workspace" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Workspace</Link>
+                <Link onClick={closeMobileMenu} href="/about" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">About</Link>
+                <Link onClick={closeMobileMenu} href="/contact" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Contact</Link>
+                <Link onClick={closeMobileMenu} href="/login" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Log in</Link>
               </div>
             </details>
           </div>
