@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 
 const SUPPORT_EMAIL = "admin@buildstate.com.au";
 
@@ -10,8 +10,11 @@ export function FeedbackChatWidget() {
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [screenshotDataUrl, setScreenshotDataUrl] = useState<string | null>(null);
+  const [uploadedPhotoDataUrl, setUploadedPhotoDataUrl] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const captureScreenshot = async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -57,13 +60,49 @@ export function FeedbackChatWidget() {
     }
   };
 
+  const handlePhotoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setStatus("Please upload an image file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setUploadedPhotoDataUrl(reader.result);
+        setStatus("Photo attached. It will be downloaded when you send feedback.");
+      }
+    };
+    reader.onerror = () => {
+      setStatus("We could not load that photo. Try another image.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const downloadAttachment = (dataUrl: string, filenamePrefix: string) => {
+    const filename = `${filenamePrefix}-${new Date().toISOString().replace(/[.:]/g, "-")}.png`;
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = filename;
+    link.click();
+  };
+
   const handleSubmit = () => {
     if (!message.trim()) {
       setStatus("Please add your feedback message.");
       return;
     }
 
+    setIsSending(true);
+
     const page = typeof window !== "undefined" ? window.location.href : "";
+    const hasAttachment = Boolean(screenshotDataUrl || uploadedPhotoDataUrl);
     const body = [
       "Buildstate feedback",
       "",
@@ -72,23 +111,24 @@ export function FeedbackChatWidget() {
       `Page: ${page}`,
       `Submitted at: ${new Date().toLocaleString()}`,
       "",
-      screenshotDataUrl
-        ? "A screenshot was captured and downloaded as an attachment. Please attach it before sending this email."
-        : "No screenshot attached.",
+      hasAttachment
+        ? "Attachment(s) were downloaded. Please attach them to this email before sending."
+        : "No attachment included.",
     ].join("\n");
 
     const mailtoHref = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Website feedback")}&body=${encodeURIComponent(body)}`;
     window.location.href = mailtoHref;
 
     if (screenshotDataUrl) {
-      const screenshotFilename = `buildstate-feedback-${new Date().toISOString().replace(/[.:]/g, "-")}.png`;
-      const link = document.createElement("a");
-      link.href = screenshotDataUrl;
-      link.download = screenshotFilename;
-      link.click();
+      downloadAttachment(screenshotDataUrl, "buildstate-feedback-screenshot");
+    }
+
+    if (uploadedPhotoDataUrl) {
+      downloadAttachment(uploadedPhotoDataUrl, "buildstate-feedback-photo");
     }
 
     setStatus("Your email app has been opened.");
+    setIsSending(false);
   };
 
   return (
@@ -137,6 +177,26 @@ export function FeedbackChatWidget() {
               />
             ) : null}
 
+            {uploadedPhotoDataUrl ? (
+              <Image
+                src={uploadedPhotoDataUrl}
+                alt="Uploaded photo preview"
+                width={600}
+                height={320}
+                unoptimized
+                className="max-h-32 w-full rounded-lg border border-slate-200 object-cover"
+              />
+            ) : null}
+
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhotoUpload}
+            />
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -148,12 +208,21 @@ export function FeedbackChatWidget() {
               </button>
               <button
                 type="button"
-                onClick={handleSubmit}
-                className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                onClick={() => photoInputRef.current?.click()}
+                className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
-                Send feedback
+                Upload photo
               </button>
             </div>
+
+            <button
+              type="button"
+                onClick={handleSubmit}
+                disabled={isSending}
+                className="w-full rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                {isSending ? "Opening email..." : "Send feedback"}
+              </button>
 
             {status ? <p className="text-xs text-slate-500">{status}</p> : null}
           </div>
