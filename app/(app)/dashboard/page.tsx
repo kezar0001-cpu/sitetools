@@ -2,19 +2,8 @@
 
 import { MODULES } from "@/lib/modules";
 import { ModuleCard } from "@/components/modules/ModuleCard";
-import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
 export default function DashboardHome() {
-  const { loading } = useWorkspace({ requireAuth: true, requireCompany: true });
-
-    if (loading) {
-        return (
-            <div className="flex-1 flex items-center justify-center min-h-[50vh]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
-            </div>
-        );
-    }
-
     const liveModules = MODULES.filter((m) => m.status === "live");
     const plannedModules = MODULES.filter((m) => m.status === "coming-soon");
 
@@ -70,5 +59,4 @@ export default function DashboardHome() {
         </div>
     );
 }
-
 

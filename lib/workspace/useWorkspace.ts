@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { loadWorkspaceSummary } from "@/lib/workspace/client";
+import { cacheWorkspaceSummary, clearWorkspaceSummaryCache, getCachedWorkspaceSummary } from "@/lib/workspace/summaryCache";
 import { WorkspaceSummary } from "@/lib/workspace/types";
 
 interface UseWorkspaceOptions {
@@ -22,9 +23,10 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
   } = options;
 
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const cachedSummary = getCachedWorkspaceSummary();
+  const [loading, setLoading] = useState(!cachedSummary);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
+  const [summary, setSummary] = useState<WorkspaceSummary | null>(cachedSummary);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -43,6 +45,7 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
 
     if (!user) {
       setSummary(null);
+      clearWorkspaceSummaryCache();
       setLoading(false);
       if (requireAuth) router.replace(redirectToLogin);
       return;
@@ -51,6 +54,7 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
     try {
       const nextSummary = await loadWorkspaceSummary(user.id, user.email ?? null);
       setSummary(nextSummary);
+      cacheWorkspaceSummary(nextSummary);
 
       if (requireCompany && nextSummary.memberships.length === 0) {
         router.replace(redirectToOnboarding);
@@ -59,6 +63,7 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
       const message = err instanceof Error ? err.message : "Failed to load workspace.";
       setError(message);
       setSummary(null);
+      clearWorkspaceSummaryCache();
     } finally {
       setLoading(false);
     }

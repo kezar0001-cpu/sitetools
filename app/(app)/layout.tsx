@@ -16,10 +16,13 @@ export default function AppLayout({
     requireCompany: true,
   });
 
-  if (loading) {
+  if (loading && !summary) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
+        <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-700">Preparing your workspace…</p>
+          <p className="mt-2 text-sm text-slate-500">This should only take a moment.</p>
+        </div>
       </div>
     );
   }
