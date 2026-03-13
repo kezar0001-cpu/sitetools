@@ -24,9 +24,11 @@ export function PublicNavbar() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="/sitesign" className="text-sm font-semibold text-slate-700 hover:text-slate-900">SiteSign</Link>
-            <Link href="/siteplan" className="text-sm font-semibold text-slate-700 hover:text-slate-900">SitePlan</Link>
-            <Link href="/workspace" className="text-sm font-semibold text-slate-700 hover:text-slate-900">Workspace</Link>
+            <Link href="/sitesign" className="text-sm font-semibold text-amber-600 hover:text-amber-800">SiteSign</Link>
+            <Link href="/siteplan" className="text-sm font-semibold text-blue-600 hover:text-blue-800">SitePlan</Link>
+            <Link href="/pricing" className="text-sm font-semibold text-slate-600 hover:text-slate-900">Pricing</Link>
+            <Link href="/contact" className="text-sm font-semibold text-slate-600 hover:text-slate-900">Contact</Link>
+            <Link href="/login" className="text-sm font-semibold text-slate-600 hover:text-slate-900">Log in</Link>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3 relative">
@@ -42,11 +44,12 @@ export function PublicNavbar() {
                 </svg>
               </summary>
               <div className="absolute right-0 top-12 w-56 rounded-2xl border border-slate-200 bg-white shadow-sm p-2 space-y-1">
-                <Link onClick={closeMobileMenu} href="/sitesign" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">SiteSign</Link>
-                <Link onClick={closeMobileMenu} href="/siteplan" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">SitePlan</Link>
-                <Link onClick={closeMobileMenu} href="/workspace" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Workspace</Link>
-                <Link onClick={closeMobileMenu} href="/about" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">About</Link>
+                <Link onClick={closeMobileMenu} href="/" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Home</Link>
+                <Link onClick={closeMobileMenu} href="/sitesign" className="block rounded-lg px-3 py-2.5 text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100">SiteSign</Link>
+                <Link onClick={closeMobileMenu} href="/siteplan" className="block rounded-lg px-3 py-2.5 text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100">SitePlan</Link>
+                <Link onClick={closeMobileMenu} href="/pricing" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Pricing</Link>
                 <Link onClick={closeMobileMenu} href="/contact" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Contact</Link>
+                <div className="h-px bg-slate-100 my-1"></div>
                 <Link onClick={closeMobileMenu} href="/login" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">Log in</Link>
               </div>
             </details>

@@ -1,11 +1,23 @@
 "use client";
 
-import { MODULES } from "@/lib/modules";
+import { getPrimaryNavModules, getSecondaryNavModules, getRoadmapModules } from "@/lib/modules";
 import { ModuleCard } from "@/components/modules/ModuleCard";
+import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
 export default function DashboardHome() {
-    const liveModules = MODULES.filter((m) => m.status === "live");
-    const plannedModules = MODULES.filter((m) => m.status === "coming-soon");
+    const { loading } = useWorkspace({ requireAuth: true, requireCompany: true });
+
+    if (loading) {
+        return (
+            <div className="flex-1 flex items-center justify-center min-h-[50vh]">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+            </div>
+        );
+    }
+
+    const primaryModules = getPrimaryNavModules();
+    const secondaryModules = getSecondaryNavModules();
+    const roadmapModules = getRoadmapModules();
 
     return (
         <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-12">
@@ -26,36 +38,56 @@ export default function DashboardHome() {
                         Welcome to Buildstate
                     </h1>
                     <p className="text-lg md:text-xl text-slate-400 font-medium max-w-2xl leading-relaxed">
-                        Your central hub for managing site compliance, quality, and attendance. Select an active module below to get started.
+                        Your workspace is ready. Access SiteSign for daily workforce attendance, or explore the rest of the operations suite below.
                     </p>
                 </div>
             </div>
 
             <section>
                 <div className="flex items-center gap-3 mb-6">
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Active Modules</h2>
-                    <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-emerald-200">Ready to use</span>
+                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Core Apps</h2>
+                    <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-amber-200">Action Hub</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {liveModules.map((m) => (
-                        <ModuleCard key={m.id} module={m} />
+                    {primaryModules.map((m) => (
+                        <div key={m.id} className="ring-2 ring-amber-400 rounded-3xl overflow-hidden shadow-lg shadow-amber-900/5">
+                            <ModuleCard module={m} />
+                        </div>
                     ))}
                 </div>
             </section>
 
-            <section className="pt-8 border-t border-slate-200">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-1">Coming Soon</h2>
-                        <p className="text-slate-500 font-medium text-sm">Modules currently in development for the platform suite.</p>
+            {secondaryModules.length > 0 && (
+                <section className="pt-8 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-1">Explore Other Tools</h2>
+                            <p className="text-slate-500 font-medium text-sm">Additional tools available for your workspace.</p>
+                        </div>
                     </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {plannedModules.map((m) => (
-                        <ModuleCard key={m.id} module={m} />
-                    ))}
-                </div>
-            </section>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 opacity-90">
+                        {secondaryModules.map((m) => (
+                            <ModuleCard key={m.id} module={m} />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {roadmapModules.length > 0 && (
+                <section className="pt-8 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-1">Coming Soon</h2>
+                            <p className="text-slate-500 font-medium text-sm">Modules currently in development for the platform suite.</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 opacity-75 grayscale hover:grayscale-0 transition-all">
+                        {roadmapModules.map((m) => (
+                            <ModuleCard key={m.id} module={m} />
+                        ))}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MODULES } from "@/lib/modules";
+import { getPrimaryNavModules, getSecondaryNavModules, getRoadmapModules } from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
@@ -79,7 +79,7 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
         <div>
           <h3 className="px-3 text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Live Modules</h3>
           <ul className="space-y-1">
-            {MODULES.filter((m) => m.status === "live").map((m) => {
+            {getPrimaryNavModules().map((m) => {
               const active = pathname.startsWith(m.href);
               return (
                 <li key={m.id}>
@@ -99,27 +99,57 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
           </ul>
         </div>
 
-        <div>
-          <h3 className="px-3 text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Planned Modules</h3>
-          <ul className="space-y-1">
-            {MODULES.filter((m) => m.status === "coming-soon").map((m) => (
-              <li key={m.id}>
-                <Link
-                  href={m.href}
-                  onClick={onNavigate}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-medium text-sm ${
-                    pathname.startsWith(m.href)
-                      ? "bg-slate-800 text-white ring-1 ring-slate-700"
-                      : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
-                  }`}
-                >
-                  <div className="opacity-50">{getIcon(m.icon, "h-4 w-4")}</div>
-                  {m.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <details className="group">
+          <summary className="cursor-pointer list-none px-3 text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center justify-between hover:text-slate-300">
+            <span>Explore Other Tools</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </summary>
+          <div className="pt-2 space-y-6">
+            <ul className="space-y-1">
+              {getSecondaryNavModules().map((m) => {
+                const active = pathname.startsWith(m.href);
+                return (
+                  <li key={m.id}>
+                    <Link
+                      href={m.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium text-sm ${
+                        active ? "bg-slate-800 text-white shadow-md font-bold" : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                      }`}
+                    >
+                      <div className={active ? "opacity-100" : "opacity-70"}>{getIcon(m.icon, "h-4 w-4")}</div>
+                      {m.name}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div>
+              <h3 className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-2">Planned Modules</h3>
+              <ul className="space-y-1">
+                {getRoadmapModules().map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      href={m.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-medium text-sm ${
+                        pathname.startsWith(m.href)
+                          ? "bg-slate-800 text-white ring-1 ring-slate-700"
+                          : "text-slate-500 hover:bg-slate-800/50 hover:text-slate-200"
+                      }`}
+                    >
+                      <div className="opacity-50">{getIcon(m.icon, "h-4 w-4")}</div>
+                      {m.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </details>
       </div>
 
       <div className="px-4 py-4 border-t border-slate-800 shrink-0 bg-slate-900">

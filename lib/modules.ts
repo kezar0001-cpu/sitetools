@@ -14,6 +14,8 @@ export type ModuleId =
     | "incidents"
     | "timesheets";
 
+export type ModuleVisibility = "primary" | "secondary" | "roadmap" | "internal";
+
 export interface BuildstateModule {
     id: ModuleId;
     name: string;
@@ -21,6 +23,7 @@ export interface BuildstateModule {
     description: string;
     icon: string; // Matches the icon key used in the UI
     status: ModuleStatus;
+    visibility: ModuleVisibility;
     href: string;
     color: string; // Tailwind color family name
 }
@@ -34,6 +37,7 @@ export const MODULES: BuildstateModule[] = [
             "Build practical civil programmes, track progress daily, manage delays, and keep site delivery aligned with planned dates.",
         icon: "list-checks",
         status: "live",
+        visibility: "secondary",
         href: "/dashboard/planner",
         color: "indigo",
     },
@@ -45,6 +49,7 @@ export const MODULES: BuildstateModule[] = [
             "Digital sign-in sheets for construction sites. Workers scan a QR code, sign in on their phone, and you get a real-time site register with CSV/Excel/PDF exports and WhatsApp checkout reminders.",
         icon: "clipboard-check",
         status: "live",
+        visibility: "primary",
         href: "/dashboard/site-sign-in",
         color: "amber",
     },
@@ -56,6 +61,7 @@ export const MODULES: BuildstateModule[] = [
             "Record weather conditions, work completed, delays, instructions, and site photos. Generate professional daily reports for your principal contractor.",
         icon: "book-open",
         status: "coming-soon",
+        visibility: "roadmap",
         href: "/dashboard/site-diary",
         color: "sky",
     },
@@ -67,6 +73,7 @@ export const MODULES: BuildstateModule[] = [
             "Create, manage, and track inspection and test plans across your projects. Assign hold/witness points and capture sign-offs digitally.",
         icon: "list-checks",
         status: "coming-soon",
+        visibility: "roadmap",
         href: "/dashboard/itp-builder",
         color: "violet",
     },
@@ -78,6 +85,7 @@ export const MODULES: BuildstateModule[] = [
             "Run daily pre-start checklists, quality inspections, and environmental checks from your phone. Attach photos and generate reports instantly.",
         icon: "search-check",
         status: "coming-soon",
+        visibility: "roadmap",
         href: "/dashboard/inspections",
         color: "emerald",
     },
@@ -89,6 +97,7 @@ export const MODULES: BuildstateModule[] = [
             "Digital pre-start checklists for excavators, trucks, cranes, and all site plant. Track compliance, flag defects, and maintain audit trails.",
         icon: "truck",
         status: "coming-soon",
+        visibility: "roadmap",
         href: "/dashboard/plant-checks",
         color: "orange",
     },
@@ -100,6 +109,7 @@ export const MODULES: BuildstateModule[] = [
             "Capture near-misses, injuries, and property damage on site. Attach photos, assign corrective actions, and generate reports for your safety team.",
         icon: "alert-triangle",
         status: "coming-soon",
+        visibility: "roadmap",
         href: "/dashboard/incidents",
         color: "red",
     },
@@ -111,6 +121,7 @@ export const MODULES: BuildstateModule[] = [
             "Record daily labour hours by crew and task. Generate timesheet summaries, track day-work dockets, and export for payroll or cost reporting.",
         icon: "clock",
         status: "coming-soon",
+        visibility: "roadmap",
         href: "/dashboard/timesheets",
         color: "teal",
     },
@@ -126,4 +137,27 @@ export function getLiveModules(): BuildstateModule[] {
 
 export function getComingSoonModules(): BuildstateModule[] {
     return MODULES.filter((m) => m.status === "coming-soon");
+}
+
+export function getPrimaryNavModules(): BuildstateModule[] {
+    const isPrimaryEnabled = process.env.NEXT_PUBLIC_SITESIGN_PRIMARY !== "false";
+    return MODULES.filter((m) => {
+        if (!isPrimaryEnabled) return m.status === "live"; // fallback to standard view
+        return m.visibility === "primary";
+    });
+}
+
+export function getSecondaryNavModules(): BuildstateModule[] {
+    const isPlannerEnabled = process.env.NEXT_PUBLIC_SHOW_PLANNER_PRIMARY === "true";
+    return MODULES.filter((m) => {
+        if (m.visibility === "primary") return false;
+        if (m.id === "planner" && !isPlannerEnabled) return false;
+        return m.visibility === "secondary";
+    });
+}
+
+export function getRoadmapModules(): BuildstateModule[] {
+    const isRoadmapEnabled = process.env.NEXT_PUBLIC_SHOW_ROADMAP_MODULES !== "false";
+    if (!isRoadmapEnabled) return [];
+    return MODULES.filter((m) => m.visibility === "roadmap");
 }
