@@ -30,18 +30,6 @@ export interface BuildstateModule {
 
 export const MODULES: BuildstateModule[] = [
     {
-        id: "planner",
-        name: "SitePlan",
-        tagline: "Project planning, programme tracking, and daily delivery for civil teams",
-        description:
-            "Build practical civil programmes, track progress daily, manage delays, and keep site delivery aligned with planned dates.",
-        icon: "list-checks",
-        status: "live",
-        visibility: "secondary",
-        href: "/dashboard/planner",
-        color: "indigo",
-    },
-    {
         id: "site-sign-in",
         name: "SiteSign",
         tagline: "QR-based sign in & out for every worker on site",
@@ -52,6 +40,18 @@ export const MODULES: BuildstateModule[] = [
         visibility: "primary",
         href: "/dashboard/site-sign-in",
         color: "amber",
+    },
+    {
+        id: "planner",
+        name: "SitePlan",
+        tagline: "Project planning, programme tracking, and daily delivery for civil teams",
+        description:
+            "Build practical civil programmes, track progress daily, manage delays, and keep site delivery aligned with planned dates.",
+        icon: "list-checks",
+        status: "live",
+        visibility: "primary",
+        href: "/dashboard/planner",
+        color: "indigo",
     },
     {
         id: "site-diary",

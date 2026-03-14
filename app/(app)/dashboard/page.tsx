@@ -38,7 +38,7 @@ export default function DashboardHome() {
                         Welcome to Buildstate
                     </h1>
                     <p className="text-lg md:text-xl text-slate-400 font-medium max-w-2xl leading-relaxed">
-                        Your workspace is ready. Access SiteSign for daily workforce attendance, or explore the rest of the operations suite below.
+                        Your workspace is ready. Access SiteSign for daily workforce attendance and SitePlan for project programming, or explore the rest of the operations suite below.
                     </p>
                 </div>
             </div>
