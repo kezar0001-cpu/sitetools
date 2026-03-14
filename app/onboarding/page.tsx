@@ -5,11 +5,95 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { acceptCompanyInvitation, createCompany } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { parseProductIntent, resolveProductHome } from "@/lib/routing";
+import { supabase } from "@/lib/supabase";
 
 function OnboardingLoadingFallback() {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-      <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
+    <div className="min-h-screen bg-white flex items-center justify-center px-4">
+      <div className="h-10 w-10 rounded-full border-4 border-slate-100 border-t-amber-500 animate-spin" />
+    </div>
+  );
+}
+
+function SuccessView({
+  type,
+  companyName,
+  productHome,
+  intent,
+}: {
+  type: "create" | "join";
+  companyName: string;
+  productHome: string;
+  intent: string | null;
+}) {
+  const intentLabel =
+    intent === "siteplan" ? "Site Planner" : intent === "sitesign" ? "Site Sign In" : "Dashboard";
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center p-4">
+      <div className="max-w-md w-full animate-zoom-in opacity-0">
+        <div className="relative mb-12 flex justify-center">
+          {/* Decorative background glow */}
+          <div className="absolute inset-0 bg-amber-400/20 blur-3xl rounded-full scale-150 -z-10" />
+          
+          <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl shadow-amber-200/50 flex items-center justify-center rotate-3 hover:rotate-0 transition-transform duration-500">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
+              <svg 
+                className="w-10 h-10 text-white fill-none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor" 
+                strokeWidth={3}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">
+            Workspace Ready!
+          </h1>
+          <p className="text-slate-500 font-medium text-lg leading-relaxed">
+            {type === "create"
+              ? "Your premium workspace has been initialized and is ready for your team."
+              : "You've successfully joined the workspace. Your access is now active."}
+          </p>
+        </div>
+
+        <div className="mt-10 bg-white/70 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl p-8 text-center">
+          <div className="inline-block px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-full mb-3">
+            Active Workspace
+          </div>
+          <div className="text-2xl font-black text-slate-900 break-words">
+            {companyName}
+          </div>
+        </div>
+
+        <div className="mt-10">
+          <a
+            href={productHome}
+            className="group relative flex items-center justify-center w-full bg-slate-900 hover:bg-black text-white font-bold rounded-2xl px-8 py-5 text-lg transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xl shadow-slate-200 overflow-hidden"
+          >
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <span className="relative z-10 flex items-center gap-3">
+              Continue to {intentLabel}
+              <svg 
+                className="w-5 h-5 transition-transform group-hover:translate-x-1" 
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor" 
+                strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </span>
+          </a>
+          <p className="mt-6 text-center text-slate-400 text-sm font-medium">
+            Redirecting automatically in a moment...
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -27,6 +111,7 @@ function OnboardingClient() {
   const [joinLoading, setJoinLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [success, setSuccess] = useState<{ type: "create" | "join"; name: string } | null>(null);
 
   useEffect(() => {
     const token = searchParams.get("token") ?? searchParams.get("code");
@@ -36,10 +121,20 @@ function OnboardingClient() {
   }, [inviteValue, searchParams]);
 
   useEffect(() => {
-    if (summary && summary.memberships.length > 0) {
+    if (summary && summary.memberships.length > 0 && !success) {
       router.replace(productHome);
     }
-  }, [productHome, router, summary]);
+  }, [productHome, router, summary, success]);
+
+  // Handle auto-redirect after success
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        router.replace(productHome);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success, productHome, router]);
 
   async function onCreateCompany(e: FormEvent) {
     e.preventDefault();
@@ -54,7 +149,7 @@ function OnboardingClient() {
     setCreateLoading(true);
     try {
       await createCompany(companyName.trim());
-      router.replace(productHome);
+      setSuccess({ type: "create", name: companyName.trim() });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to create company.");
     } finally {
@@ -79,13 +174,36 @@ function OnboardingClient() {
         setFormError(result.message ?? "Unable to join company.");
         return;
       }
-      setInfo("Invitation accepted. Redirecting to your workspace...");
-      router.replace(productHome);
+      
+      let name = "Your Workspace";
+      if (result.company_id) {
+        const { data } = await supabase
+          .from("companies")
+          .select("name")
+          .eq("id", result.company_id)
+          .single();
+        if (data?.name) name = data.name;
+      }
+
+      setSuccess({ type: "join", name });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to join company.");
     } finally {
       setJoinLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-slate-50/50">
+        <SuccessView
+          type={success.type}
+          companyName={success.name}
+          productHome={productHome}
+          intent={intent}
+        />
+      </div>
+    );
   }
 
   if (loading) {
@@ -95,9 +213,20 @@ function OnboardingClient() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="bg-white border border-red-200 rounded-2xl p-6 w-full max-w-lg">
-          <h1 className="text-lg font-bold text-red-700">Unable to load onboarding</h1>
-          <p className="mt-2 text-sm text-slate-600">{error}</p>
+        <div className="bg-white border border-red-100 rounded-3xl p-8 w-full max-w-lg shadow-xl shadow-red-100/20">
+          <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center mb-6">
+            <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-black text-slate-900">Workspace Error</h1>
+          <p className="mt-2 text-slate-500 font-medium">{error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-6 w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-colors"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
