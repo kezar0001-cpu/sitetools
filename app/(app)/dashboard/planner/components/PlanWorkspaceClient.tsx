@@ -5,9 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createPlanRevision,
+  createPlanPhase,
   createPlanTask,
   createTaskUpdate,
   deletePlannerPlan,
+  deletePlanPhase,
   deletePlanTask,
   fetchPlanById,
   fetchPlanPhases,
@@ -15,7 +17,9 @@ import {
   fetchPublicHolidays,
   bulkCreateTasks,
   logTaskDelayEvent,
+  reorderPlanPhases,
   updatePlannerPlan,
+  updatePlanPhase,
   updatePlanSites,
   updatePlanTask,
 } from "@/lib/planner/client";
@@ -31,6 +35,7 @@ import { PlannerGanttView } from "./PlannerGanttView";
 import { PlannerTodayView } from "./PlannerTodayView";
 import { PlannerImportDialog } from "./PlannerImportDialog";
 import { PlanSettingsPanel } from "./PlanSettingsPanel";
+import { PhaseManagerPanel } from "./PhaseManagerPanel";
 
 type Mode = "sheet" | "gantt" | "today";
 
@@ -51,7 +56,9 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPhaseManager, setShowPhaseManager] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [phaseSaving, setPhaseSaving] = useState(false);
 
   // ── Data loading ──
   const loadAll = useCallback(async () => {
@@ -133,6 +140,55 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       setSaving(null);
     }
   }, [planId, userId, loadAll]);
+
+  // ── Phase operations ──
+  const handleCreatePhase = useCallback(async (name: string, color: string) => {
+    setPhaseSaving(true);
+    try {
+      await createPlanPhase({ planId, name, color, sortOrder: phases.length, userId });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create phase.");
+    } finally {
+      setPhaseSaving(false);
+    }
+  }, [planId, phases.length, userId, loadAll]);
+
+  const handleUpdatePhase = useCallback(async (phaseId: string, patch: { name?: string; color?: string | null }) => {
+    setPhaseSaving(true);
+    try {
+      await updatePlanPhase(phaseId, patch);
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update phase.");
+    } finally {
+      setPhaseSaving(false);
+    }
+  }, [loadAll]);
+
+  const handleDeletePhase = useCallback(async (phase: { id: string; name: string }) => {
+    setPhaseSaving(true);
+    try {
+      await deletePlanPhase(phase.id);
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete phase.");
+    } finally {
+      setPhaseSaving(false);
+    }
+  }, [loadAll]);
+
+  const handleReorderPhases = useCallback(async (orderedIds: string[]) => {
+    setPhaseSaving(true);
+    try {
+      await reorderPlanPhases(orderedIds);
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reorder phases.");
+    } finally {
+      setPhaseSaving(false);
+    }
+  }, [loadAll]);
 
   // ── Task operations ──
   const handleAddTask = useCallback(async (title: string, phaseId?: string | null) => {
@@ -321,6 +377,22 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
 
           {/* Action buttons */}
           <button
+            onClick={() => setShowPhaseManager(true)}
+            className={`px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+              showPhaseManager
+                ? "border-indigo-400 bg-indigo-50 text-indigo-700"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-400"
+            }`}
+            title="Manage phases"
+          >
+            ◧ Phases
+            {phases.length > 0 && (
+              <span className="ml-1.5 bg-indigo-100 text-indigo-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+                {phases.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setShowImport(true)}
             className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
             title="Import .xml / CSV"
@@ -412,6 +484,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           onAddTask={handleAddTask}
           onPatchTask={handlePatchTask}
           onDeleteTask={handleDeleteTask}
+          onOpenPhaseManager={() => setShowPhaseManager(true)}
         />
       )}
       {mode === "gantt" && (
@@ -440,6 +513,19 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           onClose={() => setShowSettings(false)}
         />
       )}
+
+      {/* Phase Manager — slide-over panel, independent of view mode */}
+      <PhaseManagerPanel
+        open={showPhaseManager}
+        phases={phases}
+        tasks={tasks}
+        saving={phaseSaving}
+        onClose={() => setShowPhaseManager(false)}
+        onCreate={handleCreatePhase}
+        onUpdate={handleUpdatePhase}
+        onDelete={handleDeletePhase}
+        onReorder={handleReorderPhases}
+      />
     </div>
   );
 }
