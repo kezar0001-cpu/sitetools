@@ -83,7 +83,7 @@ function FieldError({ msg }: { msg?: string }) {
 export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
   const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set(["weather", "labor"])
+    new Set(["weather", "labor"] as Section[])
   );
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
