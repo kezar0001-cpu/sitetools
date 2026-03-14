@@ -136,7 +136,7 @@ function NoSiteScreen() {
               </div>
               <h4 className="text-xl font-black text-slate-900">Live Tracking</h4>
               <p className="text-base text-slate-500 font-medium leading-relaxed">
-                See who's currently on site in real-time. Track durations automatically for payroll.
+                See who&apos;s currently on site in real-time. Track durations automatically for payroll.
               </p>
             </div>
           </div>
