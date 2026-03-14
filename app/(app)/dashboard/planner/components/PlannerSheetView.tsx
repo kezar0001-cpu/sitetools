@@ -816,7 +816,7 @@ function TaskDetailPanel({ task, phases, saving, onPatch, onDelete, onClose }: {
   task: PlanTask;
   phases: PlanPhase[];
   saving: boolean;
-  onPatch: (patch: Partial<PlanTask>) => Promise<void>;
+  onPatch: (patch: Partial<PlanTask>) => void | Promise<void>;
   onDelete: () => void;
   onClose: () => void;
 }) {
