@@ -78,7 +78,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     dispatchTasks({ type: "SET_TASKS", tasks: planTasks });
     setPhases(planPhases);
     setHolidays(publicHolidays);
-  }, [planId, companyId]);
+  }, [planId, companyId, dispatchTasks]);
 
   const loadProjectsAndSites = useCallback(async () => {
     if (!companyId) return;

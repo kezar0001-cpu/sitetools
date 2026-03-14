@@ -86,7 +86,7 @@ function FieldError({ msg }: { msg?: string }) {
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole, userId }: Props) {
+export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
   const [openSections, setOpenSections] = useState<Set<Section>>(
     new Set(["weather", "labor"] as Section[])
