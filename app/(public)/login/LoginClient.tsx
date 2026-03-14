@@ -126,7 +126,7 @@ export function LoginClient() {
                 <div className="text-center pt-2">
                     {mode === "login" ? (
                         <p className="text-sm font-medium text-slate-500">
-                            Don&apos;t have an account?{" "}
+                            Don't have an account?{" "}
                             <button type="button" onClick={() => { setMode("signup"); setError(null); setInfo(null); }} className="font-bold text-amber-600 hover:text-amber-700 hover:underline">
                                 Sign up free
                             </button>

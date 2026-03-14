@@ -169,7 +169,7 @@ export default function SettingsPage() {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Company Profile</h2>
-            <p className="mt-1 text-sm text-slate-500">Update your company&apos;s display name.</p>
+            <p className="mt-1 text-sm text-slate-500">Update your company's display name.</p>
           </div>
 
           <form onSubmit={handleCompanySave} className="space-y-4">
