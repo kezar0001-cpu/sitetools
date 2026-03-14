@@ -108,7 +108,7 @@ export function PlannerSheetView({
     setVisibleCols(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
       return next;
     });
   };
@@ -133,7 +133,7 @@ export function PlannerSheetView({
       if (g) g.tasks.push(t);
       else map.set(k, { phase: null, tasks: [t] });
     }
-    return [...map.entries()]
+    return Array.from(map.entries())
       .filter(([, g]) => g.tasks.length > 0 || g.phase !== null)
       .sort(([, a], [, b]) => (a.phase?.sort_order ?? 9999) - (b.phase?.sort_order ?? 9999));
   }, [processedTasks, phases]);
@@ -162,7 +162,7 @@ export function PlannerSheetView({
     };
     const patch = patches[field];
     if (patch) {
-      const changed = Object.entries(patch).some(([k, v]) => (task as Record<string,unknown>)[k] !== v);
+      const changed = Object.entries(patch).some(([k, v]) => (task as unknown as Record<string, unknown>)[k] !== v);
       if (changed) await onPatchTask(taskId, patch);
     }
   }, [localValues, onPatchTask]);

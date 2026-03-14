@@ -29,6 +29,7 @@ import { Project, Site } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { normalizePercent } from "@/lib/planner/validation";
 import { ImportedTask } from "@/lib/planner/import-parser";
+import { exportToMspXml, exportToCsv, exportToXlsx, downloadBlob } from "@/lib/planner/export-msp";
 
 import { PlannerSheetView } from "./PlannerSheetView";
 import { PlannerGanttView } from "./PlannerGanttView";
@@ -59,6 +60,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const [showPhaseManager, setShowPhaseManager] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [phaseSaving, setPhaseSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // ── Data loading ──
   const loadAll = useCallback(async () => {
@@ -316,6 +318,34 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     await loadAll();
   }, [planId, tasks.length, userId, loadAll]);
 
+  // ── Export ──
+  const handleExport = useCallback(async (format: "xml" | "xlsx" | "csv") => {
+    if (!plan) return;
+    setExporting(true);
+    try {
+      const safeName = plan.name.replace(/[^a-z0-9_\-]/gi, "_");
+      switch (format) {
+        case "xml": {
+          const xml = exportToMspXml(plan, tasks, phases);
+          downloadBlob(xml, `${safeName}.xml`, "application/xml");
+          break;
+        }
+        case "xlsx": {
+          const xlsx = exportToXlsx(plan, tasks, phases);
+          downloadBlob(xlsx, `${safeName}.xlsx`, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+          break;
+        }
+        case "csv": {
+          const csv = exportToCsv(plan, tasks, phases);
+          downloadBlob(csv, `${safeName}.csv`, "text/csv");
+          break;
+        }
+      }
+    } finally {
+      setExporting(false);
+    }
+  }, [plan, tasks, phases]);
+
   // ── Stats ──
   const stats = useMemo(() => {
     const total = tasks.length;
@@ -401,14 +431,64 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           >
             📥 Import
           </button>
-          <Link
-            href={`/dashboard/planner/${planId}/print`}
-            target="_blank"
-            className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
-            title="Export PDF"
-          >
-            🖨︎ PDF
-          </Link>
+          {/* Export dropdown */}
+          <div className="relative group">
+            <button
+              disabled={exporting}
+              className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors disabled:opacity-40 flex items-center gap-1"
+              title="Export plan"
+            >
+              {exporting ? (
+                <span className="inline-block w-3.5 h-3.5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+              ) : "📤"} Export ▾
+            </button>
+            <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 w-52 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity overflow-hidden">
+              <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                Export as
+              </div>
+              <button
+                onClick={() => handleExport("xml")}
+                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-start gap-2"
+              >
+                <span className="text-base leading-none mt-0.5">📋</span>
+                <div>
+                  <p className="font-semibold">MS Project XML</p>
+                  <p className="text-xs text-slate-400">Open in Microsoft Project</p>
+                </div>
+              </button>
+              <button
+                onClick={() => handleExport("xlsx")}
+                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-start gap-2 border-t border-slate-100"
+              >
+                <span className="text-base leading-none mt-0.5">📊</span>
+                <div>
+                  <p className="font-semibold">Excel (.xlsx)</p>
+                  <p className="text-xs text-slate-400">All tasks with all columns</p>
+                </div>
+              </button>
+              <button
+                onClick={() => handleExport("csv")}
+                className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-start gap-2 border-t border-slate-100"
+              >
+                <span className="text-base leading-none mt-0.5">📄</span>
+                <div>
+                  <p className="font-semibold">CSV</p>
+                  <p className="text-xs text-slate-400">Flat file for any tool</p>
+                </div>
+              </button>
+              <Link
+                href={`/dashboard/planner/${planId}/print`}
+                target="_blank"
+                className="flex items-start gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-100"
+              >
+                <span className="text-base leading-none mt-0.5">🖨</span>
+                <div>
+                  <p className="font-semibold">Print / PDF</p>
+                  <p className="text-xs text-slate-400">Browser print dialog</p>
+                </div>
+              </Link>
+            </div>
+          </div>
           <button
             onClick={() => setShowSettings(true)}
             className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition-colors"
