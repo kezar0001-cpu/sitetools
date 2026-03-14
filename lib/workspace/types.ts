@@ -53,6 +53,8 @@ export interface Site {
   name: string;
   slug: string;
   logo_url: string | null;
+  /** When false the site is archived and no longer accepts sign-ins. Defaults to true. */
+  is_active: boolean;
   created_at: string;
 }
 

@@ -267,7 +267,7 @@ export async function createCompanyInvitation(
 export async function fetchCompanySites(companyId: string): Promise<Site[]> {
   const { data, error } = await supabase
     .from("sites")
-    .select("id, company_id, project_id, name, slug, logo_url, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, is_active, created_at")
     .eq("company_id", companyId)
     .order("created_at", { ascending: true });
 
@@ -279,12 +279,25 @@ export async function fetchCompanySites(companyId: string): Promise<Site[]> {
 export async function fetchProjectSites(projectId: string): Promise<Site[]> {
   const { data, error } = await supabase
     .from("sites")
-    .select("id, company_id, project_id, name, slug, logo_url, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, is_active, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
 
   if (error) throw error;
   return (data ?? []) as Site[];
+}
+
+export async function updateSite(
+  siteId: string,
+  patch: { name?: string; slug?: string; is_active?: boolean }
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name.trim();
+  if (patch.slug !== undefined) payload.slug = patch.slug;
+  if (patch.is_active !== undefined) payload.is_active = patch.is_active;
+
+  const { error } = await supabase.from("sites").update(payload).eq("id", siteId);
+  if (error) throw error;
 }
 
 function toSlug(value: string): string {
@@ -311,7 +324,7 @@ export async function createProjectSite(
       name: name.trim(),
       slug,
     })
-    .select("id, company_id, project_id, name, slug, logo_url, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, is_active, created_at")
     .single();
 
   if (error) throw error;

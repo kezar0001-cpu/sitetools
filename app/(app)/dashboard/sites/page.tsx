@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { fetchCompanyProjects, fetchCompanySites, setActiveSite } from "@/lib/workspace/client";
+import { fetchCompanyProjects, fetchCompanySites, setActiveSite, updateSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
@@ -35,6 +35,16 @@ export default function SitesPage() {
   const [allocatingSiteId, setAllocatingSiteId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit modal state
+  const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Archive confirmation state
+  const [archivingSiteId, setArchivingSiteId] = useState<string | null>(null);
+  const [confirmArchiveSite, setConfirmArchiveSite] = useState<Site | null>(null);
+
   const canEditSites = canManageSites(activeRole);
 
   useEffect(() => {
@@ -52,7 +62,7 @@ export default function SitesPage() {
 
   const groupedSites = useMemo(() => {
     const map = new Map<string | null, Site[]>();
-    
+
     // Initialize map with projects to preserve order
     projects.forEach(p => map.set(p.id, []));
     map.set(null, []); // For unassigned
@@ -139,6 +149,70 @@ export default function SitesPage() {
     }
   }
 
+  function openEditModal(site: Site) {
+    setEditingSite(site);
+    setEditName(site.name);
+    setEditError(null);
+  }
+
+  async function handleSaveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editingSite || !canEditSites) return;
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      setEditError("Site name is required.");
+      return;
+    }
+
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      const newSlug = toSlug(trimmed);
+      await updateSite(editingSite.id, { name: trimmed, slug: newSlug });
+      if (activeCompanyId) {
+        const siteRows = await fetchCompanySites(activeCompanyId);
+        setSites(siteRows);
+      }
+      setEditingSite(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Could not update site.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleArchiveSite(site: Site) {
+    if (!canEditSites) return;
+    setArchivingSiteId(site.id);
+    setError(null);
+    try {
+      await updateSite(site.id, { is_active: false });
+      if (activeCompanyId) {
+        const siteRows = await fetchCompanySites(activeCompanyId);
+        setSites(siteRows);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not archive site.");
+    } finally {
+      setArchivingSiteId(null);
+      setConfirmArchiveSite(null);
+    }
+  }
+
+  async function handleRestoreSite(siteId: string) {
+    if (!canEditSites) return;
+    setError(null);
+    try {
+      await updateSite(siteId, { is_active: true });
+      if (activeCompanyId) {
+        const siteRows = await fetchCompanySites(activeCompanyId);
+        setSites(siteRows);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not restore site.");
+    }
+  }
+
   if (loading || !summary || pageLoading) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[50vh]">
@@ -197,7 +271,7 @@ export default function SitesPage() {
               <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center">
                 <p className="text-slate-400 text-sm font-medium">No sites allocated to this project.</p>
                 {canEditSites && (
-                  <button 
+                  <button
                     onClick={() => {
                         setTargetProjectId(group.projectId || "");
                         const el = document.getElementById("create-site-section");
@@ -213,69 +287,112 @@ export default function SitesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {group.sites.map((site) => {
                   const isActive = site.id === activeSiteId;
+                  const isArchived = site.is_active === false;
                   return (
-                    <div 
-                        key={site.id} 
+                    <div
+                        key={site.id}
                         className={`group relative bg-white border-2 rounded-3xl p-5 transition-all duration-200 shadow-sm ${
-                            isActive ? "border-amber-400 bg-amber-50/30 scale-[1.02]" : "border-slate-100 hover:border-slate-200 hover:shadow-md"
+                            isArchived
+                            ? "border-slate-200 bg-slate-50/60 opacity-70"
+                            : isActive
+                            ? "border-amber-400 bg-amber-50/30 scale-[1.02]"
+                            : "border-slate-100 hover:border-slate-200 hover:shadow-md"
                         }`}
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <div className={`p-2.5 rounded-2xl ${isActive ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600 transition-colors"}`}>
+                        <div className={`p-2.5 rounded-2xl ${isArchived ? "bg-slate-100 text-slate-300" : isActive ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600 transition-colors"}`}>
                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                            </svg>
                         </div>
-                        {isActive && (
+                        <div className="flex items-center gap-2">
+                          {isArchived && (
+                            <span className="bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Archived</span>
+                          )}
+                          {isActive && !isArchived && (
                             <span className="bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
-                        )}
+                          )}
+                        </div>
                       </div>
 
-                      <h3 className="font-extrabold text-slate-900 leading-tight">{site.name}</h3>
+                      <h3 className={`font-extrabold leading-tight ${isArchived ? "text-slate-400" : "text-slate-900"}`}>{site.name}</h3>
                       <p className="text-xs text-slate-400 font-medium mt-1 mb-6">/{site.slug}</p>
 
                       <div className="space-y-3">
-                        <div className="flex items-center gap-2">
+                        {isArchived ? (
+                          /* Archived site actions */
+                          canEditSites && (
                             <button
-                                onClick={() => handleSelectSite(site.id)}
-                                disabled={switchingSiteId === site.id}
-                                className={`flex-1 text-xs font-bold py-2.5 rounded-xl transition-all ${
-                                    isActive 
-                                    ? "bg-amber-400 text-amber-950 shadow-inner" 
-                                    : "bg-slate-900 text-white hover:bg-black shadow-sm"
-                                }`}
+                              onClick={() => handleRestoreSite(site.id)}
+                              className="w-full text-xs font-bold py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all"
                             >
-                                {switchingSiteId === site.id ? "Setting..." : isActive ? "Current Default" : "Set as Active"}
+                              Restore Site
                             </button>
-                            <Link
-                                href={`/print-qr/${site.slug}`}
-                                className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm"
-                                title="Print QR Code"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                                </svg>
-                            </Link>
-                        </div>
-
-                        {canEditSites && (
-                            <div className="pt-2 border-t border-slate-100">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Move to Project</label>
-                                <select
-                                    value={site.project_id ?? ""}
-                                    onChange={(e) => handleAssignSiteToProject(site.id, e.target.value || null)}
-                                    disabled={allocatingSiteId === site.id}
-                                    className="w-full text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none focus:border-amber-400"
+                          )
+                        ) : (
+                          /* Active site actions */
+                          <>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleSelectSite(site.id)}
+                                    disabled={switchingSiteId === site.id}
+                                    className={`flex-1 text-xs font-bold py-2.5 rounded-xl transition-all ${
+                                        isActive
+                                        ? "bg-amber-400 text-amber-950 shadow-inner"
+                                        : "bg-slate-900 text-white hover:bg-black shadow-sm"
+                                    }`}
                                 >
-                                    <option value="">Move to Unassigned</option>
-                                    {projects.filter(p => p.id !== site.project_id).map((project) => (
-                                    <option key={project.id} value={project.id}>
-                                        {project.name}
-                                    </option>
-                                    ))}
-                                </select>
+                                    {switchingSiteId === site.id ? "Setting..." : isActive ? "Current Default" : "Set as Active"}
+                                </button>
+                                <Link
+                                    href={`/print-qr/${site.slug}`}
+                                    className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 shadow-sm"
+                                    title="Print QR Code"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                    </svg>
+                                </Link>
                             </div>
+
+                            {canEditSites && (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => openEditModal(site)}
+                                    className="flex-1 text-xs font-bold py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all"
+                                  >
+                                    Edit Name
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmArchiveSite(site)}
+                                    disabled={archivingSiteId === site.id}
+                                    className="flex-1 text-xs font-bold py-2 rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
+                                  >
+                                    {archivingSiteId === site.id ? "Archiving..." : "Archive"}
+                                  </button>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-100">
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Move to Project</label>
+                                    <select
+                                        value={site.project_id ?? ""}
+                                        onChange={(e) => handleAssignSiteToProject(site.id, e.target.value || null)}
+                                        disabled={allocatingSiteId === site.id}
+                                        className="w-full text-[11px] font-bold border border-slate-200 rounded-lg px-2 py-1.5 bg-slate-50 text-slate-600 focus:outline-none focus:border-amber-400"
+                                    >
+                                        <option value="">Move to Unassigned</option>
+                                        {projects.filter(p => p.id !== site.project_id).map((project) => (
+                                        <option key={project.id} value={project.id}>
+                                            {project.name}
+                                        </option>
+                                        ))}
+                                    </select>
+                                </div>
+                              </>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -305,7 +422,7 @@ export default function SitesPage() {
             <p className="mt-2 text-slate-400 font-medium">
                 Add a physical location to your company profile. You can allocate it to a project now or leave it unassigned.
             </p>
-            
+
             {!canEditSites ? (
             <div className="mt-6 bg-white/10 rounded-2xl p-4 text-sm text-slate-300 border border-white/5">
                 Only Workspace Owner or Managers can add new sites.
@@ -351,6 +468,99 @@ export default function SitesPage() {
             )}
         </div>
       </section>
+
+      {/* Edit Site Modal */}
+      {editingSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-100 text-amber-700 p-2 rounded-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Edit Site</h3>
+                <p className="text-sm text-slate-500">A new URL slug will be generated.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Site Name</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g. North Pier Construction"
+                  className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-amber-400 bg-slate-50 transition-colors text-slate-900"
+                  autoFocus
+                />
+              </div>
+
+              {editError && (
+                <p className="text-xs text-red-600 font-semibold">{editError}</p>
+              )}
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="submit"
+                  disabled={editSaving || !editName.trim()}
+                  className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98]"
+                >
+                  {editSaving ? "Saving..." : "Save Changes"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingSite(null)}
+                  className="px-4 py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Archive Confirmation Modal */}
+      {confirmArchiveSite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-100 text-red-600 p-2 rounded-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8M10 12v4m4-4v4" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Archive Site?</h3>
+                <p className="text-sm text-slate-500">This will disable the public sign-in page.</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-600">
+              <span className="font-bold">{confirmArchiveSite.name}</span> will be marked as inactive. Existing visit records are preserved. You can restore it at any time.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleArchiveSite(confirmArchiveSite)}
+                disabled={archivingSiteId === confirmArchiveSite.id}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98]"
+              >
+                {archivingSiteId === confirmArchiveSite.id ? "Archiving..." : "Yes, Archive Site"}
+              </button>
+              <button
+                onClick={() => setConfirmArchiveSite(null)}
+                className="px-4 py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
