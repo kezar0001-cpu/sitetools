@@ -7,6 +7,12 @@ import { canManageTeam } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { CompanyInvitation, CompanyMembership, CompanyRole } from "@/lib/workspace/types";
 
+interface RemoveConfirmState {
+  memberId: string;
+  userId: string;
+  displayName: string;
+}
+
 interface MemberRow extends CompanyMembership {
   profiles?: {
     id: string;
@@ -27,6 +33,9 @@ export default function TeamPage() {
   const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [removeConfirm, setRemoveConfirm] = useState<RemoveConfirmState | null>(null);
+  const [removeLoading, setRemoveLoading] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<CompanyRole>("member");
@@ -62,6 +71,31 @@ export default function TeamPage() {
     }
 
     setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
+    await refresh();
+  }
+
+  async function handleRemoveMember() {
+    if (!removeConfirm || !activeCompanyId) return;
+
+    setRemoveLoading(true);
+    setError(null);
+
+    const { error: deleteError } = await supabase
+      .from("company_memberships")
+      .delete()
+      .eq("id", removeConfirm.memberId)
+      .eq("company_id", activeCompanyId);
+
+    setRemoveLoading(false);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      setRemoveConfirm(null);
+      return;
+    }
+
+    setMembers((prev) => prev.filter((m) => m.id !== removeConfirm.memberId));
+    setRemoveConfirm(null);
     await refresh();
   }
 
@@ -124,7 +158,8 @@ export default function TeamPage() {
                 <th className="py-2 pr-3">User</th>
                 <th className="py-2 pr-3">Email</th>
                 <th className="py-2 pr-3">Role</th>
-                <th className="py-2">Added</th>
+                <th className="py-2 pr-3">Added</th>
+                {canEditTeam && <th className="py-2" />}
               </tr>
             </thead>
             <tbody>
@@ -149,7 +184,25 @@ export default function TeamPage() {
                       <span className="font-semibold uppercase text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">{member.role}</span>
                     )}
                   </td>
-                  <td className="py-3 text-slate-500">{new Date(member.created_at).toLocaleDateString("en-AU")}</td>
+                  <td className="py-3 pr-3 text-slate-500">{new Date(member.created_at).toLocaleDateString("en-AU")}</td>
+                  {canEditTeam && (
+                    <td className="py-3 text-right">
+                      {member.role !== "owner" && member.user_id !== summary?.userId && (
+                        <button
+                          onClick={() =>
+                            setRemoveConfirm({
+                              memberId: member.id,
+                              userId: member.user_id,
+                              displayName: member.profiles?.full_name ?? member.profiles?.email ?? "this member",
+                            })
+                          }
+                          className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 rounded-lg px-2 py-1 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -224,6 +277,42 @@ export default function TeamPage() {
           </ul>
         )}
       </section>
+
+      {removeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Remove team member?</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  <span className="font-semibold">{removeConfirm.displayName}</span> will lose access to this company immediately. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end pt-1">
+              <button
+                onClick={() => setRemoveConfirm(null)}
+                disabled={removeLoading}
+                className="px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveMember}
+                disabled={removeLoading}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 rounded-xl disabled:opacity-60 transition-colors"
+              >
+                {removeLoading ? "Removing…" : "Yes, remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
