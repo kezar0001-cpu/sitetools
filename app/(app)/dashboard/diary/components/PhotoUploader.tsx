@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { uploadPhoto, deletePhoto } from "@/lib/diary/client";
 import { validatePhotoFile } from "@/lib/diary/validation";
 import type { SiteDiaryPhoto } from "@/lib/diary/types";
@@ -141,11 +142,11 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }:
           {photos.map((photo) => (
             <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100">
               {photo.signedUrl ? (
-                <img
+                <Image
                   src={photo.signedUrl}
                   alt={photo.caption ?? "Site photo"}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
+                  fill
+                  className="object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -179,10 +180,11 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }:
           {/* Uploading / error items */}
           {uploading.map((item) => (
             <div key={item.id} className="relative aspect-square rounded-xl overflow-hidden bg-slate-100">
-              <img
+              <Image
                 src={item.preview}
                 alt="Uploading…"
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
               />
               {item.progress === "uploading" && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">

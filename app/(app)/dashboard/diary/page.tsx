@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getDiaries, createDiary } from "@/lib/diary/client";
@@ -97,7 +96,7 @@ export default function DiaryListPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
           )}
-          {todayDiary ? "Continue Today's Diary" : "Start Today's Diary"}
+          {todayDiary ? "Continue Today&apos;s Diary" : "Start Today&apos;s Diary"}
         </button>
 
         {/* Diary list */}

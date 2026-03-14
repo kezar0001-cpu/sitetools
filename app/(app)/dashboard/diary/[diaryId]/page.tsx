@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { getDiaryById, updateDiary } from "@/lib/diary/client";
+import { useParams } from "next/navigation";
+import { getDiaryById } from "@/lib/diary/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryFull } from "@/lib/diary/types";
 import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS } from "@/lib/diary/types";
@@ -21,7 +21,6 @@ function formatDate(iso: string): string {
 
 export default function DiaryDetailPage() {
   const { diaryId } = useParams<{ diaryId: string }>();
-  const router = useRouter();
   const { loading: wsLoading } = useWorkspace({ requireAuth: true, requireCompany: true });
 
   const [diary, setDiary] = useState<SiteDiaryFull | null>(null);
