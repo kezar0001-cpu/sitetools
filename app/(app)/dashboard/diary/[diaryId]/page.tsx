@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { getDiaryById } from "@/lib/diary/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryFull } from "@/lib/diary/types";
-import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS } from "@/lib/diary/types";
+import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/diary/types";
 import DiaryEntryForm from "../components/DiaryEntryForm";
 
 function formatDate(iso: string): string {
@@ -21,7 +21,10 @@ function formatDate(iso: string): string {
 
 export default function DiaryDetailPage() {
   const { diaryId } = useParams<{ diaryId: string }>();
-  const { loading: wsLoading } = useWorkspace({ requireAuth: true, requireCompany: true });
+  const { loading: wsLoading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
+
+  const userRole = summary?.activeMembership?.role ?? null;
+  const userId = summary?.userId ?? null;
 
   const [diary, setDiary] = useState<SiteDiaryFull | null>(null);
   const [busy, setBusy] = useState(true);
@@ -68,9 +71,11 @@ export default function DiaryDetailPage() {
     );
   }
 
-  const isDraft = diary.status === "draft";
   const weatherIcon =
     diary.weather?.conditions ? WEATHER_CONDITION_ICONS[diary.weather.conditions] ?? "🌤️" : "🌤️";
+
+  const statusLabel = DIARY_STATUS_LABELS[diary.status] ?? diary.status;
+  const statusBadge = DIARY_STATUS_BADGE[diary.status] ?? "bg-slate-100 text-slate-500 border-slate-200";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -97,19 +102,20 @@ export default function DiaryDetailPage() {
             </div>
             {/* Status badge */}
             <span
-              className={`flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                isDraft
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-              }`}
+              className={`flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${statusBadge}`}
             >
-              {isDraft ? "Draft" : (DIARY_STATUS_LABELS[diary.status as keyof typeof DIARY_STATUS_LABELS] ?? diary.status)}
+              {statusLabel}
             </span>
           </div>
         </div>
 
         {/* The entry form */}
-        <DiaryEntryForm diary={diary} onUpdate={setDiary} />
+        <DiaryEntryForm
+          diary={diary}
+          onUpdate={setDiary}
+          userRole={userRole}
+          userId={userId}
+        />
       </div>
     </div>
   );

@@ -104,6 +104,67 @@ export async function createDiary(payload: CreateDiaryPayload): Promise<SiteDiar
   return data as SiteDiary;
 }
 
+/** Submit a diary for review (draft → submitted, or rejected → submitted). */
+export async function submitDiary(id: string): Promise<SiteDiary> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from("site_diaries")
+    .update({
+      status: "submitted",
+      submitted_at: new Date().toISOString(),
+      submitted_by: user?.id ?? null,
+      rejection_note: null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiary;
+}
+
+/** Approve a submitted diary (admin/owner/manager only). */
+export async function approveDiary(id: string): Promise<SiteDiary> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data, error } = await supabase
+    .from("site_diaries")
+    .update({
+      status: "approved",
+      approved_at: new Date().toISOString(),
+      approved_by: user?.id ?? null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiary;
+}
+
+/** Reject a submitted diary with an optional comment (admin/owner/manager only). */
+export async function rejectDiary(id: string, note: string): Promise<SiteDiary> {
+  const { data, error } = await supabase
+    .from("site_diaries")
+    .update({
+      status: "rejected",
+      rejection_note: note.trim() || null,
+      approved_at: null,
+      approved_by: null,
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiary;
+}
+
 /** Update an existing diary entry. */
 export async function updateDiary(id: string, payload: UpdateDiaryPayload): Promise<SiteDiary> {
   const updates: Record<string, unknown> = {};

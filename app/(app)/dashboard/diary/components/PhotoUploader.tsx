@@ -10,6 +10,7 @@ interface Props {
   diaryId: string;
   initialPhotos?: SiteDiaryPhoto[];
   onChange?: (photos: SiteDiaryPhoto[]) => void;
+  disabled?: boolean;
 }
 
 interface UploadingItem {
@@ -20,7 +21,7 @@ interface UploadingItem {
   error?: string;
 }
 
-export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }: Props) {
+export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, disabled = false }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState<SiteDiaryPhoto[]>(initialPhotos);
   const [uploading, setUploading] = useState<UploadingItem[]>([]);
@@ -109,7 +110,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }:
   return (
     <div className="space-y-4">
       {/* Upload trigger button — large tap target for mobile */}
-      <button
+      {!disabled && <button
         type="button"
         onClick={() => inputRef.current?.click()}
         className="w-full flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-slate-500 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 active:scale-[0.98] transition-all duration-150"
@@ -122,7 +123,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }:
           {allCount === 0 ? "Add photos" : "Add more photos"}
         </span>
         <span className="text-sm">Tap to open camera or gallery</span>
-      </button>
+      </button>}
 
       {/* Hidden file input — capture="environment" opens rear camera on mobile */}
       <input
@@ -156,7 +157,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }:
                 </div>
               )}
               {/* Delete overlay */}
-              <button
+              {!disabled && <button
                 type="button"
                 onClick={() => handleDelete(photo)}
                 disabled={deletingId === photo.id}
@@ -173,7 +174,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange }:
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                 )}
-              </button>
+              </button>}
             </div>
           ))}
 
