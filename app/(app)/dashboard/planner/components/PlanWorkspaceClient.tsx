@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createPlanRevision,
@@ -61,6 +61,9 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [phaseSaving, setPhaseSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "pending" | "saving" | "saved">("idle");
+  const pendingPatchesRef = useRef<Map<string, Partial<PlanTask>>>(new Map());
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Data loading ──
   const loadAll = useCallback(async () => {
@@ -97,6 +100,25 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   useEffect(() => {
     if (showSettings) loadProjectsAndSites();
   }, [showSettings, loadProjectsAndSites]);
+
+  // Warn before navigating away with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveStatus === "pending" || saveStatus === "saving") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [saveStatus]);
+
+  // Flush any remaining pending patches and clear timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
 
   // ── Plan management ──
   const handleDeletePlan = useCallback(async () => {
@@ -206,17 +228,39 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     }
   }, [planId, tasks.length, userId, loadAll]);
 
-  const handlePatchTask = useCallback(async (taskId: string, patch: Partial<PlanTask>) => {
-    setSaving(taskId);
+  const flushPendingPatches = useCallback(async () => {
+    const patches = new Map(pendingPatchesRef.current);
+    if (patches.size === 0) return;
+    pendingPatchesRef.current.clear();
+    setSaveStatus("saving");
     try {
-      await updatePlanTask(taskId, { ...patch, updated_by: userId });
+      await Promise.all(
+        Array.from(patches.entries()).map(([id, p]) =>
+          updatePlanTask(id, { ...p, updated_by: userId })
+        )
+      );
       await loadAll();
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save task.");
-    } finally {
-      setSaving(null);
+      setSaveStatus("idle");
     }
   }, [userId, loadAll]);
+
+  const handlePatchTask = useCallback((taskId: string, patch: Partial<PlanTask>) => {
+    // Optimistic local update for instant UI feedback
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)));
+
+    // Merge into pending patches for this task
+    const existing = pendingPatchesRef.current.get(taskId) ?? {};
+    pendingPatchesRef.current.set(taskId, { ...existing, ...patch });
+    setSaveStatus("pending");
+
+    // Reset 2-second debounce timer
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(flushPendingPatches, 2000);
+  }, [flushPendingPatches]);
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     setSaving(taskId);
@@ -380,6 +424,18 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
             <span className="truncate max-w-[220px] md:max-w-none">{planName}</span>
             {isArchived && (
               <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-semibold">Archived</span>
+            )}
+            {saveStatus !== "idle" && (
+              <span className={`text-xs font-medium transition-colors ${saveStatus === "saved" ? "text-emerald-600" : "text-amber-500"}`}>
+                {saveStatus === "saved" ? (
+                  "✓ Saved"
+                ) : (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Saving…
+                  </span>
+                )}
+              </span>
             )}
           </h1>
           {plan?.projects?.name && (
