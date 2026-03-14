@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  DIARY_STATUS_BADGE,
   DIARY_STATUS_LABELS,
   WEATHER_CONDITION_ICONS,
   WEATHER_CONDITION_LABELS,
@@ -23,9 +24,10 @@ function formatDate(iso: string): string {
 }
 
 export default function DiaryListCard({ diary }: Props) {
-  const isDraft = diary.status === "draft";
   const weatherIcon = WEATHER_CONDITION_ICONS[diary.weather?.conditions] ?? "🌤️";
   const weatherLabel = WEATHER_CONDITION_LABELS[diary.weather?.conditions] ?? "—";
+  const statusLabel = DIARY_STATUS_LABELS[diary.status] ?? diary.status;
+  const statusBadge = DIARY_STATUS_BADGE[diary.status] ?? "bg-slate-100 text-slate-500 border-slate-200";
 
   return (
     <Link href={`/dashboard/diary/${diary.id}`}>
@@ -48,13 +50,9 @@ export default function DiaryListCard({ diary }: Props) {
             </p>
             {/* Status badge */}
             <span
-              className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
-                isDraft
-                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
-              }`}
+              className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusBadge}`}
             >
-              {isDraft ? "Draft" : DIARY_STATUS_LABELS[diary.status]}
+              {statusLabel}
             </span>
           </div>
 

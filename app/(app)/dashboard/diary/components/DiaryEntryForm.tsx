@@ -4,8 +4,11 @@ import { FormEvent, useCallback, useState } from "react";
 import {
   addEquipment,
   addLabor,
+  approveDiary,
   deleteEquipment,
   deleteLabor,
+  rejectDiary,
+  submitDiary,
   updateDiary,
 } from "@/lib/diary/client";
 import {
@@ -21,11 +24,14 @@ import type {
   SiteDiaryPhoto,
   WeatherCondition,
 } from "@/lib/diary/types";
+import type { CompanyRole } from "@/lib/workspace/types";
 import PhotoUploader from "./PhotoUploader";
 
 interface Props {
   diary: SiteDiaryFull;
   onUpdate?: (updated: SiteDiaryFull) => void;
+  userRole?: CompanyRole | null;
+  userId?: string | null;
 }
 
 type Section = "weather" | "labor" | "equipment" | "photos" | "notes";
@@ -80,12 +86,21 @@ function FieldError({ msg }: { msg?: string }) {
 
 // ─── Main component ─────────────────────────────────────────────────────────
 
-export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props) {
+export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole, userId }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
   const [openSections, setOpenSections] = useState<Set<Section>>(
     new Set(["weather", "labor"] as Section[])
   );
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+
+  // Derived state
+  const isLocked = diary.status === "submitted" || diary.status === "approved";
+  const isApproved = diary.status === "approved";
+  const isRejected = diary.status === "rejected";
+  const canSubmit = diary.status === "draft" || diary.status === "rejected";
+  const canReview =
+    diary.status === "submitted" &&
+    (userRole === "owner" || userRole === "admin" || userRole === "manager");
 
   // Auto-save helper
   async function autosave(field: string, updater: () => Promise<SiteDiaryFull>) {
@@ -230,27 +245,84 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
     setDiary((d) => ({ ...d, photos }));
   }, []);
 
-  // ── Status submit ────────────────────────────────────────────────────────
+  // ── Submit (author) ──────────────────────────────────────────────────────
 
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   async function handleSubmit() {
-    if (diary.status === "submitted") return;
+    if (!canSubmit) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
-      const updated = await updateDiary(diary.id, { status: "submitted" });
-      setDiary((d) => ({ ...d, ...updated }));
+      const updated = await submitDiary(diary.id);
+      const next = { ...diary, ...updated };
+      setDiary(next);
+      onUpdate?.(next);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to submit.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const isSubmitted = diary.status === "submitted";
+  // ── Approve / Reject (admin) ─────────────────────────────────────────────
+
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  async function handleApprove() {
+    setApproving(true);
+    setReviewError(null);
+    try {
+      const updated = await approveDiary(diary.id);
+      const next = { ...diary, ...updated };
+      setDiary(next);
+      onUpdate?.(next);
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "Failed to approve.");
+    } finally {
+      setApproving(false);
+    }
+  }
+
+  async function handleReject() {
+    setRejecting(true);
+    setReviewError(null);
+    try {
+      const updated = await rejectDiary(diary.id, rejectNote);
+      const next = { ...diary, ...updated };
+      setDiary(next);
+      onUpdate?.(next);
+      setShowRejectForm(false);
+      setRejectNote("");
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "Failed to reject.");
+    } finally {
+      setRejecting(false);
+    }
+  }
+
   const totalWorkers = diary.labor.reduce((sum, l) => sum + l.worker_count, 0);
 
   // ────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-1">
+      {/* ── Rejection notice (shown to author when diary was rejected) ── */}
+      {isRejected && diary.rejection_note && (
+        <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-4">
+          <p className="text-sm font-semibold text-red-700 mb-1">Changes requested</p>
+          <p className="text-sm text-red-600 whitespace-pre-wrap">{diary.rejection_note}</p>
+          <p className="mt-2 text-xs text-red-500">
+            Address the feedback above, then resubmit for review.
+          </p>
+        </div>
+      )}
+
       {/* ── Weather ── */}
       <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-4">
@@ -273,7 +345,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
                     <button
                       key={cond}
                       type="button"
-                      disabled={isSubmitted}
+                      disabled={isLocked}
                       onClick={() => handleWeatherCondition(cond)}
                       className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
                         active
@@ -296,7 +368,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
                 <input
                   type="number"
                   inputMode="numeric"
-                  disabled={isSubmitted}
+                  disabled={isLocked}
                   defaultValue={diary.weather?.temp_min ?? ""}
                   onBlur={(e) => handleTempBlur("temp_min", e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:opacity-50"
@@ -308,7 +380,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
                 <input
                   type="number"
                   inputMode="numeric"
-                  disabled={isSubmitted}
+                  disabled={isLocked}
                   defaultValue={diary.weather?.temp_max ?? ""}
                   onBlur={(e) => handleTempBlur("temp_max", e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:opacity-50"
@@ -320,7 +392,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
               <label className="block text-sm font-medium text-slate-600 mb-1">Wind</label>
               <input
                 type="text"
-                disabled={isSubmitted}
+                disabled={isLocked}
                 defaultValue={diary.weather?.wind ?? ""}
                 onBlur={(e) => handleWindBlur(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:opacity-50"
@@ -366,7 +438,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
                         {row.worker_count} worker{row.worker_count !== 1 ? "s" : ""} · {row.hours_worked}h
                       </p>
                     </div>
-                    {!isSubmitted && (
+                    {!isLocked && (
                       <button
                         type="button"
                         onClick={() => handleDeleteLabor(row)}
@@ -385,7 +457,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
             )}
 
             {/* Quick-add inline form */}
-            {!isSubmitted && (
+            {!isLocked && (
               <form onSubmit={handleAddLabor} className="mt-4 space-y-3">
                 <div>
                   <input
@@ -476,7 +548,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
                         Qty {row.quantity} · {row.hours_used}h
                       </p>
                     </div>
-                    {!isSubmitted && (
+                    {!isLocked && (
                       <button
                         type="button"
                         onClick={() => handleDeleteEquipment(row)}
@@ -495,7 +567,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
             )}
 
             {/* Quick-add inline form */}
-            {!isSubmitted && (
+            {!isLocked && (
               <form onSubmit={handleAddEquipment} className="mt-4 space-y-3">
                 <div>
                   <input
@@ -578,6 +650,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
               diaryId={diary.id}
               initialPhotos={diary.photos}
               onChange={handlePhotosChange}
+              disabled={isLocked}
             />
           </div>
         )}
@@ -601,7 +674,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
           <div className="px-4 pb-5 border-t border-slate-100 pt-4">
             <textarea
               rows={5}
-              disabled={isSubmitted}
+              disabled={isLocked}
               defaultValue={diary.notes ?? ""}
               onBlur={(e) => handleNotesBlur(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 resize-none disabled:opacity-50"
@@ -614,32 +687,129 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
         )}
       </div>
 
-      {/* ── Submit / status bar ── */}
-      {!isSubmitted ? (
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-600 text-white text-base font-bold shadow-lg hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-60"
-        >
-          {submitting ? (
-            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+      {/* ── Submit bar (author) ── */}
+      {canSubmit && (
+        <div className="space-y-2">
+          {submitError && (
+            <p className="text-sm text-red-600 text-center">{submitError}</p>
           )}
-          Submit Diary
-        </button>
-      ) : (
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-600 text-white text-base font-bold shadow-lg hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-60"
+          >
+            {submitting ? (
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {isRejected ? "Resubmit for Review" : "Submit for Review"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Pending review indicator (submitted, not an admin reviewer) ── */}
+      {diary.status === "submitted" && !canReview && (
+        <div className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-700 font-semibold">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Awaiting Review
+        </div>
+      )}
+
+      {/* ── Approve / Reject panel (admin, when diary is submitted) ── */}
+      {canReview && (
+        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 space-y-3">
+          <p className="text-sm font-semibold text-slate-700">Review this diary</p>
+
+          {reviewError && (
+            <p className="text-sm text-red-600">{reviewError}</p>
+          )}
+
+          {!showRejectForm ? (
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleApprove}
+                disabled={approving || rejecting}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                {approving ? (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRejectForm(true)}
+                disabled={approving || rejecting}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-60"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Request Changes
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                rows={3}
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 resize-none"
+                placeholder="Describe what needs to be changed…"
+                autoFocus
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowRejectForm(false); setRejectNote(""); }}
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReject}
+                  disabled={rejecting}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-700 active:scale-[0.98] transition-all disabled:opacity-60"
+                >
+                  {rejecting ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  ) : null}
+                  Send Feedback
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Approved indicator ── */}
+      {isApproved && (
         <div className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          Diary Submitted
+          Diary Approved
         </div>
       )}
     </div>
