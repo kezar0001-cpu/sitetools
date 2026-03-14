@@ -64,7 +64,7 @@ interface Props {
   phases: PlanPhase[];
   saving: string | null;
   onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
-  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => void | Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onOpenPhaseManager: () => void;
 }
@@ -374,7 +374,7 @@ function PhaseSection({
   startEdit: (taskId: string, field: string, value: string) => void;
   commitEdit: (taskId: string, field: string, task: PlanTask) => Promise<void>;
   handleKD: (e: React.KeyboardEvent, taskId: string, field: string, task: PlanTask) => void;
-  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => void | Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
   onOpenDetail: (task: PlanTask) => void;
@@ -526,7 +526,7 @@ function TaskRow({
   startEdit: (taskId: string, field: string, value: string) => void;
   commitEdit: (taskId: string, field: string, task: PlanTask) => Promise<void>;
   handleKD: (e: React.KeyboardEvent, taskId: string, field: string, task: PlanTask) => void;
-  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => void | Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onOpenDetail: (task: PlanTask) => void;
   phaseColor: string | null;
