@@ -172,7 +172,20 @@ function OnboardingClient() {
     try {
       const result = await acceptCompanyInvitation(inviteValue.trim());
       if (!result.success) {
-        setFormError(result.message ?? "Unable to join company.");
+        const trimmed = inviteValue.trim();
+        const { data: invite } = await supabase
+          .from("company_invitations")
+          .select("expires_at")
+          .or(`token.eq.${trimmed},invite_code.eq.${trimmed}`)
+          .maybeSingle();
+
+        if (!invite) {
+          setFormError("This code is invalid.");
+        } else if (new Date(invite.expires_at) < new Date()) {
+          setFormError("This invite has expired — ask your admin to send a new one");
+        } else {
+          setFormError(result.message ?? "Unable to join company.");
+        }
         return;
       }
       
