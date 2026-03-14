@@ -1,3 +1,5 @@
+"use client";
+
 import { BuildstateModule } from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
 

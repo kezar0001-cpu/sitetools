@@ -1,3 +1,5 @@
+"use client";
+
 import { PlanWorkspaceClient } from "../components/PlanWorkspaceClient";
 
 export default function PlannerPlanPage({ params }: { params: { planId: string } }) {
