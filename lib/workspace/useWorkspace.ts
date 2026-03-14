@@ -86,7 +86,11 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
   }, [redirectToLogin, redirectToOnboarding, requireAuth, requireCompany, router]);
 
   useEffect(() => {
-    refresh();
+    // Only refresh on mount if we don't have a fresh summary yet.
+    // getCachedWorkspaceSummary() only returns fresh cache (checked via TTL).
+    if (!getCachedWorkspaceSummary()) {
+      refresh();
+    }
 
     const {
       data: { subscription },
@@ -97,7 +101,8 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
         clearWorkspaceSummaryCache();
         setLoading(false);
         if (requireAuth) router.replace(redirectToLogin);
-      } else {
+      } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        // Only refresh for definitive state changes that might affect workspace
         refresh();
       }
     });

@@ -101,7 +101,7 @@ function SuccessView({
 function OnboardingClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loading, error, summary } = useWorkspace({ requireAuth: true, requireCompany: false });
+  const { loading, error, summary, refresh } = useWorkspace({ requireAuth: true, requireCompany: false });
   const intent = parseProductIntent(searchParams.get("intent"));
   const productHome = resolveProductHome(intent);
 
@@ -149,6 +149,7 @@ function OnboardingClient() {
     setCreateLoading(true);
     try {
       await createCompany(companyName.trim());
+      await refresh();
       setSuccess({ type: "create", name: companyName.trim() });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to create company.");
@@ -184,7 +185,8 @@ function OnboardingClient() {
           .single();
         if (data?.name) name = data.name;
       }
-
+      
+      await refresh();
       setSuccess({ type: "join", name });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to join company.");
