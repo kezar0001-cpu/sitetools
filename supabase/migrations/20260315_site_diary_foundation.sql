@@ -13,7 +13,7 @@ BEGIN
     JOIN pg_namespace n ON n.oid = t.typnamespace
     WHERE n.nspname = 'public' AND t.typname = 'diary_status'
   ) THEN
-    CREATE TYPE public.diary_status AS ENUM ('draft', 'submitted');
+    CREATE TYPE public.diary_status AS ENUM ('draft', 'submitted', 'approved');
   END IF;
 END $$;
 
@@ -336,7 +336,7 @@ begin
     execute $policy$
       create policy diary_media_delete on storage.objects
       for delete to authenticated
-      using (bucket_id = 'diary_media' and owner = auth.uid()::text)
+      using (bucket_id = 'diary_media' and owner = auth.uid())
     $policy$;
   end if;
 end $$;

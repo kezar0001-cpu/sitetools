@@ -33,7 +33,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
   }
 
   async function handleFiles(files: FileList | null) {
-    if (!files || files.length === 0) return;
+    if (disabled || !files || files.length === 0) return;
 
     const items: UploadingItem[] = Array.from(files).map((file) => ({
       id: crypto.randomUUID(),
@@ -58,7 +58,6 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
 
         try {
           const photo = await uploadPhoto(diaryId, item.file);
-          notifyChange([...photos, photo]);
           setPhotos((prev) => {
             const next = [...prev, photo];
             onChange?.(next);
@@ -72,10 +71,10 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
             prev.map((u) =>
               u.id === item.id
                 ? {
-                    ...u,
-                    progress: "error",
-                    error: err instanceof Error ? err.message : "Upload failed.",
-                  }
+                  ...u,
+                  progress: "error",
+                  error: err instanceof Error ? err.message : "Upload failed.",
+                }
                 : u
             )
           );
@@ -85,6 +84,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
   }
 
   async function handleDelete(photo: SiteDiaryPhoto) {
+    if (disabled) return;
     setDeletingId(photo.id);
     try {
       await deletePhoto(photo);
@@ -126,15 +126,17 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
       </button>}
 
       {/* Hidden file input — capture="environment" opens rear camera on mobile */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        multiple
-        className="hidden"
-        onChange={(e) => handleFiles(e.target.files)}
-      />
+      {!disabled && (
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      )}
 
       {/* Photo grid */}
       {allCount > 0 && (
