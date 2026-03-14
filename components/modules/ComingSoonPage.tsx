@@ -36,7 +36,7 @@ export default function ComingSoonPage() {
                 </div>
 
                 <p className="text-gray-600 leading-relaxed mb-8">
-                    We&apos;re currently developing the <strong>{activeModule.name}</strong> module.
+                    We're currently developing the <strong>{activeModule.name}</strong> module.
                     {activeModule.tagline.toLowerCase() && ` It will feature ${activeModule.tagline.toLowerCase()}.`}
                 </p>
 

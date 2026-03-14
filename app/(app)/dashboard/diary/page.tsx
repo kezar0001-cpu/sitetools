@@ -96,7 +96,7 @@ export default function DiaryListPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
           )}
-          {todayDiary ? "Continue Today&apos;s Diary" : "Start Today&apos;s Diary"}
+          {todayDiary ? "Continue Today's Diary" : "Start Today's Diary"}
         </button>
 
         {/* Diary list */}
@@ -111,7 +111,7 @@ export default function DiaryListPage() {
             <div className="text-5xl mb-4">📋</div>
             <p className="text-slate-500 font-medium">No diaries yet.</p>
             <p className="text-sm text-slate-400 mt-1">
-              Tap <strong>Start Today&apos;s Diary</strong> above to log your first entry.
+              Tap <strong>Start Today's Diary</strong> above to log your first entry.
             </p>
           </div>
         ) : (
