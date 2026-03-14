@@ -70,7 +70,7 @@ export function PlannerDashboardClient() {
     if (!companyId) return;
     setBusy(true);
     loadAll(companyId)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
+      .catch((e) => setError(e?.message ?? (e instanceof Error ? e.message : "Failed to load")))
       .finally(() => setBusy(false));
   }, [companyId]);
 

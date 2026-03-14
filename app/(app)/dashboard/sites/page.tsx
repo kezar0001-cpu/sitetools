@@ -56,7 +56,7 @@ export default function SitesPage() {
         setSites(siteRows);
         setProjects(projectRows);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load sites."))
+      .catch((err) => setError(err?.message ?? (err instanceof Error ? err.message : "Could not load sites.")))
       .finally(() => setPageLoading(false));
   }, [activeCompanyId]);
 

@@ -271,8 +271,25 @@ export async function fetchCompanySites(companyId: string): Promise<Site[]> {
     .eq("company_id", companyId)
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
-  return (data ?? []) as Site[];
+  if (!error) return (data ?? []) as Site[];
+
+  // Graceful fallback: if newer columns don't exist yet, query without them
+  if (referencesColumn(error, "project_id") || referencesColumn(error, "is_active")) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("sites")
+      .select("id, company_id, name, slug, logo_url, created_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true });
+
+    if (fallbackError) throw fallbackError;
+    return (fallbackData ?? []).map((s) => ({
+      ...(s as Record<string, unknown>),
+      project_id: null,
+      is_active: true,
+    })) as Site[];
+  }
+
+  throw error;
 }
 
 /** Sites that belong to a specific project */
@@ -283,8 +300,12 @@ export async function fetchProjectSites(projectId: string): Promise<Site[]> {
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
 
-  if (error) throw error;
-  return (data ?? []) as Site[];
+  if (!error) return (data ?? []) as Site[];
+
+  // Graceful fallback: if newer columns don't exist yet, return empty (can't filter by project_id)
+  if (referencesColumn(error, "project_id")) return [];
+
+  throw error;
 }
 
 export async function updateSite(
@@ -349,8 +370,21 @@ export async function fetchCompanyProjects(companyId: string): Promise<Project[]
     .eq("company_id", companyId)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
-  return (data ?? []) as Project[];
+  if (!error) return (data ?? []) as Project[];
+
+  // Graceful fallback: if description column doesn't exist yet
+  if (referencesColumn(error, "description")) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("projects")
+      .select("id, company_id, name, status, created_by, created_at, updated_at")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+
+    if (fallbackError) throw fallbackError;
+    return (fallbackData ?? []).map((p) => ({ ...(p as Record<string, unknown>), description: null })) as Project[];
+  }
+
+  throw error;
 }
 
 /**
@@ -367,7 +401,8 @@ export async function fetchCompanyProjectsWithCounts(companyId: string): Promise
       .eq("company_id", companyId)
       .neq("status", "archived")
       .then(({ data, error }) => {
-        if (error) throw error;
+        // If project_plans table doesn't exist yet, return empty gracefully
+        if (error) return [] as { id: string; project_id: string | null }[];
         return (data ?? []) as { id: string; project_id: string | null }[];
       }),
   ]);

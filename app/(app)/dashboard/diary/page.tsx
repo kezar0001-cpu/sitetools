@@ -23,7 +23,7 @@ export default function DiaryListPage() {
     setBusy(true);
     getDiaries(companyId)
       .then(setDiaries)
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load diaries."))
+      .catch((err) => setError(err?.message ?? (err instanceof Error ? err.message : "Could not load diaries.")))
       .finally(() => setBusy(false));
   }, [companyId]);
 
