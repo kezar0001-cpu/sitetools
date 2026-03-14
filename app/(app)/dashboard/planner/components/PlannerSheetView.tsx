@@ -562,6 +562,7 @@ function TaskRow({
 }) {
   const isSaving = saving === task.id;
   const indent   = (task.indent_level ?? 0) * 18;
+  const [pctWarning, setPctWarning] = useState(false);
 
   const cycleStatus = () => {
     const cur = STATUS_CYCLE.indexOf(task.status);
@@ -625,15 +626,26 @@ function TaskRow({
                 />
               </div>
               <input
-                type="number" min="0" max="100"
+                type="number" min={0} max={100}
                 className="w-11 text-xs text-center border border-transparent hover:border-slate-200 focus:border-amber-400 rounded px-1 py-0.5 outline-none bg-transparent transition-colors"
                 value={task.percent_complete}
-                onChange={e => onPatchTask(task.id, {
-                  percent_complete: Math.min(100, Math.max(0, Number(e.target.value))),
-                  status: statusFromPercent(Number(e.target.value), task.status),
-                })}
+                onChange={e => {
+                  const raw = Number(e.target.value);
+                  const clamped = Math.min(100, Math.max(0, raw));
+                  if (raw !== clamped) {
+                    setPctWarning(true);
+                    setTimeout(() => setPctWarning(false), 2500);
+                  }
+                  onPatchTask(task.id, {
+                    percent_complete: clamped,
+                    status: statusFromPercent(clamped, task.status),
+                  });
+                }}
               />
             </div>
+            {pctWarning && (
+              <p className="text-amber-600 text-[10px] mt-0.5">Clamped to 0–100</p>
+            )}
           </td>
         );
       case "actual_start":
