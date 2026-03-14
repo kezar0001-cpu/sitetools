@@ -16,6 +16,15 @@ import {
 } from "@/lib/planner/types";
 import { statusFromPercent } from "@/lib/planner/validation";
 
+// Darken a hex color for readable text on a light tinted background
+function adjustColorForText(hex: string): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    // Darken by 40%
+    return `rgb(${Math.round(r * 0.6)}, ${Math.round(g * 0.6)}, ${Math.round(b * 0.6)})`;
+}
+
 interface Props {
     tasks: PlanTask[];
     phases: PlanPhase[];
@@ -23,12 +32,13 @@ interface Props {
     onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
     onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
     onDeleteTask: (taskId: string) => Promise<void>;
+    onOpenPhaseManager: () => void;
 }
 
 type SortField = "sort_order" | "title" | "status" | "planned_start" | "planned_finish" | "percent_complete";
 type FilterStatus = TaskStatus | "all";
 
-export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask, onDeleteTask }: Props) {
+export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask, onDeleteTask, onOpenPhaseManager }: Props) {
     const [newTitle, setNewTitle] = useState("");
     const [newPhaseId, setNewPhaseId] = useState<string>("");
     const [sortField, setSortField] = useState<SortField>("sort_order");
@@ -228,9 +238,38 @@ export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask
                     </select>
                 </div>
 
-                <div className="ml-auto text-xs text-slate-500">
-                    {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
-                    {filterStatus !== "all" || filterPhase !== "all" ? " (filtered)" : ""}
+                {/* Phase swatches — quick visual reference */}
+                {phases.length > 0 && (
+                    <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                        {phases.map((p) => (
+                            <button
+                                key={p.id}
+                                onClick={() => setFilterPhase(filterPhase === p.id ? "all" : p.id)}
+                                title={p.name}
+                                className={`w-4 h-4 rounded-full transition-all hover:scale-125 ${filterPhase === p.id ? "ring-2 ring-offset-1 ring-slate-600 scale-125" : ""}`}
+                                style={{ backgroundColor: p.color ?? "#64748b" }}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                <div className="ml-auto flex items-center gap-3">
+                    <span className="text-xs text-slate-500">
+                        {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
+                        {filterStatus !== "all" || filterPhase !== "all" ? " (filtered)" : ""}
+                    </span>
+                    <button
+                        onClick={onOpenPhaseManager}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+                        title="Manage phases"
+                    >
+                        ◧ Phases
+                        {phases.length > 0 && (
+                            <span className="bg-indigo-200 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                {phases.length}
+                            </span>
+                        )}
+                    </button>
                 </div>
             </div>
 
@@ -392,19 +431,54 @@ function PhaseGroup({
     return (
         <>
             {phase && (
-                <tr className="bg-gradient-to-r from-slate-800 to-slate-700 cursor-pointer group" onClick={onToggle}>
+                <tr
+                    className="cursor-pointer group"
+                    style={{ backgroundColor: phase.color ? `${phase.color}15` : "#1e293b" }}
+                    onClick={onToggle}
+                >
                     <td className="p-2 text-center">
-                        <span className="text-white text-xs">{isCollapsed ? "▸" : "▾"}</span>
+                        <span
+                            className="text-xs font-bold"
+                            style={{ color: phase.color ? adjustColorForText(phase.color) : "#94a3b8" }}
+                        >
+                            {isCollapsed ? "▸" : "▾"}
+                        </span>
                     </td>
-                    <td className="p-2" colSpan={10}>
+                    <td
+                        className="p-2"
+                        colSpan={13}
+                        style={{ borderLeft: `3px solid ${phase.color ?? "#475569"}` }}
+                    >
                         <div className="flex items-center gap-3">
-                            {phase.color && (
-                                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: phase.color }} />
-                            )}
-                            <span className="font-bold text-white text-sm tracking-wide">{phase.name}</span>
-                            <span className="text-xs text-slate-400 font-medium">
-                                {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+                            <span
+                                className="font-bold text-sm tracking-wide"
+                                style={{ color: phase.color ? adjustColorForText(phase.color) : "#e2e8f0" }}
+                            >
+                                {phase.name}
                             </span>
+                            <span
+                                className="text-xs font-medium"
+                                style={{ color: phase.color ? adjustColorForText(phase.color) : "#94a3b8", opacity: 0.7 }}
+                            >
+                                {tasks.length} task{tasks.length !== 1 ? "s" : ""}
+                                {tasks.length > 0 && (() => {
+                                    const done = tasks.filter((t) => t.status === "done").length;
+                                    const pct = Math.round((done / tasks.length) * 100);
+                                    return ` · ${pct}% done`;
+                                })()}
+                            </span>
+                            {/* Mini progress bar */}
+                            {tasks.length > 0 && (
+                                <div className="flex-1 max-w-[120px] bg-black/10 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full transition-all"
+                                        style={{
+                                            width: `${Math.round(tasks.reduce((s, t) => s + t.percent_complete, 0) / tasks.length)}%`,
+                                            backgroundColor: phase.color ?? "#475569",
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </td>
                 </tr>

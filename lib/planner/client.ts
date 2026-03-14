@@ -141,6 +141,31 @@ export async function createPlanPhase(input: {
   return data as PlanPhase;
 }
 
+export async function updatePlanPhase(
+  phaseId: string,
+  patch: { name?: string; color?: string | null; sort_order?: number }
+): Promise<void> {
+  const { error } = await supabase
+    .from("plan_phases")
+    .update(patch)
+    .eq("id", phaseId);
+  if (error) throw error;
+}
+
+export async function deletePlanPhase(phaseId: string): Promise<void> {
+  // Unassign tasks from this phase before deleting
+  await supabase.from("plan_tasks").update({ phase_id: null }).eq("phase_id", phaseId);
+  const { error } = await supabase.from("plan_phases").delete().eq("id", phaseId);
+  if (error) throw error;
+}
+
+export async function reorderPlanPhases(orderedIds: string[]): Promise<void> {
+  const updates = orderedIds.map((id, index) =>
+    supabase.from("plan_phases").update({ sort_order: index }).eq("id", id)
+  );
+  await Promise.all(updates);
+}
+
 // ─── Tasks ───
 
 export async function fetchPlanTasks(planId: string): Promise<PlanTask[]> {
