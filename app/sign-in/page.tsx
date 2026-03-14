@@ -11,6 +11,7 @@ interface Site {
   id: string; name: string; slug: string; logo_url?: string | null;
   latitude?: number | null; longitude?: number | null;
   company_id?: string | null;
+  is_active?: boolean | null;
 }
 
 interface SiteVisit {
@@ -200,6 +201,51 @@ function NoSiteScreen() {
             <a href="/login" className="text-slate-500 hover:text-amber-400 transition-colors text-sm font-black uppercase tracking-widest">Admin Login</a>
           </div>
         </div>
+      </footer>
+    </div>
+  );
+}
+
+// ─── Archived site screen ─────────────────────────────────────────────────────
+
+function SiteArchivedScreen({ site }: { site: Site }) {
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
+      <header className="bg-slate-700 border-b-4 border-slate-800 shadow-md">
+        <div className="max-w-2xl mx-auto px-4 py-5 flex items-center gap-3">
+          <div className="bg-slate-600 text-slate-300 rounded-xl p-2 shrink-0">
+            {HEADER_SVG}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black text-slate-100 tracking-tight truncate leading-none mb-1">{site.name}</h1>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Access Registry</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 flex items-center justify-center px-4 py-10">
+        <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-xl p-10 max-w-md w-full text-center space-y-6">
+          <div className="mx-auto bg-slate-100 rounded-2xl w-16 h-16 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Not Accepting Sign-Ins</h2>
+            <p className="text-slate-500 font-medium text-base leading-relaxed">
+              This site is currently inactive and is not accepting visitor sign-ins. Please contact your site administrator for assistance.
+            </p>
+          </div>
+          <div className="bg-slate-50 rounded-2xl border border-slate-100 px-5 py-4">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Site</p>
+            <p className="font-extrabold text-slate-700">{site.name}</p>
+          </div>
+        </div>
+      </main>
+
+      <footer className="bg-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] text-center py-6 space-y-2">
+        <p>Buildstate Registry &copy; {new Date().getFullYear()}</p>
+        <p><a href="/login" className="text-slate-500 hover:text-amber-400 transition-colors">Digital Portal</a></p>
       </footer>
     </div>
   );
@@ -755,6 +801,8 @@ export default function Home() {
   );
 
   if (!site) return <NoSiteScreen />;
+
+  if (site.is_active === false) return <SiteArchivedScreen site={site} />;
 
   return <SiteSignIn site={site} />;
 }
