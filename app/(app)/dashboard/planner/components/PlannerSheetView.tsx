@@ -1,745 +1,985 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    PlanTask,
-    PlanPhase,
-    TASK_STATUSES,
-    TASK_PRIORITIES,
-    TaskStatus,
-    TaskPriority,
-    DelayType,
-    DELAY_TYPES,
-    DELAY_TYPE_LABELS,
-    STATUS_COLORS,
-    PRIORITY_COLORS,
+  PlanTask, PlanPhase,
+  TASK_STATUSES, TASK_PRIORITIES,
+  TaskStatus, TaskPriority, DelayType, DELAY_TYPES, DELAY_TYPE_LABELS,
+  STATUS_COLORS, PRIORITY_COLORS,
 } from "@/lib/planner/types";
 import { statusFromPercent } from "@/lib/planner/validation";
 
-// Darken a hex color for readable text on a light tinted background
-function adjustColorForText(hex: string): string {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    // Darken by 40%
-    return `rgb(${Math.round(r * 0.6)}, ${Math.round(g * 0.6)}, ${Math.round(b * 0.6)})`;
+// ── Column definitions ──
+const COL_DEFS = [
+  { key: "duration",      label: "Duration",      width: 88,   defaultOn: true  },
+  { key: "start",         label: "Start",          width: 108,  defaultOn: true  },
+  { key: "finish",        label: "Finish",         width: 108,  defaultOn: true  },
+  { key: "status",        label: "Status",         width: 130,  defaultOn: true  },
+  { key: "percent",       label: "Progress",       width: 120,  defaultOn: true  },
+  { key: "actual_start",  label: "Act. Start",     width: 108,  defaultOn: false },
+  { key: "actual_finish", label: "Act. Finish",    width: 108,  defaultOn: false },
+  { key: "variance",      label: "Variance",       width: 88,   defaultOn: false },
+  { key: "priority",      label: "Priority",       width: 100,  defaultOn: false },
+  { key: "delay",         label: "Delay",          width: 120,  defaultOn: false },
+  { key: "notes",         label: "Notes",          width: 180,  defaultOn: false },
+] as const;
+
+type ColKey = typeof COL_DEFS[number]["key"];
+
+const STORAGE_KEY = "siteplan-sheet-cols-v2";
+
+function loadSavedCols(): Set<ColKey> {
+  try {
+    const s = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
+    if (s) return new Set(JSON.parse(s) as ColKey[]);
+  } catch { /* ignore */ }
+  return new Set(COL_DEFS.filter(c => c.defaultOn).map(c => c.key));
 }
 
+// ── Status cycle ──
+const STATUS_CYCLE: TaskStatus[] = ["not-started", "in-progress", "blocked", "done"];
+const STATUS_PILL: Record<TaskStatus, string> = {
+  "not-started": "bg-slate-100 text-slate-600 hover:bg-slate-200",
+  "in-progress": "bg-blue-100 text-blue-700 hover:bg-blue-200",
+  "blocked":     "bg-red-100 text-red-700 hover:bg-red-200",
+  "done":        "bg-emerald-100 text-emerald-700 hover:bg-emerald-200",
+};
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  "not-started": "Not Started",
+  "in-progress": "In Progress",
+  "blocked":     "Blocked",
+  "done":        "Done",
+};
+
+function darkenColor(hex: string, factor = 0.65): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(r * factor)},${Math.round(g * factor)},${Math.round(b * factor)})`;
+}
+
+// ── Props ──
 interface Props {
-    tasks: PlanTask[];
-    phases: PlanPhase[];
-    saving: string | null;
-    onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
-    onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
-    onDeleteTask: (taskId: string) => Promise<void>;
-    onOpenPhaseManager: () => void;
+  tasks: PlanTask[];
+  phases: PlanPhase[];
+  saving: string | null;
+  onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
+  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onOpenPhaseManager: () => void;
 }
 
-type SortField = "sort_order" | "title" | "status" | "planned_start" | "planned_finish" | "percent_complete";
-type FilterStatus = TaskStatus | "all";
+// ── Main component ──
+export function PlannerSheetView({
+  tasks, phases, saving,
+  onAddTask, onPatchTask, onDeleteTask,
+  onOpenPhaseManager,
+}: Props) {
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(loadSavedCols);
+  const [showColPicker, setShowColPicker] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
+  const [filterPhase,  setFilterPhase]  = useState<string>("all");
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
+  const [detailTask,   setDetailTask]   = useState<PlanTask | null>(null);
+  const [editingCell,  setEditingCell]  = useState<{ taskId: string; field: string } | null>(null);
+  const [localValues,  setLocalValues]  = useState<Record<string, Record<string, string>>>({});
+  const colPickerRef = useRef<HTMLDivElement>(null);
 
-export function PlannerSheetView({ tasks, phases, saving, onAddTask, onPatchTask, onDeleteTask, onOpenPhaseManager }: Props) {
-    const [newTitle, setNewTitle] = useState("");
-    const [newPhaseId, setNewPhaseId] = useState<string>("");
-    const [sortField, setSortField] = useState<SortField>("sort_order");
-    const [sortAsc, setSortAsc] = useState(true);
-    const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
-    const [filterPhase, setFilterPhase] = useState<string>("all");
-    const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
-    const [editingCell, setEditingCell] = useState<{ taskId: string; field: string } | null>(null);
-    const [localValues, setLocalValues] = useState<Record<string, Record<string, string>>>({});
+  // Close col picker on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (colPickerRef.current && !colPickerRef.current.contains(e.target as Node)) {
+        setShowColPicker(false);
+      }
+    }
+    if (showColPicker) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showColPicker]);
 
-    // ── Sorting ──
-    const handleSort = useCallback((field: SortField) => {
-        if (sortField === field) {
-            setSortAsc(!sortAsc);
-        } else {
-            setSortField(field);
-            setSortAsc(true);
-        }
-    }, [sortField, sortAsc]);
+  // Keep detail task in sync when tasks refresh
+  useEffect(() => {
+    if (!detailTask) return;
+    const refreshed = tasks.find(t => t.id === detailTask.id);
+    if (refreshed) setDetailTask(refreshed);
+  }, [tasks, detailTask]);
 
-    // ── Filtering + Sorting ──
-    const processedTasks = useMemo(() => {
-        let filtered = [...tasks];
+  // Toggle column visibility
+  const toggleCol = (key: ColKey) => {
+    setVisibleCols(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
-        if (filterStatus !== "all") {
-            filtered = filtered.filter((t) => t.status === filterStatus);
-        }
-        if (filterPhase !== "all") {
-            filtered = filtered.filter((t) => (t.phase_id ?? "none") === filterPhase);
-        }
+  // Filtered + sorted task list
+  const processedTasks = useMemo(() => {
+    let list = [...tasks];
+    if (filterStatus !== "all") list = list.filter(t => t.status === filterStatus);
+    if (filterPhase === "none") list = list.filter(t => !t.phase_id);
+    else if (filterPhase !== "all") list = list.filter(t => t.phase_id === filterPhase);
+    return list;
+  }, [tasks, filterStatus, filterPhase]);
 
-        filtered.sort((a, b) => {
-            let aVal: string | number = 0;
-            let bVal: string | number = 0;
+  // Group by phase preserving phase sort order
+  const grouped = useMemo(() => {
+    const map = new Map<string, { phase: PlanPhase | null; tasks: PlanTask[] }>();
+    for (const p of phases) map.set(p.id, { phase: p, tasks: [] });
+    map.set("__none__", { phase: null, tasks: [] });
+    for (const t of processedTasks) {
+      const k = t.phase_id ?? "__none__";
+      const g = map.get(k);
+      if (g) g.tasks.push(t);
+      else map.set(k, { phase: null, tasks: [t] });
+    }
+    return Array.from(map.entries())
+      .filter(([, g]) => g.tasks.length > 0 || g.phase !== null)
+      .sort(([, a], [, b]) => (a.phase?.sort_order ?? 9999) - (b.phase?.sort_order ?? 9999));
+  }, [processedTasks, phases]);
 
-            switch (sortField) {
-                case "title": aVal = a.title.toLowerCase(); bVal = b.title.toLowerCase(); break;
-                case "status": aVal = a.status; bVal = b.status; break;
-                case "planned_start": aVal = a.planned_start ?? ""; bVal = b.planned_start ?? ""; break;
-                case "planned_finish": aVal = a.planned_finish ?? ""; bVal = b.planned_finish ?? ""; break;
-                case "percent_complete": aVal = a.percent_complete; bVal = b.percent_complete; break;
-                default: aVal = a.sort_order; bVal = b.sort_order;
-            }
+  // Inline edit helpers
+  const startEdit = (taskId: string, field: string, value: string) => {
+    setEditingCell({ taskId, field });
+    setLocalValues(p => ({ ...p, [taskId]: { ...p[taskId], [field]: value } }));
+  };
+  const getLV = (taskId: string, field: string, fallback: string) =>
+    localValues[taskId]?.[field] ?? fallback;
+  const setLV = (taskId: string, field: string, value: string) =>
+    setLocalValues(p => ({ ...p, [taskId]: { ...p[taskId], [field]: value } }));
 
-            if (aVal < bVal) return sortAsc ? -1 : 1;
-            if (aVal > bVal) return sortAsc ? 1 : -1;
-            return 0;
-        });
-
-        return filtered;
-    }, [tasks, filterStatus, filterPhase, sortField, sortAsc]);
-
-    // ── Phase grouping ──
-    const groupedByPhase = useMemo(() => {
-        const phaseMap = new Map<string, { phase: PlanPhase | null; tasks: PlanTask[] }>();
-
-        // Initialize with phases
-        for (const phase of phases) {
-            phaseMap.set(phase.id, { phase, tasks: [] });
-        }
-        phaseMap.set("none", { phase: null, tasks: [] });
-
-        for (const task of processedTasks) {
-            const key = task.phase_id ?? "none";
-            const group = phaseMap.get(key);
-            if (group) {
-                group.tasks.push(task);
-            } else {
-                phaseMap.set(key, { phase: null, tasks: [task] });
-            }
-        }
-
-        return Array.from(phaseMap.entries())
-            .filter(([, g]) => g.tasks.length > 0 || g.phase !== null)
-            .sort(([, a], [, b]) => (a.phase?.sort_order ?? 999) - (b.phase?.sort_order ?? 999));
-    }, [processedTasks, phases]);
-
-    const togglePhaseCollapse = (phaseId: string) => {
-        setCollapsedPhases((prev) => {
-            const next = new Set(prev);
-            if (next.has(phaseId)) next.delete(phaseId);
-            else next.add(phaseId);
-            return next;
-        });
+  const commitEdit = useCallback(async (taskId: string, field: string, task: PlanTask) => {
+    const value = localValues[taskId]?.[field] ?? "";
+    setEditingCell(null);
+    setLocalValues(p => { const n = { ...p }; delete n[taskId]; return n; });
+    const patches: Record<string, Partial<PlanTask>> = {
+      title:          { title: value || task.title },
+      planned_start:  { planned_start: value || null },
+      planned_finish: { planned_finish: value || null },
+      actual_start:   { actual_start: value || null },
+      actual_finish:  { actual_finish: value || null },
+      notes:          { notes: value || null },
     };
+    const patch = patches[field];
+    if (patch) {
+      const changed = Object.entries(patch).some(([k, v]) => (task as unknown as Record<string, unknown>)[k] !== v);
+      if (changed) await onPatchTask(taskId, patch);
+    }
+  }, [localValues, onPatchTask]);
 
-    // ── Inline editing helpers ──
-    const getLocalValue = (taskId: string, field: string, fallback: string) => {
-        return localValues[taskId]?.[field] ?? fallback;
-    };
+  const handleKD = (e: React.KeyboardEvent, taskId: string, field: string, task: PlanTask) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitEdit(taskId, field, task); }
+    if (e.key === "Escape") {
+      setEditingCell(null);
+      setLocalValues(p => { const n = { ...p }; delete n[taskId]; return n; });
+    }
+  };
 
-    const setLocalValue = (taskId: string, field: string, value: string) => {
-        setLocalValues((prev) => ({
-            ...prev,
-            [taskId]: { ...prev[taskId], [field]: value },
-        }));
-    };
+  const isEditing = (taskId: string, field: string) =>
+    editingCell?.taskId === taskId && editingCell.field === field;
 
-    const commitEdit = async (taskId: string, field: string, value: string, task: PlanTask) => {
-        setEditingCell(null);
-        const cleanLocal = { ...localValues };
-        delete cleanLocal[taskId];
-        setLocalValues(cleanLocal);
+  // Determine visible columns list in order
+  const activeCols = COL_DEFS.filter(c => visibleCols.has(c.key));
 
-        switch (field) {
-            case "title":
-                if (value !== task.title) await onPatchTask(taskId, { title: value });
-                break;
-            case "planned_start":
-                if (value !== (task.planned_start ?? "")) await onPatchTask(taskId, { planned_start: value || null });
-                break;
-            case "planned_finish":
-                if (value !== (task.planned_finish ?? "")) await onPatchTask(taskId, { planned_finish: value || null });
-                break;
-            case "actual_start":
-                if (value !== (task.actual_start ?? "")) await onPatchTask(taskId, { actual_start: value || null });
-                break;
-            case "actual_finish":
-                if (value !== (task.actual_finish ?? "")) await onPatchTask(taskId, { actual_finish: value || null });
-                break;
-            case "notes":
-                if (value !== (task.notes ?? "")) await onPatchTask(taskId, { notes: value || null });
-                break;
-            case "council_waiting_on":
-                if (value !== (task.council_waiting_on ?? "")) await onPatchTask(taskId, { council_waiting_on: value || null });
-                break;
-        }
-    };
+  // All-task row number
+  const rowNum = (task: PlanTask) => tasks.findIndex(t => t.id === task.id) + 1;
 
-    const handleKeyDown = (e: React.KeyboardEvent, taskId: string, field: string, value: string, task: PlanTask) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            commitEdit(taskId, field, value, task);
-        }
-        if (e.key === "Escape") {
-            setEditingCell(null);
-            const cleanLocal = { ...localValues };
-            delete cleanLocal[taskId];
-            setLocalValues(cleanLocal);
-        }
-    };
-
-    // ── Quick add ──
-    const handleAdd = async () => {
-        if (!newTitle.trim()) return;
-        await onAddTask(newTitle.trim(), newPhaseId || null);
-        setNewTitle("");
-    };
-
-    const SortIcon = ({ field }: { field: SortField }) => (
-        <span className="ml-1 text-[10px] opacity-50">
-            {sortField === field ? (sortAsc ? "▲" : "▼") : "⇅"}
-        </span>
-    );
-
-    // ── Duration display ──
-    const durationDisplay = (task: PlanTask) => {
-        if (task.is_milestone) return "0 (Milestone)";
-        if (task.duration_days !== null && task.duration_days !== undefined) return `${task.duration_days}d`;
-        return "—";
-    };
-
-    return (
-        <div className="space-y-3">
-            {/* Toolbar */}
-            <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-2 text-sm">
-                    <label className="font-medium text-slate-600">Status:</label>
-                    <select
-                        className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value as FilterStatus)}
-                    >
-                        <option value="all">All</option>
-                        {TASK_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                                {s.replace("-", " ")}
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm">
-                    <label className="font-medium text-slate-600">Phase:</label>
-                    <select
-                        className="border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
-                        value={filterPhase}
-                        onChange={(e) => setFilterPhase(e.target.value)}
-                    >
-                        <option value="all">All</option>
-                        {phases.map((p) => (
-                            <option key={p.id} value={p.id}>
-                                {p.name}
-                            </option>
-                        ))}
-                        <option value="none">Unphased</option>
-                    </select>
-                </div>
-
-                {/* Phase swatches — quick visual reference */}
-                {phases.length > 0 && (
-                    <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
-                        {phases.map((p) => (
-                            <button
-                                key={p.id}
-                                onClick={() => setFilterPhase(filterPhase === p.id ? "all" : p.id)}
-                                title={p.name}
-                                className={`w-4 h-4 rounded-full transition-all hover:scale-125 ${filterPhase === p.id ? "ring-2 ring-offset-1 ring-slate-600 scale-125" : ""}`}
-                                style={{ backgroundColor: p.color ?? "#64748b" }}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                <div className="ml-auto flex items-center gap-3">
-                    <span className="text-xs text-slate-500">
-                        {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
-                        {filterStatus !== "all" || filterPhase !== "all" ? " (filtered)" : ""}
-                    </span>
-                    <button
-                        onClick={onOpenPhaseManager}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors"
-                        title="Manage phases"
-                    >
-                        ◧ Phases
-                        {phases.length > 0 && (
-                            <span className="bg-indigo-200 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                                {phases.length}
-                            </span>
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {/* Sheet table */}
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[1200px]">
-                        <thead>
-                            <tr className="bg-gradient-to-b from-slate-50 to-slate-100 border-b border-slate-200">
-                                <th className="w-10 p-2 text-center text-slate-400 font-medium text-xs">#</th>
-                                <th className="text-left p-2 cursor-pointer select-none min-w-[240px]" onClick={() => handleSort("title")}>
-                                    <span className="font-semibold text-slate-700">Task</span><SortIcon field="title" />
-                                </th>
-                                <th className="text-left p-2 w-24">
-                                    <span className="font-semibold text-slate-700">Duration</span>
-                                </th>
-                                <th className="text-left p-2 cursor-pointer select-none w-28" onClick={() => handleSort("planned_start")}>
-                                    <span className="font-semibold text-slate-700">Start</span><SortIcon field="planned_start" />
-                                </th>
-                                <th className="text-left p-2 cursor-pointer select-none w-28" onClick={() => handleSort("planned_finish")}>
-                                    <span className="font-semibold text-slate-700">Finish</span><SortIcon field="planned_finish" />
-                                </th>
-                                <th className="text-left p-2 w-28">
-                                    <span className="font-semibold text-slate-700">Actual Start</span>
-                                </th>
-                                <th className="text-left p-2 w-28">
-                                    <span className="font-semibold text-slate-700">Actual Finish</span>
-                                </th>
-                                <th className="text-left p-2 w-24">
-                                    <span className="font-semibold text-slate-700">Variance</span>
-                                </th>
-                                <th className="text-left p-2 cursor-pointer select-none w-24" onClick={() => handleSort("status")}>
-                                    <span className="font-semibold text-slate-700">Status</span><SortIcon field="status" />
-                                </th>
-                                <th className="text-left p-2 cursor-pointer select-none w-20" onClick={() => handleSort("percent_complete")}>
-                                    <span className="font-semibold text-slate-700">%</span><SortIcon field="percent_complete" />
-                                </th>
-                                <th className="text-left p-2 w-24">
-                                    <span className="font-semibold text-slate-700">Priority</span>
-                                </th>
-                                <th className="text-left p-2 w-28">
-                                    <span className="font-semibold text-slate-700">Delay</span>
-                                </th>
-                                <th className="text-left p-2 min-w-[160px]">
-                                    <span className="font-semibold text-slate-700">Notes</span>
-                                </th>
-                                <th className="w-10 p-2"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {groupedByPhase.map(([phaseId, { phase, tasks: phaseTasks }]) => {
-                                const isCollapsed = collapsedPhases.has(phaseId);
-                                return (
-                                    <PhaseGroup
-                                        key={phaseId}
-                                        phase={phase}
-                                        tasks={phaseTasks}
-                                        isCollapsed={isCollapsed}
-                                        onToggle={() => togglePhaseCollapse(phaseId)}
-                                        saving={saving}
-                                        editingCell={editingCell}
-                                        getLocalValue={getLocalValue}
-                                        setLocalValue={setLocalValue}
-                                        setEditingCell={setEditingCell}
-                                        commitEdit={commitEdit}
-                                        handleKeyDown={handleKeyDown}
-                                        onPatchTask={onPatchTask}
-                                        onDeleteTask={onDeleteTask}
-                                        durationDisplay={durationDisplay}
-                                        allTasks={tasks}
-                                    />
-                                );
-                            })}
-
-                            {/* Quick add row */}
-                            <tr className="border-t-2 border-slate-200 bg-slate-50/50">
-                                <td className="p-2 text-center">
-                                    <span className="text-slate-300 text-lg">+</span>
-                                </td>
-                                <td className="p-2" colSpan={2}>
-                                    <input
-                                        className="w-full border border-dashed border-slate-300 rounded-lg px-3 py-2 text-sm bg-white placeholder-slate-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-colors"
-                                        value={newTitle}
-                                        onChange={(e) => setNewTitle(e.target.value)}
-                                        onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                                        placeholder="Quick add activity… (Enter to add)"
-                                    />
-                                </td>
-                                <td className="p-2" colSpan={2}>
-                                    <select
-                                        className="border border-slate-300 rounded-lg px-2 py-2 text-sm bg-white w-full"
-                                        value={newPhaseId}
-                                        onChange={(e) => setNewPhaseId(e.target.value)}
-                                    >
-                                        <option value="">No phase</option>
-                                        {phases.map((p) => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </td>
-                                <td className="p-2" colSpan={9}>
-                                    <button
-                                        disabled={!newTitle.trim() || saving === "new"}
-                                        onClick={handleAdd}
-                                        className="px-4 py-2 rounded-lg bg-amber-500 text-slate-900 font-bold text-sm disabled:opacity-40 hover:bg-amber-400 transition-colors"
-                                    >
-                                        {saving === "new" ? "Adding..." : "Add row"}
-                                    </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+  return (
+    <div className="space-y-3">
+      {/* ── Toolbar ── */}
+      <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5">
+        {/* Status filter */}
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</span>
+          <select
+            className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:border-amber-400 outline-none"
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value as TaskStatus | "all")}
+          >
+            <option value="all">All</option>
+            {TASK_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+          </select>
         </div>
-    );
-}
 
-// ── Phase Group Sub-component ──
+        <div className="w-px h-5 bg-slate-200 hidden sm:block" />
 
-function PhaseGroup({
-    phase,
-    tasks,
-    isCollapsed,
-    onToggle,
-    saving,
-    editingCell,
-    getLocalValue,
-    setLocalValue,
-    setEditingCell,
-    commitEdit,
-    handleKeyDown,
-    onPatchTask,
-    onDeleteTask,
-    durationDisplay,
-    allTasks,
-}: {
-    phase: PlanPhase | null;
-    tasks: PlanTask[];
-    isCollapsed: boolean;
-    onToggle: () => void;
-    saving: string | null;
-    editingCell: { taskId: string; field: string } | null;
-    getLocalValue: (taskId: string, field: string, fallback: string) => string;
-    setLocalValue: (taskId: string, field: string, value: string) => void;
-    setEditingCell: (v: { taskId: string; field: string } | null) => void;
-    commitEdit: (taskId: string, field: string, value: string, task: PlanTask) => Promise<void>;
-    handleKeyDown: (e: React.KeyboardEvent, taskId: string, field: string, value: string, task: PlanTask) => void;
-    onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
-    onDeleteTask: (taskId: string) => Promise<void>;
-    durationDisplay: (task: PlanTask) => string;
-    allTasks: PlanTask[];
-}) {
-    // Find the row number relative to allTasks
-    const getRowNumber = (task: PlanTask) => allTasks.findIndex((t) => t.id === task.id) + 1;
+        {/* Phase filter — swatches */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:inline">Phase</span>
+          <button
+            onClick={() => setFilterPhase("all")}
+            className={`text-xs px-2 py-1 rounded-full font-medium transition-colors ${filterPhase === "all" ? "bg-slate-800 text-white" : "text-slate-500 hover:bg-slate-100"}`}
+          >
+            All
+          </button>
+          {phases.map(p => (
+            <button
+              key={p.id}
+              onClick={() => setFilterPhase(filterPhase === p.id ? "all" : p.id)}
+              title={p.name}
+              className={`w-5 h-5 rounded-full transition-all hover:scale-110 flex-shrink-0 ${filterPhase === p.id ? "ring-2 ring-offset-1 ring-slate-600 scale-110" : ""}`}
+              style={{ backgroundColor: p.color ?? "#64748b" }}
+            />
+          ))}
+        </div>
 
-    return (
-        <>
-            {phase && (
-                <tr
-                    className="cursor-pointer group"
-                    style={{ backgroundColor: phase.color ? `${phase.color}15` : "#1e293b" }}
-                    onClick={onToggle}
-                >
-                    <td className="p-2 text-center">
-                        <span
-                            className="text-xs font-bold"
-                            style={{ color: phase.color ? adjustColorForText(phase.color) : "#94a3b8" }}
-                        >
-                            {isCollapsed ? "▸" : "▾"}
-                        </span>
-                    </td>
-                    <td
-                        className="p-2"
-                        colSpan={13}
-                        style={{ borderLeft: `3px solid ${phase.color ?? "#475569"}` }}
-                    >
-                        <div className="flex items-center gap-3">
-                            <span
-                                className="font-bold text-sm tracking-wide"
-                                style={{ color: phase.color ? adjustColorForText(phase.color) : "#e2e8f0" }}
-                            >
-                                {phase.name}
-                            </span>
-                            <span
-                                className="text-xs font-medium"
-                                style={{ color: phase.color ? adjustColorForText(phase.color) : "#94a3b8", opacity: 0.7 }}
-                            >
-                                {tasks.length} task{tasks.length !== 1 ? "s" : ""}
-                                {tasks.length > 0 && (() => {
-                                    const done = tasks.filter((t) => t.status === "done").length;
-                                    const pct = Math.round((done / tasks.length) * 100);
-                                    return ` · ${pct}% done`;
-                                })()}
-                            </span>
-                            {/* Mini progress bar */}
-                            {tasks.length > 0 && (
-                                <div className="flex-1 max-w-[120px] bg-black/10 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                        className="h-full rounded-full transition-all"
-                                        style={{
-                                            width: `${Math.round(tasks.reduce((s, t) => s + t.percent_complete, 0) / tasks.length)}%`,
-                                            backgroundColor: phase.color ?? "#475569",
-                                        }}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </td>
-                </tr>
+        {/* Right side */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-slate-400 hidden sm:inline">
+            {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
+            {filterStatus !== "all" || filterPhase !== "all" ? " filtered" : ""}
+          </span>
+
+          {/* Phases button */}
+          <button
+            onClick={onOpenPhaseManager}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+          >
+            <span>◧</span>
+            <span>Phases</span>
+            {phases.length > 0 && (
+              <span className="bg-indigo-200 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {phases.length}
+              </span>
             )}
+          </button>
 
-            {!isCollapsed &&
-                tasks.map((task) => (
-                    <TaskRow
-                        key={task.id}
-                        task={task}
-                        rowNumber={getRowNumber(task)}
-                        saving={saving}
-                        editingCell={editingCell}
-                        getLocalValue={getLocalValue}
-                        setLocalValue={setLocalValue}
-                        setEditingCell={setEditingCell}
-                        commitEdit={commitEdit}
-                        handleKeyDown={handleKeyDown}
-                        onPatchTask={onPatchTask}
-                        onDeleteTask={onDeleteTask}
-                        durationDisplay={durationDisplay}
-                    />
+          {/* Column picker */}
+          <div className="relative" ref={colPickerRef}>
+            <button
+              onClick={() => setShowColPicker(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                showColPicker
+                  ? "border-slate-400 bg-slate-100 text-slate-800"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+              title="Show/hide columns"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+              </svg>
+              Columns
+            </button>
+            {showColPicker && (
+              <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-30 w-52 p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Toggle columns</p>
+                <div className="space-y-1">
+                  {COL_DEFS.map(col => (
+                    <label key={col.key} className="flex items-center gap-2.5 cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-50 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={visibleCols.has(col.key)}
+                        onChange={() => toggleCol(col.key)}
+                        className="accent-amber-500 w-3.5 h-3.5"
+                      />
+                      <span className="text-sm text-slate-700">{col.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Sheet table ── */}
+      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" style={{ minWidth: `${480 + activeCols.reduce((s, c) => s + c.width, 0)}px` }}>
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                <th className="w-10 p-2.5 text-center">#</th>
+                <th className="text-left p-2.5 min-w-[240px]">Task Name</th>
+                {activeCols.map(col => (
+                  <th key={col.key} className="text-left p-2.5" style={{ width: col.width }}>
+                    {col.label}
+                  </th>
                 ))}
-        </>
-    );
+                <th className="w-10 p-2.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {grouped.map(([phaseKey, { phase, tasks: pTasks }]) => (
+                <PhaseSection
+                  key={phaseKey}
+                  phase={phase}
+                  tasks={pTasks}
+                  activeCols={activeCols}
+                  collapsed={collapsedPhases.has(phaseKey)}
+                  onToggleCollapse={() => {
+                    setCollapsedPhases(prev => {
+                      const n = new Set(prev);
+                      if (n.has(phaseKey)) n.delete(phaseKey); else n.add(phaseKey);
+                      return n;
+                    });
+                  }}
+                  saving={saving}
+                  isEditing={isEditing}
+                  getLV={getLV}
+                  setLV={setLV}
+                  startEdit={startEdit}
+                  commitEdit={commitEdit}
+                  handleKD={handleKD}
+                  onPatchTask={onPatchTask}
+                  onDeleteTask={onDeleteTask}
+                  onAddTask={onAddTask}
+                  onOpenDetail={setDetailTask}
+                  rowNum={rowNum}
+                />
+              ))}
+
+              {/* Quick-add row */}
+              <QuickAddRow
+                phases={phases}
+                onAdd={onAddTask}
+                saving={saving === "new"}
+                colCount={activeCols.length}
+              />
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Task detail panel ── */}
+      {detailTask && (
+        <TaskDetailPanel
+          task={detailTask}
+          phases={phases}
+          saving={saving === detailTask.id}
+          onPatch={(patch) => onPatchTask(detailTask.id, patch)}
+          onDelete={() => { setDetailTask(null); onDeleteTask(detailTask.id); }}
+          onClose={() => setDetailTask(null)}
+        />
+      )}
+    </div>
+  );
 }
 
-// ── Individual Task Row ──
-
-function TaskRow({
-    task,
-    rowNumber,
-    saving,
-    editingCell,
-    getLocalValue,
-    setLocalValue,
-    setEditingCell,
-    commitEdit,
-    handleKeyDown,
-    onPatchTask,
-    onDeleteTask,
-    durationDisplay,
+// ── Phase section ──
+function PhaseSection({
+  phase, tasks, activeCols, collapsed,
+  onToggleCollapse, saving, isEditing, getLV, setLV,
+  startEdit, commitEdit, handleKD, onPatchTask, onDeleteTask,
+  onAddTask, onOpenDetail, rowNum,
 }: {
-    task: PlanTask;
-    rowNumber: number;
-    saving: string | null;
-    editingCell: { taskId: string; field: string } | null;
-    getLocalValue: (taskId: string, field: string, fallback: string) => string;
-    setLocalValue: (taskId: string, field: string, value: string) => void;
-    setEditingCell: (v: { taskId: string; field: string } | null) => void;
-    commitEdit: (taskId: string, field: string, value: string, task: PlanTask) => Promise<void>;
-    handleKeyDown: (e: React.KeyboardEvent, taskId: string, field: string, value: string, task: PlanTask) => void;
-    onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
-    onDeleteTask: (taskId: string) => Promise<void>;
-    durationDisplay: (task: PlanTask) => string;
+  phase: PlanPhase | null;
+  tasks: PlanTask[];
+  activeCols: typeof COL_DEFS[number][];
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  saving: string | null;
+  isEditing: (taskId: string, field: string) => boolean;
+  getLV: (taskId: string, field: string, fallback: string) => string;
+  setLV: (taskId: string, field: string, value: string) => void;
+  startEdit: (taskId: string, field: string, value: string) => void;
+  commitEdit: (taskId: string, field: string, task: PlanTask) => Promise<void>;
+  handleKD: (e: React.KeyboardEvent, taskId: string, field: string, task: PlanTask) => void;
+  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
+  onOpenDetail: (task: PlanTask) => void;
+  rowNum: (task: PlanTask) => number;
 }) {
-    const isEditing = (field: string) => editingCell?.taskId === task.id && editingCell?.field === field;
-    const isSaving = saving === task.id;
-    const indentPx = (task.indent_level ?? 0) * 20;
+  const pct = tasks.length > 0
+    ? Math.round(tasks.reduce((s, t) => s + t.percent_complete, 0) / tasks.length)
+    : 0;
+  const colSpanTotal = 2 + activeCols.length + 1; // # + task + activeCols + actions
 
-    return (
+  return (
+    <>
+      {phase && (
         <tr
-            className={`border-t border-slate-100 hover:bg-amber-50/30 transition-colors ${task.status === "done" ? "opacity-60" : ""
-                } ${task.is_milestone ? "bg-purple-50/30" : ""} ${isSaving ? "opacity-50" : ""}`}
+          className="cursor-pointer select-none group/ph"
+          style={{ backgroundColor: phase.color ? `${phase.color}12` : "#f1f5f9" }}
+          onClick={onToggleCollapse}
         >
-            {/* Row number */}
-            <td className="p-2 text-center text-xs text-slate-400 font-mono">{rowNumber}</td>
-
-            {/* Title - click to edit */}
-            <td className="p-2" style={{ paddingLeft: `${8 + indentPx}px` }}>
-                {task.is_milestone && <span className="mr-1.5 text-purple-500">◆</span>}
-                {isEditing("title") ? (
-                    <input
-                        autoFocus
-                        className="w-full border border-amber-400 rounded px-2 py-1 text-sm bg-amber-50 outline-none"
-                        value={getLocalValue(task.id, "title", task.title)}
-                        onChange={(e) => setLocalValue(task.id, "title", e.target.value)}
-                        onBlur={() => commitEdit(task.id, "title", getLocalValue(task.id, "title", task.title), task)}
-                        onKeyDown={(e) => handleKeyDown(e, task.id, "title", getLocalValue(task.id, "title", task.title), task)}
-                    />
-                ) : (
-                    <span
-                        className="cursor-text hover:bg-slate-100 rounded px-2 py-1 -mx-2 inline-block min-w-[100px]"
-                        onClick={() => { setEditingCell({ taskId: task.id, field: "title" }); setLocalValue(task.id, "title", task.title); }}
-                    >
-                        {task.title}
-                    </span>
-                )}
-            </td>
-
-            {/* Duration */}
-            <td className="p-2 text-sm text-slate-600 font-mono">
-                {durationDisplay(task)}
-            </td>
-
-            {/* Start date */}
-            <td className="p-2">
-                <input
-                    type="date"
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 focus:border-amber-400 outline-none transition-colors w-full"
-                    value={task.planned_start ?? ""}
-                    onChange={(e) => onPatchTask(task.id, { planned_start: e.target.value || null })}
-                />
-            </td>
-
-            {/* Finish date */}
-            <td className="p-2">
-                <input
-                    type="date"
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 focus:border-amber-400 outline-none transition-colors w-full"
-                    value={task.planned_finish ?? ""}
-                    onChange={(e) => onPatchTask(task.id, { planned_finish: e.target.value || null })}
-                />
-            </td>
-
-            {/* Actual start */}
-            <td className="p-2">
-                <input
-                    type="date"
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 focus:border-amber-400 outline-none transition-colors w-full"
-                    value={task.actual_start ? task.actual_start.slice(0, 10) : ""}
-                    onChange={(e) => onPatchTask(task.id, { actual_start: e.target.value || null })}
-                />
-            </td>
-
-            {/* Actual finish */}
-            <td className="p-2">
-                <input
-                    type="date"
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 focus:border-amber-400 outline-none transition-colors w-full"
-                    value={task.actual_finish ? task.actual_finish.slice(0, 10) : ""}
-                    onChange={(e) => onPatchTask(task.id, { actual_finish: e.target.value || null })}
-                />
-            </td>
-
-            {/* Planned vs actual variance */}
-            <td className="p-2 text-xs">
-                {task.actual_finish && task.planned_finish ? (
-                    task.actual_finish.slice(0, 10) > task.planned_finish ? (
-                        <span className="inline-flex items-center rounded-full bg-red-100 text-red-700 px-2 py-1 font-semibold">Late</span>
-                    ) : (
-                        <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-1 font-semibold">On time</span>
-                    )
-                ) : (
-                    <span className="text-slate-400">—</span>
-                )}
-            </td>
-
-            {/* Status */}
-            <td className="p-2">
-                <div className="relative">
-                    <span
-                        className="absolute left-2 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full"
-                        style={{ backgroundColor: STATUS_COLORS[task.status] }}
-                    />
-                    <select
-                        className="pl-6 pr-2 py-1 border border-slate-200 rounded-lg text-sm bg-white hover:border-slate-400 outline-none transition-colors w-full appearance-none"
-                        value={task.status}
-                        onChange={(e) => onPatchTask(task.id, { status: e.target.value as TaskStatus })}
-                    >
-                        {TASK_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                                {s.replace("-", " ")}
-                            </option>
-                        ))}
-                    </select>
+          <td
+            className="p-0"
+            style={{ borderLeft: `3px solid ${phase.color ?? "#94a3b8"}` }}
+          />
+          <td className="py-2 pl-2 pr-1 text-xs" style={{ color: phase.color ? darkenColor(phase.color) : "#64748b" }}>
+            <span className="mr-1.5 text-[10px]">{collapsed ? "▶" : "▼"}</span>
+          </td>
+          <td colSpan={colSpanTotal - 2} className="py-2 pr-3">
+            <div className="flex items-center gap-3">
+              <span
+                className="font-bold text-sm"
+                style={{ color: phase.color ? darkenColor(phase.color) : "#334155" }}
+              >
+                {phase.name}
+              </span>
+              <span className="text-xs font-medium text-slate-400">
+                {tasks.length} task{tasks.length !== 1 ? "s" : ""} · {pct}%
+              </span>
+              {/* Mini progress bar */}
+              {tasks.length > 0 && (
+                <div className="w-20 h-1.5 bg-black/10 rounded-full overflow-hidden hidden sm:block">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${pct}%`, backgroundColor: phase.color ?? "#94a3b8" }}
+                  />
                 </div>
-            </td>
-
-            {/* Percent complete */}
-            <td className="p-2">
-                <div className="flex items-center gap-1">
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                                width: `${task.percent_complete}%`,
-                                backgroundColor: STATUS_COLORS[task.status],
-                            }}
-                        />
-                    </div>
-                    <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        className="w-12 border border-slate-200 rounded px-1 py-0.5 text-xs text-center bg-white outline-none"
-                        value={task.percent_complete}
-                        onChange={(e) =>
-                            onPatchTask(task.id, {
-                                percent_complete: Number(e.target.value),
-                                status: statusFromPercent(Number(e.target.value), task.status),
-                            })
-                        }
-                    />
-                </div>
-            </td>
-
-            {/* Priority */}
-            <td className="p-2">
-                <select
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white hover:border-slate-400 outline-none transition-colors w-full"
-                    value={task.priority}
-                    style={{ color: PRIORITY_COLORS[task.priority] }}
-                    onChange={(e) => onPatchTask(task.id, { priority: e.target.value as TaskPriority })}
-                >
-                    {TASK_PRIORITIES.map((p) => (
-                        <option key={p} value={p}>
-                            {p}
-                        </option>
-                    ))}
-                </select>
-            </td>
-
-            {/* Delay type */}
-            <td className="p-2">
-                <select
-                    className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white hover:border-slate-400 outline-none transition-colors w-full"
-                    value={task.delay_type ?? ""}
-                    onChange={(e) => onPatchTask(task.id, { delay_type: (e.target.value || null) as DelayType | null })}
-                >
-                    <option value="">None</option>
-                    {DELAY_TYPES.map((d) => (
-                        <option key={d} value={d}>
-                            {DELAY_TYPE_LABELS[d]}
-                        </option>
-                    ))}
-                </select>
-            </td>
-
-            {/* Notes */}
-            <td className="p-2">
-                {isEditing("notes") ? (
-                    <textarea
-                        autoFocus
-                        rows={2}
-                        className="w-full border border-amber-400 rounded px-2 py-1 text-sm bg-amber-50 outline-none resize-none"
-                        value={getLocalValue(task.id, "notes", task.notes ?? "")}
-                        onChange={(e) => setLocalValue(task.id, "notes", e.target.value)}
-                        onBlur={() => commitEdit(task.id, "notes", getLocalValue(task.id, "notes", task.notes ?? ""), task)}
-                    />
-                ) : (
-                    <span
-                        className="cursor-text text-sm text-slate-500 hover:bg-slate-100 rounded px-2 py-1 -mx-2 inline-block min-w-[60px] min-h-[24px] truncate max-w-[200px]"
-                        onClick={() => { setEditingCell({ taskId: task.id, field: "notes" }); setLocalValue(task.id, "notes", task.notes ?? ""); }}
-                        title={task.notes ?? "Click to add notes"}
-                    >
-                        {task.notes || "—"}
-                    </span>
-                )}
-            </td>
-
-            {/* Delete */}
-            <td className="p-2 text-center">
-                <button
-                    onClick={() => { if (confirm("Delete this task?")) onDeleteTask(task.id); }}
-                    className="text-slate-300 hover:text-red-500 transition-colors"
-                    title="Delete task"
-                >
-                    ✕
-                </button>
-            </td>
+              )}
+              {/* Hover add-task button */}
+              <button
+                onClick={e => { e.stopPropagation(); onAddTask("New task", phase.id); }}
+                className="opacity-0 group-hover/ph:opacity-100 ml-auto text-xs px-2 py-1 rounded-lg transition-all font-semibold"
+                style={{ color: phase.color ? darkenColor(phase.color) : "#64748b", backgroundColor: phase.color ? `${phase.color}20` : "#e2e8f0" }}
+              >
+                + Add task
+              </button>
+            </div>
+          </td>
         </tr>
-    );
+      )}
+
+      {!collapsed && tasks.map(task => (
+        <TaskRow
+          key={task.id}
+          task={task}
+          rowNum={rowNum(task)}
+          activeCols={activeCols}
+          saving={saving}
+          isEditing={isEditing}
+          getLV={getLV}
+          setLV={setLV}
+          startEdit={startEdit}
+          commitEdit={commitEdit}
+          handleKD={handleKD}
+          onPatchTask={onPatchTask}
+          onDeleteTask={onDeleteTask}
+          onOpenDetail={onOpenDetail}
+          phaseColor={phase?.color ?? null}
+        />
+      ))}
+
+      {/* Per-phase add row (always visible at bottom of phase) */}
+      {!collapsed && phase && (
+        <PhaseAddRow phaseId={phase.id} phaseName={phase.name} phaseColor={phase.color} onAdd={onAddTask} saving={saving} />
+      )}
+    </>
+  );
+}
+
+// ── Per-phase add row ──
+function PhaseAddRow({ phaseId, phaseName, phaseColor, onAdd, saving }: {
+  phaseId: string; phaseName: string; phaseColor: string | null;
+  onAdd: (title: string, phaseId?: string | null) => Promise<void>;
+  saving: string | null;
+}) {
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try { await onAdd(title.trim(), phaseId); setTitle(""); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <tr className="border-t border-dashed border-slate-100">
+      <td
+        className="p-0 w-1"
+        style={{ borderLeft: `3px solid ${phaseColor ?? "#e2e8f0"}` }}
+      />
+      <td />
+      <td colSpan={99} className="py-1.5 pr-3">
+        <div className="flex items-center gap-2">
+          <input
+            className="flex-1 text-sm text-slate-600 placeholder-slate-300 bg-transparent outline-none border-b border-transparent focus:border-slate-300 py-1 transition-colors"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && submit()}
+            placeholder={`+ Add task to ${phaseName}…`}
+            disabled={busy || !!saving}
+          />
+          {title.trim() && (
+            <button
+              onClick={submit}
+              disabled={busy || !!saving}
+              className="text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors"
+              style={{ backgroundColor: phaseColor ? `${phaseColor}20` : "#f1f5f9", color: phaseColor ? darkenColor(phaseColor) : "#64748b" }}
+            >
+              {busy ? "…" : "Add"}
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ── Task row ──
+function TaskRow({
+  task, rowNum, activeCols, saving,
+  isEditing, getLV, setLV, startEdit, commitEdit, handleKD,
+  onPatchTask, onDeleteTask, onOpenDetail, phaseColor,
+}: {
+  task: PlanTask;
+  rowNum: number;
+  activeCols: typeof COL_DEFS[number][];
+  saving: string | null;
+  isEditing: (taskId: string, field: string) => boolean;
+  getLV: (taskId: string, field: string, fallback: string) => string;
+  setLV: (taskId: string, field: string, value: string) => void;
+  startEdit: (taskId: string, field: string, value: string) => void;
+  commitEdit: (taskId: string, field: string, task: PlanTask) => Promise<void>;
+  handleKD: (e: React.KeyboardEvent, taskId: string, field: string, task: PlanTask) => void;
+  onPatchTask: (taskId: string, patch: Partial<PlanTask>) => Promise<void>;
+  onDeleteTask: (taskId: string) => Promise<void>;
+  onOpenDetail: (task: PlanTask) => void;
+  phaseColor: string | null;
+}) {
+  const isSaving = saving === task.id;
+  const indent   = (task.indent_level ?? 0) * 18;
+
+  const cycleStatus = () => {
+    const cur = STATUS_CYCLE.indexOf(task.status);
+    const next = STATUS_CYCLE[(cur + 1) % STATUS_CYCLE.length];
+    onPatchTask(task.id, { status: next, percent_complete: next === "done" ? 100 : task.percent_complete });
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const isLate = task.planned_finish && task.planned_finish < today && task.status !== "done";
+
+  const renderCell = (col: typeof COL_DEFS[number]) => {
+    switch (col.key) {
+      case "duration":
+        return (
+          <td key="duration" className="p-2 text-slate-500 font-mono text-xs">
+            {task.is_milestone ? "◆ Milestone" : task.duration_days != null ? `${task.duration_days}d` : "—"}
+          </td>
+        );
+      case "start":
+        return (
+          <td key="start" className="p-2">
+            <input
+              type="date"
+              className="text-xs border border-transparent hover:border-slate-200 focus:border-amber-400 rounded-md px-1.5 py-1 bg-transparent outline-none transition-colors w-full"
+              value={task.planned_start ?? ""}
+              onChange={e => onPatchTask(task.id, { planned_start: e.target.value || null })}
+            />
+          </td>
+        );
+      case "finish":
+        return (
+          <td key="finish" className={`p-2 ${isLate ? "bg-red-50/50" : ""}`}>
+            <input
+              type="date"
+              className={`text-xs border border-transparent hover:border-slate-200 focus:border-amber-400 rounded-md px-1.5 py-1 bg-transparent outline-none transition-colors w-full ${isLate ? "text-red-600 font-semibold" : ""}`}
+              value={task.planned_finish ?? ""}
+              onChange={e => onPatchTask(task.id, { planned_finish: e.target.value || null })}
+            />
+          </td>
+        );
+      case "status":
+        return (
+          <td key="status" className="p-2">
+            <button
+              onClick={cycleStatus}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors w-full text-left ${STATUS_PILL[task.status]}`}
+              title="Click to cycle status"
+            >
+              {STATUS_LABELS[task.status]}
+            </button>
+          </td>
+        );
+      case "percent":
+        return (
+          <td key="percent" className="p-2">
+            <div className="flex items-center gap-1.5">
+              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${task.percent_complete}%`, backgroundColor: STATUS_COLORS[task.status] }}
+                />
+              </div>
+              <input
+                type="number" min="0" max="100"
+                className="w-11 text-xs text-center border border-transparent hover:border-slate-200 focus:border-amber-400 rounded px-1 py-0.5 outline-none bg-transparent transition-colors"
+                value={task.percent_complete}
+                onChange={e => onPatchTask(task.id, {
+                  percent_complete: Math.min(100, Math.max(0, Number(e.target.value))),
+                  status: statusFromPercent(Number(e.target.value), task.status),
+                })}
+              />
+            </div>
+          </td>
+        );
+      case "actual_start":
+        return (
+          <td key="actual_start" className="p-2">
+            <input
+              type="date"
+              className="text-xs border border-transparent hover:border-slate-200 focus:border-amber-400 rounded-md px-1.5 py-1 bg-transparent outline-none transition-colors w-full"
+              value={task.actual_start ? task.actual_start.slice(0, 10) : ""}
+              onChange={e => onPatchTask(task.id, { actual_start: e.target.value || null })}
+            />
+          </td>
+        );
+      case "actual_finish":
+        return (
+          <td key="actual_finish" className="p-2">
+            <input
+              type="date"
+              className="text-xs border border-transparent hover:border-slate-200 focus:border-amber-400 rounded-md px-1.5 py-1 bg-transparent outline-none transition-colors w-full"
+              value={task.actual_finish ? task.actual_finish.slice(0, 10) : ""}
+              onChange={e => onPatchTask(task.id, { actual_finish: e.target.value || null })}
+            />
+          </td>
+        );
+      case "variance": {
+        if (!task.actual_finish || !task.planned_finish) return <td key="variance" className="p-2 text-xs text-slate-300">—</td>;
+        const late = task.actual_finish.slice(0, 10) > task.planned_finish;
+        return (
+          <td key="variance" className="p-2">
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${late ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {late ? "Late" : "On time"}
+            </span>
+          </td>
+        );
+      }
+      case "priority":
+        return (
+          <td key="priority" className="p-2">
+            <select
+              className="text-xs border border-transparent hover:border-slate-200 rounded-md px-1.5 py-1 bg-transparent outline-none transition-colors w-full"
+              value={task.priority}
+              style={{ color: PRIORITY_COLORS[task.priority] }}
+              onChange={e => onPatchTask(task.id, { priority: e.target.value as TaskPriority })}
+            >
+              {TASK_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </td>
+        );
+      case "delay":
+        return (
+          <td key="delay" className="p-2">
+            <select
+              className="text-xs border border-transparent hover:border-slate-200 rounded-md px-1.5 py-1 bg-transparent outline-none transition-colors w-full"
+              value={task.delay_type ?? ""}
+              onChange={e => onPatchTask(task.id, { delay_type: (e.target.value || null) as DelayType | null })}
+            >
+              <option value="">No delay</option>
+              {DELAY_TYPES.map(d => <option key={d} value={d}>{DELAY_TYPE_LABELS[d]}</option>)}
+            </select>
+          </td>
+        );
+      case "notes":
+        return (
+          <td key="notes" className="p-2">
+            {isEditing(task.id, "notes") ? (
+              <textarea
+                autoFocus rows={2}
+                className="w-full border border-amber-400 rounded-md px-2 py-1 text-xs bg-amber-50 outline-none resize-none"
+                value={getLV(task.id, "notes", task.notes ?? "")}
+                onChange={e => setLV(task.id, "notes", e.target.value)}
+                onBlur={() => commitEdit(task.id, "notes", task)}
+                onKeyDown={e => handleKD(e, task.id, "notes", task)}
+              />
+            ) : (
+              <span
+                className="text-xs text-slate-400 cursor-text hover:text-slate-600 truncate block max-w-[160px]"
+                onClick={() => startEdit(task.id, "notes", task.notes ?? "")}
+                title={task.notes ?? "Click to add notes"}
+              >
+                {task.notes || <span className="italic text-slate-300">Add note…</span>}
+              </span>
+            )}
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <tr
+      className={`border-t border-slate-100 hover:bg-slate-50/80 transition-colors group/row ${
+        task.status === "done" ? "opacity-60" : ""
+      } ${isSaving ? "opacity-50" : ""} ${isLate ? "bg-red-50/20" : ""}`}
+      style={phaseColor ? { borderLeft: `2px solid ${phaseColor}30` } : undefined}
+    >
+      {/* Row number — click to open detail */}
+      <td className="p-2 text-center">
+        <button
+          onClick={() => onOpenDetail(task)}
+          className="text-xs text-slate-300 hover:text-amber-500 font-mono transition-colors w-6 h-6 rounded hover:bg-amber-50 flex items-center justify-center mx-auto"
+          title="Open task details"
+        >
+          {rowNum}
+        </button>
+      </td>
+
+      {/* Task name */}
+      <td className="p-2" style={{ paddingLeft: `${8 + indent}px` }}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {task.is_milestone && <span className="text-purple-500 text-xs flex-shrink-0">◆</span>}
+          {isEditing(task.id, "title") ? (
+            <input
+              autoFocus
+              className="flex-1 border border-amber-400 rounded-md px-2 py-1 text-sm bg-amber-50 outline-none min-w-0"
+              value={getLV(task.id, "title", task.title)}
+              onChange={e => setLV(task.id, "title", e.target.value)}
+              onBlur={() => commitEdit(task.id, "title", task)}
+              onKeyDown={e => handleKD(e, task.id, "title", task)}
+            />
+          ) : (
+            <span
+              className={`text-sm cursor-text truncate ${task.status === "done" ? "line-through text-slate-400" : "text-slate-800"} ${task.delay_type ? "text-orange-800" : ""}`}
+              onClick={() => startEdit(task.id, "title", task.title)}
+              title={task.title}
+            >
+              {task.title}
+            </span>
+          )}
+          {task.delay_type && (
+            <span className="flex-shrink-0 text-orange-500 text-xs" title={DELAY_TYPE_LABELS[task.delay_type]}>⚠</span>
+          )}
+        </div>
+      </td>
+
+      {/* Active columns */}
+      {activeCols.map(col => renderCell(col))}
+
+      {/* Delete */}
+      <td className="p-2 text-center">
+        <button
+          onClick={() => { if (confirm("Delete this task?")) onDeleteTask(task.id); }}
+          className="opacity-0 group-hover/row:opacity-100 text-slate-300 hover:text-red-500 transition-all text-sm"
+          title="Delete task"
+        >
+          ✕
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ── Global quick-add row (bottom of table) ──
+function QuickAddRow({ phases, onAdd, saving, colCount }: {
+  phases: PlanPhase[];
+  onAdd: (title: string, phaseId?: string | null) => Promise<void>;
+  saving: boolean;
+  colCount: number;
+}) {
+  const [title, setTitle] = useState("");
+  const [phaseId, setPhaseId] = useState("");
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    await onAdd(title.trim(), phaseId || null);
+    setTitle("");
+  };
+
+  return (
+    <tr className="border-t-2 border-slate-200 bg-slate-50/40">
+      <td className="p-2 text-center text-slate-300 text-lg">+</td>
+      <td className="p-2">
+        <input
+          className="w-full border border-dashed border-slate-300 rounded-lg px-3 py-2 text-sm bg-white placeholder-slate-400 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none transition-colors"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && submit()}
+          placeholder="Quick add task…  (Enter)"
+        />
+      </td>
+      <td className="p-2" colSpan={Math.max(1, colCount - 1)}>
+        <div className="flex items-center gap-2">
+          {phases.length > 0 && (
+            <select
+              className="border border-slate-200 rounded-lg px-2 py-2 text-sm bg-white max-w-[180px]"
+              value={phaseId}
+              onChange={e => setPhaseId(e.target.value)}
+            >
+              <option value="">No phase</option>
+              {phases.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
+          <button
+            disabled={!title.trim() || saving}
+            onClick={submit}
+            className="px-4 py-2 rounded-lg bg-amber-500 text-slate-900 font-bold text-sm disabled:opacity-40 hover:bg-amber-400 transition-colors"
+          >
+            {saving ? "Adding…" : "Add"}
+          </button>
+        </div>
+      </td>
+      <td />
+    </tr>
+  );
+}
+
+// ── Task detail slide-over panel ──
+function TaskDetailPanel({ task, phases, saving, onPatch, onDelete, onClose }: {
+  task: PlanTask;
+  phases: PlanPhase[];
+  saving: boolean;
+  onPatch: (patch: Partial<PlanTask>) => Promise<void>;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [notes, setNotes] = useState(task.notes ?? "");
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => { setTitle(task.title); setNotes(task.notes ?? ""); setDirty(false); }, [task.id, task.title, task.notes]);
+
+  const save = async () => {
+    await onPatch({ title: title.trim() || task.title, notes: notes || null });
+    setDirty(false);
+  };
+
+  const phase = phases.find(p => p.id === task.phase_id);
+  const today = new Date().toISOString().slice(0, 10);
+  const isLate = task.planned_finish && task.planned_finish < today && task.status !== "done";
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-30" onClick={onClose} />
+      <div className="fixed right-0 top-0 h-full z-40 bg-white shadow-2xl border-l border-slate-200 w-full max-w-md flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {phase?.color && (
+              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: phase.color }} />
+            )}
+            <span className="text-xs font-semibold text-slate-500 truncate">{phase?.name ?? "Unphased"}</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={() => { if (confirm("Delete this task?")) onDelete(); }}
+              className="text-xs px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            >
+              Delete
+            </button>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Title */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Task Name</label>
+            <textarea
+              rows={2}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-base font-semibold text-slate-900 focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none resize-none transition-colors"
+              value={title}
+              onChange={e => { setTitle(e.target.value); setDirty(true); }}
+            />
+          </div>
+
+          {/* Status + % */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Status</label>
+              <select
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-amber-400 outline-none"
+                value={task.status}
+                onChange={e => onPatch({ status: e.target.value as TaskStatus })}
+              >
+                {TASK_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Progress</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range" min="0" max="100" step="5"
+                  className="flex-1 accent-amber-500"
+                  value={task.percent_complete}
+                  onChange={e => onPatch({ percent_complete: Number(e.target.value), status: statusFromPercent(Number(e.target.value), task.status) })}
+                />
+                <span className="text-sm font-bold text-slate-700 w-10 text-right">{task.percent_complete}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Planned Dates</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Start</label>
+                <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" value={task.planned_start ?? ""} onChange={e => onPatch({ planned_start: e.target.value || null })} />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Finish {isLate && <span className="text-red-500 font-semibold">· Overdue</span>}</label>
+                <input type="date" className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none ${isLate ? "border-red-300 bg-red-50 text-red-700" : "border-slate-200"}`} value={task.planned_finish ?? ""} onChange={e => onPatch({ planned_finish: e.target.value || null })} />
+              </div>
+            </div>
+          </div>
+
+          {/* Actual dates */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Actual Dates</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Actual Start</label>
+                <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" value={task.actual_start ? task.actual_start.slice(0, 10) : ""} onChange={e => onPatch({ actual_start: e.target.value || null })} />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">Actual Finish</label>
+                <input type="date" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 outline-none" value={task.actual_finish ? task.actual_finish.slice(0, 10) : ""} onChange={e => onPatch({ actual_finish: e.target.value || null })} />
+              </div>
+            </div>
+          </div>
+
+          {/* Priority + Delay */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Priority</label>
+              <select className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-amber-400 outline-none" value={task.priority} onChange={e => onPatch({ priority: e.target.value as TaskPriority })}>
+                {TASK_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Delay</label>
+              <select className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-amber-400 outline-none" value={task.delay_type ?? ""} onChange={e => onPatch({ delay_type: (e.target.value || null) as DelayType | null })}>
+                <option value="">No delay</option>
+                {DELAY_TYPES.map(d => <option key={d} value={d}>{DELAY_TYPE_LABELS[d]}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Milestone toggle */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={task.is_milestone} onChange={e => onPatch({ is_milestone: e.target.checked })} className="w-4 h-4 accent-purple-500" />
+            <span className="text-sm font-medium text-slate-700">
+              <span className="text-purple-500 mr-1.5">◆</span>
+              Mark as milestone
+            </span>
+          </label>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Notes</label>
+            <textarea
+              rows={4}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:border-amber-400 focus:ring-1 focus:ring-amber-200 outline-none resize-y transition-colors"
+              value={notes}
+              onChange={e => { setNotes(e.target.value); setDirty(true); }}
+              placeholder="Constraints, assumptions, site conditions…"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        {dirty && (
+          <div className="border-t border-slate-200 px-5 py-3 flex gap-3 flex-shrink-0">
+            <button onClick={() => { setTitle(task.title); setNotes(task.notes ?? ""); setDirty(false); }} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+              Discard
+            </button>
+            <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 disabled:opacity-40 transition-colors">
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
