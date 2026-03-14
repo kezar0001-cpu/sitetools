@@ -485,3 +485,31 @@ export async function fetchCompanyInvitations(companyId: string): Promise<Compan
 
   return (data ?? []) as CompanyInvitation[];
 }
+
+export async function updateProfile(
+  userId: string,
+  patch: { full_name?: string | null; phone_number?: string | null }
+): Promise<void> {
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.full_name !== undefined) payload.full_name = patch.full_name?.trim() || null;
+  if (patch.phone_number !== undefined) payload.phone_number = patch.phone_number?.trim() || null;
+
+  const { error } = await supabase.from("profiles").update(payload).eq("id", userId);
+  if (error) throw error;
+}
+
+export async function updateCompany(
+  companyId: string,
+  patch: { name?: string }
+): Promise<void> {
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) payload.name = patch.name.trim();
+
+  const { error } = await supabase.from("companies").update(payload).eq("id", companyId);
+  if (error) throw error;
+}
+
+export async function deleteCompany(companyId: string): Promise<void> {
+  const { error } = await supabase.from("companies").delete().eq("id", companyId);
+  if (error) throw error;
+}
