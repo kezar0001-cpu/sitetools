@@ -50,17 +50,17 @@ const HEADER_SVG = (
 
 function NoSiteScreen() {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
-      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-lg">
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      <header className="bg-amber-400 border-b-4 border-amber-600 shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-yellow-600 text-white rounded-lg p-2">{HEADER_SVG}</div>
+            <div className="bg-amber-600 text-white rounded-lg p-2">{HEADER_SVG}</div>
             <div>
-              <h1 className="text-2xl font-extrabold text-yellow-900 tracking-tight">SiteSign</h1>
-              <p className="text-xs font-medium text-yellow-800">Construction Site Access Management</p>
+              <h1 className="text-2xl font-extrabold text-amber-950 tracking-tight">SiteSign</h1>
+              <p className="text-xs font-medium text-amber-900">Construction Site Access Management</p>
             </div>
           </div>
-          <a href="/login" className="hidden sm:block bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
+          <a href="/login" className="hidden sm:block bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
             Admin Login
           </a>
         </div>
@@ -69,171 +69,135 @@ function NoSiteScreen() {
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10 sm:space-y-16">
         {/* Hero Section */}
         <section className="text-center space-y-6">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-400 rounded-2xl shadow-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-yellow-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-400 rounded-2xl shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <h2 className="text-3xl sm:text-5xl font-extrabold text-gray-900 leading-tight">
+          <h2 className="text-4xl sm:text-6xl font-black text-slate-900 leading-[1.1] tracking-tight">
             Streamline Your Site<br />Access Management
           </h2>
-          <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto">
-            A modern, paperless solution for tracking workers, subcontractors, visitors, and deliveries at construction sites with digital signatures and real-time monitoring.
+          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto font-medium">
+            A modern, paperless solution for tracking workers, subcontractors, visitors, and deliveries at construction sites.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-            <div className="bg-yellow-100 border-2 border-yellow-400 rounded-xl px-6 py-3 flex items-center gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="bg-amber-100 border-2 border-amber-400 rounded-2xl px-6 py-4 flex items-center gap-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
               </svg>
               <div className="text-left">
-                <p className="text-xs font-semibold text-yellow-800 uppercase">Get Started</p>
-                <p className="text-sm font-bold text-yellow-900">Scan the QR code at your site</p>
+                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest leading-none mb-1">Get Started</p>
+                <p className="text-base font-bold text-amber-950">Scan the QR code at your site</p>
               </div>
             </div>
-            <a href="/login" className="sm:hidden bg-yellow-600 hover:bg-yellow-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
+            <a href="/login" className="sm:hidden bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
               Admin Login
             </a>
           </div>
         </section>
 
         {/* Features Grid */}
-        <section className="space-y-6 hidden sm:block">
-          <h3 className="text-3xl font-extrabold text-gray-900 text-center">Key Features</h3>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <section className="space-y-8 hidden sm:block">
+          <h3 className="text-4xl font-black text-slate-900 text-center tracking-tight">Key Features</h3>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
-              <div className="bg-blue-100 text-blue-700 rounded-lg w-12 h-12 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-4 hover:shadow-xl hover:border-amber-400 transition-all group">
+              <div className="bg-blue-50 text-blue-600 rounded-2xl w-14 h-14 flex items-center justify-center transition-colors group-hover:bg-blue-100">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
               </div>
-              <h4 className="text-lg font-bold text-gray-900">Digital Sign In/Out</h4>
-              <p className="text-sm text-gray-600">
-                Workers sign in and out digitally with their name, company, and visitor type. No more paper logbooks or clipboards.
+              <h4 className="text-xl font-black text-slate-900">Digital Sign In</h4>
+              <p className="text-base text-slate-500 font-medium leading-relaxed">
+                Workers sign in digitally with their name and company. No more physical logbooks.
               </p>
             </div>
 
             {/* Feature 2 */}
-            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
-              <div className="bg-purple-100 text-purple-700 rounded-lg w-12 h-12 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-4 hover:shadow-xl hover:border-amber-400 transition-all group">
+              <div className="bg-purple-50 text-purple-600 rounded-2xl w-14 h-14 flex items-center justify-center transition-colors group-hover:bg-purple-100">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
               </div>
-              <h4 className="text-lg font-bold text-gray-900">Digital Signatures</h4>
-              <p className="text-sm text-gray-600">
-                Capture signatures on sign-in for verification and compliance. Touch-friendly signature pad works on any device.
+              <h4 className="text-xl font-black text-slate-900">Signatures</h4>
+              <p className="text-base text-slate-500 font-medium leading-relaxed">
+                Capture digital signatures for compliance. Touch-friendly pad works on any device.
               </p>
             </div>
 
             {/* Feature 3 */}
-            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
-              <div className="bg-green-100 text-green-700 rounded-lg w-12 h-12 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-4 hover:shadow-xl hover:border-amber-400 transition-all group">
+              <div className="bg-emerald-50 text-emerald-600 rounded-2xl w-14 h-14 flex items-center justify-center transition-colors group-hover:bg-emerald-100">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h4 className="text-lg font-bold text-gray-900">Real-Time Tracking</h4>
-              <p className="text-sm text-gray-600">
-                See who&apos;s currently on site in real-time. Track sign-in/out times and calculate duration automatically.
-              </p>
-            </div>
-
-            {/* Feature 4 */}
-            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
-              <div className="bg-yellow-100 text-yellow-700 rounded-lg w-12 h-12 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h4 className="text-lg font-bold text-gray-900">Export Reports</h4>
-              <p className="text-sm text-gray-600">
-                Export visit data in CSV, XLSX, or PDF formats. Filter by date ranges and generate professional reports.
-              </p>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
-              <div className="bg-red-100 text-red-700 rounded-lg w-12 h-12 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <h4 className="text-lg font-bold text-gray-900">Multi-Site Support</h4>
-              <p className="text-sm text-gray-600">
-                Manage multiple construction sites from one dashboard. Each site gets its own QR code for easy access.
-              </p>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 space-y-3 hover:shadow-md transition-shadow">
-              <div className="bg-indigo-100 text-indigo-700 rounded-lg w-12 h-12 flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h4 className="text-lg font-bold text-gray-900">Role-Based Access</h4>
-              <p className="text-sm text-gray-600">
-                Admin, editor, and viewer roles ensure team members have appropriate access levels for their responsibilities.
+              <h4 className="text-xl font-black text-slate-900">Live Tracking</h4>
+              <p className="text-base text-slate-500 font-medium leading-relaxed">
+                See who&apos;s currently on site in real-time. Track durations automatically for payroll.
               </p>
             </div>
           </div>
         </section>
 
         {/* How It Works */}
-        <section className="bg-white rounded-2xl border-2 border-gray-200 shadow-sm p-6 sm:p-12 space-y-8">
-          <h3 className="text-3xl font-extrabold text-gray-900 text-center">How It Works</h3>
-          <div className="grid sm:grid-cols-3 gap-8">
-            <div className="text-center space-y-3">
-              <div className="mx-auto bg-yellow-400 text-yellow-900 rounded-full w-16 h-16 flex items-center justify-center font-extrabold text-2xl shadow-lg">
+        <section className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8 sm:p-16 space-y-12">
+          <h3 className="text-4xl font-black text-slate-900 text-center tracking-tight">How It Works</h3>
+          <div className="grid sm:grid-cols-3 gap-12">
+            <div className="text-center space-y-4">
+              <div className="mx-auto bg-amber-400 text-amber-950 rounded-2xl w-16 h-16 flex items-center justify-center font-black text-2xl shadow-lg ring-4 ring-amber-100">
                 1
               </div>
-              <h4 className="text-lg font-bold text-gray-900">Scan QR Code</h4>
-              <p className="text-sm text-gray-600">
-                Workers scan the unique QR code posted at the site entrance using their phone camera.
+              <h4 className="text-xl font-black text-slate-900">Scan QR</h4>
+              <p className="text-base text-slate-500 font-medium leading-relaxed">
+                Scan the unique QR code at the site entrance using your phone.
               </p>
             </div>
-            <div className="text-center space-y-3">
-              <div className="mx-auto bg-yellow-400 text-yellow-900 rounded-full w-16 h-16 flex items-center justify-center font-extrabold text-2xl shadow-lg">
+            <div className="text-center space-y-4">
+              <div className="mx-auto bg-amber-400 text-amber-950 rounded-2xl w-16 h-16 flex items-center justify-center font-black text-2xl shadow-lg ring-4 ring-amber-100">
                 2
               </div>
-              <h4 className="text-lg font-bold text-gray-900">Sign In</h4>
-              <p className="text-sm text-gray-600">
-                Enter name, company, visitor type, and provide a digital signature to confirm arrival.
+              <h4 className="text-xl font-black text-slate-900">Sign In</h4>
+              <p className="text-base text-slate-500 font-medium leading-relaxed">
+                Enter details and provide a digital signature to confirm arrival.
               </p>
             </div>
-            <div className="text-center space-y-3">
-              <div className="mx-auto bg-yellow-400 text-yellow-900 rounded-full w-16 h-16 flex items-center justify-center font-extrabold text-2xl shadow-lg">
+            <div className="text-center space-y-4">
+              <div className="mx-auto bg-amber-400 text-amber-950 rounded-2xl w-16 h-16 flex items-center justify-center font-black text-2xl shadow-lg ring-4 ring-amber-100">
                 3
               </div>
-              <h4 className="text-lg font-bold text-gray-900">Sign Out</h4>
-              <p className="text-sm text-gray-600">
-                When leaving, scan the QR code again and tap sign out. All data is tracked automatically.
+              <h4 className="text-xl font-black text-slate-900">Sign Out</h4>
+              <p className="text-base text-slate-500 font-medium leading-relaxed">
+                When leaving, scan again and tap sign-out. All tracked automatically.
               </p>
             </div>
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-2xl shadow-lg p-6 sm:p-12 text-center space-y-5">
-          <h3 className="text-3xl font-extrabold text-yellow-900">Ready to Get Started?</h3>
-          <p className="text-lg text-yellow-800 max-w-2xl mx-auto">
+        <section className="bg-slate-900 rounded-3xl shadow-2xl p-8 sm:p-16 text-center space-y-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/10 blur-[100px] -mr-32 -mt-32 rounded-full" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/10 blur-[100px] -ml-32 -mb-32 rounded-full" />
+          
+          <h3 className="text-4xl font-black text-white tracking-tight relative z-10">Ready to Get Started?</h3>
+          <p className="text-xl text-slate-400 max-w-2xl mx-auto font-medium relative z-10">
             Scan the QR code at your construction site to sign in, or contact your site administrator for access.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/login" className="bg-yellow-900 hover:bg-yellow-950 text-white font-bold px-8 py-4 rounded-xl transition-colors text-lg shadow-md">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10 pt-4">
+            <a href="/login" className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-black px-10 py-5 rounded-2xl transition-all text-xl shadow-xl hover:scale-105 active:scale-95">
               Admin Dashboard
             </a>
           </div>
         </section>
       </main>
 
-      <footer className="bg-gray-900 text-gray-400 py-8">
-        <div className="max-w-6xl mx-auto px-4 text-center space-y-2">
-          <p className="font-semibold">SiteSign &copy; {new Date().getFullYear()}</p>
-          <p className="text-sm">Construction Site Access Management System</p>
-          <div className="flex justify-center gap-6 pt-2">
-            <a href="/login" className="text-gray-500 hover:text-yellow-400 transition-colors text-sm font-medium">Admin Login</a>
+      <footer className="bg-slate-900 text-slate-500 py-12">
+        <div className="max-w-6xl mx-auto px-4 text-center space-y-4">
+          <p className="font-bold text-slate-300">Buildstate &copy; {new Date().getFullYear()}</p>
+          <p className="text-sm font-medium">Digital Infrastructure for Modern Engineering</p>
+          <div className="flex justify-center gap-8 pt-4">
+            <a href="/login" className="text-slate-500 hover:text-amber-400 transition-colors text-sm font-black uppercase tracking-widest">Admin Login</a>
           </div>
         </div>
       </footer>
@@ -448,18 +412,18 @@ function SiteSignIn({ site }: { site: Site }) {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <header className="bg-yellow-400 border-b-4 border-yellow-600 shadow-md">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+    <div className="min-h-screen flex flex-col bg-slate-50 font-sans">
+      <header className="bg-amber-400 border-b-4 border-amber-600 shadow-md">
+        <div className="max-w-2xl mx-auto px-4 py-5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="bg-yellow-600 text-white rounded-lg p-2 shrink-0">
+            <div className="bg-amber-600 text-white rounded-xl p-2 shrink-0">
               {site.logo_url ? (
                 <Image
                   src={site.logo_url}
                   alt={`${site.name} logo`}
-                  width={28}
-                  height={28}
-                  className="h-7 w-7 object-contain"
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 object-contain"
                   unoptimized
                 />
               ) : (
@@ -467,8 +431,8 @@ function SiteSignIn({ site }: { site: Site }) {
               )}
             </div>
             <div className="min-w-0">
-              <h1 className="text-xl font-extrabold text-yellow-900 tracking-tight truncate">{site.name}</h1>
-              <p className="text-xs font-medium text-yellow-800">Site Sign In / Sign Out</p>
+              <h1 className="text-2xl font-black text-amber-950 tracking-tight truncate leading-none mb-1">{site.name}</h1>
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-900 opacity-80">Site Access Registry</p>
             </div>
           </div>
         </div>
@@ -477,79 +441,91 @@ function SiteSignIn({ site }: { site: Site }) {
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-5 pb-10 space-y-6">
         {/* Loading state while checking for existing session */}
         {loadingSession && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-yellow-400 border-t-transparent"></div>
-            <p className="mt-3 text-sm text-gray-500">Checking for active session...</p>
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-12 text-center">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-amber-400 border-t-transparent"></div>
+            <p className="mt-4 text-sm font-bold text-slate-500 uppercase tracking-widest">Checking Registry...</p>
           </div>
         )}
 
         {/* Sign In Form - only show if not loading and no active visit */}
         {!loadingSession && !myVisit && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="bg-yellow-400 text-yellow-900 rounded-lg p-1.5">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-200 p-6 sm:p-10">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="bg-amber-400 text-amber-950 rounded-2xl p-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                 </svg>
               </div>
-              <h2 className="text-xl font-extrabold text-gray-900">Sign In to Site</h2>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Sign In</h2>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Mandatory Registry</p>
+              </div>
             </div>
             {success && (
-              <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-4 text-base font-semibold">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                Signed in successfully! Welcome to site.
+              <div className="mb-6 flex items-center gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl px-5 py-5 text-base font-bold">
+                <div className="bg-emerald-500 text-white rounded-lg p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                Signed in successfully. Welcome to site.
               </div>
             )}
             {formError && (
-              <div className="mb-4 bg-red-50 border border-red-300 text-red-700 rounded-xl px-4 py-4 text-base font-semibold">{formError}</div>
+              <div className="mb-6 bg-red-50 border border-red-200 text-red-700 rounded-2xl px-5 py-5 text-base font-bold flex items-center gap-3">
+                <div className="bg-red-500 text-white rounded-lg p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                {formError}
+              </div>
             )}
-            <form onSubmit={handleSignIn} className="space-y-5">
+            <form onSubmit={handleSignIn} className="space-y-6">
               <div>
-                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="full_name">Full Name</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2" htmlFor="full_name">Full Name</label>
                 <input
                   id="full_name"
                   type="text"
-                  placeholder="e.g. Jane Smith"
+                  placeholder="Jane Smith"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   autoComplete="name"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border-2 border-slate-100 rounded-2xl px-5 py-4 text-lg focus:outline-none focus:border-amber-400 focus:bg-white bg-slate-50 transition-all font-bold text-slate-900"
                 />
               </div>
               <div>
-                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="phone_number">Mobile Number</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2" htmlFor="phone_number">Mobile Number</label>
                 <input
                   id="phone_number"
                   type="tel"
-                  placeholder="e.g. 0412 345 678"
+                  placeholder="0412 345 678"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   autoComplete="tel"
                   inputMode="tel"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border-2 border-slate-100 rounded-2xl px-5 py-4 text-lg focus:outline-none focus:border-amber-400 focus:bg-white bg-slate-50 transition-all font-bold text-slate-900"
                 />
               </div>
               <div>
-                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="company_name">Company Name</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2" htmlFor="company_name">Company Name</label>
                 <input
                   id="company_name"
                   type="text"
-                  placeholder="e.g. Acme Constructions"
+                  placeholder="Acme Civil Pty Ltd"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
                   autoComplete="organization"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-base sm:text-lg focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border-2 border-slate-100 rounded-2xl px-5 py-4 text-lg focus:outline-none focus:border-amber-400 focus:bg-white bg-slate-50 transition-all font-bold text-slate-900"
                 />
               </div>
               <div>
-                <label className="block text-base font-semibold text-gray-700 mb-1.5" htmlFor="visitor_type">Visitor Type</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2" htmlFor="visitor_type">Visitor Type</label>
                 <select
                   id="visitor_type"
                   value={visitorType}
                   onChange={(e) => setVisitorType(e.target.value as VisitorType)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-4 text-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  className="w-full border-2 border-slate-100 rounded-2xl px-5 py-4 text-lg bg-slate-50 focus:outline-none focus:border-amber-400 focus:bg-white transition-all font-bold text-slate-900 appearance-none"
                 >
                   {VISITOR_TYPES.map((t) => (
                     <option key={t} value={t}>
@@ -559,8 +535,8 @@ function SiteSignIn({ site }: { site: Site }) {
                 </select>
               </div>
               <button type="submit" disabled={submitting}
-                className="w-full bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 disabled:opacity-60 text-yellow-900 font-extrabold py-4 sm:py-5 rounded-2xl transition-colors text-lg sm:text-xl shadow-md mt-1">
-                {submitting ? "Signing In…" : "Sign In to Site"}
+                className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 disabled:opacity-60 text-amber-950 font-black py-5 rounded-[1.5rem] transition-all text-xl shadow-xl shadow-amber-200 mt-2 hover:scale-[1.02] active:scale-[0.98]">
+                {submitting ? "Signing In…" : "Confirm Sign In"}
               </button>
             </form>
           </div>
@@ -568,33 +544,36 @@ function SiteSignIn({ site }: { site: Site }) {
 
         {/* My sign-in card — only shown after this visitor signs in */}
         {myVisit && (
-          <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
-              <h2 className="text-lg font-extrabold text-gray-900">You&apos;re Signed In</h2>
+          <div className="bg-white rounded-3xl shadow-xl shadow-emerald-100/50 border border-emerald-200 p-8 space-y-6">
+            <div className="flex items-center gap-3">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.5)]"></span>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Entry Recorded</h2>
             </div>
-            <div className="border border-gray-100 rounded-xl px-4 py-3 bg-gray-50 space-y-2">
-              <div className="flex items-center justify-between gap-3">
+            <div className="border border-slate-100 rounded-[1.5rem] px-6 py-5 bg-slate-50 space-y-3">
+              <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-gray-900 text-sm">{myVisit.full_name}</span>
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${TYPE_COLOURS[myVisit.visitor_type]}`}>{myVisit.visitor_type}</span>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="font-black text-slate-900 text-lg">{myVisit.full_name}</span>
+                    <span className={`text-[10px] uppercase font-black tracking-widest px-2.5 py-1 rounded-lg border ${TYPE_COLOURS[myVisit.visitor_type]}`}>{myVisit.visitor_type}</span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5">{myVisit.company_name}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">
-                    Signed in at {formatTime(myVisit.signed_in_at)}
+                  <div className="text-sm font-bold text-slate-500 mt-1 uppercase tracking-wide">{myVisit.company_name}</div>
+                  <div className="text-sm font-bold text-amber-600 mt-2 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Logged in at {formatTime(myVisit.signed_in_at)}
                   </div>
                 </div>
                 <button onClick={confirmSignOut} disabled={signingOut}
-                  className="shrink-0 bg-gray-800 hover:bg-gray-900 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
-                  {signingOut ? "Signing Out..." : "Sign Out"}
+                  className="shrink-0 bg-slate-900 hover:bg-black disabled:opacity-50 text-white text-xs font-black uppercase tracking-widest px-4 py-3 rounded-xl transition-all shadow-md active:scale-95">
+                  {signingOut ? "Exit..." : "Sign Out"}
                 </button>
               </div>
               <button
                 onClick={() => startEditTime(myVisit)}
-                className="text-xs text-blue-500 hover:text-blue-700 font-semibold hover:underline"
+                className="text-xs text-slate-400 hover:text-amber-600 font-bold uppercase tracking-widest transition-colors"
               >
-                Edit sign-in time
+                Manual Time Adjustment
               </button>
             </div>
           </div>
@@ -665,22 +644,17 @@ function SiteSignIn({ site }: { site: Site }) {
                 <h3 className="text-lg font-extrabold text-gray-900">Sign In to Site</h3>
                 <p className="text-sm text-gray-500 mt-0.5">Please sign below to confirm your arrival at the site.</p>
               </div>
-              <div
-                className={`border-2 rounded-xl overflow-hidden bg-gray-50 ${signError ? "border-red-400" : "border-gray-300"}`}
-                style={{ touchAction: "none" }}
-              >
-                <SignatureCanvas
-                  ref={sigPadRef}
-                  penColor="#1c1917"
-                  canvasProps={{
-                    width: 340,
-                    height: 200,
-                    style: { width: "100%", height: "200px", display: "block", touchAction: "none" },
-                  }}
-                  backgroundColor="#f9fafb"
-                  onBegin={() => { setHasDrawn(true); setSignError(false); }}
-                />
-              </div>
+              <SignatureCanvas
+                ref={sigPadRef}
+                penColor="#0b1324"
+                canvasProps={{
+                  width: 340,
+                  height: 200,
+                  style: { width: "100%", height: "200px", display: "block", touchAction: "none" },
+                }}
+                backgroundColor="#f8fafc"
+                onBegin={() => { setHasDrawn(true); setSignError(false); }}
+              />
               {signError && (
                 <p className="text-xs text-red-500 font-semibold -mt-1">Please sign before confirming.</p>
               )}
@@ -713,9 +687,9 @@ function SiteSignIn({ site }: { site: Site }) {
         )}
       </main>
 
-      <footer className="bg-gray-800 text-gray-400 text-sm text-center py-4 space-y-1">
-        <p>SiteSign &copy; {new Date().getFullYear()} — Construction Site Access Management</p>
-        <p><a href="/login" className="text-gray-500 hover:text-yellow-400 transition-colors text-xs">Admin</a></p>
+      <footer className="bg-slate-800 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] text-center py-6 space-y-2">
+        <p>Buildstate Registry &copy; {new Date().getFullYear()}</p>
+        <p><a href="/login" className="text-slate-500 hover:text-amber-400 transition-colors">Digital Portal</a></p>
       </footer>
     </div>
   );
