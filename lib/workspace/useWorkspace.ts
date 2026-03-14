@@ -35,9 +35,24 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getUser() as any;
 
     if (userError) {
+      // If it's a common "not signed in" error, treat it as no user rather than a failure
+      const isMissingSession = 
+        userError.message.toLowerCase().includes("session") || 
+        userError.message.toLowerCase().includes("not found") ||
+        userError.status === 401 ||
+        userError.status === 403;
+
+      if (isMissingSession) {
+        setSummary(null);
+        clearWorkspaceSummaryCache();
+        setLoading(false);
+        if (requireAuth) router.replace(redirectToLogin);
+        return;
+      }
+
       setError(userError.message);
       setLoading(false);
       return;
@@ -74,8 +89,16 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      refresh();
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        setSummary(null);
+        setError(null);
+        clearWorkspaceSummaryCache();
+        setLoading(false);
+        if (requireAuth) router.replace(redirectToLogin);
+      } else {
+        refresh();
+      }
     });
 
     return () => {
