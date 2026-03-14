@@ -13,7 +13,7 @@ export function LoginClient() {
     const initialMode = searchParams.get("signup") ? "signup" : "login";
     const intent = parseProductIntent(searchParams.get("intent"));
 
-    const [mode, setMode] = useState<"login" | "signup">(initialMode);
+    const [mode, setMode] = useState<"login" | "signup" | "reset">(initialMode);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -25,6 +25,19 @@ export function LoginClient() {
         setError(null);
         setInfo(null);
         setLoading(true);
+
+        if (mode === "reset") {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/login/reset-confirm`,
+            });
+            setLoading(false);
+            if (error) {
+                setError(error.message);
+                return;
+            }
+            setInfo("Check your email for a password reset link.");
+            return;
+        }
 
         if (mode === "signup") {
             const { error } = await supabase.auth.signUp({ email, password });
@@ -67,7 +80,7 @@ export function LoginClient() {
                         </svg>
                     </Link>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+                        <h1 className="text-2xl font-black text-slate-900 tracking-tight">{mode === "login" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset your password"}</h1>
                         <p className="text-sm font-medium text-slate-500 mt-1">Sign in to the Buildstate platform</p>
                     </div>
                 </div>
@@ -91,13 +104,22 @@ export function LoginClient() {
                         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5" htmlFor="email">Work Email</label>
                         <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900 placeholder:text-slate-400" placeholder="you@company.com.au" />
                     </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5" htmlFor="password">Password</label>
-                        <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900 placeholder:text-slate-400" placeholder="••••••••" />
-                    </div>
+                    {mode !== "reset" && (
+                        <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide" htmlFor="password">Password</label>
+                                {mode === "login" && (
+                                    <button type="button" onClick={() => { setMode("reset"); setError(null); setInfo(null); }} className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline">
+                                        Forgot password?
+                                    </button>
+                                )}
+                            </div>
+                            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900 placeholder:text-slate-400" placeholder="••••••••" />
+                        </div>
+                    )}
 
                     <button type="submit" disabled={loading} className="w-full bg-slate-900 hover:bg-black disabled:opacity-70 text-white font-bold px-4 py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-sm">
-                        {loading ? "Please wait..." : mode === "login" ? "Log In" : "Sign Up"}
+                        {loading ? "Please wait..." : mode === "login" ? "Log In" : mode === "signup" ? "Sign Up" : "Send Reset Link"}
                     </button>
                 </form>
 
@@ -105,22 +127,14 @@ export function LoginClient() {
                     {mode === "login" ? (
                         <p className="text-sm font-medium text-slate-500">
                             Don&apos;t have an account?{" "}
-                            <button type="button" onClick={() => {
-                                setMode("signup");
-                                setError(null);
-                                setInfo(null);
-                            }} className="font-bold text-amber-600 hover:text-amber-700 hover:underline">
+                            <button type="button" onClick={() => { setMode("signup"); setError(null); setInfo(null); }} className="font-bold text-amber-600 hover:text-amber-700 hover:underline">
                                 Sign up free
                             </button>
                         </p>
                     ) : (
                         <p className="text-sm font-medium text-slate-500">
-                            Already have an account?{" "}
-                            <button type="button" onClick={() => {
-                                setMode("login");
-                                setError(null);
-                                setInfo(null);
-                            }} className="font-bold text-amber-600 hover:text-amber-700 hover:underline">
+                            {mode === "reset" ? "Remember your password?" : "Already have an account?"}{" "}
+                            <button type="button" onClick={() => { setMode("login"); setError(null); setInfo(null); }} className="font-bold text-amber-600 hover:text-amber-700 hover:underline">
                                 Log in
                             </button>
                         </p>
