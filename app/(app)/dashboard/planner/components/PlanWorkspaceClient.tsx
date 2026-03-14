@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTaskHistory } from "./useTaskHistory";
 import { useRouter } from "next/navigation";
 import {
   createPlanRevision,
@@ -47,7 +48,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const companyId = summary?.activeMembership?.company_id ?? null;
 
   const [plan, setPlan] = useState<PlannerPlanWithContext | null>(null);
-  const [tasks, setTasks] = useState<PlanTask[]>([]);
+  const { tasks, canUndo, canRedo, dispatch: dispatchTasks, getState: getTaskState } = useTaskHistory();
   const [phases, setPhases] = useState<PlanPhase[]>([]);
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -74,7 +75,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       fetchPublicHolidays(companyId),
     ]);
     setPlan(planData);
-    setTasks(planTasks);
+    dispatchTasks({ type: "SET_TASKS", tasks: planTasks });
     setPhases(planPhases);
     setHolidays(publicHolidays);
   }, [planId, companyId]);
@@ -249,10 +250,10 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   }, [userId, loadAll]);
 
   const handlePatchTask = useCallback((taskId: string, patch: Partial<PlanTask>) => {
-    // Optimistic local update for instant UI feedback
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)));
+    // Optimistic local update recorded in history
+    dispatchTasks({ type: "PATCH_TASK", taskId, patch });
 
-    // Merge into pending patches for this task
+    // Merge into pending patches for debounced server sync
     const existing = pendingPatchesRef.current.get(taskId) ?? {};
     pendingPatchesRef.current.set(taskId, { ...existing, ...patch });
     setSaveStatus("pending");
@@ -260,7 +261,62 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
     // Reset 2-second debounce timer
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(flushPendingPatches, 2000);
+  }, [dispatchTasks, flushPendingPatches]);
+
+  // ── Undo / Redo ──
+  const queueSyncForTaskDiff = useCallback((prevTasks: PlanTask[], currentTasks: PlanTask[]) => {
+    let changed = false;
+    for (const prevTask of prevTasks) {
+      const curr = currentTasks.find((t) => t.id === prevTask.id);
+      if (!curr) continue;
+      if (JSON.stringify(curr) !== JSON.stringify(prevTask)) {
+        // Store full previous task as the patch to restore it
+        const { id, ...rest } = prevTask;
+        const existing = pendingPatchesRef.current.get(id) ?? {};
+        pendingPatchesRef.current.set(id, { ...existing, ...rest });
+        changed = true;
+      }
+    }
+    if (changed) {
+      setSaveStatus("pending");
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(flushPendingPatches, 2000);
+    }
   }, [flushPendingPatches]);
+
+  const handleUndo = useCallback(() => {
+    const { past, tasks: currentTasks } = getTaskState();
+    if (past.length === 0) return;
+    const prevTasks = past[past.length - 1];
+    dispatchTasks({ type: "UNDO" });
+    queueSyncForTaskDiff(prevTasks, currentTasks);
+  }, [getTaskState, dispatchTasks, queueSyncForTaskDiff]);
+
+  const handleRedo = useCallback(() => {
+    const { future, tasks: currentTasks } = getTaskState();
+    if (future.length === 0) return;
+    const nextTasks = future[0];
+    dispatchTasks({ type: "REDO" });
+    queueSyncForTaskDiff(nextTasks, currentTasks);
+  }, [getTaskState, dispatchTasks, queueSyncForTaskDiff]);
+
+  // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z = redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key !== "z" && e.key !== "Z") return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRedo();
+      } else {
+        handleUndo();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [handleUndo, handleRedo]);
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     setSaving(taskId);
@@ -619,6 +675,10 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           tasks={tasks}
           phases={phases}
           saving={saving}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
           onAddTask={handleAddTask}
           onPatchTask={handlePatchTask}
           onDeleteTask={handleDeleteTask}

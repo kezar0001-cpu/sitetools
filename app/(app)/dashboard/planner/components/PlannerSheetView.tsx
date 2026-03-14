@@ -63,6 +63,10 @@ interface Props {
   tasks: PlanTask[];
   phases: PlanPhase[];
   saving: string | null;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
   onPatchTask: (taskId: string, patch: Partial<PlanTask>) => void | Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
@@ -72,6 +76,7 @@ interface Props {
 // ── Main component ──
 export function PlannerSheetView({
   tasks, phases, saving,
+  canUndo, canRedo, onUndo, onRedo,
   onAddTask, onPatchTask, onDeleteTask,
   onOpenPhaseManager,
 }: Props) {
@@ -229,6 +234,30 @@ export function PlannerSheetView({
             {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
             {filterStatus !== "all" || filterPhase !== "all" ? " filtered" : ""}
           </span>
+
+          {/* Undo / Redo */}
+          <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              title="Undo (Ctrl+Z)"
+              className="px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-r border-slate-200"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              title="Redo (Ctrl+Shift+Z)"
+              className="px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+              </svg>
+            </button>
+          </div>
 
           {/* Phases button */}
           <button
