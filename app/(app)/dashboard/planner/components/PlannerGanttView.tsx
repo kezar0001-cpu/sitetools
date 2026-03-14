@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { PlanTask, PlanPhase, PublicHoliday, GanttViewConfig } from "@/lib/planner/types";
 import {
     generateDateRange,
@@ -20,14 +20,17 @@ interface Props {
     holidays: PublicHoliday[];
 }
 
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 40; // Increased slightly for better Smartsheet feel
 const HEADER_HEIGHT = 56;
-const TASK_GRID_WIDTH = 340;
 
 export function PlannerGanttView({ tasks, phases, holidays }: Props) {
+    const [gridWidth, setGridWidth] = useState(340);
+    const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
+    const [isResizing, setIsResizing] = useState(false);
+
     const [config, setConfig] = useState<GanttViewConfig>({
         zoomLevel: "week",
-        showDependencies: false,
+        showDependencies: true,
         showMilestones: true,
         showHolidays: true,
         showTodayLine: true,
@@ -42,6 +45,31 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
     const monthGroups = useMemo(() => groupDatesByMonth(dates), [dates]);
     const todayOffset = useMemo(() => getTodayOffset(rangeStart, dayWidth), [rangeStart, dayWidth]);
     const totalWidth = dates.length * dayWidth;
+
+    // Resizing logic
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isResizing) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            // Constrain between 200px and 800px
+            const newWidth = Math.max(200, Math.min(800, e.clientX - 20));
+            setGridWidth(newWidth);
+        };
+
+        const handleMouseUp = () => setIsResizing(false);
+
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", handleMouseUp);
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+        };
+    }, [isResizing]);
 
     // Scroll to today on mount
     useEffect(() => {
@@ -64,6 +92,46 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
         }
     };
 
+    const togglePhase = (phaseId: string) => {
+        setCollapsedPhases(prev => {
+            const next = new Set(prev);
+            if (next.has(phaseId)) next.delete(phaseId);
+            else next.add(phaseId);
+            return next;
+        });
+    };
+
+    // Phase Rollup Calculations
+    const phaseRollups = useMemo(() => {
+        const rollups = new Map<string, { offsetPx: number; widthPx: number } | null>();
+        
+        for (const phase of phases) {
+            const childTasks = tasks.filter(t => t.phase_id === phase.id && t.planned_start);
+            if (childTasks.length === 0) {
+                rollups.set(phase.id, null);
+                continue;
+            }
+
+            const starts = childTasks.map(t => new Date(t.planned_start!).getTime());
+            const ends = childTasks.map(t => {
+                const finish = t.planned_finish ? new Date(t.planned_finish).getTime() : new Date(t.planned_start!).getTime() + 86400000;
+                return finish;
+            });
+
+            const earliest = new Date(Math.min(...starts));
+            const latest = new Date(Math.max(...ends));
+
+            const startOffset = Math.floor((earliest.getTime() - rangeStart.getTime()) / 86400000);
+            const duration = Math.ceil((latest.getTime() - earliest.getTime()) / 86400000);
+
+            rollups.set(phase.id, {
+                offsetPx: startOffset * dayWidth,
+                widthPx: Math.max(4, duration * dayWidth),
+            });
+        }
+        return rollups;
+    }, [tasks, phases, rangeStart, dayWidth]);
+
     // Build phase-grouped task list (same order as sheet)
     const orderedTasks = useMemo(() => {
         const phaseMap = new Map<string, PlanTask[]>();
@@ -79,17 +147,23 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
 
         const result: Array<{ type: "phase"; phase: PlanPhase } | { type: "task"; task: PlanTask }> = [];
         for (const p of phases) {
-            const pTasks = phaseMap.get(p.id) ?? [];
-            if (pTasks.length > 0) {
-                result.push({ type: "phase", phase: p });
+            result.push({ type: "phase", phase: p });
+            if (!collapsedPhases.has(p.id)) {
+                const pTasks = phaseMap.get(p.id) ?? [];
                 for (const t of pTasks) result.push({ type: "task", task: t });
             }
         }
+        
         const unphased = phaseMap.get("none") ?? [];
         for (const t of unphased) result.push({ type: "task", task: t });
 
         return result;
-    }, [tasks, phases]);
+    }, [tasks, phases, collapsedPhases]);
+
+    const renderDependencyLines = () => {
+        // Placeholder for future implementation
+        return null;
+    };
 
     return (
         <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
@@ -138,8 +212,8 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                 >
                 {/* Left: Task grid */}
                 <div
-                    className="flex-shrink-0 border-r border-slate-200 overflow-hidden"
-                    style={{ width: `${TASK_GRID_WIDTH}px` }}
+                    className="flex-shrink-0 border-r border-slate-200 overflow-hidden flex flex-col bg-white z-20"
+                    style={{ width: `${gridWidth}px` }}
                 >
                     {/* Grid header */}
                     <div
@@ -165,13 +239,17 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                                 return (
                                     <div
                                         key={`phase-${item.phase.id}`}
-                                        className="flex items-center gap-2 px-3 bg-slate-800 text-white"
+                                        className="flex items-center gap-2 px-3 bg-slate-100 border-b border-slate-200 group cursor-pointer hover:bg-slate-200 transition-colors"
                                         style={{ height: `${ROW_HEIGHT}px` }}
+                                        onClick={() => togglePhase(item.phase.id)}
                                     >
+                                        <span className="text-[10px] text-slate-400 w-4 flex items-center justify-center transition-transform">
+                                            {collapsedPhases.has(item.phase.id) ? "▶" : "▼"}
+                                        </span>
                                         {item.phase.color && (
-                                            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.phase.color }} />
+                                            <span className="w-3 h-3 rounded flex-shrink-0" style={{ backgroundColor: item.phase.color }} />
                                         )}
-                                        <span className="text-xs font-bold tracking-wide truncate">{item.phase.name}</span>
+                                        <span className="text-xs font-bold text-slate-700 truncate">{item.phase.name}</span>
                                     </div>
                                 );
                             }
@@ -198,8 +276,16 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                     </div>
                 </div>
 
+                {/* Resize handle */}
+                <div
+                    onMouseDown={handleMouseDown}
+                    className={`w-1.5 flex-shrink-0 cursor-col-resize hover:bg-amber-400 transition-colors z-30 ${
+                        isResizing ? "bg-amber-500" : "bg-transparent border-r border-slate-200"
+                    }`}
+                />
+
                 {/* Right: Timeline */}
-                <div className="flex-1 overflow-hidden relative">
+                <div className="flex-1 overflow-hidden relative bg-white">
                     <div
                         ref={timelineRef}
                         className="overflow-auto w-full h-full"
@@ -272,28 +358,48 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
                                 {/* Today line */}
                                 {config.showTodayLine && todayOffset > 0 && todayOffset < totalWidth && (
                                     <div
-                                        className="absolute top-0 z-20"
+                                        className="absolute top-0 z-30"
                                         style={{
                                             left: `${todayOffset}px`,
-                                            height: `${orderedTasks.length * ROW_HEIGHT}px`,
+                                            height: `100%`,
                                         }}
                                     >
-                                        <div className="w-0.5 h-full bg-red-500 opacity-80" />
-                                        <div className="absolute -top-0 -left-3 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-b">
+                                        <div className="w-0.5 h-full bg-red-500 opacity-60" />
+                                        <div className="absolute top-[28px] -left-3.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm">
                                             TODAY
                                         </div>
                                     </div>
                                 )}
 
+                                {/* SVG Dependency Layer */}
+                                <svg
+                                    className="absolute inset-0 pointer-events-none z-10"
+                                    style={{ width: `${totalWidth}px`, height: `${orderedTasks.length * ROW_HEIGHT}px` }}
+                                >
+                                    {renderDependencyLines()}
+                                </svg>
+
                                 {/* Task rows */}
-                                {orderedTasks.map((item) => {
+                                {orderedTasks.map((item, idx) => {
                                     if (item.type === "phase") {
+                                        const rollup = phaseRollups.get(item.phase.id);
                                         return (
                                             <div
-                                                key={`phase-bar-${item.phase.id}`}
-                                                className="bg-slate-800"
+                                                key={`phase-bar-${item.phase.id}-${idx}`}
+                                                className="relative border-b border-slate-200 bg-slate-50/50"
                                                 style={{ height: `${ROW_HEIGHT}px` }}
-                                            />
+                                            >
+                                                {rollup && (
+                                                    <div
+                                                        className="absolute top-4 h-2 bg-slate-700"
+                                                        style={{ left: `${rollup.offsetPx}px`, width: `${rollup.widthPx}px` }}
+                                                    >
+                                                        {/* Smartsheet-style brackets */}
+                                                        <div className="absolute left-0 top-0 w-0.5 h-3 bg-slate-700" />
+                                                        <div className="absolute right-0 top-0 w-0.5 h-3 bg-slate-700" />
+                                                    </div>
+                                                )}
+                                            </div>
                                         );
                                     }
 
@@ -302,50 +408,54 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
 
                                     return (
                                         <div
-                                            key={task.id}
-                                            className="relative border-b border-slate-100"
+                                            key={`${task.id}-${idx}`}
+                                            className="relative border-b border-slate-100 group hover:bg-slate-50/50 transition-colors"
                                             style={{ height: `${ROW_HEIGHT}px` }}
                                         >
                                             {bar && (
                                                 <div
-                                                    className="absolute top-1.5 rounded-md shadow-sm transition-all group cursor-pointer"
+                                                    className="absolute top-2.5 h-3.5 rounded-full transition-all group cursor-pointer"
                                                     style={{
                                                         left: `${bar.offsetPx}px`,
                                                         width: `${Math.max(8, bar.widthPx)}px`,
-                                                        height: `${ROW_HEIGHT - 12}px`,
                                                     }}
                                                     title={`${task.title}\n${task.planned_start ?? "?"} → ${task.planned_finish ?? "?"}\n${task.percent_complete}% complete`}
                                                 >
                                                     {/* Background bar */}
                                                     <div
-                                                        className="absolute inset-0 rounded-md opacity-25"
+                                                        className="absolute inset-0 rounded-full opacity-30 shadow-sm"
                                                         style={{ backgroundColor: bar.color }}
                                                     />
+                                                    
                                                     {/* Progress fill */}
                                                     <div
-                                                        className="absolute inset-y-0 left-0 rounded-md"
+                                                        className="absolute inset-y-0.5 left-0.5 rounded-full"
                                                         style={{
-                                                            width: `${task.percent_complete}%`,
+                                                            width: `calc(${task.percent_complete}% - 4px)`,
                                                             backgroundColor: bar.color,
+                                                            filter: 'brightness(0.9)',
+                                                            minWidth: task.percent_complete > 0 ? '4px' : '0'
                                                         }}
                                                     />
-                                                    {/* Label */}
-                                                    {bar.widthPx > 60 && (
-                                                        <span className="absolute inset-0 flex items-center px-2 text-[10px] font-medium text-slate-800 truncate">
-                                                            {task.title}
-                                                        </span>
-                                                    )}
-                                                    {/* Milestone diamond */}
+
+                                                    {/* Floating Label (Always Right) */}
+                                                    <span className="absolute left-full ml-2 top-1/2 -translate-y-1/2 whitespace-nowrap text-[11px] font-medium text-slate-600 pointer-events-none group-hover:text-slate-900 transition-colors">
+                                                        {task.title}
+                                                    </span>
+
+                                                    {/* Milestone diamond - Perfectly centered on start line */}
                                                     {task.is_milestone && (
-                                                        <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-500 rotate-45 rounded-sm shadow" />
+                                                        <div 
+                                                            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-purple-600 rotate-45 rounded-sm shadow-md border-2 border-white" 
+                                                            style={{ zIndex: 5 }}
+                                                        />
                                                     )}
                                                 </div>
                                             )}
 
-                                            {/* No-date indicator */}
                                             {!task.planned_start && (
-                                                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-300">
-                                                    No dates set
+                                                <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-300 italic">
+                                                    (No dates defined)
                                                 </div>
                                             )}
                                         </div>
