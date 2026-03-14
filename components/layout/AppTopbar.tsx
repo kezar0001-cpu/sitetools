@@ -102,8 +102,8 @@ export function AppTopbar({ onMenuToggle }: Props) {
 
       // Clear toast after a while
       setTimeout(() => setToast(null), 3000);
-    } catch (err) {
-      console.error("Failed to switch workspace", err);
+    } catch (error) {
+      console.error("Failed to switch workspace", error);
       setToast({ message: "Failed to switch workspace. Please try again.", type: "error" });
       setTimeout(() => setToast(null), 4000);
     } finally {

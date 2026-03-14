@@ -6,7 +6,6 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useEffect, useState } from "react";
 import { fetchCompanySites } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
-import Link from "next/link";
 
 export default function DashboardHome() {
     const { loading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
