@@ -45,7 +45,7 @@ export async function getDiaries(
 
   // Normalise Supabase aggregate shapes into flat numeric fields
   return (data ?? []).map((row: Record<string, unknown>) => ({
-    ...(row as SiteDiary),
+    ...(row as unknown as SiteDiary),
     weather: (row.weather as WeatherSnapshot) ?? DEFAULT_WEATHER,
     total_workers: sumAggregate(row.total_workers),
     total_labor_rows: countAggregate(row.total_labor_rows),
