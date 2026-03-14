@@ -304,7 +304,6 @@ export function PlannerSheetView({
                   key={phaseKey}
                   phase={phase}
                   tasks={pTasks}
-                  allTasks={tasks}
                   activeCols={activeCols}
                   collapsed={collapsedPhases.has(phaseKey)}
                   onToggleCollapse={() => {
@@ -358,14 +357,13 @@ export function PlannerSheetView({
 
 // ── Phase section ──
 function PhaseSection({
-  phase, tasks, allTasks, activeCols, collapsed,
+  phase, tasks, activeCols, collapsed,
   onToggleCollapse, saving, isEditing, getLV, setLV,
   startEdit, commitEdit, handleKD, onPatchTask, onDeleteTask,
   onAddTask, onOpenDetail, rowNum,
 }: {
   phase: PlanPhase | null;
   tasks: PlanTask[];
-  allTasks: PlanTask[];
   activeCols: typeof COL_DEFS[number][];
   collapsed: boolean;
   onToggleCollapse: () => void;

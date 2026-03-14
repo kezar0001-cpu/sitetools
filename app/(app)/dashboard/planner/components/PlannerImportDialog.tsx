@@ -129,7 +129,8 @@ export function PlannerImportDialog({ onImport, onClose }: Props) {
   const toggleTask = (uid: string) => {
     setSelectedTasks((prev) => {
       const next = new Set(prev);
-      next.has(uid) ? next.delete(uid) : next.add(uid);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
       return next;
     });
   };

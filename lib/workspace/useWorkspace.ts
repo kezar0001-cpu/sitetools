@@ -105,7 +105,7 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [refresh]);
+  }, [refresh, requireAuth, redirectToLogin, router]);
 
   return {
     loading,
