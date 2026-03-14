@@ -24,6 +24,7 @@ interface SiteVisit {
   site_id: string;
   company_id?: string | null;
   signature?: string | null;
+  edit_reason?: string | null;
 }
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
@@ -261,6 +262,7 @@ function SiteSignIn({ site }: { site: Site }) {
 
   const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
+  const [editReason, setEditReason] = useState("");
   const [editTimeSaving, setEditTimeSaving] = useState(false);
 
   // Check for existing active visit on mount
@@ -293,25 +295,40 @@ function SiteSignIn({ site }: { site: Site }) {
     const hh = String(d.getHours()).padStart(2, "0");
     const mm = String(d.getMinutes()).padStart(2, "0");
     setEditTime(`${hh}:${mm}`);
+    setEditReason(v.edit_reason || "");
     setEditingTime(true);
   }
 
   async function handleSaveTime() {
     if (!editTime || !myVisit) return;
+    if (!editReason.trim()) {
+      setFormError("Please provide a reason for editing the sign-in time.");
+      return;
+    }
+
     setEditTimeSaving(true);
     const original = new Date(myVisit.signed_in_at);
     const [hh, mm] = editTime.split(":").map(Number);
     const updated = new Date(original);
     updated.setHours(hh, mm, 0, 0);
+
     const { data, error } = await supabase
       .from("site_visits")
-      .update({ signed_in_at: updated.toISOString() })
+      .update({
+        signed_in_at: updated.toISOString(),
+        edit_reason: editReason.trim()
+      })
       .eq("id", myVisit.id)
       .select().single();
+
     setEditTimeSaving(false);
-    if (error) { setFormError("Could not update sign-in time. Please try again."); return; }
+    if (error) {
+      setFormError("Could not update sign-in time. Please try again.");
+      return;
+    }
     setMyVisit(data as SiteVisit);
     setEditingTime(false);
+    setEditReason("");
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -573,34 +590,69 @@ function SiteSignIn({ site }: { site: Site }) {
                   {signingOut ? "Signing Out..." : "Sign Out"}
                 </button>
               </div>
-              {editingTime ? (
-                <div className="flex items-center gap-2 pt-1 border-t border-gray-200 flex-wrap">
-                  <span className="text-xs text-gray-500 font-semibold shrink-0">Signed in at:</span>
+              <button
+                onClick={() => startEditTime(myVisit)}
+                className="text-xs text-blue-500 hover:text-blue-700 font-semibold hover:underline"
+              >
+                Edit sign-in time
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for editing sign-in time */}
+        {editingTime && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5 animate-slide-in-from-bottom-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 text-blue-600 p-2 rounded-xl">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-extrabold text-gray-900 leading-tight">Edit Sign-In Time</h3>
+                  <p className="text-sm text-gray-500">Correct your arrival time if needed.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1.5">New Time</label>
                   <input
                     type="time"
                     value={editTime}
                     onChange={(e) => setEditTime(e.target.value)}
-                    className="border border-yellow-400 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-amber-400 bg-gray-50 transition-colors"
                   />
-                  <button
-                    onClick={handleSaveTime}
-                    disabled={editTimeSaving || !editTime}
-                    className="bg-yellow-400 hover:bg-yellow-500 disabled:opacity-50 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    {editTimeSaving ? "…" : "Save"}
-                  </button>
-                  <button onClick={() => setEditingTime(false)} className="text-xs text-gray-400 hover:text-gray-600 px-1">
-                    Cancel
-                  </button>
                 </div>
-              ) : (
+
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1.5">Reason for Edit</label>
+                  <textarea
+                    placeholder="e.g. Forgot to sign in at the gate"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 bg-gray-50 min-h-[100px] resize-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
                 <button
-                  onClick={() => startEditTime(myVisit)}
-                  className="text-xs text-blue-500 hover:text-blue-700 font-semibold hover:underline"
+                  onClick={handleSaveTime}
+                  disabled={editTimeSaving || !editTime || !editReason.trim()}
+                  className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98]"
                 >
-                  Edit sign-in time
+                  {editTimeSaving ? "Saving..." : "Update Time"}
                 </button>
-              )}
+                <button
+                  onClick={() => { setEditingTime(false); setEditReason(""); }}
+                  className="px-4 py-3.5 rounded-xl border-2 border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
