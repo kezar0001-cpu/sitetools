@@ -71,16 +71,26 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
               const active = pathname.startsWith(m.href);
               return (
                 <li key={m.id}>
-                  <Link
-                    href={m.href}
-                    onClick={onNavigate}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium text-sm ${
-                      active ? "bg-amber-400 text-amber-950 shadow-md font-bold" : "hover:bg-slate-800/50 hover:text-white"
-                    }`}
-                  >
-                    <div className={active ? "opacity-100" : "opacity-70 text-amber-400"}>{getIcon(m.icon, "h-4 w-4")}</div>
-                    {m.name}
-                  </Link>
+                  {m.status === "live" ? (
+                    <Link
+                      href={m.href}
+                      onClick={onNavigate}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium text-sm ${
+                        active ? "bg-amber-400 text-amber-950 shadow-md font-bold" : "hover:bg-slate-800/50 hover:text-white"
+                      }`}
+                    >
+                      <div className={active ? "opacity-100" : "opacity-70 text-amber-400"}>{getIcon(m.icon, "h-4 w-4")}</div>
+                      {m.name}
+                    </Link>
+                  ) : (
+                    <div className="flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-500 cursor-not-allowed opacity-60">
+                      <div className="flex items-center gap-3">
+                        <div className="opacity-50">{getIcon(m.icon, "h-4 w-4")}</div>
+                        <span className="text-sm font-medium">{m.name}</span>
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-tighter bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">Soon</span>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -100,16 +110,26 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
                 const active = pathname.startsWith(m.href);
                 return (
                   <li key={m.id}>
-                    <Link
-                      href={m.href}
-                      onClick={onNavigate}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium text-sm ${
-                        active ? "bg-slate-800 text-white shadow-md font-bold" : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
-                      }`}
-                    >
-                      <div className={active ? "opacity-100" : "opacity-70"}>{getIcon(m.icon, "h-4 w-4")}</div>
-                      {m.name}
-                    </Link>
+                    {m.status === "live" ? (
+                      <Link
+                        href={m.href}
+                        onClick={onNavigate}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium text-sm ${
+                          active ? "bg-slate-800 text-white shadow-md font-bold" : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                        }`}
+                      >
+                        <div className={active ? "opacity-100" : "opacity-70"}>{getIcon(m.icon, "h-4 w-4")}</div>
+                        {m.name}
+                      </Link>
+                    ) : (
+                      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-500 cursor-not-allowed opacity-60">
+                        <div className="flex items-center gap-3">
+                          <div className="opacity-50">{getIcon(m.icon, "h-4 w-4")}</div>
+                          <span className="text-sm font-medium">{m.name}</span>
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-tighter bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">Soon</span>
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -120,18 +140,13 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
               <ul className="space-y-1">
                 {getRoadmapModules().map((m) => (
                   <li key={m.id}>
-                    <Link
-                      href={m.href}
-                      onClick={onNavigate}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all font-medium text-sm ${
-                        pathname.startsWith(m.href)
-                          ? "bg-slate-800 text-white ring-1 ring-slate-700"
-                          : "text-slate-500 hover:bg-slate-800/50 hover:text-slate-200"
-                      }`}
-                    >
-                      <div className="opacity-50">{getIcon(m.icon, "h-4 w-4")}</div>
-                      {m.name}
-                    </Link>
+                    <div className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-500 cursor-not-allowed opacity-60">
+                      <div className="flex items-center gap-3">
+                        <div className="opacity-50">{getIcon(m.icon, "h-4 w-4")}</div>
+                        <span className="text-sm font-medium">{m.name}</span>
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-tighter bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">Soon</span>
+                    </div>
                   </li>
                 ))}
               </ul>
