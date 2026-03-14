@@ -340,29 +340,31 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   return (
     <div className="p-4 md:p-6 max-w-[1600px] mx-auto space-y-4">
       {/* Plan header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
-        <div>
-          <Link href="/dashboard/planner" className="text-xs text-slate-400 hover:text-slate-600 transition-colors">
-            ← All Plans
+      <div className="flex flex-col gap-3">
+        {/* Title */}
+        <div className="min-w-0">
+          <Link href="/dashboard/planner" className="text-xs text-slate-400 hover:text-slate-600 transition-colors inline-flex items-center gap-1">
+            ← Plans
           </Link>
-          <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-1 flex items-center gap-2">
-            {planName}
+          <h1 className="text-xl md:text-2xl font-black text-slate-900 mt-0.5 flex items-center gap-2 flex-wrap">
+            <span className="truncate max-w-[220px] md:max-w-none">{planName}</span>
             {isArchived && (
               <span className="text-xs bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-semibold">Archived</span>
             )}
           </h1>
           {plan?.projects?.name && (
-            <p className="text-sm text-slate-500 mt-0.5">Project: {plan.projects.name}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{plan.projects.name}</p>
           )}
         </div>
 
+        {/* Actions row */}
         <div className="flex flex-wrap items-center gap-2">
           {/* View tabs */}
           <div className="flex items-center bg-slate-100 rounded-xl p-1">
             {[
-              { key: "sheet" as const, label: "Sheet", icon: "▤" },
+              { key: "sheet" as const, label: "Plan",  icon: "▤" },
               { key: "gantt" as const, label: "Gantt", icon: "▰" },
-              { key: "today" as const, label: "Today", icon: "◉" },
+              { key: "today" as const, label: "Site",  icon: "◉" },
             ].map((tab) => (
               <Link
                 key={tab.key}
@@ -493,6 +495,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       {mode === "today" && (
         <PlannerTodayView
           tasks={tasks}
+          phases={phases}
           saving={saving}
           onQuickUpdate={handleQuickUpdate}
           onLogDelay={handleLogDelay}
