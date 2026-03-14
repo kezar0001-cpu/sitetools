@@ -41,16 +41,42 @@ export async function getDiaries(
   }
 
   const { data, error } = await query;
-  if (error) throw error;
 
-  // Normalise Supabase aggregate shapes into flat numeric fields
-  return (data ?? []).map((row: Record<string, unknown>) => ({
+  if (!error) {
+    // Normalise Supabase aggregate shapes into flat numeric fields
+    return (data ?? []).map((row: Record<string, unknown>) => ({
+      ...(row as unknown as SiteDiary),
+      weather: (row.weather as WeatherSnapshot) ?? DEFAULT_WEATHER,
+      total_workers: sumAggregate(row.total_workers),
+      total_labor_rows: countAggregate(row.total_labor_rows),
+      total_equipment_rows: countAggregate(row.total_equipment_rows),
+      total_photos: countAggregate(row.total_photos),
+    })) as SiteDiaryWithCounts[];
+  }
+
+  // Fallback: if PostgREST aggregates are not supported or FK relationship isn't recognised,
+  // query just the diaries without counts.
+  let fallbackQuery = supabase
+    .from("site_diaries")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (projectId) {
+    fallbackQuery = fallbackQuery.eq("project_id", projectId);
+  }
+
+  const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+  if (fallbackError) throw fallbackError;
+
+  return (fallbackData ?? []).map((row: Record<string, unknown>) => ({
     ...(row as unknown as SiteDiary),
     weather: (row.weather as WeatherSnapshot) ?? DEFAULT_WEATHER,
-    total_workers: sumAggregate(row.total_workers),
-    total_labor_rows: countAggregate(row.total_labor_rows),
-    total_equipment_rows: countAggregate(row.total_equipment_rows),
-    total_photos: countAggregate(row.total_photos),
+    total_workers: 0,
+    total_labor_rows: 0,
+    total_equipment_rows: 0,
+    total_photos: 0,
   })) as SiteDiaryWithCounts[];
 }
 

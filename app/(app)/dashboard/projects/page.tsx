@@ -57,7 +57,7 @@ export default function ProjectsPage() {
         if (!companyId) return;
         setBusy(true);
         load()
-            .catch((err) => setError(err instanceof Error ? err.message : "Could not load projects."))
+            .catch((err) => setError(err?.message ?? (err instanceof Error ? err.message : "Could not load projects.")))
             .finally(() => setBusy(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [companyId]);

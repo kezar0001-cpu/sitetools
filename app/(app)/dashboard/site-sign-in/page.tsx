@@ -136,7 +136,7 @@ export default function SiteSignInModulePage() {
         });
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Unable to load sites.");
+        setError(err?.message ?? (err instanceof Error ? err.message : "Unable to load sites."));
       })
       .finally(() => setPageLoading(false));
   }, [activeCompanyId, profileActiveSiteId]);

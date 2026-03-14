@@ -20,8 +20,40 @@ export async function fetchPlannerPlans(companyId: string): Promise<PlannerPlanW
     .eq("company_id", companyId)
     .order("updated_at", { ascending: false });
 
-  if (error) throw error;
-  return (data ?? []) as PlannerPlanWithContext[];
+  if (!error) return (data ?? []) as PlannerPlanWithContext[];
+
+  // Fallback: project_plan_sites table or FK relationship may not exist yet
+  const msg = (error as { message?: string }).message ?? "";
+  if (msg.includes("project_plan_sites") || msg.includes("PGRST200") || msg.includes("relationship")) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("project_plans")
+      .select("*, projects(id,name)")
+      .eq("company_id", companyId)
+      .order("updated_at", { ascending: false });
+
+    if (!fallbackError) {
+      return (fallbackData ?? []).map((p) => ({
+        ...(p as Record<string, unknown>),
+        project_plan_sites: [],
+      })) as PlannerPlanWithContext[];
+    }
+
+    // If projects FK also missing, fall back to plain select
+    const { data: plainData, error: plainError } = await supabase
+      .from("project_plans")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("updated_at", { ascending: false });
+
+    if (plainError) throw plainError;
+    return (plainData ?? []).map((p) => ({
+      ...(p as Record<string, unknown>),
+      projects: null,
+      project_plan_sites: [],
+    })) as PlannerPlanWithContext[];
+  }
+
+  throw error;
 }
 
 /** Plans scoped to a specific project */
@@ -32,8 +64,26 @@ export async function fetchProjectPlans(projectId: string): Promise<PlannerPlanW
     .eq("project_id", projectId)
     .order("updated_at", { ascending: false });
 
-  if (error) throw error;
-  return (data ?? []) as PlannerPlanWithContext[];
+  if (!error) return (data ?? []) as PlannerPlanWithContext[];
+
+  // Fallback: project_plan_sites table or FK relationship may not exist yet
+  const msg = (error as { message?: string }).message ?? "";
+  if (msg.includes("project_plan_sites") || msg.includes("PGRST200") || msg.includes("relationship")) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("project_plans")
+      .select("*, projects(id,name)")
+      .eq("project_id", projectId)
+      .order("updated_at", { ascending: false });
+
+    if (!fallbackError) {
+      return (fallbackData ?? []).map((p) => ({
+        ...(p as Record<string, unknown>),
+        project_plan_sites: [],
+      })) as PlannerPlanWithContext[];
+    }
+  }
+
+  throw error;
 }
 
 export async function createPlannerPlan(input: {
