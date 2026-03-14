@@ -35,7 +35,8 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser() as any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } = await (supabase.auth.getUser() as Promise<any>);
 
     if (userError) {
       // If it's a common "not signed in" error, treat it as no user rather than a failure
