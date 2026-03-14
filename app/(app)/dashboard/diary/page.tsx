@@ -111,7 +111,7 @@ export default function DiaryListPage() {
             <div className="text-5xl mb-4">📋</div>
             <p className="text-slate-500 font-medium">No diaries yet.</p>
             <p className="text-sm text-slate-400 mt-1">
-              Tap <strong>Start Today's Diary</strong> above to log your first entry.
+              Tap <strong>Start Today&apos;s Diary</strong> above to log your first entry.
             </p>
           </div>
         ) : (
