@@ -60,9 +60,9 @@ export const MODULES: BuildstateModule[] = [
         description:
             "Record weather conditions, work completed, delays, instructions, and site photos. Generate professional daily reports for your principal contractor.",
         icon: "book-open",
-        status: "coming-soon",
-        visibility: "roadmap",
-        href: "/dashboard/site-diary",
+        status: "live",
+        visibility: "primary",
+        href: "/dashboard/diary",
         color: "sky",
     },
     {
