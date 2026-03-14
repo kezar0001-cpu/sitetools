@@ -47,7 +47,7 @@ export function AppTopbar({ onMenuToggle }: Props) {
 
     if (pathname.startsWith("/dashboard/sites")) {
       return {
-        title: "Sites",
+        title: "Locations",
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9-4 9 4-9 4-9-4zm0 10l9 4 9-4M3 12l9 4 9-4" />

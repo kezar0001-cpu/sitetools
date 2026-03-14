@@ -51,28 +51,16 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
             Workspace Dashboard
           </Link>
           <Link
-            href="/dashboard/team"
-            onClick={onNavigate}
-            className={`mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm ${
-              pathname.startsWith("/dashboard/team") ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
-            }`}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Team
-          </Link>
-          <Link
             href="/dashboard/sites"
             onClick={onNavigate}
             className={`mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors font-medium text-sm ${
-              pathname.startsWith("/dashboard/sites") ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
+              pathname.startsWith("/dashboard/sites") || pathname === "/dashboard/projects" ? "bg-slate-800 text-white shadow-sm ring-1 ring-slate-700" : "hover:bg-slate-800/50 hover:text-white"
             }`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9-4 9 4-9 4-9-4zm0 10l9 4 9-4M3 12l9 4 9-4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            Sites
+            Projects
           </Link>
         </div>
 
