@@ -7,29 +7,37 @@ type CachedWorkspaceSummary = {
   cachedAt: number;
 };
 
-let memoryCache: CachedWorkspaceSummary | null = null;
+const memoryCache = new Map<string, CachedWorkspaceSummary>();
 
 function isFresh(cache: CachedWorkspaceSummary | null): cache is CachedWorkspaceSummary {
   if (!cache) return false;
   return Date.now() - cache.cachedAt < SUMMARY_TTL_MS;
 }
 
-export function getCachedWorkspaceSummary(): WorkspaceSummary | null {
-  if (!isFresh(memoryCache)) {
-    memoryCache = null;
+export function getCachedWorkspaceSummary(userId: string, companyId: string): WorkspaceSummary | null {
+  const key = `${userId}:${companyId}`;
+  const cache = memoryCache.get(key) ?? null;
+  if (!isFresh(cache)) {
+    memoryCache.delete(key);
     return null;
   }
 
-  return memoryCache.summary;
+  return cache.summary;
 }
 
 export function cacheWorkspaceSummary(summary: WorkspaceSummary): void {
-  memoryCache = {
+  const companyId = summary.activeMembership?.company_id ?? "";
+  const key = `${summary.userId}:${companyId}`;
+  memoryCache.set(key, {
     summary,
     cachedAt: Date.now(),
-  };
+  });
 }
 
-export function clearWorkspaceSummaryCache(): void {
-  memoryCache = null;
+export function clearWorkspaceSummaryCache(userId?: string, companyId?: string): void {
+  if (userId !== undefined && companyId !== undefined) {
+    memoryCache.delete(`${userId}:${companyId}`);
+  } else {
+    memoryCache.clear();
+  }
 }

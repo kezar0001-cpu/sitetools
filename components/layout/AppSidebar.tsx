@@ -225,7 +225,7 @@ export function AppSidebar({ mobileOpen, onClose }: Props) {
     setSwitching(true);
     const targetName = memberships.find((m) => m.company_id === companyId)?.companies?.name ?? "Company";
     try {
-      await setActiveCompany(companyId);
+      await setActiveCompany(companyId, summary?.userId, activeCompanyId);
       await refresh();
       toast.success(`Switched to ${targetName}`);
       setTimeout(() => {

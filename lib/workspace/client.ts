@@ -10,6 +10,7 @@ import {
   SiteVisit,
   WorkspaceSummary,
 } from "@/lib/workspace/types";
+import { clearWorkspaceSummaryCache } from "@/lib/workspace/summaryCache";
 
 type SupabaseErrorLike = {
   code?: string;
@@ -242,7 +243,10 @@ async function loadWorkspaceSummaryLegacy(userId: string, email?: string | null)
   return { userId, memberships, activeMembership, profile };
 }
 
-export async function setActiveCompany(companyId: string): Promise<void> {
+export async function setActiveCompany(companyId: string, userId?: string, oldCompanyId?: string): Promise<void> {
+  if (userId && oldCompanyId) {
+    clearWorkspaceSummaryCache(userId, oldCompanyId);
+  }
   const { data, error } = await supabase.rpc("set_active_company", { p_company_id: companyId });
   if (error) {
     if (isMissingTableError(error, "profiles")) return;

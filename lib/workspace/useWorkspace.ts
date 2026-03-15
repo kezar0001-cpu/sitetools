@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { loadWorkspaceSummary } from "@/lib/workspace/client";
-import { cacheWorkspaceSummary, clearWorkspaceSummaryCache, getCachedWorkspaceSummary } from "@/lib/workspace/summaryCache";
+import { cacheWorkspaceSummary, clearWorkspaceSummaryCache } from "@/lib/workspace/summaryCache";
 import { WorkspaceSummary } from "@/lib/workspace/types";
 
 interface UseWorkspaceOptions {
@@ -23,10 +23,9 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
   } = options;
 
   const router = useRouter();
-  const cachedSummary = getCachedWorkspaceSummary();
-  const [loading, setLoading] = useState(!cachedSummary);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<WorkspaceSummary | null>(cachedSummary);
+  const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -86,11 +85,7 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
   }, [redirectToLogin, redirectToOnboarding, requireAuth, requireCompany, router]);
 
   useEffect(() => {
-    // Only refresh on mount if we don't have a fresh summary yet.
-    // getCachedWorkspaceSummary() only returns fresh cache (checked via TTL).
-    if (!getCachedWorkspaceSummary()) {
-      refresh();
-    }
+    refresh();
 
     const {
       data: { subscription },
