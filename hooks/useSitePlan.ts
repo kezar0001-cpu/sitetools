@@ -26,21 +26,44 @@ export function useCompanyId() {
   });
 }
 
-/** Fetch existing Buildstate projects for the user's company */
+/** Project with pre-aggregated task stats from the RPC */
+export interface ProjectWithStats extends Project {
+  task_count: number;
+  avg_progress: number;
+  has_delayed: boolean;
+}
+
+/** Fetch projects with task stats in a single RPC call (no N+1) */
 export function useSitePlanProjects() {
   const { data: companyId } = useCompanyId();
 
-  return useQuery<Project[]>({
+  return useQuery<ProjectWithStats[]>({
     queryKey: [...PROJECTS_KEY, companyId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .eq("company_id", companyId!)
-        .in("status", ["active", "on-hold"])
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const { data, error } = await supabase.rpc(
+        "get_siteplan_projects_with_stats",
+        { p_company_id: companyId! }
+      );
+      if (error) {
+        // Fallback: RPC doesn't exist yet — use plain query
+        if (error.code === "42883") {
+          const { data: plain, error: plainErr } = await supabase
+            .from("projects")
+            .select("*")
+            .eq("company_id", companyId!)
+            .in("status", ["active", "on-hold"])
+            .order("created_at", { ascending: false });
+          if (plainErr) throw plainErr;
+          return (plain ?? []).map((p: Project) => ({
+            ...p,
+            task_count: 0,
+            avg_progress: 0,
+            has_delayed: false,
+          }));
+        }
+        throw error;
+      }
+      return (data ?? []) as ProjectWithStats[];
     },
     enabled: !!companyId,
   });
