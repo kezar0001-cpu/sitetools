@@ -273,18 +273,17 @@ export async function fetchCompanySites(companyId: string): Promise<Site[]> {
 
   if (!error) return (data ?? []) as Site[];
 
-  // Graceful fallback: if newer columns don't exist yet, query without them
-  if (referencesColumn(error, "project_id") || referencesColumn(error, "is_active")) {
+  // Graceful fallback: is_active column not yet added (migration 20260314 pending)
+  if (referencesColumn(error, "is_active")) {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("sites")
-      .select("id, company_id, name, slug, logo_url, created_at")
+      .select("id, company_id, project_id, name, slug, logo_url, created_at")
       .eq("company_id", companyId)
       .order("created_at", { ascending: true });
 
     if (fallbackError) throw fallbackError;
     return (fallbackData ?? []).map((s) => ({
       ...(s as Record<string, unknown>),
-      project_id: null,
       is_active: true,
     })) as Site[];
   }
@@ -302,8 +301,20 @@ export async function fetchProjectSites(projectId: string): Promise<Site[]> {
 
   if (!error) return (data ?? []) as Site[];
 
-  // Graceful fallback: if newer columns don't exist yet, return empty (can't filter by project_id)
-  if (referencesColumn(error, "project_id")) return [];
+  // Graceful fallback: is_active column not yet added (migration 20260314 pending)
+  if (referencesColumn(error, "is_active")) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("sites")
+      .select("id, company_id, project_id, name, slug, logo_url, created_at")
+      .eq("project_id", projectId)
+      .order("created_at", { ascending: true });
+
+    if (fallbackError) throw fallbackError;
+    return (fallbackData ?? []).map((s) => ({
+      ...(s as Record<string, unknown>),
+      is_active: true,
+    })) as Site[];
+  }
 
   throw error;
 }
