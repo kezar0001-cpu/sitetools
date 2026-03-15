@@ -8,23 +8,41 @@ import {
   STATUS_COLORS, PRIORITY_COLORS,
   TaskDependency,
 } from "@/lib/planner/types";
+import { CompanyMembership } from "@/lib/workspace/types";
 import { statusFromPercent } from "@/lib/planner/validation";
 
 // ── Column definitions ──
 const COL_DEFS = [
-  { key: "dependencies", label: "Dependencies", width: 140, defaultOn: true },
-  { key: "duration",      label: "Duration",      width: 88,   defaultOn: true  },
-  { key: "start",         label: "Start",          width: 108,  defaultOn: true  },
-  { key: "finish",        label: "Finish",         width: 108,  defaultOn: true  },
-  { key: "status",        label: "Status",         width: 130,  defaultOn: true  },
-  { key: "percent",       label: "Progress",       width: 120,  defaultOn: true  },
-  { key: "actual_start",  label: "Act. Start",     width: 108,  defaultOn: false },
-  { key: "actual_finish", label: "Act. Finish",    width: 108,  defaultOn: false },
-  { key: "variance",      label: "Variance",       width: 88,   defaultOn: false },
-  { key: "priority",      label: "Priority",       width: 100,  defaultOn: false },
-  { key: "delay",         label: "Delay",          width: 120,  defaultOn: false },
-  { key: "notes",         label: "Notes",          width: 180,  defaultOn: false },
+  { key: "assignee",      label: "Assignee",       width: 140,  defaultOn: false },
+  { key: "dependencies",  label: "Dependencies",   width: 140,  defaultOn: true  },
+  { key: "duration",      label: "Duration",       width: 88,   defaultOn: true  },
+  { key: "start",         label: "Start",           width: 108,  defaultOn: true  },
+  { key: "finish",        label: "Finish",          width: 108,  defaultOn: true  },
+  { key: "status",        label: "Status",          width: 130,  defaultOn: true  },
+  { key: "percent",       label: "Progress",        width: 120,  defaultOn: true  },
+  { key: "actual_start",  label: "Act. Start",      width: 108,  defaultOn: false },
+  { key: "actual_finish", label: "Act. Finish",     width: 108,  defaultOn: false },
+  { key: "variance",      label: "Variance",        width: 88,   defaultOn: false },
+  { key: "priority",      label: "Priority",        width: 100,  defaultOn: false },
+  { key: "delay",         label: "Delay",           width: 120,  defaultOn: false },
+  { key: "notes",         label: "Notes",           width: 180,  defaultOn: false },
 ] as const;
+
+// ── Assignee helpers ──
+function memberInitials(m: CompanyMembership): string {
+  const name = m.profiles?.full_name?.trim();
+  if (name) {
+    const parts = name.split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : parts[0].slice(0, 2).toUpperCase();
+  }
+  return (m.profiles?.email?.[0] ?? "?").toUpperCase();
+}
+
+function memberDisplayName(m: CompanyMembership): string {
+  return m.profiles?.full_name?.trim() || m.profiles?.email?.split("@")[0] || "Unknown";
+}
 
 type ColKey = typeof COL_DEFS[number]["key"];
 

@@ -57,6 +57,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [members, setMembers] = useState<CompanyMembership[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -728,6 +729,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           tasks={tasks}
           phases={phases}
           saving={saving}
+          currentUserId={userId}
           onQuickUpdate={handleQuickUpdate}
           onLogDelay={handleLogDelay}
         />

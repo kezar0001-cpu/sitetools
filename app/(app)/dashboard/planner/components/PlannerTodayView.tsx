@@ -26,6 +26,7 @@ interface Props {
   tasks: PlanTask[];
   phases: PlanPhase[];
   saving: string | null;
+  currentUserId?: string | null;
   onQuickUpdate: (task: PlanTask, status: TaskStatus, percent: number, note?: string) => Promise<void>;
   onLogDelay: (input: {
     task: PlanTask;
@@ -367,8 +368,9 @@ function SiteTaskCard({
 }
 
 // ── Main component ──
-export function PlannerTodayView({ tasks, phases, saving, onQuickUpdate, onLogDelay }: Props) {
+export function PlannerTodayView({ tasks, phases, saving, currentUserId, onQuickUpdate, onLogDelay }: Props) {
   const [bucket, setBucket] = useState<Bucket>("all");
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [delayTask, setDelayTask] = useState<PlanTask | null>(null);
   const [showWeatherSheet, setShowWeatherSheet] = useState(false);
   // Track local progress changes before committing
@@ -398,7 +400,11 @@ export function PlannerTodayView({ tasks, phases, saving, onQuickUpdate, onLogDe
     const todayTasks: PlanTask[] = [];
     const thisWeek: PlanTask[] = [];
     const unscheduled: PlanTask[] = [];
-    const active = tasks.filter((t) => t.status !== "done");
+    const active = tasks.filter((t) => {
+      if (t.status === "done") return false;
+      if (myTasksOnly && currentUserId) return t.assigned_to === currentUserId;
+      return true;
+    });
 
     for (const task of active) {
       const due = task.planned_finish ? new Date(task.planned_finish) : null;
@@ -410,7 +416,7 @@ export function PlannerTodayView({ tasks, phases, saving, onQuickUpdate, onLogDe
     }
 
     return { overdue, today: todayTasks, week: thisWeek, unscheduled };
-  }, [tasks, today, weekEnd]);
+  }, [tasks, today, weekEnd, myTasksOnly, currentUserId]);
 
   const displayTasks = useMemo(() => {
     switch (bucket) {
@@ -490,9 +496,24 @@ export function PlannerTodayView({ tasks, phases, saving, onQuickUpdate, onLogDe
   return (
     <div className="relative min-h-screen">
       {/* ── Date header ── */}
-      <div className="mb-4">
-        <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">Site View</p>
-        <h2 className="text-xl font-black text-slate-900">{dateLabel}</h2>
+      <div className="flex items-start justify-between mb-4 gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-1">Site View</p>
+          <h2 className="text-xl font-black text-slate-900">{dateLabel}</h2>
+        </div>
+        {currentUserId && (
+          <button
+            onClick={() => setMyTasksOnly(v => !v)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all mt-1 ${
+              myTasksOnly
+                ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+            }`}
+          >
+            <span>👤</span>
+            My Tasks
+          </button>
+        )}
       </div>
 
       {/* ── Bucket stats row ── */}
