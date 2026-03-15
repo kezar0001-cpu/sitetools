@@ -9,6 +9,6 @@ export function parseProductIntent(value: string | null | undefined): ProductInt
 }
 
 export function resolveProductHome(intent: ProductIntent | null | undefined): string {
-  if (intent === "siteplan") return "/dashboard/planner";
+  if (intent === "siteplan") return "/site-plan";
   return "/dashboard/site-sign-in";
 }
