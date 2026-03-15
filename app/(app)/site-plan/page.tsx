@@ -3,28 +3,25 @@
 import { useRouter } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { useSitePlanProjects } from "@/hooks/useSitePlan";
-import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
-import { computeProjectHealth } from "@/types/siteplan";
-import type { Project, ProjectHealth } from "@/types/siteplan";
+import type { ProjectWithStats } from "@/hooks/useSitePlan";
+import type { ProjectHealth } from "@/types/siteplan";
 import { HealthBadge } from "./components/StatusBadge";
 import { ProgressBar } from "./components/ProgressSlider";
 import { ProjectGridSkeleton } from "./components/Skeleton";
 import { QueryProvider } from "@/components/QueryProvider";
 
-function ProjectCard({ project }: { project: Project }) {
+function deriveHealth(p: ProjectWithStats): ProjectHealth {
+  if (p.has_delayed) return "delayed";
+  if (p.task_count > 0 && p.avg_progress < 50) {
+    // Simple heuristic: if there are tasks but low progress, at risk
+    return "at_risk";
+  }
+  return "on_track";
+}
+
+function ProjectCard({ project }: { project: ProjectWithStats }) {
   const router = useRouter();
-  const { data: tasks } = useSitePlanTasks(project.id);
-
-  const overallProgress =
-    tasks && tasks.length > 0
-      ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
-      : 0;
-
-  const health: ProjectHealth = tasks
-    ? computeProjectHealth(tasks)
-    : "on_track";
-
-  const taskCount = tasks?.length ?? 0;
+  const health = deriveHealth(project);
 
   return (
     <button
@@ -42,13 +39,13 @@ function ProjectCard({ project }: { project: Project }) {
           {project.description}
         </p>
       )}
-      <ProgressBar value={overallProgress} />
+      <ProgressBar value={project.avg_progress} />
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-slate-500 tabular-nums">
-          {overallProgress}% complete
+          {project.avg_progress}% complete
         </p>
         <p className="text-xs text-slate-400">
-          {taskCount} {taskCount === 1 ? "task" : "tasks"}
+          {project.task_count} {project.task_count === 1 ? "task" : "tasks"}
         </p>
       </div>
     </button>
