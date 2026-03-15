@@ -10,6 +10,7 @@ import {
   PublicHoliday,
   WeatherDelayLog,
   TaskDependency,
+  DeletedPlanSummary,
 } from "./types";
 
 // ─── Plans ───
@@ -126,6 +127,67 @@ export async function createPlannerPlan(input: {
 export async function deletePlannerPlan(planId: string): Promise<void> {
   const { error } = await supabase.from("project_plans").delete().eq("id", planId);
   if (error) throw error;
+}
+
+/**
+ * Soft-delete a plan (moves it to the Recycle Bin).
+ * Tasks are marked deleted first while the plan is still RLS-visible,
+ * then the plan itself is marked deleted.
+ */
+export async function softDeletePlan(planId: string): Promise<void> {
+  const now = new Date().toISOString();
+  // Mark tasks deleted while the plan is still visible via RLS
+  const { error: tasksError } = await supabase
+    .from("plan_tasks")
+    .update({ deleted_at: now })
+    .eq("plan_id", planId);
+  if (tasksError) throw tasksError;
+  // Then mark the plan deleted
+  const { error: planError } = await supabase
+    .from("project_plans")
+    .update({ deleted_at: now })
+    .eq("id", planId);
+  if (planError) throw planError;
+}
+
+/**
+ * Restore a soft-deleted plan from the Recycle Bin.
+ * The plan is undeleted first so the plan_tasks UPDATE policy can see it,
+ * then tasks are restored.
+ */
+export async function restorePlan(planId: string): Promise<void> {
+  // Restore the plan first (plan UPDATE policy has no deleted_at guard)
+  const { error: planError } = await supabase
+    .from("project_plans")
+    .update({ deleted_at: null })
+    .eq("id", planId);
+  if (planError) throw planError;
+  // Now the plan is RLS-visible; restore its tasks
+  const { error: tasksError } = await supabase
+    .from("plan_tasks")
+    .update({ deleted_at: null })
+    .eq("plan_id", planId);
+  if (tasksError) throw tasksError;
+}
+
+/**
+ * Permanently hard-delete a plan that is in the Recycle Bin.
+ * The plan DELETE policy has no deleted_at guard, so this works on soft-deleted rows.
+ * Plan tasks are removed automatically via ON DELETE CASCADE.
+ */
+export async function permanentlyDeletePlan(planId: string): Promise<void> {
+  const { error } = await supabase.from("project_plans").delete().eq("id", planId);
+  if (error) throw error;
+}
+
+/**
+ * Fetch plans soft-deleted within the last 30 days for the Recycle Bin view.
+ * Calls the get_deleted_plans RPC which bypasses the SELECT policy's deleted_at IS NULL filter.
+ */
+export async function fetchDeletedPlans(companyId: string): Promise<DeletedPlanSummary[]> {
+  const { data, error } = await supabase.rpc("get_deleted_plans", { p_company_id: companyId });
+  if (error) throw error;
+  return (data ?? []) as DeletedPlanSummary[];
 }
 
 export async function updatePlannerPlan(

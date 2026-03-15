@@ -18,6 +18,7 @@ export interface ProjectPlan {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface ProjectPlanSite {
@@ -75,6 +76,7 @@ export interface PlanTask {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface TaskDependency {
@@ -138,6 +140,22 @@ export interface WeatherDelayLog {
 export interface PlannerPlanWithContext extends ProjectPlan {
   projects?: { id: string; name: string } | null;
   project_plan_sites?: Array<{ sites: { id: string; name: string } | null }>;
+}
+
+export interface DeletedPlanSummary {
+  id: string;
+  company_id: string;
+  project_id: string | null;
+  name: string;
+  description: string | null;
+  status: PlanStatus;
+  version_no: number;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string;
+  project_name: string | null;
 }
 
 export interface GanttViewConfig {
