@@ -450,9 +450,10 @@ function SiteSignIn({ site }: { site: Site }) {
 
   // One-time cleanup: unregister any old service workers from the geofence era
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator && !localStorage.getItem("sw_cleaned")) {
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const reg of registrations) reg.unregister();
+        localStorage.setItem("sw_cleaned", "1");
       });
     }
   }, []);
