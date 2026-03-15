@@ -6,11 +6,13 @@ import {
   TASK_STATUSES, TASK_PRIORITIES,
   TaskStatus, TaskPriority, DelayType, DELAY_TYPES, DELAY_TYPE_LABELS,
   STATUS_COLORS, PRIORITY_COLORS,
+  TaskDependency,
 } from "@/lib/planner/types";
 import { statusFromPercent } from "@/lib/planner/validation";
 
 // ── Column definitions ──
 const COL_DEFS = [
+  { key: "dependencies", label: "Dependencies", width: 140, defaultOn: true },
   { key: "duration",      label: "Duration",      width: 88,   defaultOn: true  },
   { key: "start",         label: "Start",          width: 108,  defaultOn: true  },
   { key: "finish",        label: "Finish",         width: 108,  defaultOn: true  },
@@ -71,6 +73,7 @@ interface Props {
   onPatchTask: (taskId: string, patch: Partial<PlanTask>) => void | Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onOpenPhaseManager: () => void;
+  dependencies?: TaskDependency[];
 }
 
 // ── Main component ──
@@ -79,6 +82,7 @@ export function PlannerSheetView({
   canUndo, canRedo, onUndo, onRedo,
   onAddTask, onPatchTask, onDeleteTask,
   onOpenPhaseManager,
+  dependencies,
 }: Props) {
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(loadSavedCols);
   const [showColPicker, setShowColPicker] = useState(false);
@@ -192,102 +196,107 @@ export function PlannerSheetView({
   return (
     <div className="space-y-3">
       {/* ── Toolbar ── */}
-      <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5">
-        {/* Status filter */}
-        <div className="flex items-center gap-1.5 text-sm">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</span>
-          <select
-            className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white focus:border-amber-400 outline-none"
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value as TaskStatus | "all")}
-          >
-            <option value="all">All</option>
-            {TASK_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-          </select>
-        </div>
-
-        <div className="w-px h-5 bg-slate-200 hidden sm:block" />
-
-        {/* Phase filter — swatches */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:inline">Phase</span>
-          <button
-            onClick={() => setFilterPhase("all")}
-            className={`text-xs px-2 py-1 rounded-full font-medium transition-colors ${filterPhase === "all" ? "bg-slate-800 text-white" : "text-slate-500 hover:bg-slate-100"}`}
-          >
-            All
-          </button>
-          {phases.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setFilterPhase(filterPhase === p.id ? "all" : p.id)}
-              title={p.name}
-              className={`w-5 h-5 rounded-full transition-all hover:scale-110 flex-shrink-0 ${filterPhase === p.id ? "ring-2 ring-offset-1 ring-slate-600 scale-110" : ""}`}
-              style={{ backgroundColor: p.color ?? "#64748b" }}
-            />
-          ))}
-        </div>
-
-        {/* Right side */}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-slate-400 hidden sm:inline">
-            {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
-            {filterStatus !== "all" || filterPhase !== "all" ? " filtered" : ""}
-          </span>
-
-          {/* Undo / Redo */}
-          <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
-            <button
-              onClick={onUndo}
-              disabled={!canUndo}
-              title="Undo (Ctrl+Z)"
-              className="px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-r border-slate-200"
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 bg-white border border-slate-200 rounded-xl px-4 py-3 lg:px-4 lg:py-2.5">
+        {/* Top row on mobile: Status filter and phase filter */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Status filter */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-fit">Status</span>
+            <select
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:border-amber-400 outline-none min-w-[120px] touch-manipulation"
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value as TaskStatus | "all")}
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-              </svg>
-            </button>
-            <button
-              onClick={onRedo}
-              disabled={!canRedo}
-              title="Redo (Ctrl+Shift+Z)"
-              className="px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
-              </svg>
-            </button>
+              <option value="all">All</option>
+              {TASK_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+            </select>
           </div>
 
-          {/* Phases button */}
+          {/* Phase filter — swatches with better mobile touch targets */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-fit">Phase</span>
+            <div className="flex flex-wrap gap-1">
+              <button
+                onClick={() => setFilterPhase("all")}
+                className={`text-xs px-3 py-2 rounded-full font-medium transition-colors min-h-[32px] touch-manipulation ${filterPhase === "all" ? "bg-slate-800 text-white" : "text-slate-500 hover:bg-slate-100"}`}
+              >
+                All
+              </button>
+              {phases.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setFilterPhase(filterPhase === p.id ? "all" : p.id)}
+                  title={p.name}
+                  className={`w-8 h-8 md:w-5 md:h-5 rounded-full transition-all hover:scale-110 flex-shrink-0 min-h-[32px] md:min-h-0 touch-manipulation ${filterPhase === p.id ? "ring-2 ring-offset-1 ring-slate-600 scale-110" : ""}`}
+                  style={{ backgroundColor: p.color ?? "#64748b" }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom row on mobile: Actions and counters */}
+        <div className="flex flex-col sm:flex-row lg:flex-row lg:ml-auto gap-3 lg:gap-2">
+          <div className="flex items-center justify-between lg:justify-start gap-2">
+            <span className="text-xs text-slate-400">
+              {processedTasks.length} task{processedTasks.length !== 1 ? "s" : ""}
+              {filterStatus !== "all" || filterPhase !== "all" ? " filtered" : ""}
+            </span>
+
+            {/* Undo / Redo with larger touch targets on mobile */}
+            <div className="flex items-center rounded-lg border border-slate-200 overflow-hidden">
+              <button
+                onClick={onUndo}
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z)"
+                className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation min-h-[36px]"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+              </button>
+              <button
+                onClick={onRedo}
+                disabled={!canRedo}
+                title="Redo (Ctrl+Shift+Z)"
+                className="px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors touch-manipulation min-h-[36px]"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10H11a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Phases button with larger touch target */}
           <button
             onClick={onOpenPhaseManager}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2 lg:px-3 lg:py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold hover:bg-indigo-100 transition-colors touch-manipulation min-h-[36px]"
           >
-            <span>◧</span>
-            <span>Phases</span>
+            <span className="text-lg lg:text-base">◧</span>
+            <span className="hidden sm:inline">Phases</span>
             {phases.length > 0 && (
-              <span className="bg-indigo-200 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+              <span className="bg-indigo-200 text-indigo-800 text-xs font-bold px-2 py-1 lg:px-1.5 lg:py-0.5 rounded-full leading-none">
                 {phases.length}
               </span>
             )}
           </button>
 
-          {/* Column picker */}
+          {/* Column picker with mobile-friendly positioning */}
           <div className="relative" ref={colPickerRef}>
             <button
               onClick={() => setShowColPicker(v => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+              className={`flex items-center justify-center gap-2 px-4 py-2 lg:px-3 lg:py-1.5 rounded-lg border text-sm font-semibold transition-colors touch-manipulation min-h-[36px] ${
                 showColPicker
                   ? "border-slate-400 bg-slate-100 text-slate-800"
                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
               title="Show/hide columns"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 lg:w-3.5 lg:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
               </svg>
-              Columns
+              <span className="hidden lg:inline">Columns</span>
             </button>
             {showColPicker && (
               <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-30 w-52 p-3">
@@ -313,14 +322,20 @@ export function PlannerSheetView({
 
       {/* ── Sheet table ── */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: `${480 + activeCols.reduce((s, c) => s + c.width, 0)}px` }}>
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
+          <table className="w-full text-sm min-w-[800px] md:min-w-0">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 <th className="w-10 p-2.5 text-center">#</th>
-                <th className="text-left p-2.5 min-w-[240px]">Task Name</th>
+                <th className="text-left p-2.5 min-w-[200px] md:min-w-[240px]">Task Name</th>
                 {activeCols.map(col => (
-                  <th key={col.key} className="text-left p-2.5" style={{ width: col.width }}>
+                  <th key={col.key} className="text-left p-2.5 hidden md:table-cell" style={{ width: col.width }}>
+                    {col.label}
+                  </th>
+                ))}
+                {/* Mobile: Show essential columns */}
+                {activeCols.slice(0, 2).map(col => (
+                  <th key={`${col.key}-mobile`} className="text-left p-2.5 md:hidden" style={{ width: col.width }}>
                     {col.label}
                   </th>
                 ))}
@@ -389,7 +404,7 @@ function PhaseSection({
   phase, tasks, activeCols, collapsed,
   onToggleCollapse, saving, isEditing, getLV, setLV,
   startEdit, commitEdit, handleKD, onPatchTask, onDeleteTask,
-  onAddTask, onOpenDetail, rowNum,
+  onAddTask, onOpenDetail, rowNum, dependencies,
 }: {
   phase: PlanPhase | null;
   tasks: PlanTask[];
@@ -408,6 +423,7 @@ function PhaseSection({
   onAddTask: (title: string, phaseId?: string | null) => Promise<void>;
   onOpenDetail: (task: PlanTask) => void;
   rowNum: (task: PlanTask) => number;
+  dependencies?: TaskDependency[];
 }) {
   const pct = tasks.length > 0
     ? Math.round(tasks.reduce((s, t) => s + t.percent_complete, 0) / tasks.length)
@@ -575,6 +591,35 @@ function TaskRow({
 
   const renderCell = (col: typeof COL_DEFS[number]) => {
     switch (col.key) {
+      case "dependencies":
+        const preds = dependencies?.filter(d => d.successor_task_id === task.id) || [];
+        const succs = dependencies?.filter(d => d.predecessor_task_id === task.id) || [];
+        return (
+          <td key="dependencies" className="p-2 text-xs text-slate-500 font-mono">
+            {preds.length > 0 || succs.length > 0 ? (
+              <div className="flex flex-col gap-0.5">
+                {preds.map(pred => {
+                  const predTask = tasks.find(t => t.id === pred.predecessor_task_id);
+                  return (
+                    <span key={pred.id} className="text-red-600" title={`Predecessor: ${predTask?.title ?? 'Unknown'} (${pred.dependency_type}${pred.lag_days ? `+${pred.lag_days}d` : ''})`}>
+                      ← {predTask?.title?.slice(0, 15) ?? '???'}{predTask?.title && predTask.title.length > 15 ? '...' : ''}
+                    </span>
+                  );
+                })}
+                {succs.map(succ => {
+                  const succTask = tasks.find(t => t.id === succ.successor_task_id);
+                  return (
+                    <span key={succ.id} className="text-green-600" title={`Successor: ${succTask?.title ?? 'Unknown'} (${succ.dependency_type}${succ.lag_days ? `+${succ.lag_days}d` : ''})`}>
+                      → {succTask?.title?.slice(0, 15) ?? '???'}{succTask?.title && succTask.title.length > 15 ? '...' : ''}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <span className="text-slate-300">—</span>
+            )}
+          </td>
+        );
       case "duration":
         return (
           <td key="duration" className="p-2 text-slate-500 font-mono text-xs">
