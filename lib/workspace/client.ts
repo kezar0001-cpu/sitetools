@@ -448,29 +448,39 @@ export async function fetchCompanyProjects(companyId: string): Promise<Project[]
 }
 
 /**
- * Projects with site_count and plan_count computed client-side.
- * Use this for the project list page.
+ * Projects with site_count and plan_count aggregated by the database RPC.
+ * Replaces three separate queries + client-side filter loops with a single
+ * get_projects_with_counts() call that uses COUNT/GROUP BY server-side.
  */
 export async function fetchCompanyProjectsWithCounts(companyId: string): Promise<ProjectWithCounts[]> {
-  const [projects, sites, plans] = await Promise.all([
-    fetchCompanyProjects(companyId),
-    fetchCompanySites(companyId),
-    supabase
-      .from("project_plans")
-      .select("id, project_id")
-      .eq("company_id", companyId)
-      .neq("status", "archived")
-      .then(({ data, error }) => {
-        // If project_plans table doesn't exist yet, return empty gracefully
-        if (error) return [] as { id: string; project_id: string | null }[];
-        return (data ?? []) as { id: string; project_id: string | null }[];
-      }),
-  ]);
+  const { data, error } = await supabase.rpc("get_projects_with_counts", {
+    p_company_id: companyId,
+  });
 
-  return projects.map((p) => ({
-    ...p,
-    site_count: sites.filter((s) => s.project_id === p.id).length,
-    plan_count: plans.filter((pl) => pl.project_id === p.id).length,
+  if (error) throw error;
+
+  return (data ?? []).map((row: {
+    id: string;
+    company_id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+    site_count: number;
+    plan_count: number;
+  }) => ({
+    id: row.id,
+    company_id: row.company_id,
+    name: row.name,
+    description: row.description,
+    status: row.status as Project["status"],
+    created_by: row.created_by,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    site_count: Number(row.site_count),
+    plan_count: Number(row.plan_count),
   }));
 }
 
