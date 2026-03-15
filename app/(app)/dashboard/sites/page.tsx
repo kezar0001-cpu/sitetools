@@ -8,6 +8,7 @@ import { fetchCompanyProjects, fetchCompanySites, setActiveSite, updateSite } fr
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 function toSlug(value: string) {
   const base = value
@@ -259,21 +260,18 @@ export default function SitesPage() {
             </div>
 
             {group.sites.length === 0 ? (
-              <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center">
-                <p className="text-slate-400 text-sm font-medium">No sites allocated to this project.</p>
-                {canEditSites && (
-                  <button
-                    onClick={() => {
-                        setTargetProjectId(group.projectId || "");
-                        const el = document.getElementById("create-site-section");
-                        el?.scrollIntoView({ behavior: "smooth" });
-                    }}
-                    className="mt-3 text-xs font-bold text-amber-600 hover:text-amber-700"
-                  >
-                    + Add a site here
-                  </button>
-                )}
-              </div>
+              <EmptyState
+                icon="🏗️"
+                title="No sites allocated to this project."
+                action={canEditSites ? {
+                  label: "+ Add a site here",
+                  onClick: () => {
+                    setTargetProjectId(group.projectId || "");
+                    document.getElementById("create-site-section")?.scrollIntoView({ behavior: "smooth" });
+                  },
+                } : undefined}
+                className="bg-white border-2 border-dashed border-slate-200 rounded-3xl"
+              />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {group.sites.map((site) => {

@@ -12,6 +12,7 @@ import {
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { ProjectWithCounts } from "@/lib/workspace/types";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const STATUS_CONFIG = {
     active: { label: "Active", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -256,18 +257,12 @@ export default function ProjectsPage() {
                     <div className="h-7 w-7 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
                 </div>
             ) : visible.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-sm">
-                    <div className="text-5xl mb-3">🏗️</div>
-                    <p className="text-slate-500 font-medium">No projects yet.</p>
-                    {canManage && (
-                        <button
-                            onClick={() => setShowCreate(true)}
-                            className="mt-4 px-5 py-2.5 rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 transition-colors"
-                        >
-                            Create your first project
-                        </button>
-                    )}
-                </div>
+                <EmptyState
+                    icon="🏗️"
+                    title="No projects yet."
+                    action={canManage ? { label: "Create your first project", onClick: () => setShowCreate(true) } : undefined}
+                    className="bg-white border border-slate-200 rounded-2xl shadow-sm"
+                />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {visible.map((project) => {
