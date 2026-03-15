@@ -344,6 +344,45 @@ export async function bulkCreateTasks(
   if (error) throw error;
 }
 
+// ─── Task Dependencies ───
+
+export async function fetchTaskDependencies(planId: string): Promise<TaskDependency[]> {
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .select("*")
+    .eq("plan_id", planId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as TaskDependency[];
+}
+
+export async function createTaskDependency(input: {
+  planId: string;
+  predecessorTaskId: string;
+  successorTaskId: string;
+  dependencyType?: "FS" | "FF" | "SS" | "SF";
+  lagDays?: number;
+}): Promise<TaskDependency> {
+  const { data, error } = await supabase
+    .from("task_dependencies")
+    .insert({
+      plan_id: input.planId,
+      predecessor_task_id: input.predecessorTaskId,
+      successor_task_id: input.successorTaskId,
+      dependency_type: input.dependencyType ?? "FS",
+      lag_days: input.lagDays ?? 0,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as TaskDependency;
+}
+
+export async function deleteTaskDependency(dependencyId: string): Promise<void> {
+  const { error } = await supabase.from("task_dependencies").delete().eq("id", dependencyId);
+  if (error) throw error;
+}
+
 // ─── Task Updates ───
 
 export async function fetchTaskUpdates(planId: string): Promise<TaskUpdate[]> {

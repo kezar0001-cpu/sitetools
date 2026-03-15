@@ -23,10 +23,13 @@ import {
   updatePlanPhase,
   updatePlanSites,
   updatePlanTask,
+  fetchTaskDependencies,
+  createTaskDependency,
+  deleteTaskDependency,
 } from "@/lib/planner/client";
-import { fetchCompanyProjects, fetchCompanySites, fetchCompanyTeam } from "@/lib/workspace/client";
-import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus, DelayType } from "@/lib/planner/types";
-import { Project, Site, CompanyMembership } from "@/lib/workspace/types";
+import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
+import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus, DelayType, TaskDependency } from "@/lib/planner/types";
+import { Project, Site } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { normalizePercent } from "@/lib/planner/validation";
 import { ImportedTask } from "@/lib/planner/import-parser";
@@ -51,6 +54,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const { tasks, canUndo, canRedo, dispatch: dispatchTasks, getState: getTaskState } = useTaskHistory();
   const [phases, setPhases] = useState<PlanPhase[]>([]);
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
+  const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [members, setMembers] = useState<CompanyMembership[]>([]);
@@ -69,18 +73,18 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
 
   // ── Data loading ──
   const loadAll = useCallback(async () => {
-    const [planData, planTasks, planPhases, publicHolidays, teamMembers] = await Promise.all([
+    const [planData, planTasks, planPhases, publicHolidays, planDeps] = await Promise.all([
       fetchPlanById(planId),
       fetchPlanTasks(planId),
       fetchPlanPhases(planId),
       fetchPublicHolidays(companyId),
-      companyId ? fetchCompanyTeam(companyId) : Promise.resolve([]),
+      fetchTaskDependencies(planId),
     ]);
     setPlan(planData);
     dispatchTasks({ type: "SET_TASKS", tasks: planTasks });
     setPhases(planPhases);
     setHolidays(publicHolidays);
-    setMembers(teamMembers);
+    setDependencies(planDeps);
   }, [planId, companyId, dispatchTasks]);
 
   const loadProjectsAndSites = useCallback(async () => {
@@ -217,6 +221,31 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
       setPhaseSaving(false);
     }
   }, [loadAll]);
+
+  // ── Dependency operations ──
+  const handleCreateDependency = useCallback(async (input: {
+    planId: string;
+    predecessorTaskId: string;
+    successorTaskId: string;
+    dependencyType?: "FS" | "FF" | "SS" | "SF";
+    lagDays?: number;
+  }) => {
+    try {
+      const dep = await createTaskDependency(input);
+      setDependencies(prev => [...prev, dep]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create dependency.");
+    }
+  }, []);
+
+  const handleDeleteDependency = useCallback(async (dependencyId: string) => {
+    try {
+      await deleteTaskDependency(dependencyId);
+      setDependencies(prev => prev.filter(d => d.id !== dependencyId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete dependency.");
+    }
+  }, []);
 
   // ── Task operations ──
   const handleAddTask = useCallback(async (title: string, phaseId?: string | null) => {
@@ -686,11 +715,14 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           onPatchTask={handlePatchTask}
           onDeleteTask={handleDeleteTask}
           onOpenPhaseManager={() => setShowPhaseManager(true)}
-          members={members}
+          dependencies={dependencies}
+          planId={planId}
+          onCreateDependency={handleCreateDependency}
+          onDeleteDependency={handleDeleteDependency}
         />
       )}
       {mode === "gantt" && (
-        <PlannerGanttView tasks={tasks} phases={phases} holidays={holidays} />
+        <PlannerGanttView tasks={tasks} phases={phases} holidays={holidays} dependencies={dependencies} />
       )}
       {mode === "today" && (
         <PlannerTodayView
