@@ -48,14 +48,14 @@ export function useSitePlanProjects() {
 
 /** Fetch a single Buildstate project */
 export function useSitePlanProject(projectId: string) {
-  return useQuery<Project>({
+  return useQuery<Project | null>({
     queryKey: ["siteplan", "project", projectId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")
         .select("*")
         .eq("id", projectId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
