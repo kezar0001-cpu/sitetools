@@ -1,49 +1,58 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type {
-  SitePlanProject,
-  CreateProjectPayload,
-} from "@/types/siteplan";
+import type { Project } from "@/lib/workspace/types";
 
 const PROJECTS_KEY = ["siteplan", "projects"];
 
-async function getOrgId(): Promise<string> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const { data } = await supabase
-    .from("company_memberships")
-    .select("company_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!data) throw new Error("No organisation found");
-  return data.company_id;
-}
-
-export function useSitePlanProjects() {
-  return useQuery<SitePlanProject[]>({
-    queryKey: PROJECTS_KEY,
+export function useCompanyId() {
+  return useQuery<string>({
+    queryKey: ["siteplan", "company-id"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("siteplan_projects")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data } = await supabase
+        .from("company_memberships")
+        .select("company_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+      if (!data) throw new Error("No organisation found");
+      return data.company_id;
     },
   });
 }
 
+/** Fetch existing Buildstate projects for the user's company */
+export function useSitePlanProjects() {
+  const { data: companyId } = useCompanyId();
+
+  return useQuery<Project[]>({
+    queryKey: [...PROJECTS_KEY, companyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("company_id", companyId!)
+        .in("status", ["active", "on-hold"])
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!companyId,
+  });
+}
+
+/** Fetch a single Buildstate project */
 export function useSitePlanProject(projectId: string) {
-  return useQuery<SitePlanProject>({
+  return useQuery<Project>({
     queryKey: ["siteplan", "project", projectId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("siteplan_projects")
+        .from("projects")
         .select("*")
         .eq("id", projectId)
         .single();
@@ -51,47 +60,5 @@ export function useSitePlanProject(projectId: string) {
       return data;
     },
     enabled: !!projectId,
-  });
-}
-
-export function useCreateProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: CreateProjectPayload) => {
-      const orgId = await getOrgId();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("siteplan_projects")
-        .insert({
-          ...payload,
-          org_id: orgId,
-          created_by: user!.id,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as SitePlanProject;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: PROJECTS_KEY });
-    },
-  });
-}
-
-export function useDeleteProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("siteplan_projects")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: PROJECTS_KEY });
-    },
   });
 }

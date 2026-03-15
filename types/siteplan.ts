@@ -1,4 +1,9 @@
 // ─── SitePlan Types ─────────────────────────────────────────
+// Uses existing Project type from workspace for project data.
+
+import type { Project } from "@/lib/workspace/types";
+
+export type { Project };
 
 export type TaskType = "phase" | "task" | "subtask";
 
@@ -8,18 +13,6 @@ export type TaskStatus =
   | "completed"
   | "delayed"
   | "on_hold";
-
-export interface SitePlanProject {
-  id: string;
-  name: string;
-  description: string | null;
-  start_date: string;
-  end_date: string;
-  created_by: string;
-  org_id: string;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface SitePlanTask {
   id: string;
@@ -60,18 +53,6 @@ export interface SitePlanTaskNode extends SitePlanTask {
 
 export type ProjectHealth = "on_track" | "at_risk" | "delayed";
 
-export interface ProjectCardData extends SitePlanProject {
-  overallProgress: number;
-  health: ProjectHealth;
-}
-
-export interface CreateProjectPayload {
-  name: string;
-  description?: string;
-  start_date: string;
-  end_date: string;
-}
-
 export interface CreateTaskPayload {
   project_id: string;
   parent_id?: string | null;
@@ -97,13 +78,15 @@ export interface UpdateTaskPayload {
   sort_order?: number;
 }
 
-export interface CSVRow {
+export interface ImportedRow {
   name: string;
   type: TaskType;
   parent_name: string;
   start_date: string;
   end_date: string;
+  duration: number;
   responsible: string;
+  outline_level: number;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -135,28 +118,27 @@ export function computeTaskStatus(
 }
 
 export function computeProjectHealth(
-  tasks: SitePlanTask[],
-  projectEndDate: string
+  tasks: SitePlanTask[]
 ): ProjectHealth {
-  const now = new Date();
-  const end = new Date(projectEndDate);
+  if (tasks.length === 0) return "on_track";
   const hasDelayed = tasks.some((t) => t.status === "delayed");
   if (hasDelayed) return "delayed";
 
-  const totalDuration = end.getTime() - now.getTime();
   const avgProgress =
-    tasks.length > 0
-      ? tasks.reduce((sum, t) => sum + t.progress, 0) / tasks.length
-      : 0;
+    tasks.reduce((sum, t) => sum + t.progress, 0) / tasks.length;
 
-  // At risk if past 70% of timeline but under 50% progress
-  if (totalDuration > 0 && avgProgress < 50) {
-    const projectStart = Math.min(
-      ...tasks.map((t) => new Date(t.start_date).getTime())
-    );
-    const elapsed = now.getTime() - projectStart;
-    const totalSpan = end.getTime() - projectStart;
-    if (totalSpan > 0 && elapsed / totalSpan > 0.7) return "at_risk";
+  const now = new Date();
+  const latestEnd = Math.max(
+    ...tasks.map((t) => new Date(t.end_date).getTime())
+  );
+  const earliestStart = Math.min(
+    ...tasks.map((t) => new Date(t.start_date).getTime())
+  );
+  const totalSpan = latestEnd - earliestStart;
+  const elapsed = now.getTime() - earliestStart;
+
+  if (totalSpan > 0 && elapsed / totalSpan > 0.7 && avgProgress < 50) {
+    return "at_risk";
   }
 
   return "on_track";
@@ -166,12 +148,10 @@ export function buildTaskTree(tasks: SitePlanTask[]): SitePlanTaskNode[] {
   const map = new Map<string, SitePlanTaskNode>();
   const roots: SitePlanTaskNode[] = [];
 
-  // Create nodes
   for (const t of tasks) {
     map.set(t.id, { ...t, children: [] });
   }
 
-  // Build tree
   for (const t of tasks) {
     const node = map.get(t.id)!;
     if (t.parent_id && map.has(t.parent_id)) {
@@ -181,7 +161,6 @@ export function buildTaskTree(tasks: SitePlanTask[]): SitePlanTaskNode[] {
     }
   }
 
-  // Sort children by sort_order
   const sortChildren = (nodes: SitePlanTaskNode[]) => {
     nodes.sort((a, b) => a.sort_order - b.sort_order);
     for (const n of nodes) sortChildren(n.children);
@@ -209,4 +188,37 @@ export function generateWbsCode(
 ): string {
   const idx = index + 1;
   return parentWbs ? `${parentWbs}.${idx}` : `${idx}`;
+}
+
+// ─── Date helpers for inline Gantt ──────────────────────────
+
+export function getProjectDateRange(tasks: SitePlanTask[]): {
+  start: Date;
+  end: Date;
+} {
+  if (tasks.length === 0) {
+    const now = new Date();
+    return { start: now, end: new Date(now.getTime() + 30 * 86400000) };
+  }
+  const starts = tasks.map((t) => new Date(t.start_date).getTime());
+  const ends = tasks.map((t) => new Date(t.end_date).getTime());
+  return {
+    start: new Date(Math.min(...starts)),
+    end: new Date(Math.max(...ends)),
+  };
+}
+
+export function getBarPosition(
+  taskStart: string,
+  taskEnd: string,
+  rangeStart: Date,
+  rangeEnd: Date
+): { left: number; width: number } {
+  const totalMs = rangeEnd.getTime() - rangeStart.getTime();
+  if (totalMs <= 0) return { left: 0, width: 100 };
+  const startMs = new Date(taskStart).getTime() - rangeStart.getTime();
+  const endMs = new Date(taskEnd).getTime() - rangeStart.getTime();
+  const left = Math.max(0, (startMs / totalMs) * 100);
+  const right = Math.min(100, (endMs / totalMs) * 100);
+  return { left, width: Math.max(1, right - left) };
 }

@@ -1,5 +1,6 @@
 -- =============================================================
 -- SitePlan module — fresh schema
+-- Uses the existing `projects` table from Buildstate workspace.
 -- =============================================================
 
 -- Drop old planner tables if they exist
@@ -10,57 +11,23 @@ DROP TABLE IF EXISTS plan_tasks CASCADE;
 DROP TABLE IF EXISTS plan_phases CASCADE;
 DROP TABLE IF EXISTS project_plan_sites CASCADE;
 DROP TABLE IF EXISTS project_plans CASCADE;
+DROP TABLE IF EXISTS siteplan_progress_log CASCADE;
+DROP TABLE IF EXISTS siteplan_tasks CASCADE;
+DROP TABLE IF EXISTS siteplan_projects CASCADE;
+
+-- Drop old enums if exist
+DROP TYPE IF EXISTS siteplan_task_type CASCADE;
+DROP TYPE IF EXISTS siteplan_task_status CASCADE;
 
 -- Enums
-DO $$ BEGIN
-  CREATE TYPE siteplan_task_type AS ENUM ('phase', 'task', 'subtask');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE siteplan_task_status AS ENUM ('not_started', 'in_progress', 'completed', 'delayed', 'on_hold');
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
-
--- ===================== siteplan_projects =====================
-CREATE TABLE IF NOT EXISTS siteplan_projects (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        text NOT NULL,
-  description text,
-  start_date  date NOT NULL,
-  end_date    date NOT NULL,
-  created_by  uuid NOT NULL REFERENCES auth.users(id),
-  org_id      uuid NOT NULL,
-  created_at  timestamptz NOT NULL DEFAULT now(),
-  updated_at  timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE siteplan_projects ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "org_isolation" ON siteplan_projects
-  USING (org_id IN (
-    SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
-  ));
-
-CREATE POLICY "org_insert" ON siteplan_projects
-  FOR INSERT WITH CHECK (org_id IN (
-    SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
-  ));
-
-CREATE POLICY "org_update" ON siteplan_projects
-  FOR UPDATE USING (org_id IN (
-    SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
-  ));
-
-CREATE POLICY "org_delete" ON siteplan_projects
-  FOR DELETE USING (org_id IN (
-    SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
-  ));
+CREATE TYPE siteplan_task_type AS ENUM ('phase', 'task', 'subtask');
+CREATE TYPE siteplan_task_status AS ENUM ('not_started', 'in_progress', 'completed', 'delayed', 'on_hold');
 
 -- ===================== siteplan_tasks ========================
+-- References existing projects table, NOT a separate siteplan_projects table
 CREATE TABLE IF NOT EXISTS siteplan_tasks (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id    uuid NOT NULL REFERENCES siteplan_projects(id) ON DELETE CASCADE,
+  project_id    uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   parent_id     uuid REFERENCES siteplan_tasks(id) ON DELETE CASCADE,
   wbs_code      text NOT NULL DEFAULT '',
   name          text NOT NULL,
@@ -84,23 +51,24 @@ CREATE INDEX idx_siteplan_tasks_parent  ON siteplan_tasks(parent_id);
 
 ALTER TABLE siteplan_tasks ENABLE ROW LEVEL SECURITY;
 
+-- RLS: tasks visible to members of the project's company
 CREATE POLICY "org_isolation" ON siteplan_tasks
-  USING (project_id IN (SELECT id FROM siteplan_projects WHERE org_id IN (
+  USING (project_id IN (SELECT id FROM projects WHERE company_id IN (
     SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
   )));
 
 CREATE POLICY "org_insert" ON siteplan_tasks
-  FOR INSERT WITH CHECK (project_id IN (SELECT id FROM siteplan_projects WHERE org_id IN (
+  FOR INSERT WITH CHECK (project_id IN (SELECT id FROM projects WHERE company_id IN (
     SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
   )));
 
 CREATE POLICY "org_update" ON siteplan_tasks
-  FOR UPDATE USING (project_id IN (SELECT id FROM siteplan_projects WHERE org_id IN (
+  FOR UPDATE USING (project_id IN (SELECT id FROM projects WHERE company_id IN (
     SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
   )));
 
 CREATE POLICY "org_delete" ON siteplan_tasks
-  FOR DELETE USING (project_id IN (SELECT id FROM siteplan_projects WHERE org_id IN (
+  FOR DELETE USING (project_id IN (SELECT id FROM projects WHERE company_id IN (
     SELECT company_id FROM company_memberships WHERE user_id = auth.uid()
   )));
 
@@ -122,18 +90,18 @@ ALTER TABLE siteplan_progress_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "org_isolation" ON siteplan_progress_log
   USING (task_id IN (
     SELECT t.id FROM siteplan_tasks t
-    JOIN siteplan_projects p ON p.id = t.project_id
-    WHERE p.org_id IN (SELECT company_id FROM company_memberships WHERE user_id = auth.uid())
+    JOIN projects p ON p.id = t.project_id
+    WHERE p.company_id IN (SELECT company_id FROM company_memberships WHERE user_id = auth.uid())
   ));
 
 CREATE POLICY "org_insert" ON siteplan_progress_log
   FOR INSERT WITH CHECK (task_id IN (
     SELECT t.id FROM siteplan_tasks t
-    JOIN siteplan_projects p ON p.id = t.project_id
-    WHERE p.org_id IN (SELECT company_id FROM company_memberships WHERE user_id = auth.uid())
+    JOIN projects p ON p.id = t.project_id
+    WHERE p.company_id IN (SELECT company_id FROM company_memberships WHERE user_id = auth.uid())
   ));
 
--- Trigger: auto-update updated_at on siteplan_projects
+-- Trigger: auto-update updated_at
 CREATE OR REPLACE FUNCTION siteplan_update_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -141,10 +109,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_siteplan_projects_updated
-  BEFORE UPDATE ON siteplan_projects
-  FOR EACH ROW EXECUTE FUNCTION siteplan_update_timestamp();
 
 CREATE TRIGGER trg_siteplan_tasks_updated
   BEFORE UPDATE ON siteplan_tasks
