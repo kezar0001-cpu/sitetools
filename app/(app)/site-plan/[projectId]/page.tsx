@@ -10,10 +10,7 @@ import {
 } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
-import {
-  buildTaskTree,
-  flattenTree,
-} from "@/types/siteplan";
+import { buildTaskTree } from "@/types/siteplan";
 import type { SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { TaskRow } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";

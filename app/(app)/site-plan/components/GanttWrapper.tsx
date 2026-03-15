@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Gantt, Task, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
-import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
+import type { SitePlanTask } from "@/types/siteplan";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 
 const statusBarColors: Record<string, { bg: string; bgProgress: string }> = {

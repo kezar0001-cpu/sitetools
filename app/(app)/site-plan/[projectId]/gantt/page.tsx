@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
-import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
+import type { SitePlanTask } from "@/types/siteplan";
 import { GanttWrapper } from "../../components/GanttWrapper";
 import { TaskEditPanel } from "../../components/TaskEditPanel";
 import { SitePlanBottomNav } from "../../components/SitePlanBottomNav";
