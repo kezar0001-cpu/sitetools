@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { useRouter } from "next/navigation";
 import { getDiaries, createDiary } from "@/lib/diary/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -107,13 +108,12 @@ export default function DiaryListPage() {
             ))}
           </div>
         ) : diaries.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="text-5xl mb-4">📋</div>
-            <p className="text-slate-500 font-medium">No diaries yet.</p>
-            <p className="text-sm text-slate-400 mt-1">
-              Tap <strong>Start Today&apos;s Diary</strong> above to log your first entry.
-            </p>
-          </div>
+          <EmptyState
+            icon="📋"
+            title="No diaries yet."
+            description="Tap 'Start Today's Diary' above to log your first entry."
+            className="py-16"
+          />
         ) : (
           <div className="space-y-3">
             {diaries.length > 0 && (

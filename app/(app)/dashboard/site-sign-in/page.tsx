@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -502,16 +503,13 @@ export default function SiteSignInModulePage() {
   if (sites.length === 0) {
     return (
       <div className="p-6 md:p-10 max-w-4xl mx-auto">
-        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
-          <h1 className="text-2xl font-black text-slate-900">Site Sign In requires a site</h1>
-          <p className="mt-2 text-sm text-slate-600">Create a company site first, then launch Site Sign In records from here.</p>
-          <Link
-            href="/dashboard/sites"
-            className="inline-block mt-6 bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold px-5 py-3 rounded-xl text-sm"
-          >
-            Go to Sites
-          </Link>
-        </div>
+        <EmptyState
+          icon="🏗️"
+          title="Site Sign In requires a site"
+          description="Create a company site first, then launch Site Sign In records from here."
+          action={{ label: "Go to Sites", href: "/dashboard/sites" }}
+          className="bg-white border border-slate-200 rounded-2xl shadow-sm"
+        />
       </div>
     );
   }

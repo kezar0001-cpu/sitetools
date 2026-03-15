@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { getPrimaryNavModules, getSecondaryNavModules, getRoadmapModules } from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
+import { setActiveCompany } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
+import { CompanyMembership } from "@/lib/workspace/types";
+import { toast } from "sonner";
 
 interface Props {
   mobileOpen: boolean;
@@ -14,10 +18,14 @@ interface Props {
 interface SidebarContentProps {
   pathname: string;
   activeCompany: string;
+  activeCompanyId: string;
+  memberships: CompanyMembership[];
+  switching: boolean;
+  onCompanySwitch: (companyId: string) => void;
   onNavigate?: () => void;
 }
 
-function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentProps) {
+function SidebarContent({ pathname, activeCompany, activeCompanyId, memberships, switching, onCompanySwitch, onNavigate }: SidebarContentProps) {
   return (
     <>
       <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0 sticky top-0 bg-slate-900 z-10">
@@ -33,7 +41,38 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
 
       <div className="px-4 py-4 border-b border-slate-800">
         <p className="text-[11px] uppercase tracking-wide font-bold text-slate-500">Active Workspace</p>
-        <p className="text-sm font-bold text-white mt-1 truncate">{activeCompany}</p>
+        {memberships.length > 1 ? (
+          <div className="relative mt-1.5">
+            <select
+              value={activeCompanyId}
+              onChange={(e) => onCompanySwitch(e.target.value)}
+              disabled={switching}
+              className={`w-full bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-lg pl-2.5 pr-8 py-1.5 appearance-none cursor-pointer transition-colors ${
+                switching ? "opacity-50 cursor-wait" : "hover:border-amber-500/60"
+              }`}
+            >
+              {memberships.map((m) => (
+                <option key={m.company_id} value={m.company_id}>
+                  {m.companies?.name ?? "Untitled Company"}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              {switching ? (
+                <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm font-bold text-white mt-1 truncate">{activeCompany}</p>
+        )}
       </div>
 
       <div className="flex-1 py-6 px-4 space-y-8">
@@ -173,20 +212,53 @@ function SidebarContent({ pathname, activeCompany, onNavigate }: SidebarContentP
 
 export function AppSidebar({ mobileOpen, onClose }: Props) {
   const pathname = usePathname();
-  const { summary } = useWorkspace({ requireAuth: false, requireCompany: false });
+  const router = useRouter();
+  const { summary, refresh } = useWorkspace({ requireAuth: false, requireCompany: false });
+  const [switching, setSwitching] = useState(false);
+
   const activeCompany = summary?.activeMembership?.companies?.name ?? "No Company";
+  const activeCompanyId = summary?.activeMembership?.company_id ?? "";
+  const memberships = summary?.memberships ?? [];
+
+  async function handleCompanySwitch(companyId: string) {
+    if (!companyId || companyId === activeCompanyId) return;
+    setSwitching(true);
+    const targetName = memberships.find((m) => m.company_id === companyId)?.companies?.name ?? "Company";
+    try {
+      await setActiveCompany(companyId);
+      await refresh();
+      toast.success(`Switched to ${targetName}`);
+      setTimeout(() => {
+        router.replace("/dashboard");
+        router.refresh();
+      }, 300);
+    } catch {
+      toast.error("Failed to switch workspace. Please try again.");
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  const sharedProps = {
+    pathname,
+    activeCompany,
+    activeCompanyId,
+    memberships,
+    switching,
+    onCompanySwitch: handleCompanySwitch,
+  };
 
   return (
     <>
       <aside className="fixed inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 z-40 hidden md:flex border-r border-slate-800 shadow-xl overflow-y-auto hidden-scrollbar flex-col">
-        <SidebarContent pathname={pathname} activeCompany={activeCompany} />
+        <SidebarContent {...sharedProps} />
       </aside>
 
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <button className="absolute inset-0 bg-black/50" onClick={onClose} aria-label="Close navigation menu" />
           <aside className="relative w-72 max-w-[90vw] h-full bg-slate-900 text-slate-300 border-r border-slate-800 shadow-xl overflow-y-auto hidden-scrollbar flex flex-col">
-            <SidebarContent pathname={pathname} activeCompany={activeCompany} onNavigate={onClose} />
+            <SidebarContent {...sharedProps} onNavigate={onClose} />
           </aside>
         </div>
       )}

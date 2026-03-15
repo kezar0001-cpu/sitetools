@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";
@@ -288,7 +289,7 @@ export default function TeamPage() {
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900 mb-3">Pending Invitations</h2>
         {invitations.filter((inv) => inv.status === "pending").length === 0 ? (
-          <p className="text-sm text-slate-500">No pending invitations.</p>
+          <EmptyState icon="✉️" title="No pending invitations." className="py-4" />
         ) : (
           <ul className="space-y-2">
             {invitations
