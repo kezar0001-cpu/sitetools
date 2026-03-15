@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppTopbar } from "@/components/layout/AppTopbar";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
 export default function AppLayout({
@@ -48,7 +49,9 @@ export default function AppLayout({
       <AppSidebar mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
       <div className="flex flex-col flex-1 md:ml-64 relative min-w-0 h-screen overflow-hidden">
         <AppTopbar onMenuToggle={() => setMobileSidebarOpen((open) => !open)} />
-        <main className="flex-1 overflow-y-auto hidden-scrollbar bg-slate-50/50 relative">{children}</main>
+        <main className="flex-1 overflow-y-auto hidden-scrollbar bg-slate-50/50 relative">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
       <Toaster richColors position="top-right" />
     </div>
