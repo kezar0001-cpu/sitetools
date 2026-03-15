@@ -6,12 +6,15 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
 import {
   createPlannerPlan,
-  deletePlannerPlan,
   fetchPlannerPlans,
+  fetchDeletedPlans,
   seedCivilStarterTasks,
   bulkCreateTasks,
+  softDeletePlan,
+  restorePlan,
+  permanentlyDeletePlan,
 } from "@/lib/planner/client";
-import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
+import { PlannerPlanWithContext, PlanStatus, DeletedPlanSummary } from "@/lib/planner/types";
 import { ImportedTask } from "@/lib/planner/import-parser";
 import { Project, Site } from "@/lib/workspace/types";
 import { PlannerImportDialog } from "./PlannerImportDialog";
@@ -49,27 +52,38 @@ function relativeDate(iso: string): string {
 // ── Main component ──
 export function PlannerDashboardClient() {
   const { loading: authLoading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
-  const [plans,    setPlans]    = useState<PlannerPlanWithContext[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [sites,    setSites]    = useState<Site[]>([]);
-  const [busy,     setBusy]     = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [filter,   setFilter]   = useState<FilterKey>("all");
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<PlannerPlanWithContext | null>(null);
+  const [plans,        setPlans]        = useState<PlannerPlanWithContext[]>([]);
+  const [deletedPlans, setDeletedPlans] = useState<DeletedPlanSummary[]>([]);
+  const [projects,     setProjects]     = useState<Project[]>([]);
+  const [sites,        setSites]        = useState<Site[]>([]);
+  const [busy,         setBusy]         = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [showImport,   setShowImport]   = useState(false);
+  const [filter,       setFilter]       = useState<FilterKey>("all");
+
+  // Soft-delete confirmation (moves to trash)
+  const [pendingTrash, setPendingTrash] = useState<PlannerPlanWithContext | null>(null);
+  const [trashingId,   setTrashingId]   = useState<string | null>(null);
+
+  // Permanent delete confirmation (from trash)
+  const [pendingPermanent, setPendingPermanent] = useState<DeletedPlanSummary | null>(null);
+  const [permanentingId,   setPermanentingId]   = useState<string | null>(null);
+
+  // Restore in-progress
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const companyId = summary?.activeMembership?.company_id ?? null;
   const userId    = summary?.userId ?? null;
 
   async function loadAll(cId: string) {
-    const [p, pr, s] = await Promise.all([
+    const [p, pr, s, del] = await Promise.all([
       fetchPlannerPlans(cId),
       fetchCompanyProjects(cId),
       fetchCompanySites(cId),
+      fetchDeletedPlans(cId),
     ]);
-    setPlans(p); setProjects(pr); setSites(s);
+    setPlans(p); setProjects(pr); setSites(s); setDeletedPlans(del);
   }
 
   useEffect(() => {
@@ -97,18 +111,48 @@ export function PlannerDashboardClient() {
 
   const archived = useMemo(() => plans.filter(p => p.status === "archived"), [plans]);
 
-  async function confirmDelete() {
-    if (!pendingDelete) return;
-    const plan = pendingDelete;
-    setPendingDelete(null);
-    setDeletingId(plan.id);
+  // ── Soft-delete a plan (move to trash) ──
+  async function confirmTrash() {
+    if (!pendingTrash) return;
+    const plan = pendingTrash;
+    setPendingTrash(null);
+    setTrashingId(plan.id);
     try {
-      await deletePlannerPlan(plan.id);
+      await softDeletePlan(plan.id);
       await loadAll(companyId!);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : "Move to trash failed");
     } finally {
-      setDeletingId(null);
+      setTrashingId(null);
+    }
+  }
+
+  // ── Restore a plan from trash ──
+  async function handleRestore(planId: string) {
+    setRestoringId(planId);
+    try {
+      await restorePlan(planId);
+      await loadAll(companyId!);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Restore failed");
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  // ── Permanently delete a plan ──
+  async function confirmPermanentDelete() {
+    if (!pendingPermanent) return;
+    const plan = pendingPermanent;
+    setPendingPermanent(null);
+    setPermanentingId(plan.id);
+    try {
+      await permanentlyDeletePlan(plan.id);
+      await loadAll(companyId!);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Permanent delete failed");
+    } finally {
+      setPermanentingId(null);
     }
   }
 
@@ -263,8 +307,8 @@ export function PlannerDashboardClient() {
               <PlanCard
                 key={plan.id}
                 plan={plan}
-                isDeleting={deletingId === plan.id}
-                onDelete={() => setPendingDelete(plan)}
+                isDeleting={trashingId === plan.id}
+                onDelete={() => setPendingTrash(plan)}
               />
             ))}
           </div>
@@ -282,8 +326,34 @@ export function PlannerDashboardClient() {
                 <PlanCard
                   key={plan.id}
                   plan={plan}
-                  isDeleting={deletingId === plan.id}
-                  onDelete={() => setPendingDelete(plan)}
+                  isDeleting={trashingId === plan.id}
+                  onDelete={() => setPendingTrash(plan)}
+                />
+              ))}
+            </div>
+          </details>
+        )}
+
+        {/* ── Trash / Recycle Bin accordion ── */}
+        {deletedPlans.length > 0 && (
+          <details className="group">
+            <summary className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer hover:text-slate-600 transition-colors select-none list-none w-fit">
+              <span className="transition-transform group-open:rotate-90 text-xs">▶</span>
+              <span>
+                Trash — recently deleted ({deletedPlans.length})
+              </span>
+              <span className="text-[11px] text-slate-300 font-normal">auto-purges after 30 days</span>
+            </summary>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100">
+              {deletedPlans.map((plan) => (
+                <TrashRow
+                  key={plan.id}
+                  plan={plan}
+                  isRestoring={restoringId === plan.id}
+                  isDeleting={permanentingId === plan.id}
+                  onRestore={() => handleRestore(plan.id)}
+                  onDeleteForever={() => setPendingPermanent(plan)}
                 />
               ))}
             </div>
@@ -291,13 +361,24 @@ export function PlannerDashboardClient() {
         )}
       </div>
 
+      {/* ── Soft-delete confirmation (move to trash) ── */}
       <ConfirmDialog
-        open={!!pendingDelete}
-        title={`Delete "${pendingDelete?.name}"?`}
-        description="All tasks and history will be removed. This cannot be undone."
-        confirmLabel="Delete Plan"
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDelete(null)}
+        open={!!pendingTrash}
+        title={`Move "${pendingTrash?.name}" to Trash?`}
+        description="The plan will be moved to the Recycle Bin. You can restore it within 30 days."
+        confirmLabel="Move to Trash"
+        onConfirm={confirmTrash}
+        onCancel={() => setPendingTrash(null)}
+      />
+
+      {/* ── Permanent delete confirmation ── */}
+      <ConfirmDialog
+        open={!!pendingPermanent}
+        title={`Permanently delete "${pendingPermanent?.name}"?`}
+        description="All tasks and history will be removed forever. This cannot be undone."
+        confirmLabel="Delete Forever"
+        onConfirm={confirmPermanentDelete}
+        onCancel={() => setPendingPermanent(null)}
       />
 
       {/* ── Create plan modal ── */}
@@ -436,7 +517,7 @@ function PlanCard({
               onClick={onDelete}
               disabled={isDeleting}
               className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-colors"
-              title="Delete plan"
+              title="Move to trash"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -444,6 +525,60 @@ function PlanCard({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Trash row component ──
+function TrashRow({
+  plan,
+  isRestoring,
+  isDeleting,
+  onRestore,
+  onDeleteForever,
+}: {
+  plan: DeletedPlanSummary;
+  isRestoring: boolean;
+  isDeleting: boolean;
+  onRestore: () => void;
+  onDeleteForever: () => void;
+}) {
+  const busy = isRestoring || isDeleting;
+  return (
+    <div className={`flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 ${busy ? "opacity-50 pointer-events-none" : ""}`}>
+      {/* Trash icon */}
+      <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      </div>
+
+      {/* Plan info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-slate-700 truncate">{plan.name}</p>
+        <p className="text-[11px] text-slate-400">
+          {plan.project_name && <span className="mr-1.5">{plan.project_name} ·</span>}
+          Deleted {relativeDate(plan.deleted_at)}
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={onRestore}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+        >
+          {isRestoring ? "Restoring…" : "Restore"}
+        </button>
+        <button
+          onClick={onDeleteForever}
+          disabled={busy}
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+        >
+          {isDeleting ? "Deleting…" : "Delete Forever"}
+        </button>
       </div>
     </div>
   );
