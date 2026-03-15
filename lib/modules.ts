@@ -50,7 +50,7 @@ export const MODULES: BuildstateModule[] = [
         icon: "list-checks",
         status: "live",
         visibility: "primary",
-        href: "/dashboard/planner",
+        href: "/site-plan",
         color: "indigo",
     },
     {
