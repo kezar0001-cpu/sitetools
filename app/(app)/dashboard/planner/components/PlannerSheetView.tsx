@@ -8,23 +8,41 @@ import {
   STATUS_COLORS, PRIORITY_COLORS,
   TaskDependency,
 } from "@/lib/planner/types";
+import { CompanyMembership } from "@/lib/workspace/types";
 import { statusFromPercent } from "@/lib/planner/validation";
 
 // ── Column definitions ──
 const COL_DEFS = [
-  { key: "dependencies", label: "Dependencies", width: 140, defaultOn: true },
-  { key: "duration",      label: "Duration",      width: 88,   defaultOn: true  },
-  { key: "start",         label: "Start",          width: 108,  defaultOn: true  },
-  { key: "finish",        label: "Finish",         width: 108,  defaultOn: true  },
-  { key: "status",        label: "Status",         width: 130,  defaultOn: true  },
-  { key: "percent",       label: "Progress",       width: 120,  defaultOn: true  },
-  { key: "actual_start",  label: "Act. Start",     width: 108,  defaultOn: false },
-  { key: "actual_finish", label: "Act. Finish",    width: 108,  defaultOn: false },
-  { key: "variance",      label: "Variance",       width: 88,   defaultOn: false },
-  { key: "priority",      label: "Priority",       width: 100,  defaultOn: false },
-  { key: "delay",         label: "Delay",          width: 120,  defaultOn: false },
-  { key: "notes",         label: "Notes",          width: 180,  defaultOn: false },
+  { key: "assignee",      label: "Assignee",       width: 140,  defaultOn: false },
+  { key: "dependencies",  label: "Dependencies",   width: 140,  defaultOn: true  },
+  { key: "duration",      label: "Duration",       width: 88,   defaultOn: true  },
+  { key: "start",         label: "Start",           width: 108,  defaultOn: true  },
+  { key: "finish",        label: "Finish",          width: 108,  defaultOn: true  },
+  { key: "status",        label: "Status",          width: 130,  defaultOn: true  },
+  { key: "percent",       label: "Progress",        width: 120,  defaultOn: true  },
+  { key: "actual_start",  label: "Act. Start",      width: 108,  defaultOn: false },
+  { key: "actual_finish", label: "Act. Finish",     width: 108,  defaultOn: false },
+  { key: "variance",      label: "Variance",        width: 88,   defaultOn: false },
+  { key: "priority",      label: "Priority",        width: 100,  defaultOn: false },
+  { key: "delay",         label: "Delay",           width: 120,  defaultOn: false },
+  { key: "notes",         label: "Notes",           width: 180,  defaultOn: false },
 ] as const;
+
+// ── Assignee helpers ──
+function memberInitials(m: CompanyMembership): string {
+  const name = m.profiles?.full_name?.trim();
+  if (name) {
+    const parts = name.split(/\s+/);
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : parts[0].slice(0, 2).toUpperCase();
+  }
+  return (m.profiles?.email?.[0] ?? "?").toUpperCase();
+}
+
+function memberDisplayName(m: CompanyMembership): string {
+  return m.profiles?.full_name?.trim() || m.profiles?.email?.split("@")[0] || "Unknown";
+}
 
 type ColKey = typeof COL_DEFS[number]["key"];
 
@@ -74,6 +92,7 @@ interface Props {
   onDeleteTask: (taskId: string) => Promise<void>;
   onOpenPhaseManager: () => void;
   dependencies?: TaskDependency[];
+  members?: CompanyMembership[];
 }
 
 // ── Main component ──
@@ -83,6 +102,7 @@ export function PlannerSheetView({
   onAddTask, onPatchTask, onDeleteTask,
   onOpenPhaseManager,
   dependencies,
+  members,
 }: Props) {
   const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(loadSavedCols);
   const [showColPicker, setShowColPicker] = useState(false);
@@ -369,6 +389,9 @@ export function PlannerSheetView({
                   onAddTask={onAddTask}
                   onOpenDetail={setDetailTask}
                   rowNum={rowNum}
+                  members={members}
+                  dependencies={dependencies}
+                  allTasks={tasks}
                 />
               ))}
 
@@ -404,7 +427,7 @@ function PhaseSection({
   phase, tasks, activeCols, collapsed,
   onToggleCollapse, saving, isEditing, getLV, setLV,
   startEdit, commitEdit, handleKD, onPatchTask, onDeleteTask,
-  onAddTask, onOpenDetail, rowNum, dependencies,
+  onAddTask, onOpenDetail, rowNum, dependencies, members, allTasks,
 }: {
   phase: PlanPhase | null;
   tasks: PlanTask[];
@@ -424,6 +447,8 @@ function PhaseSection({
   onOpenDetail: (task: PlanTask) => void;
   rowNum: (task: PlanTask) => number;
   dependencies?: TaskDependency[];
+  members?: CompanyMembership[];
+  allTasks?: PlanTask[];
 }) {
   const pct = tasks.length > 0
     ? Math.round(tasks.reduce((s, t) => s + t.percent_complete, 0) / tasks.length)
@@ -495,6 +520,9 @@ function PhaseSection({
           onDeleteTask={onDeleteTask}
           onOpenDetail={onOpenDetail}
           phaseColor={phase?.color ?? null}
+          members={members}
+          dependencies={dependencies}
+          allTasks={allTasks}
         />
       ))}
 
@@ -559,7 +587,8 @@ function PhaseAddRow({ phaseId, phaseName, phaseColor, onAdd, saving }: {
 function TaskRow({
   task, rowNum, activeCols, saving,
   isEditing, getLV, setLV, startEdit, commitEdit, handleKD,
-  onPatchTask, onDeleteTask, onOpenDetail, phaseColor,
+  onPatchTask, onDeleteTask, onOpenDetail, phaseColor, members,
+  dependencies, allTasks,
 }: {
   task: PlanTask;
   rowNum: number;
@@ -575,10 +604,26 @@ function TaskRow({
   onDeleteTask: (taskId: string) => Promise<void>;
   onOpenDetail: (task: PlanTask) => void;
   phaseColor: string | null;
+  members?: CompanyMembership[];
+  dependencies?: TaskDependency[];
+  allTasks?: PlanTask[];
 }) {
   const isSaving = saving === task.id;
   const indent   = (task.indent_level ?? 0) * 18;
   const [pctWarning, setPctWarning] = useState(false);
+  const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const assigneeRef = useRef<HTMLTableCellElement>(null);
+
+  useEffect(() => {
+    if (!assigneeOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (assigneeRef.current && !assigneeRef.current.contains(e.target as Node)) {
+        setAssigneeOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [assigneeOpen]);
 
   const cycleStatus = () => {
     const cur = STATUS_CYCLE.indexOf(task.status);
@@ -591,7 +636,54 @@ function TaskRow({
 
   const renderCell = (col: typeof COL_DEFS[number]) => {
     switch (col.key) {
-      case "dependencies":
+      case "assignee": {
+        const assigned = members?.find(m => m.user_id === task.assigned_to) ?? null;
+        return (
+          <td key="assignee" className="p-1.5 relative" ref={assigneeRef}>
+            <button
+              className="flex items-center gap-1.5 w-full rounded-lg px-1.5 py-1 hover:bg-slate-100 transition-colors text-left"
+              onClick={() => setAssigneeOpen(o => !o)}
+              title={assigned ? memberDisplayName(assigned) : "Unassigned — click to assign"}
+            >
+              {assigned ? (
+                <>
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {memberInitials(assigned)}
+                  </span>
+                  <span className="text-xs text-slate-700 truncate">{memberDisplayName(assigned)}</span>
+                </>
+              ) : (
+                <span className="text-xs text-slate-300 italic">Unassigned</span>
+              )}
+            </button>
+            {assigneeOpen && (
+              <div className="absolute left-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-48 py-1 max-h-56 overflow-y-auto">
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:bg-slate-50 transition-colors italic"
+                  onClick={() => { onPatchTask(task.id, { assigned_to: null }); setAssigneeOpen(false); }}
+                >
+                  <span className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px]">—</span>
+                  Unassigned
+                </button>
+                {(members ?? []).map(m => (
+                  <button
+                    key={m.user_id}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-amber-50 transition-colors ${m.user_id === task.assigned_to ? "bg-amber-50 font-semibold" : "text-slate-700"}`}
+                    onClick={() => { onPatchTask(task.id, { assigned_to: m.user_id }); setAssigneeOpen(false); }}
+                  >
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                      {memberInitials(m)}
+                    </span>
+                    <span className="truncate">{memberDisplayName(m)}</span>
+                    {m.user_id === task.assigned_to && <span className="ml-auto text-amber-500">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </td>
+        );
+      }
+      case "dependencies": {
         const preds = dependencies?.filter(d => d.successor_task_id === task.id) || [];
         const succs = dependencies?.filter(d => d.predecessor_task_id === task.id) || [];
         return (
@@ -599,7 +691,7 @@ function TaskRow({
             {preds.length > 0 || succs.length > 0 ? (
               <div className="flex flex-col gap-0.5">
                 {preds.map(pred => {
-                  const predTask = tasks.find(t => t.id === pred.predecessor_task_id);
+                  const predTask = allTasks?.find(t => t.id === pred.predecessor_task_id);
                   return (
                     <span key={pred.id} className="text-red-600" title={`Predecessor: ${predTask?.title ?? 'Unknown'} (${pred.dependency_type}${pred.lag_days ? `+${pred.lag_days}d` : ''})`}>
                       ← {predTask?.title?.slice(0, 15) ?? '???'}{predTask?.title && predTask.title.length > 15 ? '...' : ''}
@@ -607,7 +699,7 @@ function TaskRow({
                   );
                 })}
                 {succs.map(succ => {
-                  const succTask = tasks.find(t => t.id === succ.successor_task_id);
+                  const succTask = allTasks?.find(t => t.id === succ.successor_task_id);
                   return (
                     <span key={succ.id} className="text-green-600" title={`Successor: ${succTask?.title ?? 'Unknown'} (${succ.dependency_type}${succ.lag_days ? `+${succ.lag_days}d` : ''})`}>
                       → {succTask?.title?.slice(0, 15) ?? '???'}{succTask?.title && succTask.title.length > 15 ? '...' : ''}
@@ -620,6 +712,7 @@ function TaskRow({
             )}
           </td>
         );
+      }
       case "duration":
         return (
           <td key="duration" className="p-2 text-slate-500 font-mono text-xs">

@@ -24,9 +24,9 @@ import {
   updatePlanSites,
   updatePlanTask,
 } from "@/lib/planner/client";
-import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
+import { fetchCompanyProjects, fetchCompanySites, fetchCompanyTeam } from "@/lib/workspace/client";
 import { PlanTask, PlanPhase, PublicHoliday, PlannerPlanWithContext, PlanStatus, TaskStatus, DelayType } from "@/lib/planner/types";
-import { Project, Site } from "@/lib/workspace/types";
+import { Project, Site, CompanyMembership } from "@/lib/workspace/types";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { normalizePercent } from "@/lib/planner/validation";
 import { ImportedTask } from "@/lib/planner/import-parser";
@@ -53,6 +53,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
   const [holidays, setHolidays] = useState<PublicHoliday[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [members, setMembers] = useState<CompanyMembership[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,16 +69,18 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
 
   // ── Data loading ──
   const loadAll = useCallback(async () => {
-    const [planData, planTasks, planPhases, publicHolidays] = await Promise.all([
+    const [planData, planTasks, planPhases, publicHolidays, teamMembers] = await Promise.all([
       fetchPlanById(planId),
       fetchPlanTasks(planId),
       fetchPlanPhases(planId),
       fetchPublicHolidays(companyId),
+      companyId ? fetchCompanyTeam(companyId) : Promise.resolve([]),
     ]);
     setPlan(planData);
     dispatchTasks({ type: "SET_TASKS", tasks: planTasks });
     setPhases(planPhases);
     setHolidays(publicHolidays);
+    setMembers(teamMembers);
   }, [planId, companyId, dispatchTasks]);
 
   const loadProjectsAndSites = useCallback(async () => {
@@ -683,6 +686,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           onPatchTask={handlePatchTask}
           onDeleteTask={handleDeleteTask}
           onOpenPhaseManager={() => setShowPhaseManager(true)}
+          members={members}
         />
       )}
       {mode === "gantt" && (
@@ -693,6 +697,7 @@ export function PlanWorkspaceClient({ planId, mode }: { planId: string; mode: Mo
           tasks={tasks}
           phases={phases}
           saving={saving}
+          currentUserId={userId}
           onQuickUpdate={handleQuickUpdate}
           onLogDelay={handleLogDelay}
         />
