@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
-import { buildTaskTree, getProjectDateRange } from "@/types/siteplan";
+import { buildTaskTree } from "@/types/siteplan";
 import type { SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { TaskRow, TaskListHeader } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
@@ -45,11 +45,6 @@ function ProjectDetailInner() {
   } | null>(null);
 
   const tree = useMemo(() => (tasks ? buildTaskTree(tasks) : []), [tasks]);
-
-  const dateRange = useMemo(
-    () => getProjectDateRange(tasks ?? []),
-    [tasks]
-  );
 
   // Visible rows based on expanded state
   const visibleRows = useMemo(() => {
@@ -237,11 +232,10 @@ function ProjectDetailInner() {
                 <div key={node.id}>
                   <TaskRow
                     node={node}
+                    rowNumber={idx + 1}
                     expanded={allExpanded || expandedIds.has(node.id)}
                     onToggle={() => toggleExpand(node.id)}
                     onSelect={handleSelect}
-                    rangeStart={dateRange.start}
-                    rangeEnd={dateRange.end}
                   />
 
                   {/* Inline "Add Task" link at end of each phase's children */}

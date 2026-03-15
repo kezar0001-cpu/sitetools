@@ -29,6 +29,9 @@ function parseCSV(text: string): ImportedRow[] {
   const endIdx = col("end_date") ?? col("end") ?? col("finish") ?? col("finish date");
   const durationIdx = col("duration") ?? col("duration_days");
   const responsibleIdx = col("responsible") ?? col("resource") ?? col("resource_names");
+  const predecessorsIdx = col("predecessors") ?? col("predecessor");
+  const assignedIdx = col("assigned_to") ?? col("assigned to") ?? col("resource_names");
+  const commentsIdx = col("comments") ?? col("notes") ?? col("comment");
   const outlineIdx = col("outline_level") ?? col("outline level") ?? col("level");
 
   if (nameIdx === -1 || (startIdx === -1 && durationIdx === -1)) {
@@ -76,7 +79,10 @@ function parseCSV(text: string): ImportedRow[] {
       start_date: startIdx >= 0 ? cols[startIdx] ?? "" : "",
       end_date: endIdx >= 0 ? cols[endIdx] ?? "" : "",
       duration,
+      predecessors: predecessorsIdx >= 0 ? cols[predecessorsIdx] ?? "" : "",
       responsible: responsibleIdx >= 0 ? cols[responsibleIdx] ?? "" : "",
+      assigned_to: assignedIdx >= 0 ? cols[assignedIdx] ?? "" : "",
+      comments: commentsIdx >= 0 ? cols[commentsIdx] ?? "" : "",
       outline_level: outlineLevel,
     };
   }).filter((r) => r.name.trim() !== "");
@@ -110,6 +116,18 @@ function parseMSProjectXML(text: string): ImportedRow[] {
     const resource = el.querySelector("ResourceNames")?.textContent ??
       el.querySelector("ResourceName")?.textContent ?? "";
 
+    // Extract predecessor links
+    const predEls = el.querySelectorAll("PredecessorLink");
+    const preds: string[] = [];
+    predEls.forEach((p) => {
+      const predId = p.querySelector("PredecessorUID")?.textContent;
+      if (predId) preds.push(predId);
+    });
+    const predecessors = preds.join(", ");
+
+    // Notes/comments
+    const notes = el.querySelector("Notes")?.textContent ?? "";
+
     // Parse PT duration (e.g. "PT40H0M0S" = 5 days, "P5D" = 5 days)
     let durationDays = 7;
     if (durationRaw.startsWith("PT")) {
@@ -137,7 +155,10 @@ function parseMSProjectXML(text: string): ImportedRow[] {
       start_date: startDate,
       end_date: endDate,
       duration: durationDays,
+      predecessors,
       responsible: resource,
+      assigned_to: resource,
+      comments: notes,
       outline_level: outlineLevel,
     });
   });
@@ -221,7 +242,10 @@ function parseMPPBinary(buffer: ArrayBuffer): ImportedRow[] {
     start_date: dates[i * 2] ?? today,
     end_date: dates[i * 2 + 1] ?? nextWeek,
     duration: 7,
+    predecessors: "",
     responsible: "",
+    assigned_to: "",
+    comments: "",
     outline_level: 2,
   }));
 }
@@ -331,7 +355,10 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
         type: row.type,
         start_date: row.start_date || today,
         end_date: row.end_date || nextWeek,
+        predecessors: row.predecessors || undefined,
         responsible: row.responsible || undefined,
+        assigned_to: row.assigned_to || undefined,
+        comments: row.comments || undefined,
         sort_order: sortOrder++,
       });
 
