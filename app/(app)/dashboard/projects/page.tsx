@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
     fetchCompanyProjectsWithCounts,
     createProject,
@@ -30,7 +31,6 @@ export default function ProjectsPage() {
 
     const [projects, setProjects] = useState<ProjectWithCounts[]>([]);
     const [busy, setBusy] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [showCreate, setShowCreate] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -57,7 +57,7 @@ export default function ProjectsPage() {
         if (!companyId) return;
         setBusy(true);
         load()
-            .catch((err) => setError(err?.message ?? (err instanceof Error ? err.message : "Could not load projects.")))
+            .catch((err) => toast.error(err?.message ?? (err instanceof Error ? err.message : "Could not load projects.")))
             .finally(() => setBusy(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [companyId]);
@@ -66,15 +66,15 @@ export default function ProjectsPage() {
         e.preventDefault();
         if (!companyId || !newName.trim()) return;
         setCreating(true);
-        setError(null);
         try {
             await createProject(companyId, newName.trim(), newDesc.trim() || null, userId);
             setNewName("");
             setNewDesc("");
             setShowCreate(false);
             await load();
+            toast.success("Project created.");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to create project.");
+            toast.error(err instanceof Error ? err.message : "Failed to create project.");
         } finally {
             setCreating(false);
         }
@@ -99,8 +99,9 @@ export default function ProjectsPage() {
             });
             setEditingId(null);
             await load();
+            toast.success("Project saved.");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to save.");
+            toast.error(err instanceof Error ? err.message : "Failed to save.");
         } finally {
             setSaving(false);
         }
@@ -117,8 +118,9 @@ export default function ProjectsPage() {
         try {
             await deleteProject(project.id);
             await load();
+            toast.success("Project deleted.");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to delete project.");
+            toast.error(err instanceof Error ? err.message : "Failed to delete project.");
         } finally {
             setDeletingId(null);
         }
@@ -172,13 +174,6 @@ export default function ProjectsPage() {
                     </div>
                 </div>
             </div>
-
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm flex items-center justify-between">
-                    <span>{error}</span>
-                    <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-2">✕</button>
-                </div>
-            )}
 
             {/* Actions bar */}
             <div className="flex items-center justify-between gap-3 flex-wrap">

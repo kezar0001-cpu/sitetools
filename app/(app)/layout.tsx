@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Toaster } from "sonner";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppTopbar } from "@/components/layout/AppTopbar";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -49,6 +50,7 @@ export default function AppLayout({
         <AppTopbar onMenuToggle={() => setMobileSidebarOpen((open) => !open)} />
         <main className="flex-1 overflow-y-auto hidden-scrollbar bg-slate-50/50 relative">{children}</main>
       </div>
+      <Toaster richColors position="top-right" />
     </div>
   );
 }

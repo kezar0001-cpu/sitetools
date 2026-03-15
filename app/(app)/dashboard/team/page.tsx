@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";
 import { canManageTeam } from "@/lib/workspace/permissions";
@@ -32,7 +33,6 @@ export default function TeamPage() {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const [removeConfirm, setRemoveConfirm] = useState<RemoveConfirmState | null>(null);
   const [removeLoading, setRemoveLoading] = useState(false);
@@ -49,7 +49,6 @@ export default function TeamPage() {
     if (!activeCompanyId) return;
 
     setPageLoading(true);
-    setError(null);
 
     Promise.all([fetchCompanyTeam(activeCompanyId), fetchCompanyInvitations(activeCompanyId)])
       .then(([team, invites]) => {
@@ -57,7 +56,7 @@ export default function TeamPage() {
         setInvitations(invites);
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Unable to load team data.");
+        toast.error(err instanceof Error ? err.message : "Unable to load team data.");
       })
       .finally(() => setPageLoading(false));
   }, [activeCompanyId]);
@@ -67,11 +66,12 @@ export default function TeamPage() {
 
     const { error: updateError } = await supabase.from("company_memberships").update({ role }).eq("id", memberId);
     if (updateError) {
-      setError(updateError.message);
+      toast.error(updateError.message);
       return;
     }
 
     setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
+    toast.success("Role updated.");
     await refresh();
   }
 
@@ -79,7 +79,6 @@ export default function TeamPage() {
     if (!removeConfirm || !activeCompanyId) return;
 
     setRemoveLoading(true);
-    setError(null);
 
     const { error: deleteError } = await supabase
       .from("company_memberships")
@@ -90,12 +89,13 @@ export default function TeamPage() {
     setRemoveLoading(false);
 
     if (deleteError) {
-      setError(deleteError.message);
+      toast.error(deleteError.message);
       setRemoveConfirm(null);
       return;
     }
 
     setMembers((prev) => prev.filter((m) => m.id !== removeConfirm.memberId));
+    toast.success(`${removeConfirm.displayName} removed from team.`);
     setRemoveConfirm(null);
     await refresh();
   }
@@ -104,11 +104,10 @@ export default function TeamPage() {
     e.preventDefault();
     if (!activeCompanyId || !canEditTeam) return;
 
-    setError(null);
     setInviteResult(null);
 
     if (!inviteEmail.trim()) {
-      setError("Invite email is required.");
+      toast.error("Invite email is required.");
       return;
     }
 
@@ -117,11 +116,12 @@ export default function TeamPage() {
       const created = await createCompanyInvitation(activeCompanyId, inviteEmail.trim(), inviteRole);
       setInviteResult({ token: created.token, inviteCode: created.invite_code });
       setInviteEmail("");
+      toast.success("Invitation created.");
 
       const updatedInvitations = await fetchCompanyInvitations(activeCompanyId);
       setInvitations(updatedInvitations);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send invitation.");
+      toast.error(err instanceof Error ? err.message : "Failed to send invitation.");
     } finally {
       setInviteLoading(false);
     }
@@ -143,8 +143,6 @@ export default function TeamPage() {
           Company: <span className="font-semibold text-slate-900">{activeCompany?.name}</span> | Your role: <span className="font-semibold uppercase">{activeRole}</span>
         </p>
       </div>
-
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
