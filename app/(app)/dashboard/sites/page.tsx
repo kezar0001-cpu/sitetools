@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState, useMemo } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, fetchCompanySites, setActiveSite, updateSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
@@ -33,13 +34,11 @@ export default function SitesPage() {
   const [creating, setCreating] = useState(false);
   const [switchingSiteId, setSwitchingSiteId] = useState<string | null>(null);
   const [allocatingSiteId, setAllocatingSiteId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // Edit modal state
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [editName, setEditName] = useState("");
   const [editSaving, setEditSaving] = useState(false);
-  const [editError, setEditError] = useState<string | null>(null);
 
   // Archive confirmation state
   const [archivingSiteId, setArchivingSiteId] = useState<string | null>(null);
@@ -56,7 +55,7 @@ export default function SitesPage() {
         setSites(siteRows);
         setProjects(projectRows);
       })
-      .catch((err) => setError(err?.message ?? (err instanceof Error ? err.message : "Could not load sites.")))
+      .catch((err) => toast.error(err?.message ?? (err instanceof Error ? err.message : "Could not load sites.")))
       .finally(() => setPageLoading(false));
   }, [activeCompanyId]);
 
@@ -84,9 +83,8 @@ export default function SitesPage() {
     e.preventDefault();
     if (!activeCompanyId || !canEditSites) return;
 
-    setError(null);
     if (!name.trim()) {
-      setError("Site name is required.");
+      toast.error("Site name is required.");
       return;
     }
 
@@ -106,8 +104,9 @@ export default function SitesPage() {
       setTargetProjectId("");
       const siteRows = await fetchCompanySites(activeCompanyId);
       setSites(siteRows);
+      toast.success("Site created.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create site.");
+      toast.error(err instanceof Error ? err.message : "Could not create site.");
     } finally {
       setCreating(false);
     }
@@ -116,7 +115,6 @@ export default function SitesPage() {
   async function handleAssignSiteToProject(siteId: string, projectId: string | null) {
     if (!canEditSites) return;
     setAllocatingSiteId(siteId);
-    setError(null);
 
     try {
       const { error: updateError } = await supabase
@@ -129,8 +127,9 @@ export default function SitesPage() {
         const siteRows = await fetchCompanySites(activeCompanyId);
         setSites(siteRows);
       }
+      toast.success("Site moved.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not assign site to project.");
+      toast.error(err instanceof Error ? err.message : "Could not assign site to project.");
     } finally {
       setAllocatingSiteId(null);
     }
@@ -138,12 +137,12 @@ export default function SitesPage() {
 
   async function handleSelectSite(siteId: string) {
     setSwitchingSiteId(siteId);
-    setError(null);
     try {
       await setActiveSite(siteId);
       await refresh();
+      toast.success("Active site updated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to set active site.");
+      toast.error(err instanceof Error ? err.message : "Unable to set active site.");
     } finally {
       setSwitchingSiteId(null);
     }
@@ -152,7 +151,6 @@ export default function SitesPage() {
   function openEditModal(site: Site) {
     setEditingSite(site);
     setEditName(site.name);
-    setEditError(null);
   }
 
   async function handleSaveEdit(e: FormEvent) {
@@ -160,12 +158,11 @@ export default function SitesPage() {
     if (!editingSite || !canEditSites) return;
     const trimmed = editName.trim();
     if (!trimmed) {
-      setEditError("Site name is required.");
+      toast.error("Site name is required.");
       return;
     }
 
     setEditSaving(true);
-    setEditError(null);
     try {
       const newSlug = toSlug(trimmed);
       await updateSite(editingSite.id, { name: trimmed, slug: newSlug });
@@ -174,8 +171,9 @@ export default function SitesPage() {
         setSites(siteRows);
       }
       setEditingSite(null);
+      toast.success("Site updated.");
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Could not update site.");
+      toast.error(err instanceof Error ? err.message : "Could not update site.");
     } finally {
       setEditSaving(false);
     }
@@ -184,15 +182,15 @@ export default function SitesPage() {
   async function handleArchiveSite(site: Site) {
     if (!canEditSites) return;
     setArchivingSiteId(site.id);
-    setError(null);
     try {
       await updateSite(site.id, { is_active: false });
       if (activeCompanyId) {
         const siteRows = await fetchCompanySites(activeCompanyId);
         setSites(siteRows);
       }
+      toast.success("Site archived.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not archive site.");
+      toast.error(err instanceof Error ? err.message : "Could not archive site.");
     } finally {
       setArchivingSiteId(null);
       setConfirmArchiveSite(null);
@@ -201,15 +199,15 @@ export default function SitesPage() {
 
   async function handleRestoreSite(siteId: string) {
     if (!canEditSites) return;
-    setError(null);
     try {
       await updateSite(siteId, { is_active: true });
       if (activeCompanyId) {
         const siteRows = await fetchCompanySites(activeCompanyId);
         setSites(siteRows);
       }
+      toast.success("Site restored.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not restore site.");
+      toast.error(err instanceof Error ? err.message : "Could not restore site.");
     }
   }
 
@@ -236,13 +234,6 @@ export default function SitesPage() {
             </Link>
         </div>
       </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-4 text-sm font-bold flex items-center justify-between shadow-sm">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-2 text-lg">✕</button>
-        </div>
-      )}
 
       {/* Grouped View */}
       <div className="space-y-10">
@@ -497,10 +488,6 @@ export default function SitesPage() {
                   autoFocus
                 />
               </div>
-
-              {editError && (
-                <p className="text-xs text-red-600 font-semibold">{editError}</p>
-              )}
 
               <div className="flex gap-3 pt-1">
                 <button

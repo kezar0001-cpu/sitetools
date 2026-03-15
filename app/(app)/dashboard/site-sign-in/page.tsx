@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
@@ -75,7 +76,6 @@ export default function SiteSignInModulePage() {
   const [visits, setVisits] = useState<SiteVisit[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
   const [visitsLoading, setVisitsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -115,7 +115,6 @@ export default function SiteSignInModulePage() {
     if (!activeCompanyId) return;
 
     setPageLoading(true);
-    setError(null);
 
     fetchCompanySites(activeCompanyId)
       .then((companySites) => {
@@ -136,7 +135,7 @@ export default function SiteSignInModulePage() {
         });
       })
       .catch((err) => {
-        setError(err?.message ?? (err instanceof Error ? err.message : "Unable to load sites."));
+        toast.error(err?.message ?? (err instanceof Error ? err.message : "Unable to load sites."));
       })
       .finally(() => setPageLoading(false));
   }, [activeCompanyId, profileActiveSiteId]);
@@ -152,7 +151,7 @@ export default function SiteSignInModulePage() {
       const nextVisits = await fetchSiteVisitsForCompanySite(activeCompanyId, selectedSiteId);
       setVisits(nextVisits);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load records.");
+      toast.error(err instanceof Error ? err.message : "Unable to load records.");
     } finally {
       setVisitsLoading(false);
     }
@@ -226,14 +225,13 @@ export default function SiteSignInModulePage() {
 
   async function handleSwitchSite(nextSiteId: string) {
     setSelectedSiteId(nextSiteId);
-    setError(null);
     clearEdit();
 
     try {
       await setActiveSite(nextSiteId);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not set active site.");
+      toast.error(err instanceof Error ? err.message : "Could not set active site.");
     }
   }
 
@@ -241,10 +239,8 @@ export default function SiteSignInModulePage() {
     e.preventDefault();
     if (!activeCompanyId || !selectedSiteId) return;
 
-    setError(null);
-
     if (!fullName.trim() || !companyName.trim()) {
-      setError("Full name and company name are required.");
+      toast.error("Full name and company name are required.");
       return;
     }
 
@@ -267,7 +263,7 @@ export default function SiteSignInModulePage() {
     setAdding(false);
 
     if (insertError) {
-      setError(insertError.message);
+      toast.error(insertError.message);
       return;
     }
 
@@ -278,16 +274,15 @@ export default function SiteSignInModulePage() {
     setAddSignedIn("");
     setAddSignedOut("");
 
+    toast.success("Visitor record added.");
     await refreshVisits();
   }
 
   async function handleSaveEdit(visitId: string) {
     if (!selectedSiteId) return;
 
-    setError(null);
-
     if (!editFullName.trim() || !editCompanyName.trim() || !editSignedIn) {
-      setError("Full name, company, and signed in time are required to save edits.");
+      toast.error("Full name, company, and signed in time are required to save edits.");
       return;
     }
 
@@ -311,11 +306,12 @@ export default function SiteSignInModulePage() {
     setEditSaving(false);
 
     if (updateError) {
-      setError(updateError.message);
+      toast.error(updateError.message);
       return;
     }
 
     clearEdit();
+    toast.success("Record updated.");
     await refreshVisits();
   }
 
@@ -333,10 +329,11 @@ export default function SiteSignInModulePage() {
     setSigningOutId(null);
 
     if (updateError) {
-      setError(updateError.message);
+      toast.error(updateError.message);
       return;
     }
 
+    toast.success("Visitor signed out.");
     await refreshVisits();
   }
 
@@ -354,11 +351,12 @@ export default function SiteSignInModulePage() {
     setBulkSigningOut(false);
 
     if (updateError) {
-      setError(updateError.message);
+      toast.error(updateError.message);
       return;
     }
 
     setShowBulkSignOutModal(false);
+    toast.success("All visitors signed out.");
     await refreshVisits();
   }
 
@@ -376,10 +374,11 @@ export default function SiteSignInModulePage() {
     setConfirmDeleteId(null);
 
     if (deleteError) {
-      setError(deleteError.message);
+      toast.error(deleteError.message);
       return;
     }
 
+    toast.success("Record deleted.");
     setVisits((prev) => prev.filter((visit) => visit.id !== visitId));
   }
 
@@ -549,8 +548,6 @@ export default function SiteSignInModulePage() {
           </div>
         </div>
       </section>
-
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{error}</div>}
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h2 className="text-lg font-bold text-slate-900">Add Sign In Record</h2>
