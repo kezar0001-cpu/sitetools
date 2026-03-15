@@ -11,6 +11,7 @@ import {
 } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { ProjectWithCounts } from "@/lib/workspace/types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const STATUS_CONFIG = {
     active: { label: "Active", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -35,6 +36,7 @@ export default function ProjectsPage() {
     const [showArchived, setShowArchived] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<ProjectWithCounts | null>(null);
 
     // Create form
     const [newName, setNewName] = useState("");
@@ -107,13 +109,10 @@ export default function ProjectsPage() {
         }
     }
 
-    async function handleDelete(project: ProjectWithCounts) {
-        if (
-            !confirm(
-                `Delete "${project.name}"?\n\nSites and plans linked to this project will lose their project connection. This cannot be undone.`
-            )
-        )
-            return;
+    async function confirmDelete() {
+        if (!pendingDelete) return;
+        const project = pendingDelete;
+        setPendingDelete(null);
         setDeletingId(project.id);
         try {
             await deleteProject(project.id);
@@ -373,7 +372,7 @@ export default function ProjectsPage() {
                                                     Edit
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDelete(project)}
+                                                    onClick={() => setPendingDelete(project)}
                                                     disabled={isDeleting || !!deletingId}
                                                     className="text-xs font-medium px-3 py-1.5 rounded-lg text-red-500 hover:bg-red-50 border border-red-100 transition-colors disabled:opacity-50"
                                                 >
@@ -388,6 +387,15 @@ export default function ProjectsPage() {
                     })}
                 </div>
             )}
+
+            <ConfirmDialog
+                open={!!pendingDelete}
+                title={`Delete "${pendingDelete?.name}"?`}
+                description={`Sites and plans linked to this project will lose their project connection. This cannot be undone.`}
+                confirmLabel="Delete Project"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </div>
     );
 }

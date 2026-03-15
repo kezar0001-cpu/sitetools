@@ -13,6 +13,7 @@ import {
 import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
 import { Project, Site } from "@/lib/workspace/types";
 import { PlannerCreatePlanForm } from "./PlannerCreatePlanForm";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 // ── Status config ──
 const STATUS_CFG: Record<PlanStatus, { label: string; bar: string; badge: string; dot: string }> = {
@@ -53,6 +54,7 @@ export function PlannerDashboardClient() {
   const [showCreate, setShowCreate] = useState(false);
   const [filter,   setFilter]   = useState<FilterKey>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PlannerPlanWithContext | null>(null);
 
   const companyId = summary?.activeMembership?.company_id ?? null;
   const userId    = summary?.userId ?? null;
@@ -91,8 +93,10 @@ export function PlannerDashboardClient() {
 
   const archived = useMemo(() => plans.filter(p => p.status === "archived"), [plans]);
 
-  async function handleDelete(plan: PlannerPlanWithContext) {
-    if (!confirm(`Permanently delete "${plan.name}"?\nAll tasks and history will be removed.`)) return;
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const plan = pendingDelete;
+    setPendingDelete(null);
     setDeletingId(plan.id);
     try {
       await deletePlannerPlan(plan.id);
@@ -224,7 +228,7 @@ export function PlannerDashboardClient() {
                 key={plan.id}
                 plan={plan}
                 isDeleting={deletingId === plan.id}
-                onDelete={() => handleDelete(plan)}
+                onDelete={() => setPendingDelete(plan)}
               />
             ))}
           </div>
@@ -243,13 +247,22 @@ export function PlannerDashboardClient() {
                   key={plan.id}
                   plan={plan}
                   isDeleting={deletingId === plan.id}
-                  onDelete={() => handleDelete(plan)}
+                  onDelete={() => setPendingDelete(plan)}
                 />
               ))}
             </div>
           </details>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        title={`Delete "${pendingDelete?.name}"?`}
+        description="All tasks and history will be removed. This cannot be undone."
+        confirmLabel="Delete Plan"
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
 
       {/* ── Create plan modal ── */}
       {showCreate && (

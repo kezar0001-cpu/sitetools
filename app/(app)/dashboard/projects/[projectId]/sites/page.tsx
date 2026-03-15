@@ -7,6 +7,7 @@ import { fetchProjectSites, createProjectSite, updateSiteProject } from "@/lib/w
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Site } from "@/lib/workspace/types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export default function ProjectSitesPage() {
     const params = useParams<{ projectId: string }>();
@@ -22,6 +23,7 @@ export default function ProjectSitesPage() {
     const [creating, setCreating] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [pendingRemove, setPendingRemove] = useState<Site | null>(null);
 
     async function loadSites() {
         setPageLoading(true);
@@ -64,9 +66,10 @@ export default function ProjectSitesPage() {
         }
     }
 
-    async function handleRemove(site: Site) {
-        if (!canEdit) return;
-        if (!confirm(`Remove "${site.name}" from this project?\nThe site record will still exist, just unlinked.`)) return;
+    async function confirmRemove() {
+        if (!pendingRemove) return;
+        const site = pendingRemove;
+        setPendingRemove(null);
         setRemovingId(site.id);
         try {
             await updateSiteProject(site.id, null);
@@ -148,7 +151,7 @@ export default function ProjectSitesPage() {
                                         </Link>
                                         {canEdit && (
                                             <button
-                                                onClick={() => handleRemove(site)}
+                                                onClick={() => setPendingRemove(site)}
                                                 disabled={!!removingId}
                                                 className="text-xs font-medium px-3 py-2 rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
                                                 title="Remove from project (site not deleted)"
@@ -193,6 +196,15 @@ export default function ProjectSitesPage() {
                     Only Owner, Admin, or Manager roles can manage sites.
                 </p>
             )}
+
+            <ConfirmDialog
+                open={!!pendingRemove}
+                title={`Remove "${pendingRemove?.name}"?`}
+                description="The site record will still exist, just unlinked from this project."
+                confirmLabel="Remove Site"
+                onConfirm={confirmRemove}
+                onCancel={() => setPendingRemove(null)}
+            />
         </div>
     );
 }

@@ -8,6 +8,7 @@ import { createPlannerPlan, deletePlannerPlan, fetchProjectPlans, seedCivilStart
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
 import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const STATUS_BADGE: Record<PlanStatus, { bg: string; text: string; dot: string }> = {
     draft: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
@@ -32,6 +33,7 @@ export default function ProjectPlannerPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<PlannerPlanWithContext | null>(null);
 
     // New plan form state
     const [newName, setNewName] = useState("");
@@ -100,8 +102,10 @@ export default function ProjectPlannerPage() {
         }
     }
 
-    async function handleDelete(plan: PlannerPlanWithContext) {
-        if (!confirm(`Permanently delete "${plan.name}"?\nAll tasks and history will be removed.`)) return;
+    async function confirmDelete() {
+        if (!pendingDelete) return;
+        const plan = pendingDelete;
+        setPendingDelete(null);
         setDeletingId(plan.id);
         try {
             await deletePlannerPlan(plan.id);
@@ -306,7 +310,7 @@ export default function ProjectPlannerPage() {
                                                 <Link href={`/dashboard/planner/${plan.id}/today`} className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors" title="Today">◉</Link>
                                                 <Link href={`/dashboard/planner/${plan.id}/print`} target="_blank" className="px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors" title="Print">🖨︎</Link>
                                                 <button
-                                                    onClick={() => handleDelete(plan)}
+                                                    onClick={() => setPendingDelete(plan)}
                                                     disabled={isDeleting || !!deletingId}
                                                     className="px-2 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                                                     title="Delete plan"
@@ -332,6 +336,15 @@ export default function ProjectPlannerPage() {
                     </table>
                 </div>
             </section>
+
+            <ConfirmDialog
+                open={!!pendingDelete}
+                title={`Delete "${pendingDelete?.name}"?`}
+                description="All tasks and history will be removed. This cannot be undone."
+                confirmLabel="Delete Plan"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </div>
     );
 }
