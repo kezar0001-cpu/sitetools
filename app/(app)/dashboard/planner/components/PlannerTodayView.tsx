@@ -416,7 +416,7 @@ export function PlannerTodayView({ tasks, phases, saving, currentUserId, onQuick
     }
 
     return { overdue, today: todayTasks, week: thisWeek, unscheduled };
-  }, [tasks, today, weekEnd]);
+  }, [tasks, today, weekEnd, myTasksOnly, currentUserId]);
 
   const displayTasks = useMemo(() => {
     switch (bucket) {
