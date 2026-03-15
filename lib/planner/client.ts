@@ -9,6 +9,7 @@ import {
   TaskUpdate,
   PublicHoliday,
   WeatherDelayLog,
+  TaskDependency,
 } from "./types";
 
 // ─── Plans ───

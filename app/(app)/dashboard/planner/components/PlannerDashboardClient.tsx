@@ -9,11 +9,12 @@ import {
   deletePlannerPlan,
   fetchPlannerPlans,
   seedCivilStarterTasks,
+  bulkCreateTasks,
 } from "@/lib/planner/client";
 import { PlannerPlanWithContext, PlanStatus } from "@/lib/planner/types";
+import { ImportedTask } from "@/lib/planner/import-parser";
 import { Project, Site } from "@/lib/workspace/types";
-import { PlannerCreatePlanForm } from "./PlannerCreatePlanForm";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { PlannerImportDialog } from "./PlannerImportDialog";
 
 // ── Status config ──
 const STATUS_CFG: Record<PlanStatus, { label: string; bar: string; badge: string; dot: string }> = {
@@ -52,6 +53,7 @@ export function PlannerDashboardClient() {
   const [busy,     setBusy]     = useState(false);
   const [error,    setError]    = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [filter,   setFilter]   = useState<FilterKey>("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<PlannerPlanWithContext | null>(null);
@@ -124,6 +126,38 @@ export function PlannerDashboardClient() {
       setShowCreate(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleImport(tasks: ImportedTask[], projectName: string | null) {
+    if (!companyId) return;
+    setBusy(true);
+    try {
+      const planName = projectName || "Imported Plan";
+      const plan = await createPlannerPlan({
+        companyId, name: planName, description: `Imported from external schedule (${tasks.length} tasks)`, userId,
+      });
+
+      // Transform ImportedTask to the format expected by bulkCreateTasks
+      const tasksToCreate = tasks.map((task, index) => ({
+        title: task.name,
+        sortOrder: index,
+        plannedStart: task.start,
+        plannedFinish: task.finish,
+        durationDays: task.durationDays,
+        indentLevel: task.outlineLevel,
+        wbsCode: task.wbsCode,
+        notes: task.notes,
+        percentComplete: task.percentComplete,
+      }));
+
+      await bulkCreateTasks(plan.id, tasksToCreate, userId);
+      await loadAll(companyId);
+      setShowImport(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed");
     } finally {
       setBusy(false);
     }
@@ -293,6 +327,14 @@ export function PlannerDashboardClient() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Import plan modal ── */}
+      {showImport && (
+        <PlannerImportDialog
+          onImport={handleImport}
+          onClose={() => setShowImport(false)}
+        />
       )}
     </div>
   );
