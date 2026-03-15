@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import { PlanTask, PlanPhase, PublicHoliday, GanttViewConfig } from "@/lib/planner/types";
+import { PlanTask, PlanPhase, PublicHoliday, GanttViewConfig, TaskDependency } from "@/lib/planner/types";
 import {
     generateDateRange,
     getTaskDateRange,
@@ -18,19 +18,16 @@ interface Props {
     tasks: PlanTask[];
     phases: PlanPhase[];
     holidays: PublicHoliday[];
+    dependencies?: TaskDependency[];
 }
 
 const ROW_HEIGHT = 40; // Increased slightly for better Smartsheet feel
 const HEADER_HEIGHT = 56;
 
-export function PlannerGanttView({ tasks, phases, holidays }: Props) {
+export function PlannerGanttView({ tasks, phases, holidays, dependencies }: Props) {
     const [gridWidth, setGridWidth] = useState(340);
-    const [zoomLevel, setZoomLevel] = useState<"day" | "week" | "month" | "quarter">("week");
-    const [showDependencies, setShowDependencies] = useState(true);
-    const [showMilestones, setShowMilestones] = useState(true);
-    const [showTodayLine, setShowTodayLine] = useState(true);
-    const [showHolidays, setShowHolidays] = useState(true);
     const [isResizing, setIsResizing] = useState(false);
+    const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
 
     const [config, setConfig] = useState<GanttViewConfig>({
         zoomLevel: "week",
@@ -165,8 +162,55 @@ export function PlannerGanttView({ tasks, phases, holidays }: Props) {
     }, [tasks, phases, collapsedPhases]);
 
     const renderDependencyLines = () => {
-        // Placeholder for future implementation
-        return null;
+        if (!dependencies || !config.showDependencies) return null;
+
+        // Build map of task_id -> { bar, rowIndex } for visible tasks only
+        type BarEntry = { offsetPx: number; widthPx: number; color: string };
+        const taskBarMap = new Map<string, { bar: BarEntry; rowIndex: number }>();
+        orderedTasks.forEach((item, idx) => {
+            if (item.type === "task") {
+                const bar = calculateTaskBar(item.task, rangeStart, dayWidth);
+                if (bar) taskBarMap.set(item.task.id, { bar, rowIndex: idx });
+            }
+        });
+
+        const lines = dependencies.flatMap(dep => {
+            const pred = taskBarMap.get(dep.predecessor_task_id);
+            const succ = taskBarMap.get(dep.successor_task_id);
+            if (!pred || !succ) return [];
+
+            const predRightX = pred.bar.offsetPx + Math.max(8, pred.bar.widthPx);
+            const predY = pred.rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+            const succLeftX = succ.bar.offsetPx;
+            const succY = succ.rowIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+            const elbowX = Math.max(predRightX + 8, succLeftX - 8);
+
+            const points = `${predRightX},${predY} ${elbowX},${predY} ${elbowX},${succY} ${succLeftX},${succY}`;
+            return [(
+                <polyline
+                    key={dep.id}
+                    points={points}
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="1.5"
+                    strokeDasharray="4 2"
+                    markerEnd="url(#gantt-arrow)"
+                />
+            )];
+        });
+
+        if (lines.length === 0) return null;
+
+        return (
+            <>
+                <defs>
+                    <marker id="gantt-arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L6,3 z" fill="#f59e0b" />
+                    </marker>
+                </defs>
+                {lines}
+            </>
+        );
     };
 
     return (
