@@ -80,7 +80,8 @@ export async function getDiaries(
   })) as SiteDiaryWithCounts[];
 }
 
-/** Fetch a single diary with all related rows. */
+/** Fetch a single diary with all related rows. Photos are returned without signed URLs;
+ *  call getDiaryPhotoUrls() separately on the detail view mount to get fresh 7-day signed URLs. */
 export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {
   const { data, error } = await supabase
     .from("site_diaries")
@@ -95,10 +96,9 @@ export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {
 
   const diary = data as SiteDiary;
 
-  const [labor, equipment, photos] = await Promise.all([
+  const [labor, equipment] = await Promise.all([
     getLabor(id),
     getEquipment(id),
-    getPhotos(id),
   ]);
 
   return {
@@ -106,7 +106,7 @@ export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {
     weather: (diary.weather as unknown as WeatherSnapshot) ?? DEFAULT_WEATHER,
     labor,
     equipment,
-    photos,
+    photos: [],
   };
 }
 
@@ -314,7 +314,7 @@ export async function deleteEquipment(equipmentId: string): Promise<void> {
 // ─────────────────────────────────────────────
 
 const BUCKET = "diary_media";
-const SIGNED_URL_TTL = 60 * 60; // 1 hour
+const SIGNED_URL_TTL = 60 * 60; // 1 hour (used for temporary URLs when needed)
 
 /** Upload a photo file to storage and insert a record into site_diary_photos. */
 export async function uploadPhoto(
@@ -390,6 +390,42 @@ export async function getPhotos(diaryId: string): Promise<SiteDiaryPhoto[]> {
     ...p,
     signedUrl: urlMap.get(p.storage_path) ?? undefined,
   }));
+}
+
+/**
+ * Fetch photo records with fresh 7-day signed URLs by calling the
+ * `get-diary-photo-urls` Edge Function. Call this on diary detail view mount
+ * instead of relying on any cached or bundled URLs.
+ */
+export async function getDiaryPhotoUrls(diaryId: string): Promise<SiteDiaryPhoto[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl || !token) {
+    // Fall back to client-side signed URL generation if env/auth not available
+    return getPhotos(diaryId);
+  }
+
+  const res = await fetch(
+    `${supabaseUrl}/functions/v1/get-diary-photo-urls`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ diary_id: diaryId }),
+    }
+  );
+
+  if (!res.ok) {
+    console.warn("[diary/client] get-diary-photo-urls returned", res.status, "— falling back to client-side generation");
+    return getPhotos(diaryId);
+  }
+
+  const json = await res.json() as { photos?: SiteDiaryPhoto[] };
+  return json.photos ?? [];
 }
 
 export async function deletePhoto(photo: SiteDiaryPhoto): Promise<void> {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getDiaryById } from "@/lib/diary/client";
+import { getDiaryById, getDiaryPhotoUrls } from "@/lib/diary/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryFull } from "@/lib/diary/types";
 import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/diary/types";
@@ -33,13 +33,18 @@ export default function DiaryDetailPage() {
   useEffect(() => {
     if (!diaryId) return;
     setBusy(true);
+
     getDiaryById(diaryId)
-      .then((data) => {
+      .then(async (data) => {
         if (!data) {
           setError("Diary not found.");
-        } else {
-          setDiary(data);
+          return;
         }
+        // Load diary content first so the page renders immediately,
+        // then fetch fresh 7-day signed URLs for photos via the Edge Function.
+        setDiary(data);
+        const photos = await getDiaryPhotoUrls(diaryId);
+        setDiary((prev) => prev ? { ...prev, photos } : prev);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load diary."))
       .finally(() => setBusy(false));
