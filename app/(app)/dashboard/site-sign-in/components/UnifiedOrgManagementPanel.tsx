@@ -2,6 +2,7 @@
 
 import { useOrgManagement } from "./useOrgManagement";
 import { Organisation, OrgMember, Site, OrgJoinRequest } from "./types";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface OrgManagementPanelProps {
   org: Organisation;
@@ -22,7 +23,8 @@ const TABS: { id: TabId; name: string; icon: string }[] = [
 
 export function UnifiedOrgManagementPanel(props: OrgManagementPanelProps) {
   const state = useOrgManagement(props.org, props.member, props.orgSites, props.onOrgDeleted, props.onOrgUpdated);
-  const { isAdmin, activeTab, setActiveTab, isCollapsed, setIsCollapsed, loading, error, success, setError, setSuccess } = state;
+  const { isAdmin, activeTab, setActiveTab, isCollapsed, setIsCollapsed, loading, error, success, setError, setSuccess,
+    showDeleteOrgConfirm, setShowDeleteOrgConfirm, confirmDeleteOrganisation } = state;
 
   if (!isAdmin) return null;
 
@@ -103,6 +105,15 @@ export function UnifiedOrgManagementPanel(props: OrgManagementPanelProps) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showDeleteOrgConfirm}
+        title="Delete Organisation?"
+        description="This will permanently delete the organization, all sites, and all visit data. This cannot be undone."
+        confirmLabel="Delete Organisation"
+        onConfirm={confirmDeleteOrganisation}
+        onCancel={() => setShowDeleteOrgConfirm(false)}
+      />
     </div>
   );
 }

@@ -270,8 +270,14 @@ export function useOrgManagement(
         fetchMembers();
     }
 
-    async function deleteOrganisation() {
-        if (!confirm("Are you sure? This will permanently delete the organization, all sites, and all visit data. This cannot be undone.")) return;
+    const [showDeleteOrgConfirm, setShowDeleteOrgConfirm] = useState(false);
+
+    function deleteOrganisation() {
+        setShowDeleteOrgConfirm(true);
+    }
+
+    async function confirmDeleteOrganisation() {
+        setShowDeleteOrgConfirm(false);
         setLoading(true);
         const { error } = await supabase.from("organisations").delete().eq("id", org.id);
         setLoading(false);
@@ -296,6 +302,6 @@ export function useOrgManagement(
         // Join requests
         joinRequests, approveJoinRequest, rejectJoinRequest,
         // Danger
-        deleteOrganisation,
+        deleteOrganisation, showDeleteOrgConfirm, setShowDeleteOrgConfirm, confirmDeleteOrganisation,
     };
 }
