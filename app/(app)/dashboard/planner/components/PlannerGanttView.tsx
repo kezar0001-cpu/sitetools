@@ -26,11 +26,6 @@ const HEADER_HEIGHT = 56;
 
 export function PlannerGanttView({ tasks, phases, holidays, dependencies }: Props) {
     const [gridWidth, setGridWidth] = useState(340);
-    const [zoomLevel, setZoomLevel] = useState<"day" | "week" | "month" | "quarter">("week");
-    const [showDependencies, setShowDependencies] = useState(true);
-    const [showMilestones, setShowMilestones] = useState(true);
-    const [showTodayLine, setShowTodayLine] = useState(true);
-    const [showHolidays, setShowHolidays] = useState(true);
     const [isResizing, setIsResizing] = useState(false);
     const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
 
