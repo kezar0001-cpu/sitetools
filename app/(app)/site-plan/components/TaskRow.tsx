@@ -1,77 +1,55 @@
 "use client";
 
 import { ChevronRight, ChevronDown } from "lucide-react";
-import type { SitePlanTaskNode } from "@/types/siteplan";
-import { getBarPosition } from "@/types/siteplan";
-import { StatusBadge } from "./StatusBadge";
-
-const statusBarColors: Record<string, string> = {
-  not_started: "bg-slate-300",
-  in_progress: "bg-blue-500",
-  completed: "bg-green-500",
-  delayed: "bg-red-500",
-  on_hold: "bg-amber-400",
-};
-
-const statusProgressColors: Record<string, string> = {
-  not_started: "bg-slate-400",
-  in_progress: "bg-blue-700",
-  completed: "bg-green-700",
-  delayed: "bg-red-700",
-  on_hold: "bg-amber-600",
-};
+import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
+import { STATUS_LABELS } from "@/types/siteplan";
 
 interface TaskRowProps {
   node: SitePlanTaskNode;
+  rowNumber: number;
   expanded: boolean;
   onToggle: () => void;
   onSelect: (task: SitePlanTaskNode) => void;
-  rangeStart: Date;
-  rangeEnd: Date;
 }
 
-const rowStyles = {
-  phase:
-    "bg-slate-100 dark:bg-slate-800 border-l-4 border-blue-500 font-semibold",
-  task: "bg-white dark:bg-slate-900",
-  subtask: "bg-slate-50 dark:bg-slate-850",
+const rowBg: Record<string, string> = {
+  phase: "bg-yellow-50",
+  task: "bg-white",
+  subtask: "bg-white",
 };
 
-const indentPx = {
-  phase: "pl-2",
-  task: "pl-8",
-  subtask: "pl-14",
-};
-
-const textStyles = {
-  phase: "text-sm font-semibold text-slate-900",
-  task: "text-sm font-normal text-slate-800",
-  subtask: "text-xs text-slate-500",
+const statusColor: Record<TaskStatus, string> = {
+  not_started: "text-slate-500",
+  in_progress: "text-blue-600",
+  completed: "text-green-600",
+  delayed: "text-red-600",
+  on_hold: "text-amber-600",
 };
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
+  return new Date(d).toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
   });
 }
 
 export function TaskRow({
   node,
+  rowNumber,
   expanded,
   onToggle,
   onSelect,
-  rangeStart,
-  rangeEnd,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
-  const bar = getBarPosition(node.start_date, node.end_date, rangeStart, rangeEnd);
-  const barColor = statusBarColors[node.status] ?? "bg-slate-300";
-  const progressColor = statusProgressColors[node.status] ?? "bg-slate-400";
+  const isPhase = node.type === "phase";
+
+  // Indent depth: phase=0, task=1, subtask=2
+  const indentLevel = node.type === "phase" ? 0 : node.type === "task" ? 1 : 2;
 
   return (
     <div
-      className={`flex items-center border-b border-slate-100 cursor-pointer hover:bg-slate-50/80 transition-colors min-h-[44px] ${rowStyles[node.type]}`}
+      className={`flex items-center border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors min-h-[38px] ${rowBg[node.type]}`}
       onClick={() => onSelect(node)}
       role="button"
       tabIndex={0}
@@ -79,90 +57,159 @@ export function TaskRow({
         if (e.key === "Enter" || e.key === " ") onSelect(node);
       }}
     >
-      {/* Left: task info columns */}
-      <div className="flex items-center gap-1 py-2 px-2 min-w-0 w-[55%] md:w-[50%] shrink-0">
-        {/* Indent + chevron */}
-        <div className={`flex items-center shrink-0 ${indentPx[node.type]}`}>
-          {hasChildren ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle();
-              }}
-              className="p-0.5 rounded hover:bg-slate-200 min-w-[24px] min-h-[24px] flex items-center justify-center"
-              aria-label={expanded ? "Collapse" : "Expand"}
-            >
-              {expanded ? (
-                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-              ) : (
-                <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-              )}
-            </button>
-          ) : (
-            <span className="w-6" />
-          )}
-        </div>
+      {/* Row number */}
+      <div className="w-10 shrink-0 text-center text-xs text-slate-400 tabular-nums border-r border-slate-200">
+        {rowNumber}
+      </div>
 
-        {/* Task name */}
-        <span className={`truncate ${textStyles[node.type]}`}>
+      {/* Task Name — with indent + expand chevron */}
+      <div className="flex items-center min-w-0 flex-1 border-r border-slate-200 px-2 py-1.5">
+        {/* Indent spacer */}
+        {indentLevel > 0 && (
+          <span
+            style={{ width: `${indentLevel * 20}px` }}
+            className="shrink-0"
+          />
+        )}
+
+        {/* Expand/collapse */}
+        {hasChildren ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            className="p-0.5 rounded hover:bg-slate-200 min-w-[20px] min-h-[20px] flex items-center justify-center shrink-0 mr-1"
+            aria-label={expanded ? "Collapse" : "Expand"}
+          >
+            {expanded ? (
+              <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+            )}
+          </button>
+        ) : (
+          <span className="w-5 shrink-0 mr-1" />
+        )}
+
+        {/* Name */}
+        <span
+          className={`truncate text-sm ${
+            isPhase
+              ? "font-bold text-slate-900"
+              : "font-normal text-slate-700"
+          }`}
+        >
           {node.name}
         </span>
       </div>
 
       {/* Duration */}
-      <span className="hidden md:flex text-xs text-slate-400 tabular-nums w-14 shrink-0 justify-center">
-        {node.duration_days}d
-      </span>
-
-      {/* Start date */}
-      <span className="text-xs text-slate-400 tabular-nums w-16 md:w-20 shrink-0 text-center">
-        {formatDate(node.start_date)}
-      </span>
-
-      {/* End date */}
-      <span className="text-xs text-slate-400 tabular-nums w-16 md:w-20 shrink-0 text-center">
-        {formatDate(node.end_date)}
-      </span>
-
-      {/* Inline mini Gantt bar — desktop only */}
-      <div className="hidden md:flex flex-1 items-center px-3 min-w-0">
-        <div className="relative w-full h-5 bg-slate-50 rounded overflow-hidden">
-          {/* Task bar */}
-          <div
-            className={`absolute top-0 h-full rounded ${barColor} opacity-50`}
-            style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
-          />
-          {/* Progress fill inside bar */}
-          {node.progress > 0 && (
-            <div
-              className={`absolute top-0 h-full rounded-l ${progressColor}`}
-              style={{
-                left: `${bar.left}%`,
-                width: `${bar.width * (node.progress / 100)}%`,
-              }}
-            />
-          )}
-        </div>
+      <div className="w-16 shrink-0 text-center text-xs tabular-nums border-r border-slate-200 py-1.5">
+        <span className={isPhase ? "font-bold text-slate-900" : "text-slate-600"}>
+          {node.duration_days}d
+        </span>
       </div>
 
-      {/* Status badge — mobile visible, compact */}
-      <div className="md:hidden px-2 shrink-0">
-        <StatusBadge status={node.status} />
+      {/* Start Date */}
+      <div className="w-20 shrink-0 text-center text-xs tabular-nums border-r border-slate-200 py-1.5">
+        <span className={isPhase ? "font-bold text-slate-900" : "text-slate-600"}>
+          {formatDate(node.start_date)}
+        </span>
+      </div>
+
+      {/* End Date */}
+      <div className="w-20 shrink-0 text-center text-xs tabular-nums border-r border-slate-200 py-1.5">
+        <span className={isPhase ? "font-bold text-red-600" : "text-slate-600"}>
+          {formatDate(node.end_date)}
+        </span>
+      </div>
+
+      {/* Predecessors — desktop only */}
+      <div className="hidden lg:block w-24 shrink-0 text-center text-xs text-slate-500 border-r border-slate-200 py-1.5 truncate px-1">
+        {node.predecessors || ""}
+      </div>
+
+      {/* % Complete */}
+      <div className="w-16 shrink-0 text-center text-xs tabular-nums border-r border-slate-200 py-1.5">
+        <span className={isPhase ? "font-bold text-red-600" : "text-slate-600"}>
+          {node.progress}%
+        </span>
+      </div>
+
+      {/* Status — desktop only */}
+      <div className="hidden md:block w-20 shrink-0 text-center text-xs border-r border-slate-200 py-1.5 truncate">
+        <span className={statusColor[node.status]}>
+          {STATUS_LABELS[node.status]}
+        </span>
+      </div>
+
+      {/* Assigned To — desktop only */}
+      <div className="hidden lg:block w-24 shrink-0 text-xs text-slate-500 border-r border-slate-200 py-1.5 truncate px-1 text-center">
+        {node.assigned_to || node.responsible || ""}
+      </div>
+
+      {/* Comments — desktop only */}
+      <div className="hidden xl:block w-28 shrink-0 text-xs text-slate-500 py-1.5 truncate px-2">
+        {node.comments || ""}
       </div>
     </div>
   );
 }
 
-/** Column header for the task list */
+/** Column header matching MS Project spreadsheet style */
 export function TaskListHeader() {
   return (
-    <div className="flex items-center border-b-2 border-slate-200 bg-slate-50 text-xs font-medium text-slate-500 uppercase tracking-wider min-h-[36px]">
-      <div className="w-[55%] md:w-[50%] shrink-0 px-2 py-2">Task Name</div>
-      <div className="hidden md:flex w-14 shrink-0 justify-center">Dur.</div>
-      <div className="w-16 md:w-20 shrink-0 text-center">Start</div>
-      <div className="w-16 md:w-20 shrink-0 text-center">End</div>
-      <div className="hidden md:flex flex-1 px-3 justify-center">Gantt</div>
-      <div className="md:hidden px-2 shrink-0">Status</div>
+    <div className="flex items-center border-b-2 border-slate-300 bg-slate-100 text-xs font-semibold text-slate-600 min-h-[36px] sticky top-0 z-10">
+      {/* Row # */}
+      <div className="w-10 shrink-0 text-center border-r border-slate-300 py-2">
+        #
+      </div>
+
+      {/* Task Name */}
+      <div className="flex-1 min-w-0 px-2 py-2 border-r border-slate-300">
+        Task Name
+      </div>
+
+      {/* Duration */}
+      <div className="w-16 shrink-0 text-center py-2 border-r border-slate-300">
+        Duration
+      </div>
+
+      {/* Start Date */}
+      <div className="w-20 shrink-0 text-center py-2 border-r border-slate-300">
+        Start Date
+      </div>
+
+      {/* End Date */}
+      <div className="w-20 shrink-0 text-center py-2 border-r border-slate-300">
+        End Date
+      </div>
+
+      {/* Predecessors */}
+      <div className="hidden lg:block w-24 shrink-0 text-center py-2 border-r border-slate-300">
+        Predecessors
+      </div>
+
+      {/* % Complete */}
+      <div className="w-16 shrink-0 text-center py-2 border-r border-slate-300">
+        % Complete
+      </div>
+
+      {/* Status */}
+      <div className="hidden md:block w-20 shrink-0 text-center py-2 border-r border-slate-300">
+        Status
+      </div>
+
+      {/* Assigned To */}
+      <div className="hidden lg:block w-24 shrink-0 text-center py-2 border-r border-slate-300">
+        Assigned To
+      </div>
+
+      {/* Comments */}
+      <div className="hidden xl:block w-28 shrink-0 text-center py-2">
+        Comments
+      </div>
     </div>
   );
 }

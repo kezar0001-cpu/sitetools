@@ -28,7 +28,10 @@ export interface SitePlanTask {
   actual_end: string | null;
   progress: number;
   duration_days: number;
+  predecessors: string | null;
   responsible: string | null;
+  assigned_to: string | null;
+  comments: string | null;
   notes: string | null;
   sort_order: number;
   created_at: string;
@@ -60,7 +63,10 @@ export interface CreateTaskPayload {
   type: TaskType;
   start_date: string;
   end_date: string;
+  predecessors?: string;
   responsible?: string;
+  assigned_to?: string;
+  comments?: string;
   notes?: string;
   sort_order?: number;
 }
@@ -73,7 +79,10 @@ export interface UpdateTaskPayload {
   actual_start?: string | null;
   actual_end?: string | null;
   progress?: number;
+  predecessors?: string | null;
   responsible?: string | null;
+  assigned_to?: string | null;
+  comments?: string | null;
   notes?: string | null;
   sort_order?: number;
 }
@@ -85,7 +94,10 @@ export interface ImportedRow {
   start_date: string;
   end_date: string;
   duration: number;
+  predecessors: string;
   responsible: string;
+  assigned_to: string;
+  comments: string;
   outline_level: number;
 }
 

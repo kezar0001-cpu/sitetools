@@ -34,7 +34,10 @@ export function TaskEditPanel({
     end_date: task.end_date,
     actual_start: task.actual_start,
     actual_end: task.actual_end,
+    predecessors: task.predecessors,
     responsible: task.responsible,
+    assigned_to: task.assigned_to,
+    comments: task.comments,
     notes: task.notes,
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -54,11 +57,15 @@ export function TaskEditPanel({
       end_date: task.end_date,
       actual_start: task.actual_start,
       actual_end: task.actual_end,
+      predecessors: task.predecessors,
       responsible: task.responsible,
+      assigned_to: task.assigned_to,
+      comments: task.comments,
       notes: task.notes,
     });
     setConfirmDelete(false);
-  }, [task.id, task.name, task.status, task.progress, task.start_date, task.end_date, task.actual_start, task.actual_end, task.responsible, task.notes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id]);
 
   const handleSave = () => {
     // If progress changed, log it
@@ -212,6 +219,34 @@ export function TaskEditPanel({
             </div>
           </div>
 
+          {/* Predecessors */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Predecessors
+            </label>
+            <input
+              type="text"
+              value={form.predecessors ?? ""}
+              onChange={(e) => set("predecessors", e.target.value || null)}
+              placeholder="e.g. 1, 3FS+2d"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+            />
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Assigned To
+            </label>
+            <input
+              type="text"
+              value={form.assigned_to ?? ""}
+              onChange={(e) => set("assigned_to", e.target.value || null)}
+              placeholder="Person or team"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+            />
+          </div>
+
           {/* Responsible */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
@@ -223,6 +258,20 @@ export function TaskEditPanel({
               onChange={(e) => set("responsible", e.target.value || null)}
               placeholder="Name or trade"
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+            />
+          </div>
+
+          {/* Comments */}
+          <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1">
+              Comments
+            </label>
+            <textarea
+              value={form.comments ?? ""}
+              onChange={(e) => set("comments", e.target.value || null)}
+              rows={2}
+              placeholder="Add comments..."
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none"
             />
           </div>
 
