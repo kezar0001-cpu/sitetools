@@ -14,6 +14,10 @@ COMMENT ON COLUMN public.sites.is_active
 ALTER TYPE public.diary_status ADD VALUE IF NOT EXISTS 'approved';
 ALTER TYPE public.diary_status ADD VALUE IF NOT EXISTS 'rejected';
 
+-- Enum ADD VALUE must be committed before the new values can be referenced.
+COMMIT;
+BEGIN;
+
 ALTER TABLE public.site_diaries
   ADD COLUMN IF NOT EXISTS submitted_at   timestamptz,
   ADD COLUMN IF NOT EXISTS submitted_by   uuid REFERENCES auth.users(id) ON DELETE SET NULL,

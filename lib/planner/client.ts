@@ -35,7 +35,7 @@ export async function fetchPlannerPlans(companyId: string): Promise<PlannerPlanW
       return (fallbackData ?? []).map((p) => ({
         ...(p as Record<string, unknown>),
         project_plan_sites: [],
-      })) as PlannerPlanWithContext[];
+      })) as unknown as PlannerPlanWithContext[];
     }
 
     // If projects FK also missing, fall back to plain select
@@ -50,7 +50,7 @@ export async function fetchPlannerPlans(companyId: string): Promise<PlannerPlanW
       ...(p as Record<string, unknown>),
       projects: null,
       project_plan_sites: [],
-    })) as PlannerPlanWithContext[];
+    })) as unknown as PlannerPlanWithContext[];
   }
 
   throw error;
@@ -79,7 +79,7 @@ export async function fetchProjectPlans(projectId: string): Promise<PlannerPlanW
       return (fallbackData ?? []).map((p) => ({
         ...(p as Record<string, unknown>),
         project_plan_sites: [],
-      })) as PlannerPlanWithContext[];
+      })) as unknown as PlannerPlanWithContext[];
     }
   }
 
