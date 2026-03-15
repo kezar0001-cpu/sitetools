@@ -250,3 +250,101 @@ export function useBulkCreateTasks() {
     },
   });
 }
+
+/**
+ * Hierarchical bulk import: inserts tasks in waves so parent UUIDs exist
+ * before child rows reference them.
+ *
+ * Each item in `tasks` must include a `_tempIndex` (its position in the flat
+ * list) and a `_parentIndex` (the _tempIndex of its parent, or -1 for roots).
+ * The hook resolves these to real parent_id UUIDs during insertion.
+ */
+export interface HierarchicalTask
+  extends Omit<CreateTaskPayload, "project_id"> {
+  _tempIndex: number;
+  _parentIndex: number;
+}
+
+export function useHierarchicalImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      tasks,
+    }: {
+      projectId: string;
+      tasks: HierarchicalTask[];
+    }) => {
+      // Map from _tempIndex → real UUID (filled as we insert)
+      const indexToId = new Map<number, string>();
+      const allInserted: SitePlanTask[] = [];
+
+      // Group tasks into waves by depth: roots first, then their children, etc.
+      // A task is "ready" when its _parentIndex is -1 or already in indexToId.
+      const remaining = [...tasks];
+      let safety = 0;
+      const MAX_WAVES = 20;
+
+      while (remaining.length > 0 && safety < MAX_WAVES) {
+        safety++;
+        const ready: HierarchicalTask[] = [];
+        const deferred: HierarchicalTask[] = [];
+
+        for (const t of remaining) {
+          if (
+            t._parentIndex === -1 ||
+            indexToId.has(t._parentIndex)
+          ) {
+            ready.push(t);
+          } else {
+            deferred.push(t);
+          }
+        }
+
+        if (ready.length === 0) {
+          // Remaining tasks have unresolvable parents — insert as roots
+          for (const t of deferred) {
+            ready.push({ ...t, _parentIndex: -1 });
+          }
+          deferred.length = 0;
+        }
+
+        // Build insert rows with resolved parent_id
+        const rows = ready.map((t) => {
+          const parentId =
+            t._parentIndex >= 0
+              ? indexToId.get(t._parentIndex) ?? null
+              : null;
+          // Strip internal fields
+          const { _tempIndex, _parentIndex, ...rest } = t;
+          void _tempIndex;
+          void _parentIndex;
+          return { ...rest, project_id: projectId, parent_id: parentId };
+        });
+
+        const { data, error } = await supabase
+          .from("siteplan_tasks")
+          .insert(rows)
+          .select();
+        if (error) throw error;
+
+        // Map returned IDs back to temp indices
+        const inserted = (data ?? []) as SitePlanTask[];
+        for (let i = 0; i < inserted.length; i++) {
+          indexToId.set(ready[i]._tempIndex, inserted[i].id);
+          allInserted.push(inserted[i]);
+        }
+
+        remaining.length = 0;
+        remaining.push(...deferred);
+      }
+
+      return allInserted;
+    },
+    onSuccess: (data) => {
+      if (data.length > 0) {
+        qc.invalidateQueries({ queryKey: tasksKey(data[0].project_id) });
+      }
+    },
+  });
+}

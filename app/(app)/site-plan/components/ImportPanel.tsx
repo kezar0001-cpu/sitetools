@@ -2,8 +2,9 @@
 
 import { useState, useRef } from "react";
 import { X, AlertCircle, Check, FileSpreadsheet } from "lucide-react";
-import type { ImportedRow, TaskType, CreateTaskPayload } from "@/types/siteplan";
-import { useBulkCreateTasks } from "@/hooks/useSitePlanTasks";
+import type { ImportedRow, TaskType } from "@/types/siteplan";
+import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
+import type { HierarchicalTask } from "@/hooks/useSitePlanTasks";
 
 interface ImportPanelProps {
   projectId: string;
@@ -308,7 +309,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [imported, setImported] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const bulkCreate = useBulkCreateTasks();
+  const hierarchicalImport = useHierarchicalImport();
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -336,13 +337,16 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
       .toISOString()
       .split("T")[0];
 
-    // Build parent references from hierarchy
-    const parentStack: { name: string; id?: string; level: number }[] = [];
-    const payloads: Omit<CreateTaskPayload, "project_id">[] = [];
+    // Build hierarchical tasks with _tempIndex and _parentIndex.
+    // We use a stack that tracks the outline_level → _tempIndex mapping
+    // so each row knows who its parent is.
+    const parentStack: { level: number; tempIndex: number }[] = [];
+    const tasks: HierarchicalTask[] = [];
 
-    let sortOrder = 0;
-    for (const row of rows) {
-      // Figure out parent from outline level
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+
+      // Pop stack until we find a parent whose level is strictly less
       while (
         parentStack.length > 0 &&
         parentStack[parentStack.length - 1].level >= row.outline_level
@@ -350,7 +354,14 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
         parentStack.pop();
       }
 
-      payloads.push({
+      const parentIndex =
+        parentStack.length > 0
+          ? parentStack[parentStack.length - 1].tempIndex
+          : -1;
+
+      tasks.push({
+        _tempIndex: i,
+        _parentIndex: parentIndex,
         name: row.name,
         type: row.type,
         start_date: row.start_date || today,
@@ -359,14 +370,14 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
         responsible: row.responsible || undefined,
         assigned_to: row.assigned_to || undefined,
         comments: row.comments || undefined,
-        sort_order: sortOrder++,
+        sort_order: i,
       });
 
-      parentStack.push({ name: row.name, level: row.outline_level });
+      parentStack.push({ level: row.outline_level, tempIndex: i });
     }
 
-    bulkCreate.mutate(
-      { projectId, tasks: payloads },
+    hierarchicalImport.mutate(
+      { projectId, tasks },
       {
         onSuccess: () => setImported(true),
         onError: (err) =>
@@ -502,10 +513,10 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
 
           <button
             onClick={handleImport}
-            disabled={bulkCreate.isPending}
+            disabled={hierarchicalImport.isPending}
             className="w-full py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg min-h-[44px]"
           >
-            {bulkCreate.isPending
+            {hierarchicalImport.isPending
               ? "Importing..."
               : `Import ${rows.length} tasks`}
           </button>
