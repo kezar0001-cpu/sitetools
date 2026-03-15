@@ -125,7 +125,57 @@ function normalizeMembershipCompany(value: MembershipRow["companies"]): Company 
   return (value ?? null) as Company | null;
 }
 
+/**
+ * Loads the full workspace summary for `userId` using the `get_workspace_summary`
+ * Supabase RPC.  The function joins profiles, company_memberships, and companies
+ * server-side and auto-corrects `active_company_id` when needed, so the entire
+ * operation completes in a single round-trip.
+ *
+ * Falls back to `loadWorkspaceSummaryLegacy` when the RPC is not yet deployed
+ * (e.g. migration pending in a local or staging environment).
+ */
 export async function loadWorkspaceSummary(userId: string, email?: string | null): Promise<WorkspaceSummary> {
+  const { data, error } = await supabase.rpc("get_workspace_summary");
+
+  if (error) {
+    // PGRST202 = function not found in PostgREST schema cache.
+    // Fall back gracefully so local/staging environments without the migration
+    // still work.
+    if (error.code === "PGRST202" || isMissingTableError(error, "get_workspace_summary")) {
+      return loadWorkspaceSummaryLegacy(userId, email);
+    }
+    throw error;
+  }
+
+  if (!data) {
+    return loadWorkspaceSummaryLegacy(userId, email);
+  }
+
+  const result = data as { profile: Profile | null; memberships: CompanyMembership[] };
+
+  const profile: Profile = result.profile ?? buildFallbackProfile(userId, email);
+
+  const memberships: CompanyMembership[] = (result.memberships ?? []).map((row) => {
+    const membership = row as MembershipRow;
+    return {
+      ...membership,
+      companies: normalizeMembershipCompany(membership.companies),
+    };
+  });
+
+  // active_company_id is already corrected server-side by get_workspace_summary,
+  // so pickActiveMembership will always resolve when memberships exist.
+  const activeMembership = pickActiveMembership(memberships, profile.active_company_id);
+
+  return { userId, profile, memberships, activeMembership };
+}
+
+/**
+ * Legacy fallback for environments where the get_workspace_summary RPC is not
+ * yet deployed.  Retained to keep local/staging development working during the
+ * migration window.  Remove once the migration has been applied everywhere.
+ */
+async function loadWorkspaceSummaryLegacy(userId: string, email?: string | null): Promise<WorkspaceSummary> {
   const ensuredProfile = await ensureProfile(userId, email);
 
   const membershipsRes = await supabase
@@ -189,12 +239,7 @@ export async function loadWorkspaceSummary(userId: string, email?: string | null
     activeMembership = fallback;
   }
 
-  return {
-    userId,
-    memberships,
-    activeMembership,
-    profile,
-  };
+  return { userId, memberships, activeMembership, profile };
 }
 
 export async function setActiveCompany(companyId: string): Promise<void> {
