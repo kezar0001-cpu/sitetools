@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronRight, ChevronDown, GripVertical } from "lucide-react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
+import { ProgressBar } from "./ProgressSlider";
 
 interface TaskRowProps {
   node: SitePlanTaskNode;
@@ -11,7 +12,7 @@ interface TaskRowProps {
   expanded: boolean;
   onToggle: () => void;
   onSelect: (task: SitePlanTaskNode) => void;
-  dragProvided?: DraggableProvided;
+  dragHandleProps?: DraggableProvided["dragHandleProps"];
   isDragging?: boolean;
 }
 
@@ -85,7 +86,7 @@ export function TaskRow({
   expanded,
   onToggle,
   onSelect,
-  dragProvided,
+  dragHandleProps,
   isDragging,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
@@ -102,9 +103,7 @@ export function TaskRow({
 
   return (
     <div
-      ref={dragProvided?.innerRef}
-      {...(dragProvided?.draggableProps ?? {})}
-      className={`flex items-center border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
+      className={`hidden md:flex items-center border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
       onClick={() => onSelect(node)}
       role="button"
       tabIndex={0}
@@ -114,7 +113,7 @@ export function TaskRow({
     >
       {/* Drag handle */}
       <div
-        {...(dragProvided?.dragHandleProps ?? {})}
+        {...(dragHandleProps ?? {})}
         className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -225,7 +224,7 @@ export function TaskRow({
 /** Column header matching MS Project spreadsheet style */
 export function TaskListHeader() {
   return (
-    <div className="flex items-center border-b-2 border-slate-300 bg-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider min-h-[32px] sticky top-0 z-10">
+    <div className="hidden md:flex items-center border-b-2 border-slate-300 bg-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider min-h-[32px] sticky top-0 z-10">
       {/* Drag handle spacer */}
       <div className="w-7 shrink-0" />
 
@@ -273,6 +272,195 @@ export function TaskListHeader() {
       <div className="hidden lg:block w-24 shrink-0 text-center py-1.5">
         Assigned
       </div>
+    </div>
+  );
+}
+
+// ─── Mobile Card View ───────────────────────────────────────
+
+const typeBadgeCls: Record<string, string> = {
+  phase: "bg-slate-700 text-white",
+  task: "bg-slate-100 text-slate-600",
+  subtask: "bg-slate-50 text-slate-400",
+};
+
+interface MobileTaskCardProps {
+  node: SitePlanTaskNode;
+  onSelect: (task: SitePlanTaskNode) => void;
+  mobileExpanded: boolean;
+  onToggleMobileExpand: () => void;
+  dragHandleProps?: DraggableProvided["dragHandleProps"];
+  isDragging?: boolean;
+}
+
+export function MobileTaskCard({
+  node,
+  onSelect,
+  mobileExpanded,
+  onToggleMobileExpand,
+  dragHandleProps,
+  isDragging,
+}: MobileTaskCardProps) {
+  const isPhase = node.type === "phase";
+  const person = node.assigned_to || node.responsible || null;
+
+  return (
+    <div
+      className={`md:hidden border-b border-slate-200 ${
+        isPhase ? "bg-slate-800" : "bg-white"
+      } ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""}`}
+    >
+      {/* Primary row — always visible */}
+      <div className="flex items-center gap-2 px-3 py-3 min-h-[56px]">
+        {/* Drag handle */}
+        <div
+          {...(dragHandleProps ?? {})}
+          className={`shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-grab active:cursor-grabbing ${
+            isPhase ? "text-slate-500" : "text-slate-300"
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+
+        {/* Name + status + progress */}
+        <button
+          className="flex-1 min-w-0 text-left"
+          onClick={() => onSelect(node)}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${typeBadgeCls[node.type]}`}
+            >
+              {node.type === "phase" ? "PH" : node.type === "task" ? "T" : "ST"}
+            </span>
+            <span
+              className={`truncate text-sm ${
+                isPhase
+                  ? "font-bold text-white"
+                  : node.type === "subtask"
+                    ? "text-slate-500"
+                    : "font-medium text-slate-900"
+              }`}
+            >
+              {node.name}
+            </span>
+            <span
+              className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${
+                isPhase
+                  ? statusBadgePhase[node.status]
+                  : statusBadgeCls[node.status]
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${statusDot[node.status]}`}
+              />
+              {STATUS_LABELS[node.status]}
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mt-2 flex items-center gap-2">
+            <ProgressBar value={node.progress} className="flex-1" />
+            <span
+              className={`text-xs font-semibold tabular-nums shrink-0 ${
+                isPhase
+                  ? "text-slate-300"
+                  : node.progress >= 100
+                    ? "text-green-600"
+                    : "text-slate-600"
+              }`}
+            >
+              {node.progress}%
+            </span>
+          </div>
+        </button>
+
+        {/* Expand/collapse toggle */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleMobileExpand();
+          }}
+          className={`shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg ${
+            isPhase ? "hover:bg-slate-700" : "hover:bg-slate-100"
+          }`}
+          aria-label={mobileExpanded ? "Show less" : "Show more"}
+        >
+          {mobileExpanded ? (
+            <ChevronDown
+              className={`h-5 w-5 ${isPhase ? "text-slate-400" : "text-slate-400"}`}
+            />
+          ) : (
+            <ChevronRight
+              className={`h-5 w-5 ${isPhase ? "text-slate-400" : "text-slate-400"}`}
+            />
+          )}
+        </button>
+      </div>
+
+      {/* Expanded details */}
+      {mobileExpanded && (
+        <div
+          className={`px-3 pb-3 pt-0 space-y-2 ${
+            isPhase ? "text-slate-300" : "text-slate-600"
+          }`}
+        >
+          {/* Dates + Duration */}
+          <div className="flex items-center gap-3 text-xs flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 opacity-50" />
+              {formatDate(node.start_date)} – {formatDate(node.end_date)}
+            </span>
+            <span className="opacity-50">·</span>
+            <span>{node.duration_days}d</span>
+          </div>
+
+          {/* Responsible / Assigned */}
+          {person && (
+            <div className="flex items-center gap-1 text-xs">
+              <User className="h-3.5 w-3.5 opacity-50" />
+              <span>{person}</span>
+            </div>
+          )}
+
+          {/* Predecessors */}
+          {node.predecessors && (
+            <div className="text-xs">
+              <span className="opacity-50">Predecessors: </span>
+              {node.predecessors}
+            </div>
+          )}
+
+          {/* Comments */}
+          {node.comments && (
+            <div className="text-xs">
+              <span className="opacity-50">Comments: </span>
+              <span className="line-clamp-2">{node.comments}</span>
+            </div>
+          )}
+
+          {/* Notes */}
+          {node.notes && (
+            <div className="text-xs">
+              <span className="opacity-50">Notes: </span>
+              <span className="line-clamp-2">{node.notes}</span>
+            </div>
+          )}
+
+          {/* Tap to edit CTA */}
+          <button
+            onClick={() => onSelect(node)}
+            className={`w-full text-center text-xs font-medium py-2.5 rounded-lg min-h-[44px] ${
+              isPhase
+                ? "bg-slate-700 text-slate-200 active:bg-slate-600"
+                : "bg-slate-100 text-slate-700 active:bg-slate-200"
+            }`}
+          >
+            Tap to edit
+          </button>
+        </div>
+      )}
     </div>
   );
 }

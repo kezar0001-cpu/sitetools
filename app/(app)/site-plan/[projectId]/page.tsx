@@ -10,7 +10,7 @@ import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSite
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
-import { TaskRow, TaskListHeader } from "../components/TaskRow";
+import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { InlineTaskInput } from "../components/InlineTaskInput";
 import { ImportPanel } from "../components/ImportPanel";
@@ -126,6 +126,7 @@ function ProjectDetailInner() {
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
+  const [mobileExpandedIds, setMobileExpandedIds] = useState<Set<string>>(new Set());
   const [selectedTask, setSelectedTask] = useState<SitePlanTaskNode | null>(
     null
   );
@@ -175,6 +176,15 @@ function ProjectDetailInner() {
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleMobileExpand = useCallback((id: string) => {
+    setMobileExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -377,7 +387,7 @@ function ProjectDetailInner() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/site-plan")}
-              className="p-1.5 rounded-lg hover:bg-slate-100 min-w-[32px] min-h-[32px] flex items-center justify-center"
+              className="p-1.5 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
             >
               <ChevronLeft className="h-4 w-4 text-slate-400" />
             </button>
@@ -471,7 +481,11 @@ function ProjectDetailInner() {
                         index={idx}
                       >
                         {(dragProvided, dragSnapshot) => (
-                          <div>
+                          <div
+                            ref={dragProvided.innerRef}
+                            {...dragProvided.draggableProps}
+                          >
+                            {/* Desktop: spreadsheet row */}
                             <TaskRow
                               node={node}
                               rowNumber={idx + 1}
@@ -480,7 +494,19 @@ function ProjectDetailInner() {
                               }
                               onToggle={() => toggleExpand(node.id)}
                               onSelect={handleSelect}
-                              dragProvided={dragProvided}
+                              dragHandleProps={dragProvided.dragHandleProps}
+                              isDragging={dragSnapshot.isDragging}
+                            />
+
+                            {/* Mobile: card view */}
+                            <MobileTaskCard
+                              node={node}
+                              onSelect={handleSelect}
+                              mobileExpanded={mobileExpandedIds.has(node.id)}
+                              onToggleMobileExpand={() =>
+                                toggleMobileExpand(node.id)
+                              }
+                              dragHandleProps={dragProvided.dragHandleProps}
                               isDragging={dragSnapshot.isDragging}
                             />
 
