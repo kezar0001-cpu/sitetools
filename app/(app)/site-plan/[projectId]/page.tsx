@@ -3,8 +3,10 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import type { DropResult } from "@hello-pangea/dnd";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
-import { useSitePlanTasks, useUpdateTask } from "@/hooks/useSitePlanTasks";
+import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
@@ -117,6 +119,7 @@ function ProjectDetailInner() {
   const { data: project } = useSitePlanProject(projectId);
   const { data: tasks, isLoading } = useSitePlanTasks(projectId);
   const updateTask = useUpdateTask();
+  const reorderTask = useReorderTask();
   const { data: baselines } = useSitePlanBaselines(projectId);
 
   const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo(updateTask);
@@ -308,6 +311,56 @@ function ProjectDetailInner() {
     router.push(`/site-plan/${projectId}/${view}`);
   };
 
+  // ─── Drag and drop ──────────────────────────────────────────
+
+  const handleDragEnd = useCallback(
+    (result: DropResult) => {
+      const { source, destination } = result;
+      if (!destination || source.index === destination.index) return;
+
+      const rows = [...visibleRows];
+      const [moved] = rows.splice(source.index, 1);
+      rows.splice(destination.index, 0, moved);
+
+      // Determine the new parent_id based on surrounding rows
+      let newParentId: string | null = moved.parent_id;
+      const dest = destination.index;
+
+      if (dest === 0) {
+        // Dropped at top — becomes a root-level item (keep type)
+        newParentId = null;
+      } else {
+        // Look at the row above the destination to infer parent
+        const above = rows[dest - 1];
+        if (moved.type === "subtask") {
+          // Subtask should nest under a task
+          if (above.type === "task") newParentId = above.id;
+          else if (above.type === "subtask") newParentId = above.parent_id;
+          else newParentId = null;
+        } else if (moved.type === "task") {
+          // Task nests under a phase
+          if (above.type === "phase") newParentId = above.id;
+          else if (above.type === "task" || above.type === "subtask")
+            newParentId = above.parent_id;
+          else newParentId = null;
+        } else {
+          // Phase — always root
+          newParentId = null;
+        }
+      }
+
+      // Compute new sort_order values for all affected rows
+      const moves = rows.map((row, idx) => ({
+        id: row.id,
+        sort_order: idx,
+        parent_id: row.id === moved.id ? newParentId : row.parent_id,
+      }));
+
+      reorderTask.mutate({ projectId, moves });
+    },
+    [visibleRows, projectId, reorderTask]
+  );
+
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
@@ -402,32 +455,57 @@ function ProjectDetailInner() {
               )}
             </div>
           ) : (
-            <>
+            <DragDropContext onDragEnd={handleDragEnd}>
               <TaskListHeader />
 
-              {visibleRows.map((node, idx) => (
-                <div key={node.id}>
-                  <TaskRow
-                    node={node}
-                    rowNumber={idx + 1}
-                    expanded={allExpanded || expandedIds.has(node.id)}
-                    onToggle={() => toggleExpand(node.id)}
-                    onSelect={handleSelect}
-                  />
-
-                  {node.type === "phase" &&
-                    (allExpanded || expandedIds.has(node.id)) &&
-                    (idx === visibleRows.length - 1 ||
-                      visibleRows[idx + 1]?.type === "phase") && (
-                      <button
-                        onClick={() => startInlineAdd("task", node.id)}
-                        className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px]"
+              <Droppable droppableId="task-list">
+                {(droppableProvided) => (
+                  <div
+                    ref={droppableProvided.innerRef}
+                    {...droppableProvided.droppableProps}
+                  >
+                    {visibleRows.map((node, idx) => (
+                      <Draggable
+                        key={node.id}
+                        draggableId={node.id}
+                        index={idx}
                       >
-                        + Add Task
-                      </button>
-                    )}
-                </div>
-              ))}
+                        {(dragProvided, dragSnapshot) => (
+                          <div>
+                            <TaskRow
+                              node={node}
+                              rowNumber={idx + 1}
+                              expanded={
+                                allExpanded || expandedIds.has(node.id)
+                              }
+                              onToggle={() => toggleExpand(node.id)}
+                              onSelect={handleSelect}
+                              dragProvided={dragProvided}
+                              isDragging={dragSnapshot.isDragging}
+                            />
+
+                            {!dragSnapshot.isDragging &&
+                              node.type === "phase" &&
+                              (allExpanded || expandedIds.has(node.id)) &&
+                              (idx === visibleRows.length - 1 ||
+                                visibleRows[idx + 1]?.type === "phase") && (
+                                <button
+                                  onClick={() =>
+                                    startInlineAdd("task", node.id)
+                                  }
+                                  className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px]"
+                                >
+                                  + Add Task
+                                </button>
+                              )}
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {droppableProvided.placeholder}
+                  </div>
+                )}
+              </Droppable>
 
               {inlineInput && (
                 <InlineTaskInput
@@ -447,7 +525,7 @@ function ProjectDetailInner() {
                   + Add Phase
                 </button>
               )}
-            </>
+            </DragDropContext>
           )}
         </div>
       </div>

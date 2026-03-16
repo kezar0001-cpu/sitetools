@@ -225,6 +225,55 @@ export function useDeleteTask() {
   });
 }
 
+export function useReorderTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      projectId,
+      moves,
+    }: {
+      projectId: string;
+      moves: { id: string; sort_order: number; parent_id: string | null }[];
+    }) => {
+      // Batch-update all moved rows in a single Promise.all
+      await Promise.all(
+        moves.map(({ id, sort_order, parent_id }) =>
+          supabase
+            .from("siteplan_tasks")
+            .update({ sort_order, parent_id })
+            .eq("id", id)
+            .then(({ error }) => {
+              if (error) throw error;
+            })
+        )
+      );
+    },
+    onMutate: async ({ projectId, moves }) => {
+      await qc.cancelQueries({ queryKey: tasksKey(projectId) });
+      const prev = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId));
+      if (prev) {
+        const moveMap = new Map(moves.map((m) => [m.id, m]));
+        qc.setQueryData(
+          tasksKey(projectId),
+          prev.map((t) => {
+            const m = moveMap.get(t.id);
+            return m ? { ...t, sort_order: m.sort_order, parent_id: m.parent_id } : t;
+          })
+        );
+      }
+      return { prev };
+    },
+    onError: (_err, { projectId }, context) => {
+      if (context?.prev) {
+        qc.setQueryData(tasksKey(projectId), context.prev);
+      }
+    },
+    onSettled: (_data, _err, { projectId }) => {
+      qc.invalidateQueries({ queryKey: tasksKey(projectId) });
+    },
+  });
+}
+
 export function useBulkCreateTasks() {
   const qc = useQueryClient();
   return useMutation({
