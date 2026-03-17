@@ -103,7 +103,7 @@ export function TaskRow({
 
   return (
     <div
-      className={`hidden md:flex items-center border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
+      className={`hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
       onClick={() => onSelect(node)}
       role="button"
       tabIndex={0}
@@ -114,19 +114,19 @@ export function TaskRow({
       {/* Drag handle */}
       <div
         {...(dragHandleProps ?? {})}
-        className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+        className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing self-center ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical className="h-3.5 w-3.5" />
       </div>
 
       {/* Row number */}
-      <div className={`w-8 shrink-0 text-center text-xs tabular-nums border-r ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
+      <div className={`w-8 shrink-0 text-center text-xs tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
         {rowNumber}
       </div>
 
       {/* Task Name — nesting guides + expand chevron */}
-      <div className={`flex items-center min-w-0 flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`flex items-start min-w-0 flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         {/* Vertical nesting guide lines */}
         <NestingGuides depth={indentLevel} />
 
@@ -150,9 +150,9 @@ export function TaskRow({
           <span className="w-5 shrink-0 mr-1" />
         )}
 
-        {/* Name */}
+        {/* Name — wraps to multiple lines */}
         <span
-          className={`truncate text-sm ${text} ${
+          className={`text-sm break-words min-w-0 ${text} ${
             isPhase
               ? "font-bold tracking-wide uppercase"
               : isSubtask
@@ -171,33 +171,33 @@ export function TaskRow({
       </div>
 
       {/* Duration */}
-      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "font-bold text-white" : isSubtask ? "text-slate-400" : "text-slate-600"}>
           {node.duration_days}d
         </span>
       </div>
 
       {/* Start Date */}
-      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={dateCls}>
           {formatDate(node.start_date)}
         </span>
       </div>
 
       {/* End Date */}
-      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "text-red-300 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
           {formatDate(node.end_date)}
         </span>
       </div>
 
       {/* Predecessors — desktop only */}
-      <div className={`hidden lg:block w-24 shrink-0 text-center text-xs border-r py-1.5 truncate px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
-        {node.predecessors || ""}
+      <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+        <span className="break-words min-w-0">{node.predecessors || ""}</span>
       </div>
 
       {/* % Complete */}
-      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "font-bold text-white tabular-nums" : node.progress >= 100 ? "text-green-600 font-semibold tabular-nums" : "text-slate-600 tabular-nums"}>
           {node.progress}%
         </span>
@@ -214,8 +214,8 @@ export function TaskRow({
       </div>
 
       {/* Assigned To — desktop only */}
-      <div className={`hidden lg:block w-24 shrink-0 text-xs py-1.5 truncate px-1 text-center ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
-        {node.assigned_to || node.responsible || ""}
+      <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
+        <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>
       </div>
     </div>
   );
@@ -335,7 +335,7 @@ export function MobileTaskCard({
               {node.type === "phase" ? "PH" : node.type === "task" ? "T" : "ST"}
             </span>
             <span
-              className={`truncate text-sm ${
+              className={`text-sm break-words min-w-0 ${
                 isPhase
                   ? "font-bold text-white"
                   : node.type === "subtask"
