@@ -343,7 +343,7 @@ function ProjectDetailInner() {
 
   // ─── View navigation ─────────────────────────────────────
 
-  const handleViewChange = (view: "list" | "gantt" | "summary") => {
+  const handleViewChange = (view: "list" | "gantt" | "summary" | "daily") => {
     if (view === "list") return; // already on list
     router.push(`/site-plan/${projectId}/${view}`);
   };

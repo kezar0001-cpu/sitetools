@@ -18,6 +18,7 @@ import {
   List,
   PieChart,
   Bookmark,
+  Calendar,
   X,
 } from "lucide-react";
 import type { TaskType, TaskStatus, SitePlanTaskNode } from "@/types/siteplan";
@@ -87,8 +88,8 @@ interface ToolbarProps {
   baselineCount: number;
 
   // View
-  currentView: "list" | "gantt" | "summary";
-  onViewChange: (view: "list" | "gantt" | "summary") => void;
+  currentView: "list" | "gantt" | "summary" | "daily";
+  onViewChange: (view: "list" | "gantt" | "summary" | "daily") => void;
 
   // Fullscreen
   isFullscreen: boolean;
@@ -386,6 +387,17 @@ export function SitePlanToolbar(props: ToolbarProps) {
           }`}
         >
           <BarChart3 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => onViewChange("daily")}
+          title="Daily Summary"
+          className={`p-1.5 ${
+            currentView === "daily"
+              ? "bg-blue-50 text-blue-600"
+              : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          <Calendar className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => onViewChange("summary")}
