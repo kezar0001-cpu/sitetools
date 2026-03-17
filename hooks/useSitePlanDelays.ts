@@ -49,7 +49,7 @@ export function useProjectDelayLogs(projectId: string) {
       // Flatten — the join returns nested but we only need the delay log fields
       return (data ?? []).map((d: Record<string, unknown>) => {
         const { siteplan_tasks: _, ...log } = d;
-        return log as SitePlanDelayLog;
+        return log as unknown as SitePlanDelayLog;
       });
     },
     enabled: !!projectId,
