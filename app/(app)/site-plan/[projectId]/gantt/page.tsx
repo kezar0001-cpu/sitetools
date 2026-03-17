@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
+import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import type { SitePlanTask } from "@/types/siteplan";
 import { GanttWrapper } from "../../components/GanttWrapper";
 import { TaskEditPanel } from "../../components/TaskEditPanel";
@@ -20,6 +21,7 @@ function GanttPageInner() {
 
   const { data: project } = useSitePlanProject(projectId);
   const { data: tasks, isLoading } = useSitePlanTasks(projectId);
+  const { data: delayLogs } = useProjectDelayLogs(projectId);
   const [selectedTask, setSelectedTask] = useState<SitePlanTask | null>(null);
 
   const overallProgress =
@@ -83,6 +85,7 @@ function GanttPageInner() {
           ) : (
             <GanttWrapper
               tasks={tasks ?? []}
+              delayLogs={delayLogs}
               onTaskClick={(t) => setSelectedTask(t)}
             />
           )}

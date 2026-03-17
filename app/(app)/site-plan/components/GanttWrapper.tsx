@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Gantt, Task, ViewMode } from "gantt-task-react";
 import "gantt-task-react/dist/index.css";
-import type { SitePlanTask } from "@/types/siteplan";
+import type { SitePlanTask, SitePlanDelayLog } from "@/types/siteplan";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 
 const statusBarColors: Record<string, { bg: string; bgProgress: string }> = {
@@ -16,11 +16,23 @@ const statusBarColors: Record<string, { bg: string; bgProgress: string }> = {
 
 interface GanttWrapperProps {
   tasks: SitePlanTask[];
+  delayLogs?: SitePlanDelayLog[];
   onTaskClick?: (task: SitePlanTask) => void;
 }
 
-export function GanttWrapper({ tasks, onTaskClick }: GanttWrapperProps) {
+export function GanttWrapper({ tasks, delayLogs, onTaskClick }: GanttWrapperProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
+
+  // Build delay count map
+  const delayCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (delayLogs) {
+      for (const log of delayLogs) {
+        map.set(log.task_id, (map.get(log.task_id) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [delayLogs]);
 
   const ganttTasks: Task[] = useMemo(() => {
     if (tasks.length === 0) return [];
@@ -28,7 +40,11 @@ export function GanttWrapper({ tasks, onTaskClick }: GanttWrapperProps) {
     const flat = flattenTree(tree);
 
     return flat.map((node) => {
-      const colors = statusBarColors[node.status] ?? statusBarColors.not_started;
+      const delayCount = delayCountMap.get(node.id) ?? 0;
+      const hasDelays = delayCount > 0;
+      // If task has delays, force delayed color scheme
+      const effectiveStatus = hasDelays && node.status !== "completed" ? "delayed" : node.status;
+      const colors = statusBarColors[effectiveStatus] ?? statusBarColors.not_started;
       const isPhase = node.type === "phase";
 
       // For phases, compute span from children
@@ -46,9 +62,12 @@ export function GanttWrapper({ tasks, onTaskClick }: GanttWrapperProps) {
         end = new Date(start.getTime() + 86400000);
       }
 
+      // Show delay indicator in task name
+      const delayBadge = hasDelays ? ` [${delayCount} delay${delayCount !== 1 ? "s" : ""}]` : "";
+
       return {
         id: node.id,
-        name: `${node.wbs_code} ${node.name}`,
+        name: `${node.wbs_code} ${node.name}${delayBadge}`,
         start,
         end,
         progress: node.progress,
@@ -62,7 +81,7 @@ export function GanttWrapper({ tasks, onTaskClick }: GanttWrapperProps) {
         },
       } satisfies Task;
     });
-  }, [tasks]);
+  }, [tasks, delayCountMap]);
 
   const handleClick = (ganttTask: Task) => {
     const original = tasks.find((t) => t.id === ganttTask.id);

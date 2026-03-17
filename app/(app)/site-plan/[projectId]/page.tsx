@@ -8,10 +8,12 @@ import type { DropResult } from "@hello-pangea/dnd";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
+import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
 import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
+import { DelayLogDialog } from "../components/DelayLogDialog";
 import { InlineTaskInput } from "../components/InlineTaskInput";
 import { ImportPanel } from "../components/ImportPanel";
 import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
@@ -122,7 +124,19 @@ function ProjectDetailInner() {
   const reorderTask = useReorderTask();
   const { data: baselines } = useSitePlanBaselines(projectId);
 
+  const { data: delayLogs } = useProjectDelayLogs(projectId);
   const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo(updateTask);
+
+  // Compute delay count per task
+  const delayCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (delayLogs) {
+      for (const log of delayLogs) {
+        map.set(log.task_id, (map.get(log.task_id) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [delayLogs]);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
@@ -133,6 +147,7 @@ function ProjectDetailInner() {
   const [showImport, setShowImport] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -525,6 +540,8 @@ function ProjectDetailInner() {
                               }
                               onToggle={() => toggleExpand(node.id)}
                               onSelect={handleSelect}
+                              onLogDelay={(t) => setDelayTask(t)}
+                              delayCount={delayCountMap.get(node.id) ?? 0}
                               dragHandleProps={dragProvided.dragHandleProps}
                               isDragging={dragSnapshot.isDragging}
                             />
@@ -533,6 +550,8 @@ function ProjectDetailInner() {
                             <MobileTaskCard
                               node={node}
                               onSelect={handleSelect}
+                              onLogDelay={(t) => setDelayTask(t)}
+                              delayCount={delayCountMap.get(node.id) ?? 0}
                               mobileExpanded={mobileExpandedIds.has(node.id)}
                               onToggleMobileExpand={() =>
                                 toggleMobileExpand(node.id)
@@ -641,6 +660,16 @@ function ProjectDetailInner() {
           task={selectedTask}
           allTasks={flatTasks}
           onClose={() => setShowLinkDialog(false)}
+        />
+      )}
+
+      {/* Delay log dialog */}
+      {delayTask && (
+        <DelayLogDialog
+          task={delayTask}
+          allTasks={tasks ?? []}
+          projectId={projectId}
+          onClose={() => setDelayTask(null)}
         />
       )}
 
