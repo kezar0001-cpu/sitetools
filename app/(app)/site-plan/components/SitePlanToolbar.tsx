@@ -18,6 +18,7 @@ import {
   List,
   PieChart,
   Bookmark,
+  Calendar,
   X,
 } from "lucide-react";
 import type { TaskType, TaskStatus, SitePlanTaskNode } from "@/types/siteplan";
@@ -79,17 +80,16 @@ interface ToolbarProps {
   // Import
   onImport: () => void;
 
-  // Add
-  onAddPhase: () => void;
-  onAddTask: () => void;
+  // Add — single button, inserts at same indent as selected row
+  onAddRow: () => void;
 
   // Baselines
   onSaveBaseline: () => void;
   baselineCount: number;
 
   // View
-  currentView: "list" | "gantt" | "summary";
-  onViewChange: (view: "list" | "gantt" | "summary") => void;
+  currentView: "list" | "gantt" | "summary" | "daily";
+  onViewChange: (view: "list" | "gantt" | "summary" | "daily") => void;
 
   // Fullscreen
   isFullscreen: boolean;
@@ -331,8 +331,7 @@ export function SitePlanToolbar(props: ToolbarProps) {
     filter,
     onFilterChange,
     onImport,
-    onAddPhase,
-    onAddTask,
+    onAddRow,
     onSaveBaseline,
     baselineCount,
     currentView,
@@ -388,6 +387,17 @@ export function SitePlanToolbar(props: ToolbarProps) {
           }`}
         >
           <BarChart3 className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => onViewChange("daily")}
+          title="Daily Summary"
+          className={`p-1.5 ${
+            currentView === "daily"
+              ? "bg-blue-50 text-blue-600"
+              : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          <Calendar className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => onViewChange("summary")}
@@ -472,23 +482,15 @@ export function SitePlanToolbar(props: ToolbarProps) {
       {/* Import */}
       <TBtn icon={FileSpreadsheet} label="Import" onClick={onImport} />
 
-      {/* Add */}
+      {/* Add Row */}
       <div className="hidden md:flex items-center gap-0.5">
         <button
-          onClick={onAddPhase}
-          title="Add Phase"
+          onClick={onAddRow}
+          title="Add Row (same indent as selected)"
           className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 rounded min-h-[28px]"
         >
           <Plus className="h-3.5 w-3.5" />
-          Phase
-        </button>
-        <button
-          onClick={onAddTask}
-          title="Add Task"
-          className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 rounded min-h-[28px]"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Task
+          Add Row
         </button>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -8,10 +8,12 @@ import type { DropResult } from "@hello-pangea/dnd";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
+import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
 import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
+import { DelayLogDialog } from "../components/DelayLogDialog";
 import { InlineTaskInput } from "../components/InlineTaskInput";
 import { ImportPanel } from "../components/ImportPanel";
 import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
@@ -122,7 +124,19 @@ function ProjectDetailInner() {
   const reorderTask = useReorderTask();
   const { data: baselines } = useSitePlanBaselines(projectId);
 
+  const { data: delayLogs } = useProjectDelayLogs(projectId);
   const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo(updateTask);
+
+  // Compute delay count per task
+  const delayCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (delayLogs) {
+      for (const log of delayLogs) {
+        map.set(log.task_id, (map.get(log.task_id) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [delayLogs]);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
@@ -133,6 +147,7 @@ function ProjectDetailInner() {
   const [showImport, setShowImport] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -201,6 +216,18 @@ function ProjectDetailInner() {
     setSelectedTask(node);
     setInlineInput(null);
   };
+
+  /** Add a new row at the same indent level as the currently selected row */
+  const handleAddRow = useCallback(() => {
+    const type: TaskType = selectedTask?.type ?? "task";
+    const parentId = selectedTask?.parent_id ?? null;
+    setInlineInput({
+      type,
+      parentId,
+      afterIndex: tasks?.length ?? 0,
+    });
+    setSelectedTask(null);
+  }, [selectedTask, tasks]);
 
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({
@@ -316,7 +343,7 @@ function ProjectDetailInner() {
 
   // ─── View navigation ─────────────────────────────────────
 
-  const handleViewChange = (view: "list" | "gantt" | "summary") => {
+  const handleViewChange = (view: "list" | "gantt" | "summary" | "daily") => {
     if (view === "list") return; // already on list
     router.push(`/site-plan/${projectId}/${view}`);
   };
@@ -371,6 +398,26 @@ function ProjectDetailInner() {
     [visibleRows, projectId, reorderTask]
   );
 
+  // ─── Keyboard shortcuts (Tab / Shift+Tab for indent/outdent) ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Only when a task row is selected (not when editing an input)
+      if (!selectedTask) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "Tab" && !e.shiftKey) {
+        e.preventDefault();
+        if (selectedTask.type !== "subtask") handleIndent();
+      } else if (e.key === "Tab" && e.shiftKey) {
+        e.preventDefault();
+        if (selectedTask.type !== "phase") handleOutdent();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedTask, handleIndent, handleOutdent]);
+
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
@@ -421,8 +468,7 @@ function ProjectDetailInner() {
           filter={filter}
           onFilterChange={setFilter}
           onImport={() => setShowImport(true)}
-          onAddPhase={() => startInlineAdd("phase")}
-          onAddTask={() => startInlineAdd("task")}
+          onAddRow={handleAddRow}
           onSaveBaseline={() => setShowBaselines(true)}
           baselineCount={baselines?.length ?? 0}
           currentView="list"
@@ -494,6 +540,8 @@ function ProjectDetailInner() {
                               }
                               onToggle={() => toggleExpand(node.id)}
                               onSelect={handleSelect}
+                              onLogDelay={(t) => setDelayTask(t)}
+                              delayCount={delayCountMap.get(node.id) ?? 0}
                               dragHandleProps={dragProvided.dragHandleProps}
                               isDragging={dragSnapshot.isDragging}
                             />
@@ -502,6 +550,8 @@ function ProjectDetailInner() {
                             <MobileTaskCard
                               node={node}
                               onSelect={handleSelect}
+                              onLogDelay={(t) => setDelayTask(t)}
+                              delayCount={delayCountMap.get(node.id) ?? 0}
                               mobileExpanded={mobileExpandedIds.has(node.id)}
                               onToggleMobileExpand={() =>
                                 toggleMobileExpand(node.id)
@@ -613,7 +663,17 @@ function ProjectDetailInner() {
         />
       )}
 
-      <AddTaskFAB onAdd={handleFABAdd} />
+      {/* Delay log dialog */}
+      {delayTask && (
+        <DelayLogDialog
+          task={delayTask}
+          allTasks={tasks ?? []}
+          projectId={projectId}
+          onClose={() => setDelayTask(null)}
+        />
+      )}
+
+      <AddTaskFAB onAdd={handleFABAdd} currentType={selectedTask?.type ?? "task"} />
       <SitePlanBottomNav projectId={projectId} />
     </div>
   );

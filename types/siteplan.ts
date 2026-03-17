@@ -48,6 +48,46 @@ export interface SitePlanProgressLog {
   logged_at: string;
 }
 
+// ─── Delay log types ────────────────────────────────────────
+
+export type DelayCategory =
+  | "Weather"
+  | "Subcontractor"
+  | "Materials"
+  | "Design Change"
+  | "Authority / Council"
+  | "Scope Change"
+  | "Other";
+
+export const DELAY_CATEGORIES: DelayCategory[] = [
+  "Weather",
+  "Subcontractor",
+  "Materials",
+  "Design Change",
+  "Authority / Council",
+  "Scope Change",
+  "Other",
+];
+
+export interface SitePlanDelayLog {
+  id: string;
+  task_id: string;
+  delay_days: number;
+  delay_reason: string;
+  delay_category: DelayCategory;
+  logged_by: string;
+  logged_at: string;
+  impacts_completion: boolean;
+}
+
+export interface CreateDelayLogPayload {
+  task_id: string;
+  delay_days: number;
+  delay_reason: string;
+  delay_category: DelayCategory;
+  impacts_completion: boolean;
+}
+
 // ─── Derived / UI types ─────────────────────────────────────
 
 export interface SitePlanTaskNode extends SitePlanTask {

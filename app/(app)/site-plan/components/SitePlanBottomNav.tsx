@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ListTodo, BarChart3, PieChart, Settings } from "lucide-react";
+import { ListTodo, BarChart3, PieChart, Calendar } from "lucide-react";
 
 interface SitePlanBottomNavProps {
   projectId: string;
@@ -11,8 +11,8 @@ interface SitePlanBottomNavProps {
 const tabs = [
   { id: "tasks", label: "Tasks", icon: ListTodo, href: (id: string) => `/site-plan/${id}` },
   { id: "gantt", label: "Gantt", icon: BarChart3, href: (id: string) => `/site-plan/${id}/gantt` },
+  { id: "daily", label: "Daily", icon: Calendar, href: (id: string) => `/site-plan/${id}/daily` },
   { id: "summary", label: "Summary", icon: PieChart, href: (id: string) => `/site-plan/${id}/summary` },
-  { id: "settings", label: "Settings", icon: Settings, href: (id: string) => `/site-plan/${id}?tab=settings` },
 ];
 
 export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
@@ -20,6 +20,8 @@ export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
 
   const activeTab = pathname.includes("/gantt")
     ? "gantt"
+    : pathname.includes("/daily")
+    ? "daily"
     : pathname.includes("/summary")
     ? "summary"
     : "tasks";

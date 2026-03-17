@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, ChevronDown, GripVertical, Calendar, User } from "lucide-react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
@@ -12,6 +12,8 @@ interface TaskRowProps {
   expanded: boolean;
   onToggle: () => void;
   onSelect: (task: SitePlanTaskNode) => void;
+  onLogDelay?: (task: SitePlanTaskNode) => void;
+  delayCount?: number;
   dragHandleProps?: DraggableProvided["dragHandleProps"];
   isDragging?: boolean;
 }
@@ -86,6 +88,8 @@ export function TaskRow({
   expanded,
   onToggle,
   onSelect,
+  onLogDelay,
+  delayCount = 0,
   dragHandleProps,
   isDragging,
 }: TaskRowProps) {
@@ -103,7 +107,7 @@ export function TaskRow({
 
   return (
     <div
-      className={`hidden md:flex items-center border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
+      className={`hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
       onClick={() => onSelect(node)}
       role="button"
       tabIndex={0}
@@ -114,19 +118,19 @@ export function TaskRow({
       {/* Drag handle */}
       <div
         {...(dragHandleProps ?? {})}
-        className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+        className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing self-center ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical className="h-3.5 w-3.5" />
       </div>
 
       {/* Row number */}
-      <div className={`w-8 shrink-0 text-center text-xs tabular-nums border-r ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
+      <div className={`w-8 shrink-0 text-center text-xs tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
         {rowNumber}
       </div>
 
       {/* Task Name — nesting guides + expand chevron */}
-      <div className={`flex items-center min-w-0 flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`flex items-start min-w-0 flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         {/* Vertical nesting guide lines */}
         <NestingGuides depth={indentLevel} />
 
@@ -150,9 +154,9 @@ export function TaskRow({
           <span className="w-5 shrink-0 mr-1" />
         )}
 
-        {/* Name */}
+        {/* Name — wraps to multiple lines */}
         <span
-          className={`truncate text-sm ${text} ${
+          className={`text-sm break-words min-w-0 ${text} ${
             isPhase
               ? "font-bold tracking-wide uppercase"
               : isSubtask
@@ -171,33 +175,33 @@ export function TaskRow({
       </div>
 
       {/* Duration */}
-      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "font-bold text-white" : isSubtask ? "text-slate-400" : "text-slate-600"}>
           {node.duration_days}d
         </span>
       </div>
 
       {/* Start Date */}
-      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={dateCls}>
           {formatDate(node.start_date)}
         </span>
       </div>
 
       {/* End Date */}
-      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "text-red-300 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
           {formatDate(node.end_date)}
         </span>
       </div>
 
       {/* Predecessors — desktop only */}
-      <div className={`hidden lg:block w-24 shrink-0 text-center text-xs border-r py-1.5 truncate px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
-        {node.predecessors || ""}
+      <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+        <span className="break-words min-w-0">{node.predecessors || ""}</span>
       </div>
 
       {/* % Complete */}
-      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "font-bold text-white tabular-nums" : node.progress >= 100 ? "text-green-600 font-semibold tabular-nums" : "text-slate-600 tabular-nums"}>
           {node.progress}%
         </span>
@@ -213,9 +217,37 @@ export function TaskRow({
         </span>
       </div>
 
+      {/* Delay badge + log action */}
+      <div className={`w-12 shrink-0 flex items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+        {delayCount > 0 ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onLogDelay?.(node);
+            }}
+            className="flex items-center gap-0.5 text-red-500 hover:text-red-600 min-w-[32px] min-h-[28px] justify-center"
+            title={`${delayCount} delay${delayCount !== 1 ? "s" : ""} — click to view/add`}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span className="text-[10px] font-bold">{delayCount}</span>
+          </button>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onLogDelay?.(node);
+            }}
+            className={`min-w-[32px] min-h-[28px] flex items-center justify-center rounded hover:bg-slate-200/50 ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+            title="Log Delay"
+          >
+            <AlertTriangle className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
       {/* Assigned To — desktop only */}
-      <div className={`hidden lg:block w-24 shrink-0 text-xs py-1.5 truncate px-1 text-center ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
-        {node.assigned_to || node.responsible || ""}
+      <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
+        <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>
       </div>
     </div>
   );
@@ -268,6 +300,11 @@ export function TaskListHeader() {
         Status
       </div>
 
+      {/* Delays */}
+      <div className="w-12 shrink-0 text-center py-1.5 border-r border-slate-300">
+        Delays
+      </div>
+
       {/* Assigned To */}
       <div className="hidden lg:block w-24 shrink-0 text-center py-1.5">
         Assigned
@@ -287,6 +324,8 @@ const typeBadgeCls: Record<string, string> = {
 interface MobileTaskCardProps {
   node: SitePlanTaskNode;
   onSelect: (task: SitePlanTaskNode) => void;
+  onLogDelay?: (task: SitePlanTaskNode) => void;
+  delayCount?: number;
   mobileExpanded: boolean;
   onToggleMobileExpand: () => void;
   dragHandleProps?: DraggableProvided["dragHandleProps"];
@@ -296,6 +335,8 @@ interface MobileTaskCardProps {
 export function MobileTaskCard({
   node,
   onSelect,
+  onLogDelay,
+  delayCount = 0,
   mobileExpanded,
   onToggleMobileExpand,
   dragHandleProps,
@@ -335,7 +376,7 @@ export function MobileTaskCard({
               {node.type === "phase" ? "PH" : node.type === "task" ? "T" : "ST"}
             </span>
             <span
-              className={`truncate text-sm ${
+              className={`text-sm break-words min-w-0 ${
                 isPhase
                   ? "font-bold text-white"
                   : node.type === "subtask"
@@ -448,17 +489,37 @@ export function MobileTaskCard({
             </div>
           )}
 
-          {/* Tap to edit CTA */}
-          <button
-            onClick={() => onSelect(node)}
-            className={`w-full text-center text-xs font-medium py-2.5 rounded-lg min-h-[44px] ${
-              isPhase
-                ? "bg-slate-700 text-slate-200 active:bg-slate-600"
-                : "bg-slate-100 text-slate-700 active:bg-slate-200"
-            }`}
-          >
-            Tap to edit
-          </button>
+          {/* Delay badge */}
+          {delayCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-red-600">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span className="font-medium">{delayCount} delay{delayCount !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onSelect(node)}
+              className={`flex-1 text-center text-xs font-medium py-2.5 rounded-lg min-h-[44px] ${
+                isPhase
+                  ? "bg-slate-700 text-slate-200 active:bg-slate-600"
+                  : "bg-slate-100 text-slate-700 active:bg-slate-200"
+              }`}
+            >
+              Edit
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLogDelay?.(node);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg min-h-[44px] active:bg-red-100"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Log Delay
+            </button>
+          </div>
         </div>
       )}
     </div>

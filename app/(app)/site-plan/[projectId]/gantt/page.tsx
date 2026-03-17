@@ -5,9 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
+import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
+import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import type { SitePlanTask } from "@/types/siteplan";
-import { GanttWrapper } from "../../components/GanttWrapper";
+import { GanttChart } from "../../components/GanttChart";
 import { TaskEditPanel } from "../../components/TaskEditPanel";
+import { DelayLogDialog } from "../../components/DelayLogDialog";
 import { SitePlanBottomNav } from "../../components/SitePlanBottomNav";
 import { ProgressBar } from "../../components/ProgressSlider";
 import { TaskListSkeleton } from "../../components/Skeleton";
@@ -20,7 +23,10 @@ function GanttPageInner() {
 
   const { data: project } = useSitePlanProject(projectId);
   const { data: tasks, isLoading } = useSitePlanTasks(projectId);
+  const { data: baselines } = useSitePlanBaselines(projectId);
+  const { data: delayLogs } = useProjectDelayLogs(projectId);
   const [selectedTask, setSelectedTask] = useState<SitePlanTask | null>(null);
+  const [delayTask, setDelayTask] = useState<SitePlanTask | null>(null);
 
   const overallProgress =
     tasks && tasks.length > 0
@@ -30,6 +36,11 @@ function GanttPageInner() {
   const hasChildren = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
+
+  // Get latest baseline snapshot for comparison
+  const latestBaseline = baselines && baselines.length > 0
+    ? baselines[0].snapshot
+    : undefined;
 
   return (
     <div className="flex h-full">
@@ -77,13 +88,16 @@ function GanttPageInner() {
         </div>
 
         {/* Gantt chart */}
-        <div className="flex-1 overflow-auto pb-20 md:pb-4">
+        <div className="flex-1 overflow-hidden pb-14 md:pb-0">
           {isLoading ? (
             <TaskListSkeleton />
           ) : (
-            <GanttWrapper
+            <GanttChart
               tasks={tasks ?? []}
+              baselines={latestBaseline}
+              delayLogs={delayLogs}
               onTaskClick={(t) => setSelectedTask(t)}
+              onLogDelay={(t) => setDelayTask(t)}
             />
           )}
         </div>
@@ -95,6 +109,16 @@ function GanttPageInner() {
           task={selectedTask}
           onClose={() => setSelectedTask(null)}
           hasChildren={hasChildren}
+        />
+      )}
+
+      {/* Delay dialog */}
+      {delayTask && (
+        <DelayLogDialog
+          task={delayTask}
+          allTasks={tasks ?? []}
+          projectId={projectId}
+          onClose={() => setDelayTask(null)}
         />
       )}
 
