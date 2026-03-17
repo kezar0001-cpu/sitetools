@@ -9,12 +9,8 @@ import {
 } from "react";
 import {
   Calendar,
-  ChevronDown,
-  ChevronRight,
   X,
   AlertTriangle,
-  Minus,
-  Plus,
 } from "lucide-react";
 import type {
   SitePlanTask,
@@ -25,7 +21,6 @@ import type {
 import {
   buildTaskTree,
   flattenTree,
-  STATUS_LABELS,
 } from "@/types/siteplan";
 import { StatusBadge } from "./StatusBadge";
 
@@ -246,8 +241,8 @@ export function GanttChart({
   const [viewFilter, setViewFilter] = useState<ViewFilter>("programme");
   const [showDeps, setShowDeps] = useState(initialShowDeps);
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
-  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
-  const [allExpanded, setAllExpanded] = useState(true);
+  const [expandedPhases] = useState<Set<string>>(new Set());
+  const [allExpanded] = useState(true);
   const timelineRef = useRef<HTMLDivElement>(null);
   const taskListRef = useRef<HTMLDivElement>(null);
 

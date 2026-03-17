@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Sun,
-  Cloud,
   CloudRain,
   CloudLightning,
   CloudSun,
@@ -14,10 +13,8 @@ import {
   AlertTriangle,
   MessageSquare,
   CheckCircle2,
-  Pencil,
   Plus,
   Trash2,
-  Calendar,
   FileDown,
   Milestone,
   ArrowLeftRight,
@@ -30,7 +27,6 @@ import { useProjectDelayLogs, useCreateDelayLog } from "@/hooks/useSitePlanDelay
 import type {
   SitePlanTask,
   TaskType,
-  TaskStatus,
   DelayCategory,
   SitePlanDelayLog,
 } from "@/types/siteplan";

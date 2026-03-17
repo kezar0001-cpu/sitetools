@@ -4,14 +4,12 @@ import { useState } from "react";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 import type {
   SitePlanTask,
-  SitePlanDelayLog,
   DelayCategory,
 } from "@/types/siteplan";
 import { DELAY_CATEGORIES } from "@/types/siteplan";
 import {
   useDelayLogs,
   useCreateDelayLog,
-  useUpdateDelayLog,
   useDeleteDelayLog,
 } from "@/hooks/useSitePlanDelays";
 
@@ -30,7 +28,6 @@ export function DelayLogDialog({
 }: DelayLogDialogProps) {
   const { data: logs } = useDelayLogs(task.id);
   const createDelay = useCreateDelayLog();
-  const updateDelay = useUpdateDelayLog();
   const deleteDelay = useDeleteDelayLog();
 
   const [delayDays, setDelayDays] = useState(1);
