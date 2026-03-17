@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -202,6 +202,18 @@ function ProjectDetailInner() {
     setInlineInput(null);
   };
 
+  /** Add a new row at the same indent level as the currently selected row */
+  const handleAddRow = useCallback(() => {
+    const type: TaskType = selectedTask?.type ?? "task";
+    const parentId = selectedTask?.parent_id ?? null;
+    setInlineInput({
+      type,
+      parentId,
+      afterIndex: tasks?.length ?? 0,
+    });
+    setSelectedTask(null);
+  }, [selectedTask, tasks]);
+
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({
       type,
@@ -371,6 +383,26 @@ function ProjectDetailInner() {
     [visibleRows, projectId, reorderTask]
   );
 
+  // ─── Keyboard shortcuts (Tab / Shift+Tab for indent/outdent) ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Only when a task row is selected (not when editing an input)
+      if (!selectedTask) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "Tab" && !e.shiftKey) {
+        e.preventDefault();
+        if (selectedTask.type !== "subtask") handleIndent();
+      } else if (e.key === "Tab" && e.shiftKey) {
+        e.preventDefault();
+        if (selectedTask.type !== "phase") handleOutdent();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedTask, handleIndent, handleOutdent]);
+
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
@@ -421,8 +453,7 @@ function ProjectDetailInner() {
           filter={filter}
           onFilterChange={setFilter}
           onImport={() => setShowImport(true)}
-          onAddPhase={() => startInlineAdd("phase")}
-          onAddTask={() => startInlineAdd("task")}
+          onAddRow={handleAddRow}
           onSaveBaseline={() => setShowBaselines(true)}
           baselineCount={baselines?.length ?? 0}
           currentView="list"
@@ -613,7 +644,7 @@ function ProjectDetailInner() {
         />
       )}
 
-      <AddTaskFAB onAdd={handleFABAdd} />
+      <AddTaskFAB onAdd={handleFABAdd} currentType={selectedTask?.type ?? "task"} />
       <SitePlanBottomNav projectId={projectId} />
     </div>
   );
