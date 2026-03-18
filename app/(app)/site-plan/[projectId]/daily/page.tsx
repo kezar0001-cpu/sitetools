@@ -1036,7 +1036,6 @@ function DailySummaryInner() {
                         <TaskDueCard
                           key={task.id}
                           task={task}
-                          allTasks={tasks ?? []}
                           projectId={projectId}
                           delayCount={delayCountMap.get(task.id) ?? 0}
                         />
