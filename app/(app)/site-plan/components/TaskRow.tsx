@@ -66,24 +66,60 @@ function formatDate(d: string) {
 }
 
 /**
- * Compute phase-level stats from immediate children.
- * Progress = average of children's progress.
- * Date range = min start → max end across all children.
+ * Collect all leaf descendants (nodes with no children) from a subtree.
+ * For a phase→task→subtask hierarchy this ensures progress is always
+ * derived from actual work items, not intermediate container rows.
+ */
+function collectLeaves(nodes: SitePlanTaskNode[]): SitePlanTaskNode[] {
+  const leaves: SitePlanTaskNode[] = [];
+  const walk = (ns: SitePlanTaskNode[]) => {
+    for (const n of ns) {
+      if (n.children.length === 0) {
+        leaves.push(n);
+      } else {
+        walk(n.children);
+      }
+    }
+  };
+  walk(nodes);
+  return leaves;
+}
+
+/**
+ * Compute phase-level stats by walking the full subtree.
+ * Progress = average of all leaf-node progress values.
+ * Date range = earliest start → latest end across all leaves.
+ * Status is derived from the computed progress.
  */
 function computePhaseStats(children: SitePlanTaskNode[]) {
   if (children.length === 0) return null;
+
+  // Use leaf tasks so progress rolls up through the full hierarchy
+  const leaves = collectLeaves(children);
+  // Fall back to direct children if somehow there are no leaves
+  const sources = leaves.length > 0 ? leaves : children;
+
   const progress = Math.round(
-    children.reduce((s, c) => s + c.progress, 0) / children.length
+    sources.reduce((s, c) => s + c.progress, 0) / sources.length
   );
-  const startDate = children.reduce(
+  const startDate = sources.reduce(
     (min, c) => (c.start_date < min ? c.start_date : min),
-    children[0].start_date
+    sources[0].start_date
   );
-  const endDate = children.reduce(
+  const endDate = sources.reduce(
     (max, c) => (c.end_date > max ? c.end_date : max),
-    children[0].end_date
+    sources[0].end_date
   );
-  return { progress, startDate, endDate };
+
+  // Derive status from computed progress
+  const status: TaskStatus =
+    progress >= 100
+      ? "completed"
+      : progress > 0
+        ? "in_progress"
+        : "not_started";
+
+  return { progress, startDate, endDate, status };
 }
 
 /** Vertical nesting guide lines */
@@ -124,6 +160,7 @@ export function TaskRow({
   const displayProgress = phaseStats?.progress ?? node.progress;
   const displayStartDate = phaseStats?.startDate ?? node.start_date;
   const displayEndDate = phaseStats?.endDate ?? node.end_date;
+  const displayStatus = phaseStats?.status ?? node.status;
 
   const bg = isDragging ? "bg-blue-50" : rowBg[node.type];
   const text = isDragging ? "text-slate-900" : rowText[node.type];
@@ -237,10 +274,10 @@ export function TaskRow({
       {/* Status badge — visible on md+ as a pill, dot on mobile */}
       <div className={`hidden md:flex w-24 shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${isPhase ? statusBadgePhase[node.status] : statusBadgeCls[node.status]}`}
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${isPhase ? statusBadgePhase[displayStatus] : statusBadgeCls[node.status]}`}
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[node.status]}`} />
-          {STATUS_LABELS[node.status]}
+          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[displayStatus]}`} />
+          {STATUS_LABELS[displayStatus]}
         </span>
       </div>
 
@@ -378,6 +415,7 @@ export function MobileTaskCard({
   const displayProgress = phaseStats?.progress ?? node.progress;
   const displayStartDate = phaseStats?.startDate ?? node.start_date;
   const displayEndDate = phaseStats?.endDate ?? node.end_date;
+  const displayStatus = phaseStats?.status ?? node.status;
 
   // Visual indent: tasks get a left border tie to their phase; subtasks get deeper indent
   const indentCls = isPhase
@@ -430,14 +468,14 @@ export function MobileTaskCard({
             <span
               className={`ml-auto shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${
                 isPhase
-                  ? statusBadgePhase[node.status]
+                  ? statusBadgePhase[displayStatus]
                   : statusBadgeCls[node.status]
               }`}
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full ${statusDot[node.status]}`}
+                className={`w-1.5 h-1.5 rounded-full ${statusDot[displayStatus]}`}
               />
-              {STATUS_LABELS[node.status]}
+              {STATUS_LABELS[displayStatus]}
             </span>
           </div>
 
