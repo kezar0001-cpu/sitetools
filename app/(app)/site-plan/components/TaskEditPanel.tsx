@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, Trash2, Check, Loader2, AlertTriangle } from "lucide-react";
+import { X, Trash2, Check, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import type { SitePlanTask, SitePlanTaskNode, TaskStatus, UpdateTaskPayload } from "@/types/siteplan";
 import { STATUS_LABELS, buildTaskTree, flattenTree } from "@/types/siteplan";
 import {
@@ -24,6 +24,35 @@ interface TaskEditPanelProps {
 }
 
 const DEBOUNCE_MS = 600;
+
+// Fields that are tracked for conflict detection
+const CONFLICT_FIELDS = [
+  "name", "status", "progress", "start_date", "end_date",
+  "actual_start", "actual_end", "predecessors", "responsible",
+  "assigned_to", "comments", "notes",
+] as const;
+
+type ConflictField = (typeof CONFLICT_FIELDS)[number];
+
+const CONFLICT_FIELD_LABELS: Record<ConflictField, string> = {
+  name: "Task Name",
+  status: "Status",
+  progress: "Progress",
+  start_date: "Planned Start",
+  end_date: "Planned End",
+  actual_start: "Actual Start",
+  actual_end: "Actual End",
+  predecessors: "Predecessors",
+  responsible: "Responsible",
+  assigned_to: "Assigned To",
+  comments: "Comments",
+  notes: "Notes",
+};
+
+interface ConflictEntry {
+  field: ConflictField;
+  remoteValue: unknown;
+}
 
 export function TaskEditPanel({
   task,
@@ -65,6 +94,17 @@ export function TaskEditPanel({
   const formRef = useRef(form);
   formRef.current = form;
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // ─── Conflict detection ────────────────────────────────────
+  // lastKnownValues holds the last server-confirmed field values.
+  // When the parent's Realtime subscription fires an UPDATE for this task,
+  // the `task` prop updates; we compare each field to detect remote changes.
+  const lastKnownValues = useRef<Partial<Record<ConflictField, unknown>>>(
+    Object.fromEntries(CONFLICT_FIELDS.map((f) => [f, task[f as keyof SitePlanTask]]))
+  );
+  const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
+  // Guard: skip conflict detection on the render following a task-switch
+  const justSwitchedRef = useRef(false);
 
   // Track the PREVIOUS task's identity so pending saves flush to the correct row
   const prevTaskIdRef = useRef<string>(task.id);
@@ -114,6 +154,10 @@ export function TaskEditPanel({
           },
           {
             onSuccess: () => {
+              // Mark this field's server state as confirmed
+              lastKnownValues.current[fieldName as ConflictField] = value;
+              // Clear any resolved conflict for this field
+              setConflicts((prev) => prev.filter((c) => c.field !== fieldName));
               setSavedField(fieldName);
               setShowSaved(true);
               setTimeout(() => setShowSaved(false), 1500);
@@ -131,6 +175,44 @@ export function TaskEditPanel({
       Object.values(debounceTimers.current).forEach(clearTimeout);
     };
   }, []);
+
+  // Detect remote field changes (Realtime UPDATE fired by the parent's subscription).
+  // Runs whenever the task prop changes; skips the render immediately after a task-switch
+  // (handled by the task.id effect above).
+  useEffect(() => {
+    if (justSwitchedRef.current) {
+      // This render was triggered by a task-switch — skip conflict detection
+      justSwitchedRef.current = false;
+      return;
+    }
+
+    const newConflicts: ConflictEntry[] = [];
+
+    for (const field of CONFLICT_FIELDS) {
+      const remoteValue = task[field as keyof SitePlanTask] as unknown;
+      const knownValue = lastKnownValues.current[field];
+
+      if (remoteValue === knownValue) continue; // no change
+
+      if (Object.hasOwn(debounceTimers.current, field)) {
+        // Remote changed AND local edit is pending — conflict!
+        newConflicts.push({ field, remoteValue });
+      } else {
+        // No pending local edit: silently accept the remote value
+        lastKnownValues.current[field] = remoteValue;
+        setForm((f) => ({ ...f, [field]: remoteValue }));
+      }
+    }
+
+    if (newConflicts.length > 0) {
+      setConflicts((prev) => {
+        // Merge: replace existing entries for the same field
+        const merged = prev.filter((c) => !newConflicts.find((n) => n.field === c.field));
+        return [...merged, ...newConflicts];
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task]);
 
   // When task.id changes: flush pending saves to the PREVIOUS task, then reset form
   useEffect(() => {
@@ -157,6 +239,13 @@ export function TaskEditPanel({
 
     prevTaskIdRef.current = task.id;
     prevTaskProjectIdRef.current = task.project_id;
+
+    // Reset lastKnownValues and conflicts for the new task
+    justSwitchedRef.current = true;
+    lastKnownValues.current = Object.fromEntries(
+      CONFLICT_FIELDS.map((f) => [f, task[f as keyof SitePlanTask]])
+    );
+    setConflicts([]);
 
     setForm({
       name: task.name,
@@ -202,6 +291,27 @@ export function TaskEditPanel({
       { onSuccess: () => onClose() }
     );
   };
+
+  // Conflict resolution handlers
+  const handleKeepMine = useCallback((field: ConflictField) => {
+    // Accept the remote value as the new "known" baseline (so it doesn't re-trigger),
+    // but keep the local pending edit in the form and debounce timer.
+    lastKnownValues.current[field] = task[field as keyof SitePlanTask] as unknown;
+    setConflicts((prev) => prev.filter((c) => c.field !== field));
+  }, [task]);
+
+  const handleAcceptTheirs = useCallback((field: ConflictField, remoteValue: unknown) => {
+    // Cancel any pending local save for this field
+    if (debounceTimers.current[field]) {
+      clearTimeout(debounceTimers.current[field]);
+      delete debounceTimers.current[field];
+    }
+    // Update the form to the remote value
+    setForm((f) => ({ ...f, [field]: remoteValue }));
+    // Update lastKnownValues so we don't re-flag this change
+    lastKnownValues.current[field] = remoteValue;
+    setConflicts((prev) => prev.filter((c) => c.field !== field));
+  }, []);
 
   // Unified change handler — updates local state and debounces save
   const handleChange = <K extends keyof UpdateTaskPayload>(
@@ -259,6 +369,37 @@ export function TaskEditPanel({
             <X className="h-5 w-5 text-slate-400" />
           </button>
         </div>
+
+        {/* Conflict banner — shown when a remote update conflicts with a pending local edit */}
+        {conflicts.length > 0 && (
+          <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
+              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+              Edited by another user
+            </div>
+            {conflicts.map(({ field, remoteValue }) => (
+              <div key={field} className="flex items-center justify-between gap-2">
+                <span className="text-xs text-amber-700 truncate">
+                  {CONFLICT_FIELD_LABELS[field]} changed
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleKeepMine(field)}
+                    className="px-2 py-1 text-[10px] font-medium bg-white border border-amber-300 rounded hover:bg-amber-100 text-amber-700"
+                  >
+                    Keep mine
+                  </button>
+                  <button
+                    onClick={() => handleAcceptTheirs(field, remoteValue)}
+                    className="px-2 py-1 text-[10px] font-medium bg-amber-600 text-white rounded hover:bg-amber-700"
+                  >
+                    Accept theirs
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">

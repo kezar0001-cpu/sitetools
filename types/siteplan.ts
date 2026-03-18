@@ -5,7 +5,7 @@ import type { Project } from "@/lib/workspace/types";
 
 export type { Project };
 
-export type TaskType = "phase" | "task" | "subtask";
+export type TaskType = "phase" | "task" | "subtask" | "milestone";
 
 export type TaskStatus =
   | "not_started"
@@ -166,7 +166,7 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
  * Used by the list page header, summary page, and the RPC to ensure consistency.
  */
 export function computeWorkProgress(tasks: SitePlanTask[]): number {
-  const workItems = tasks.filter((t) => t.type !== "phase");
+  const workItems = tasks.filter((t) => t.type !== "phase" && t.type !== "milestone");
   if (workItems.length === 0) return 0;
   return Math.round(
     workItems.reduce((sum, t) => sum + t.progress, 0) / workItems.length
@@ -190,8 +190,10 @@ export function computeProjectHealth(
   const hasDelayed = tasks.some((t) => t.status === "delayed");
   if (hasDelayed) return "delayed";
 
-  const avgProgress =
-    tasks.reduce((sum, t) => sum + t.progress, 0) / tasks.length;
+  const workItems = tasks.filter((t) => t.type !== "phase" && t.type !== "milestone");
+  const avgProgress = workItems.length > 0
+    ? workItems.reduce((sum, t) => sum + t.progress, 0) / workItems.length
+    : 0;
 
   const now = new Date();
   const latestEnd = Math.max(

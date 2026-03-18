@@ -443,7 +443,7 @@ export function GanttChart({
 
   const handleBarMouseDown = useCallback(
     (e: React.MouseEvent, task: SitePlanTask, mode: "move" | "resize-end") => {
-      if (!canEdit || task.type === "phase") return;
+      if (!canEdit || task.type === "phase" || task.type === "milestone") return;
       e.stopPropagation();
       e.preventDefault();
       setDragState({
@@ -612,7 +612,7 @@ export function GanttChart({
           {/* Task rows */}
           {flatTasks.map((node) => {
             const isPhase = node.type === "phase";
-            const indent = isPhase ? 0 : node.type === "task" ? 1 : 2;
+            const indent = isPhase ? 0 : node.type === "milestone" ? 0 : node.type === "task" ? 1 : 2;
             const delayCount = delayCountMap.get(node.id) ?? 0;
 
             return (
@@ -761,6 +761,7 @@ export function GanttChart({
               const barY = y + 8;
               const barHeight = ROW_HEIGHT - 16;
               const isPhase = node.type === "phase";
+              const isMilestone = node.type === "milestone";
               const delayDays = delayDaysMap.get(node.id) ?? 0;
               const baseline = baselineMap.get(node.id);
 
@@ -818,8 +819,39 @@ export function GanttChart({
                   onClick={() => handleBarClick(taskData)}
                   onDoubleClick={() => handleBarDoubleClick(taskData)}
                 >
-                  {/* Phase summary bar (diamond ends) */}
-                  {isPhase ? (
+                  {/* Milestone diamond — centered at the task date */}
+                  {isMilestone ? (
+                    <>
+                      <polygon
+                        points={`${barX + 10},${barY + barHeight / 2} ${barX + 1},${barY + 1} ${barX - 8},${barY + barHeight / 2} ${barX + 1},${barY + barHeight - 1}`}
+                        fill="#7c3aed"
+                        stroke="#5b21b6"
+                        strokeWidth={1}
+                        style={{ cursor: "pointer" }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                      {/* Delay badge */}
+                      {(delayCountMap.get(node.id) ?? 0) > 0 && (
+                        <g>
+                          <circle
+                            cx={barX + 18}
+                            cy={barY + barHeight / 2}
+                            r={6}
+                            fill="#ef4444"
+                          />
+                          <text
+                            x={barX + 18}
+                            y={barY + barHeight / 2 + 3}
+                            textAnchor="middle"
+                            className="fill-white text-[8px] font-bold"
+                          >
+                            !
+                          </text>
+                        </g>
+                      )}
+                    </>
+                  ) : /* Phase summary bar (diamond ends) */
+                  isPhase ? (
                     <>
                       <rect
                         x={barX}
