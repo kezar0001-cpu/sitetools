@@ -38,6 +38,7 @@ const typeLabel: Record<TaskType, string> = {
   phase: "Phase",
   task: "Task",
   subtask: "Subtask",
+  milestone: "Milestone",
 };
 
 export function InlineTaskInput({
