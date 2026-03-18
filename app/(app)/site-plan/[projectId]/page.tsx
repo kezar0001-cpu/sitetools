@@ -569,7 +569,7 @@ function ProjectDetailInner() {
                                   onClick={() =>
                                     startInlineAdd("task", node.id)
                                   }
-                                  className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px]"
+                                  className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px] md:border-l-0 border-l-4 border-l-slate-600"
                                 >
                                   + Add Task
                                 </button>

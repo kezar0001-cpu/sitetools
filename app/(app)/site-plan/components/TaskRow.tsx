@@ -65,6 +65,27 @@ function formatDate(d: string) {
   });
 }
 
+/**
+ * Compute phase-level stats from immediate children.
+ * Progress = average of children's progress.
+ * Date range = min start → max end across all children.
+ */
+function computePhaseStats(children: SitePlanTaskNode[]) {
+  if (children.length === 0) return null;
+  const progress = Math.round(
+    children.reduce((s, c) => s + c.progress, 0) / children.length
+  );
+  const startDate = children.reduce(
+    (min, c) => (c.start_date < min ? c.start_date : min),
+    children[0].start_date
+  );
+  const endDate = children.reduce(
+    (max, c) => (c.end_date > max ? c.end_date : max),
+    children[0].end_date
+  );
+  return { progress, startDate, endDate };
+}
+
 /** Vertical nesting guide lines */
 function NestingGuides({ depth }: { depth: number }) {
   if (depth === 0) return null;
@@ -97,6 +118,12 @@ export function TaskRow({
   const isPhase = node.type === "phase";
   const isSubtask = node.type === "subtask";
   const indentLevel = isPhase ? 0 : node.type === "task" ? 1 : 2;
+
+  // For phases, derive display values from children so the phase reflects actual child data
+  const phaseStats = isPhase ? computePhaseStats(node.children) : null;
+  const displayProgress = phaseStats?.progress ?? node.progress;
+  const displayStartDate = phaseStats?.startDate ?? node.start_date;
+  const displayEndDate = phaseStats?.endDate ?? node.end_date;
 
   const bg = isDragging ? "bg-blue-50" : rowBg[node.type];
   const text = isDragging ? "text-slate-900" : rowText[node.type];
@@ -184,14 +211,14 @@ export function TaskRow({
       {/* Start Date */}
       <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={dateCls}>
-          {formatDate(node.start_date)}
+          {formatDate(displayStartDate)}
         </span>
       </div>
 
       {/* End Date */}
       <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "text-red-300 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
-          {formatDate(node.end_date)}
+          {formatDate(displayEndDate)}
         </span>
       </div>
 
@@ -203,7 +230,7 @@ export function TaskRow({
       {/* % Complete */}
       <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         <span className={isPhase ? "font-bold text-white tabular-nums" : node.progress >= 100 ? "text-green-600 font-semibold tabular-nums" : "text-slate-600 tabular-nums"}>
-          {node.progress}%
+          {displayProgress}%
         </span>
       </div>
 
@@ -343,13 +370,27 @@ export function MobileTaskCard({
   isDragging,
 }: MobileTaskCardProps) {
   const isPhase = node.type === "phase";
+  const isSubtask = node.type === "subtask";
   const person = node.assigned_to || node.responsible || null;
+
+  // Derive display values for phases from their children
+  const phaseStats = isPhase ? computePhaseStats(node.children) : null;
+  const displayProgress = phaseStats?.progress ?? node.progress;
+  const displayStartDate = phaseStats?.startDate ?? node.start_date;
+  const displayEndDate = phaseStats?.endDate ?? node.end_date;
+
+  // Visual indent: tasks get a left border tie to their phase; subtasks get deeper indent
+  const indentCls = isPhase
+    ? ""
+    : isSubtask
+      ? "border-l-4 border-l-slate-300 ml-6"
+      : "border-l-4 border-l-slate-600";
 
   return (
     <div
       className={`md:hidden border-b border-slate-200 ${
-        isPhase ? "bg-slate-800" : "bg-white"
-      } ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""}`}
+        isPhase ? "bg-slate-800" : isSubtask ? "bg-slate-50" : "bg-white"
+      } ${indentCls} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""}`}
     >
       {/* Primary row — always visible */}
       <div className="flex items-center gap-2 px-3 py-3 min-h-[56px]">
@@ -402,17 +443,17 @@ export function MobileTaskCard({
 
           {/* Progress bar */}
           <div className="mt-2 flex items-center gap-2">
-            <ProgressBar value={node.progress} className="flex-1" />
+            <ProgressBar value={displayProgress} className="flex-1" />
             <span
               className={`text-xs font-semibold tabular-nums shrink-0 ${
                 isPhase
                   ? "text-slate-300"
-                  : node.progress >= 100
+                  : displayProgress >= 100
                     ? "text-green-600"
                     : "text-slate-600"
               }`}
             >
-              {node.progress}%
+              {displayProgress}%
             </span>
           </div>
         </button>
@@ -451,7 +492,7 @@ export function MobileTaskCard({
           <div className="flex items-center gap-3 text-xs flex-wrap">
             <span className="inline-flex items-center gap-1">
               <Calendar className="h-3.5 w-3.5 opacity-50" />
-              {formatDate(node.start_date)} – {formatDate(node.end_date)}
+              {formatDate(displayStartDate)} – {formatDate(displayEndDate)}
             </span>
             <span className="opacity-50">·</span>
             <span>{node.duration_days}d</span>
