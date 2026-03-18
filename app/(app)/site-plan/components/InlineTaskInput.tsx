@@ -32,6 +32,7 @@ const indentPx = {
   phase: "pl-10",
   task: "pl-16",
   subtask: "pl-20",
+  milestone: "pl-10",
 };
 
 const typeLabel: Record<TaskType, string> = {
