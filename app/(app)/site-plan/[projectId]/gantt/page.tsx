@@ -28,9 +28,10 @@ function GanttPageInner() {
   const [selectedTask, setSelectedTask] = useState<SitePlanTask | null>(null);
   const [delayTask, setDelayTask] = useState<SitePlanTask | null>(null);
 
+  const workItems = (tasks ?? []).filter((t) => t.type !== "phase");
   const overallProgress =
-    tasks && tasks.length > 0
-      ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
+    workItems.length > 0
+      ? Math.round(workItems.reduce((s, t) => s + t.progress, 0) / workItems.length)
       : 0;
 
   const hasChildren = selectedTask

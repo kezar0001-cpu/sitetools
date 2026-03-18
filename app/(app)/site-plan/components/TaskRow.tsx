@@ -74,7 +74,10 @@ function collectLeaves(nodes: SitePlanTaskNode[]): SitePlanTaskNode[] {
   const leaves: SitePlanTaskNode[] = [];
   const walk = (ns: SitePlanTaskNode[]) => {
     for (const n of ns) {
-      if (n.children.length === 0) {
+      // Phases are containers — never count them as work items
+      if (n.type === "phase") {
+        walk(n.children);
+      } else if (n.children.length === 0) {
         leaves.push(n);
       } else {
         walk(n.children);
