@@ -2,7 +2,7 @@
 
 import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
-import { STATUS_LABELS } from "@/types/siteplan";
+import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
 import { ProgressBar } from "./ProgressSlider";
 
@@ -102,9 +102,8 @@ function computePhaseStats(children: SitePlanTaskNode[]) {
   // Fall back to direct children if somehow there are no leaves
   const sources = leaves.length > 0 ? leaves : children;
 
-  const progress = Math.round(
-    sources.reduce((s, c) => s + c.progress, 0) / sources.length
-  );
+  // Use canonical computeWorkProgress (excludes any residual phase nodes)
+  const progress = computeWorkProgress(sources);
   const startDate = sources.reduce(
     (min, c) => (c.start_date < min ? c.start_date : min),
     sources[0].start_date

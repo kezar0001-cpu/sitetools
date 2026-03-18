@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Sun,
   CloudRain,
   CloudLightning,
@@ -20,11 +21,20 @@ import {
   ArrowLeftRight,
   FileText,
   X,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useCreateTask, useDeleteTask } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs, useCreateDelayLog } from "@/hooks/useSitePlanDelays";
+import {
+  useDailyReport,
+  useDebouncedReportSave,
+} from "@/hooks/useSitePlanDailyReport";
+import type {
+  WeatherCondition,
+  SiteStatus,
+} from "@/hooks/useSitePlanDailyReport";
 import type {
   SitePlanTask,
   TaskType,
@@ -38,10 +48,7 @@ import { SitePlanBottomNav } from "../../components/SitePlanBottomNav";
 import { TaskListSkeleton } from "../../components/Skeleton";
 import { QueryProvider } from "@/components/QueryProvider";
 
-// ─── Types ──────────────────────────────────────────────────
-
-type WeatherCondition = "sunny" | "partly_cloudy" | "overcast" | "rain" | "heavy_rain" | "extreme";
-type SiteStatus = "on_programme" | "at_risk" | "delayed";
+// ─── Weather / status config ─────────────────────────────────
 
 const WEATHER_OPTIONS: { value: WeatherCondition; label: string; icon: typeof Sun }[] = [
   { value: "sunny", label: "Sunny", icon: Sun },
@@ -159,8 +166,9 @@ function InlineDelayForm({
       <button
         onClick={handleSubmit}
         disabled={!reason.trim() || createDelay.isPending}
-        className="w-full px-3 py-2 text-xs font-medium text-white bg-red-600 rounded min-h-[36px] disabled:opacity-50"
+        className="w-full px-3 py-2 text-xs font-medium text-white bg-red-600 rounded min-h-[36px] disabled:opacity-50 flex items-center justify-center gap-1.5"
       >
+        {createDelay.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
         {createDelay.isPending ? "Logging..." : "Log Delay"}
       </button>
     </div>
@@ -218,8 +226,9 @@ function InlineCommentForm({
       <button
         onClick={handleSubmit}
         disabled={!comment.trim() || updateTask.isPending}
-        className="w-full px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded min-h-[36px] disabled:opacity-50"
+        className="w-full px-3 py-2 text-xs font-medium text-white bg-blue-600 rounded min-h-[36px] disabled:opacity-50 flex items-center justify-center gap-1.5"
       >
+        {updateTask.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
         {updateTask.isPending ? "Saving..." : "Add Comment"}
       </button>
     </div>
@@ -319,8 +328,9 @@ function AddTaskForm({
       <button
         onClick={handleSubmit}
         disabled={!name.trim() || createTask.isPending}
-        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg min-h-[44px] disabled:opacity-50"
+        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-green-600 rounded-lg min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5"
       >
+        {createTask.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         {createTask.isPending ? "Adding..." : "Add Task"}
       </button>
     </div>
@@ -385,8 +395,9 @@ function RescheduleForm({
       <button
         onClick={handleSubmit}
         disabled={updateTask.isPending}
-        className="w-full px-3 py-2 text-xs font-medium text-white bg-amber-600 rounded min-h-[36px] disabled:opacity-50"
+        className="w-full px-3 py-2 text-xs font-medium text-white bg-amber-600 rounded min-h-[36px] disabled:opacity-50 flex items-center justify-center gap-1.5"
       >
+        {updateTask.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
         {updateTask.isPending ? "Saving..." : "Reschedule"}
       </button>
     </div>
@@ -522,10 +533,14 @@ function TaskDueCard({
           </button>
           <button
             onClick={handleMarkComplete}
-            disabled={task.progress >= 100}
+            disabled={task.progress >= 100 || updateTask.isPending}
             className="flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium bg-green-50 text-green-600 hover:bg-green-100 rounded min-h-[32px] disabled:opacity-40"
           >
-            <CheckCircle2 className="h-3 w-3" />
+            {updateTask.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3 w-3" />
+            )}
             Complete
           </button>
           <button
@@ -546,9 +561,14 @@ function TaskDueCard({
           </button>
           <button
             onClick={handleMarkMilestone}
-            className="flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 rounded min-h-[32px]"
+            disabled={updateTask.isPending}
+            className="flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 rounded min-h-[32px] disabled:opacity-40"
           >
-            <Milestone className="h-3 w-3" />
+            {updateTask.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Milestone className="h-3 w-3" />
+            )}
             Milestone
           </button>
         </div>
@@ -592,10 +612,11 @@ function TaskDueCard({
             <div className="flex items-center gap-2">
               <button
                 onClick={handleRemove}
-                disabled={!removeReason.trim()}
-                className="flex-1 px-3 py-2 text-xs font-medium text-white bg-red-600 rounded min-h-[36px] disabled:opacity-50"
+                disabled={!removeReason.trim() || deleteTaskMut.isPending}
+                className="flex-1 px-3 py-2 text-xs font-medium text-white bg-red-600 rounded min-h-[36px] disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                Confirm Remove
+                {deleteTaskMut.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                {deleteTaskMut.isPending ? "Removing..." : "Confirm Remove"}
               </button>
               <button
                 onClick={() => setActiveForm(null)}
@@ -674,8 +695,9 @@ function DesignChangeForm({
       <button
         onClick={handleSubmit}
         disabled={!description.trim() || updateTask.isPending}
-        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg min-h-[44px] disabled:opacity-50"
+        className="w-full px-4 py-2.5 text-sm font-medium text-white bg-purple-600 rounded-lg min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5"
       >
+        {updateTask.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         {updateTask.isPending ? "Saving..." : "Log Change"}
       </button>
     </div>
@@ -712,14 +734,11 @@ function ExportButton({
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.width;
 
-      // Title
       doc.setFontSize(16);
       doc.text("Daily Site Summary", pageWidth / 2, 20, { align: "center" });
-
       doc.setFontSize(10);
       doc.text(formatDateDisplay(date), pageWidth / 2, 28, { align: "center" });
 
-      // Header info
       doc.setFontSize(9);
       let y = 38;
       doc.text(`Weather: ${weather.replace("_", " ")} | Temp: ${temperature || "N/A"}`, 14, y);
@@ -730,10 +749,8 @@ function ExportButton({
         doc.text(`Summary: ${summaryNote}`, 14, y);
         y += 6;
       }
-
       y += 4;
 
-      // Tasks table
       doc.setFontSize(11);
       doc.text("Tasks Due Today", 14, y);
       y += 4;
@@ -752,23 +769,16 @@ function ExportButton({
         headStyles: { fillColor: [51, 65, 85] },
       });
 
-      // Delays section
       if (delayLogs.length > 0) {
         const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
         doc.setFontSize(11);
         doc.text("Delays Logged Today", 14, finalY);
-
         autoTable(doc, {
           startY: finalY + 4,
           head: [["Task", "Days", "Category", "Reason"]],
           body: delayLogs.map((log) => {
             const task = tasks.find((t) => t.id === log.task_id);
-            return [
-              task?.name || "Unknown",
-              `+${log.delay_days}d`,
-              log.delay_category,
-              log.delay_reason,
-            ];
+            return [task?.name || "Unknown", `+${log.delay_days}d`, log.delay_category, log.delay_reason];
           }),
           styles: { fontSize: 8 },
           headStyles: { fillColor: [220, 38, 38] },
@@ -807,37 +817,46 @@ function DailySummaryInner() {
   const { data: allDelayLogs } = useProjectDelayLogs(projectId);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [weather, setWeather] = useState<WeatherCondition>("sunny");
-  const [temperature, setTemperature] = useState("");
-  const [siteStatus, setSiteStatus] = useState<SiteStatus>("on_programme");
-  const [summaryNote, setSummaryNote] = useState("");
   const [showAddTask, setShowAddTask] = useState(false);
   const [showDesignChange, setShowDesignChange] = useState(false);
+  const [overdueExpanded, setOverdueExpanded] = useState(false);
 
-  // Tasks due today: active today or overdue
-  const tasksDueToday = useMemo(() => {
+  const selectedDateISO = formatDateISO(selectedDate);
+
+  // ── Persist daily report metadata ────────────────────────
+  const { report, updateReport } = useDailyReport(projectId, selectedDateISO);
+  const debouncedSave = useDebouncedReportSave(updateReport);
+
+  // Derive controlled values: fall back to defaults when no DB record yet
+  const weather: WeatherCondition = report?.weather ?? "sunny";
+  const temperatureNum = report?.temperature ?? null;
+  const siteStatus = report?.site_status ?? "on_programme";
+  const summaryNote = report?.notes ?? "";
+
+  const setWeather = (v: WeatherCondition) => updateReport({ weather: v });
+  const setTemperature = (v: number | null) => debouncedSave({ temperature: v });
+  const setSiteStatus = (v: typeof siteStatus) => updateReport({ site_status: v });
+  const setSummaryNote = (v: string) => debouncedSave({ notes: v || null });
+
+  // ── Task filtering ────────────────────────────────────────
+  // dueOnSelectedDate: tasks whose end_date is exactly selectedDate
+  const dueOnSelectedDate = useMemo(() => {
     if (!tasks) return [];
-    const date = new Date(selectedDate);
-    date.setHours(0, 0, 0, 0);
-    return tasks.filter((t) => {
-      const start = new Date(t.start_date);
-      const end = new Date(t.end_date);
-      start.setHours(0, 0, 0, 0);
-      end.setHours(0, 0, 0, 0);
-      return (start <= date && end >= date) || (end < date && t.progress < 100);
-    });
-  }, [tasks, selectedDate]);
+    return tasks.filter((t) => t.end_date === selectedDateISO);
+  }, [tasks, selectedDateISO]);
 
-  // Delay logs for selected date
+  // overdueActive: tasks whose end_date < selectedDate AND not yet complete
+  const overdueActive = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter((t) => t.end_date < selectedDateISO && t.progress < 100);
+  }, [tasks, selectedDateISO]);
+
+  // ── Delay logs for selected date ─────────────────────────
   const todayDelayLogs = useMemo(() => {
     if (!allDelayLogs) return [];
-    return allDelayLogs.filter((log) => {
-      const logDate = new Date(log.logged_at);
-      return isSameDay(logDate, selectedDate);
-    });
+    return allDelayLogs.filter((log) => isSameDay(new Date(log.logged_at), selectedDate));
   }, [allDelayLogs, selectedDate]);
 
-  // Delay count map for badges
   const delayCountMap = useMemo(() => {
     const map = new Map<string, number>();
     if (allDelayLogs) {
@@ -952,10 +971,12 @@ function DailySummaryInner() {
                     ))}
                   </div>
                   <input
-                    type="text"
-                    value={temperature}
-                    onChange={(e) => setTemperature(e.target.value)}
-                    placeholder="Temp"
+                    type="number"
+                    value={temperatureNum ?? ""}
+                    onChange={(e) =>
+                      setTemperature(e.target.value ? parseInt(e.target.value) : null)
+                    }
+                    placeholder="°C"
                     className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm min-h-[44px]"
                   />
                 </div>
@@ -985,30 +1006,30 @@ function DailySummaryInner() {
                 />
               </div>
 
-              {/* ─── TASKS DUE TODAY ─── */}
+              {/* ─── DUE TODAY ─── */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold text-slate-800">
-                    Tasks Due Today ({tasksDueToday.length})
+                    Due Today ({dueOnSelectedDate.length})
                   </h2>
                   <ExportButton
                     date={selectedDate}
-                    tasks={tasksDueToday}
+                    tasks={dueOnSelectedDate}
                     delayLogs={todayDelayLogs}
                     weather={weather}
-                    temperature={temperature}
+                    temperature={temperatureNum != null ? String(temperatureNum) : ""}
                     siteStatus={siteStatus}
                     summaryNote={summaryNote}
                   />
                 </div>
 
-                {tasksDueToday.length === 0 ? (
+                {dueOnSelectedDate.length === 0 ? (
                   <div className="text-center py-8 text-sm text-slate-400 border border-dashed border-slate-200 rounded-lg">
                     No tasks due on this date.
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {tasksDueToday.map((task) => (
+                    {dueOnSelectedDate.map((task) => (
                       <TaskDueCard
                         key={task.id}
                         task={task}
@@ -1020,6 +1041,37 @@ function DailySummaryInner() {
                   </div>
                 )}
               </div>
+
+              {/* ─── OVERDUE TASKS (collapsible) ─── */}
+              {overdueActive.length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setOverdueExpanded((v) => !v)}
+                    className="flex items-center gap-2 w-full text-left mb-3"
+                  >
+                    <ChevronDown
+                      className={`h-4 w-4 text-slate-500 shrink-0 transition-transform ${overdueExpanded ? "" : "-rotate-90"}`}
+                    />
+                    <h2 className="text-sm font-bold text-slate-800">
+                      Overdue Tasks ({overdueActive.length})
+                    </h2>
+                  </button>
+
+                  {overdueExpanded && (
+                    <div className="space-y-3">
+                      {overdueActive.map((task) => (
+                        <TaskDueCard
+                          key={task.id}
+                          task={task}
+                          allTasks={tasks ?? []}
+                          projectId={projectId}
+                          delayCount={delayCountMap.get(task.id) ?? 0}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ─── PROGRAMME CHANGES ─── */}
               <div>

@@ -161,6 +161,18 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
   on_hold: "amber",
 };
 
+/**
+ * Canonical progress calculation: average progress of non-phase tasks only.
+ * Used by the list page header, summary page, and the RPC to ensure consistency.
+ */
+export function computeWorkProgress(tasks: SitePlanTask[]): number {
+  const workItems = tasks.filter((t) => t.type !== "phase");
+  if (workItems.length === 0) return 0;
+  return Math.round(
+    workItems.reduce((sum, t) => sum + t.progress, 0) / workItems.length
+  );
+}
+
 export function computeTaskStatus(
   progress: number,
   endDate: string

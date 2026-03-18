@@ -9,7 +9,7 @@ import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
-import { buildTaskTree, flattenTree } from "@/types/siteplan";
+import { buildTaskTree, flattenTree, computeWorkProgress } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
 import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
@@ -182,13 +182,10 @@ function ProjectDetailInner() {
     return applyFilter(rows, filter);
   }, [tree, expandedIds, allExpanded, filter]);
 
-  const overallProgress = useMemo(() => {
-    const workItems = (tasks ?? []).filter((t) => t.type !== "phase");
-    if (workItems.length === 0) return 0;
-    return Math.round(
-      workItems.reduce((s, t) => s + t.progress, 0) / workItems.length
-    );
-  }, [tasks]);
+  const overallProgress = useMemo(
+    () => computeWorkProgress(tasks ?? []),
+    [tasks]
+  );
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedIds((prev) => {
