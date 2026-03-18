@@ -254,8 +254,7 @@ function ProjectDetailInner() {
   // ─── Indent / Outdent ──────────────────────────────────────
 
   const indentTask = useCallback(
-    async (taskId: string, newType: TaskType) => {
-      const { supabase } = await import("@/lib/supabase");
+    (taskId: string, newType: TaskType) => {
       // Determine new parent based on type
       let newParentId: string | null = null;
       if (newType === "task" || newType === "subtask") {
@@ -273,13 +272,13 @@ function ProjectDetailInner() {
         }
       }
 
-      await supabase
-        .from("siteplan_tasks")
-        .update({ type: newType, parent_id: newParentId })
-        .eq("id", taskId);
-      // Realtime subscription will pick up the change
+      updateTask.mutate({
+        id: taskId,
+        projectId,
+        updates: { type: newType, parent_id: newParentId },
+      });
     },
-    [visibleRows]
+    [visibleRows, updateTask, projectId]
   );
 
   const handleIndent = useCallback(() => {

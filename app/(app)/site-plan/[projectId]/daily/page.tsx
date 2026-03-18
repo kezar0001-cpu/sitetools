@@ -21,6 +21,7 @@ import {
   FileText,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useCreateTask, useDeleteTask } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs, useCreateDelayLog } from "@/hooks/useSitePlanDelays";
@@ -433,15 +434,15 @@ function TaskDueCard({
 
   const handleRemove = () => {
     if (!removeReason.trim()) return;
-    // Soft delete: mark as notes + delete
-    const removalNote = `[REMOVED ${formatDateISO(new Date())}] ${removeReason.trim()}`;
-    const notes = task.notes ? `${task.notes}\n${removalNote}` : removalNote;
-    updateTask.mutate(
-      { id: task.id, projectId, updates: { notes, status: "on_hold" } },
+    deleteTaskMut.mutate(
+      { id: task.id, projectId },
       {
         onSuccess: () => {
-          deleteTaskMut.mutate({ id: task.id, projectId });
           setActiveForm(null);
+          toast.success("Task removed", { duration: 3000 });
+        },
+        onError: () => {
+          toast.error("Failed to remove task", { duration: Infinity });
         },
       }
     );

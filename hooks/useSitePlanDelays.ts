@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type {
   SitePlanDelayLog,
@@ -108,6 +109,10 @@ export function useCreateDelayLog() {
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
       // Also invalidate tasks since dates may have shifted
       qc.invalidateQueries({ queryKey: ["siteplan", "tasks", projectId] });
+      toast.success("Delay logged", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
@@ -143,6 +148,10 @@ export function useUpdateDelayLog() {
     onSuccess: (_data, { taskId, projectId }) => {
       qc.invalidateQueries({ queryKey: delayLogsKey(taskId) });
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
+      toast.success("Delay updated", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
@@ -169,6 +178,10 @@ export function useDeleteDelayLog() {
       qc.invalidateQueries({ queryKey: delayLogsKey(taskId) });
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
       qc.invalidateQueries({ queryKey: ["siteplan", "tasks", projectId] });
+      toast.success("Delay removed", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }

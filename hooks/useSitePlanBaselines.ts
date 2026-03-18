@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type { SitePlanTask } from "@/types/siteplan";
 
@@ -66,6 +67,10 @@ export function useSaveBaseline() {
       qc.invalidateQueries({
         queryKey: baselinesKey(data.project_id),
       });
+      toast.success("Baseline saved", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
@@ -89,6 +94,10 @@ export function useDeleteBaseline() {
     },
     onSuccess: (projectId) => {
       qc.invalidateQueries({ queryKey: baselinesKey(projectId) });
+      toast.success("Baseline deleted", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
