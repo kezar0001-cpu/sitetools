@@ -17,7 +17,6 @@ import {
   Plus,
   Trash2,
   FileDown,
-  Milestone,
   ArrowLeftRight,
   FileText,
   X,
@@ -92,12 +91,10 @@ function isSameDay(a: Date, b: Date): boolean {
 
 function InlineDelayForm({
   task,
-  allTasks,
   projectId,
   onClose,
 }: {
   task: SitePlanTask;
-  allTasks: SitePlanTask[];
   projectId: string;
   onClose: () => void;
 }) {
@@ -119,7 +116,6 @@ function InlineDelayForm({
           impacts_completion: impacts,
         },
         projectId,
-        allTasks,
       },
       { onSuccess: () => onClose() }
     );
@@ -408,12 +404,10 @@ function RescheduleForm({
 
 function TaskDueCard({
   task,
-  allTasks,
   projectId,
   delayCount,
 }: {
   task: SitePlanTask;
-  allTasks: SitePlanTask[];
   projectId: string;
   delayCount: number;
 }) {
@@ -457,13 +451,6 @@ function TaskDueCard({
         },
       }
     );
-  };
-
-  const handleMarkMilestone = () => {
-    const notes = task.notes
-      ? `${task.notes}\n[MILESTONE] Marked on ${formatDateISO(new Date())}`
-      : `[MILESTONE] Marked on ${formatDateISO(new Date())}`;
-    updateTask.mutate({ id: task.id, projectId, updates: { notes } });
   };
 
   return (
@@ -559,18 +546,6 @@ function TaskDueCard({
             <Trash2 className="h-3 w-3" />
             Remove
           </button>
-          <button
-            onClick={handleMarkMilestone}
-            disabled={updateTask.isPending}
-            className="flex items-center gap-1 px-2 py-1.5 text-[10px] font-medium bg-purple-50 text-purple-600 hover:bg-purple-100 rounded min-h-[32px] disabled:opacity-40"
-          >
-            {updateTask.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Milestone className="h-3 w-3" />
-            )}
-            Milestone
-          </button>
         </div>
       </div>
 
@@ -579,7 +554,6 @@ function TaskDueCard({
         {activeForm === "delay" && (
           <InlineDelayForm
             task={task}
-            allTasks={allTasks}
             projectId={projectId}
             onClose={() => setActiveForm(null)}
           />
@@ -1033,7 +1007,6 @@ function DailySummaryInner() {
                       <TaskDueCard
                         key={task.id}
                         task={task}
-                        allTasks={tasks ?? []}
                         projectId={projectId}
                         delayCount={delayCountMap.get(task.id) ?? 0}
                       />

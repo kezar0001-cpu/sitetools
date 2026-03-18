@@ -779,7 +779,6 @@ function ProjectDetailInner() {
       {delayTask && (
         <DelayLogDialog
           task={delayTask}
-          allTasks={tasks ?? []}
           projectId={projectId}
           onClose={() => setDelayTask(null)}
         />

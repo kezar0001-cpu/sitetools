@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, AlertTriangle } from "lucide-react";
+import { ChevronLeft, AlertTriangle, Diamond } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
 import type { TaskStatus } from "@/types/siteplan";
@@ -107,7 +107,7 @@ function SummaryPageInner() {
     const criticalTasks: typeof tasks = [];
 
     for (const t of tasks) {
-      if (t.type === "phase") continue; // phases are containers, not work items
+      if (t.type === "phase" || t.type === "milestone") continue; // containers/markers, not work items
       counts[t.status]++;
       const end = new Date(t.end_date);
       if (end < now && t.progress < 100) overdue++;
@@ -120,7 +120,11 @@ function SummaryPageInner() {
 
     const overall = computeWorkProgress(tasks);
 
-    return { counts, overdue, dueThisWeek, noProgress, criticalTasks, overall };
+    const milestoneTasks = [...tasks]
+      .filter((t) => t.type === "milestone")
+      .sort((a, b) => a.end_date.localeCompare(b.end_date));
+
+    return { counts, overdue, dueThisWeek, noProgress, criticalTasks, overall, milestoneTasks };
   }, [tasks]);
 
   return (
@@ -266,6 +270,35 @@ function SummaryPageInner() {
                           <p className="text-xs text-red-600">
                             Planned: {t.start_date} – {t.end_date}
                           </p>
+                        </div>
+                        <StatusBadge status={t.status} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Key Dates — milestone tasks sorted by date */}
+              {stats.milestoneTasks.length > 0 && (
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                    <Diamond className="h-4 w-4 text-purple-600" />
+                    Key Dates
+                  </h2>
+                  <div className="space-y-2">
+                    {stats.milestoneTasks.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() =>
+                          router.push(`/site-plan/${projectId}?task=${t.id}`)
+                        }
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-purple-200 bg-purple-50 cursor-pointer hover:bg-purple-100 hover:border-purple-300 transition-colors text-left"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-purple-800">
+                            {t.wbs_code} {t.name}
+                          </p>
+                          <p className="text-xs text-purple-600">{t.end_date}</p>
                         </div>
                         <StatusBadge status={t.status} />
                       </button>

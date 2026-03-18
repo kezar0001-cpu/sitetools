@@ -15,14 +15,12 @@ import {
 
 interface DelayLogDialogProps {
   task: SitePlanTask;
-  allTasks: SitePlanTask[];
   projectId: string;
   onClose: () => void;
 }
 
 export function DelayLogDialog({
   task,
-  allTasks,
   projectId,
   onClose,
 }: DelayLogDialogProps) {
@@ -50,7 +48,6 @@ export function DelayLogDialog({
           impacts_completion: impactsCompletion,
         },
         projectId,
-        allTasks,
       },
       {
         onSuccess: () => {

@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import type {
   SitePlanDelayLog,
   CreateDelayLogPayload,
-  SitePlanTask,
 } from "@/types/siteplan";
 
 function delayLogsKey(taskId: string) {
@@ -59,7 +58,7 @@ export function useProjectDelayLogs(projectId: string) {
 
 // ─── Mutations ──────────────────────────────────────────────
 
-/** Create a delay log and optionally cascade date shifts */
+/** Create a delay log and optionally cascade date shifts via the server-side RPC. */
 export function useCreateDelayLog() {
   const qc = useQueryClient();
 
@@ -67,47 +66,31 @@ export function useCreateDelayLog() {
     mutationFn: async ({
       payload,
       projectId,
-      allTasks,
     }: {
       payload: CreateDelayLogPayload;
       projectId: string;
-      allTasks: SitePlanTask[];
     }) => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Insert the delay log
-      const { data: log, error } = await supabase
-        .from("siteplan_delay_logs")
-        .insert({
-          task_id: payload.task_id,
-          delay_days: payload.delay_days,
-          delay_reason: payload.delay_reason,
-          delay_category: payload.delay_category,
-          impacts_completion: payload.impacts_completion,
-          logged_by: user!.id,
-        })
-        .select()
-        .single();
+      // Single atomic RPC: inserts the log + cascades date shifts in one transaction
+      const { data, error } = await supabase.rpc("log_siteplan_delay", {
+        p_task_id: payload.task_id,
+        p_delay_days: payload.delay_days,
+        p_reason: payload.delay_reason,
+        p_category: payload.delay_category,
+        p_impacts_completion: payload.impacts_completion,
+        p_logged_by: user!.id,
+      });
       if (error) throw error;
 
-      // If impacts completion, shift this task's end date and cascade to dependents
-      if (payload.impacts_completion) {
-        await cascadeDateShift(
-          payload.task_id,
-          payload.delay_days,
-          projectId,
-          allTasks
-        );
-      }
-
-      return log as SitePlanDelayLog;
+      return data as string; // UUID of the new delay log record
     },
     onSuccess: (_data, { payload, projectId }) => {
       qc.invalidateQueries({ queryKey: delayLogsKey(payload.task_id) });
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
-      // Also invalidate tasks since dates may have shifted
+      // Tasks may have shifted — refresh the task list
       qc.invalidateQueries({ queryKey: ["siteplan", "tasks", projectId] });
       toast.success("Delay logged", { duration: 3000 });
     },
@@ -186,53 +169,3 @@ export function useDeleteDelayLog() {
   });
 }
 
-// ─── Cascade logic ──────────────────────────────────────────
-
-/**
- * Shift a task's end date by delayDays, then cascade to all successor
- * tasks that depend on it (same logic as Procore scheduling).
- */
-async function cascadeDateShift(
-  taskId: string,
-  delayDays: number,
-  projectId: string,
-  allTasks: SitePlanTask[]
-) {
-  const task = allTasks.find((t) => t.id === taskId);
-  if (!task) return;
-
-  // Shift this task's end date
-  const newEnd = addCalendarDays(task.end_date, delayDays);
-  await supabase
-    .from("siteplan_tasks")
-    .update({ end_date: newEnd, status: "delayed" })
-    .eq("id", taskId);
-
-  // Find successor tasks (tasks that list this task's wbs_code in predecessors)
-  const successors = allTasks.filter((t) => {
-    if (!t.predecessors) return false;
-    const preds = t.predecessors.split(",").map((p) => p.trim());
-    return preds.some(
-      (p) => p === task.wbs_code || p.startsWith(task.wbs_code + "FS")
-    );
-  });
-
-  // Cascade: shift each successor's start and end dates
-  for (const succ of successors) {
-    const newStart = addCalendarDays(succ.start_date, delayDays);
-    const newSuccEnd = addCalendarDays(succ.end_date, delayDays);
-    await supabase
-      .from("siteplan_tasks")
-      .update({ start_date: newStart, end_date: newSuccEnd })
-      .eq("id", succ.id);
-
-    // Recursively cascade to successors of successors
-    await cascadeDateShift(succ.id, delayDays, projectId, allTasks);
-  }
-}
-
-function addCalendarDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
-}
