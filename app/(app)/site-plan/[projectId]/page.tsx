@@ -216,7 +216,7 @@ function ProjectDetailInner() {
       setExpandedIdsState((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
         // Persist to URL (but only if not all-expanded)
-        const ids = [...next].join(",");
+        const ids = Array.from(next).join(",");
         updateSearchParams({ expanded: ids || null });
         return next;
       });
