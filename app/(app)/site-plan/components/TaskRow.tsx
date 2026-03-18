@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, Clock, BarChart2, Pencil } from "lucide-react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
-import { STATUS_LABELS, computeWorkProgress, generateWbsCode } from "@/types/siteplan";
+import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
 import { ProgressBar } from "./ProgressSlider";
 

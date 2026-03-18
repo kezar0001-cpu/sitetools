@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
-import { useSitePlanTasks, useUpdateTask, useUpdateProgress, useCreateTask } from "@/hooks/useSitePlanTasks";
+import { useSitePlanTasks, useUpdateTask, useCreateTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import type { SitePlanTask, TaskType } from "@/types/siteplan";
@@ -27,7 +27,6 @@ function GanttPageInner() {
   const { data: baselines } = useSitePlanBaselines(projectId);
   const { data: delayLogs } = useProjectDelayLogs(projectId);
   const updateTask = useUpdateTask();
-  const updateProgress = useUpdateProgress();
   const createTask = useCreateTask();
   const [selectedTask, setSelectedTask] = useState<SitePlanTask | null>(null);
   const [delayTask, setDelayTask] = useState<SitePlanTask | null>(null);
@@ -49,18 +48,6 @@ function GanttPageInner() {
       setSelectedTask(task);
     },
     []
-  );
-
-  const handleProgressChange = useCallback(
-    (task: SitePlanTask, progress: number) => {
-      updateProgress.mutate({
-        taskId: task.id,
-        projectId,
-        progressBefore: task.progress,
-        progressAfter: progress,
-      });
-    },
-    [updateProgress, projectId]
   );
 
   const workItems = (tasks ?? []).filter((t) => t.type !== "phase");
@@ -142,7 +129,6 @@ function GanttPageInner() {
               onTaskClick={(t) => setSelectedTask(t)}
               onDoubleClick={handleDoubleClick}
               onDateChange={handleDateChange}
-              onProgressChange={handleProgressChange}
               onLogDelay={(t) => setDelayTask(t)}
               canEdit={true}
             />

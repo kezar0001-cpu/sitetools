@@ -37,7 +37,6 @@ interface GanttChartProps {
   onTaskClick?: (task: SitePlanTask) => void;
   onDoubleClick?: (task: SitePlanTask) => void;
   onDateChange?: (task: SitePlanTask, start_date: string, end_date: string) => void;
-  onProgressChange?: (task: SitePlanTask, progress: number) => void;
   onLogDelay?: (task: SitePlanTask) => void;
   canEdit?: boolean;
 }
@@ -241,7 +240,6 @@ export function GanttChart({
   onTaskClick,
   onDoubleClick,
   onDateChange,
-  onProgressChange,
   onLogDelay,
   canEdit = true,
 }: GanttChartProps) {
@@ -783,9 +781,6 @@ export function GanttChart({
               const barWidth = Math.max(4, barEndX - barX);
 
               const colors = STATUS_BAR_COLORS[node.status] ?? STATUS_BAR_COLORS.not_started;
-
-              // Progress fill width
-              const progressWidth = (node.progress / 100) * barWidth;
 
               // Delay extension
               const delayExtX = barEndX;
