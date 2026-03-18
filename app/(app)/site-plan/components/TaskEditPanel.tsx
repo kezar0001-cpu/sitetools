@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Trash2, Check, Loader2 } from "lucide-react";
-import type { SitePlanTask, TaskStatus, UpdateTaskPayload } from "@/types/siteplan";
-import { STATUS_LABELS } from "@/types/siteplan";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { X, Trash2, Check, Loader2, AlertTriangle } from "lucide-react";
+import type { SitePlanTask, SitePlanTaskNode, TaskStatus, UpdateTaskPayload } from "@/types/siteplan";
+import { STATUS_LABELS, buildTaskTree, flattenTree } from "@/types/siteplan";
 import {
   useUpdateTask,
   useUpdateProgress,
   useDeleteTask,
   useProgressLog,
+  useSitePlanTasks,
 } from "@/hooks/useSitePlanTasks";
+import { useCompanyId } from "@/hooks/useSitePlan";
+import { useCompanyMembers, type CompanyMember } from "@/hooks/useCompanyMembers";
 import { StatusBadge } from "./StatusBadge";
 import { ProgressSlider } from "./ProgressSlider";
 
@@ -42,13 +45,19 @@ export function TaskEditPanel({
     comments: task.comments,
     notes: task.notes,
   });
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [savedField, setSavedField] = useState<string | null>(null);
 
   const updateTask = useUpdateTask();
   const updateProgress = useUpdateProgress();
   const deleteTask = useDeleteTask();
   const { data: logs } = useProgressLog(task.id);
+  const { data: allTasks } = useSitePlanTasks(task.project_id);
+  const { data: companyId } = useCompanyId();
+  const { data: members } = useCompanyMembers(companyId ?? null);
+
+  const isSaving = updateTask.isPending || updateProgress.isPending;
+  const [showSaved, setShowSaved] = useState(false);
 
   // Refs to track latest values for debounce callbacks
   const taskRef = useRef(task);
@@ -61,53 +70,59 @@ export function TaskEditPanel({
   const prevTaskIdRef = useRef<string>(task.id);
   const prevTaskProjectIdRef = useRef<string>(task.project_id);
 
-  // Flash a saved indicator briefly
-  const flashSaved = useCallback(() => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  }, []);
-
-  // Save a single field (or set of fields)
+  // Unified save function — all fields go through this with debounce
   const saveField = useCallback(
-    (updates: UpdateTaskPayload) => {
-      updateTask.mutate(
-        { id: taskRef.current.id, projectId: taskRef.current.project_id, updates },
-        { onSuccess: () => flashSaved() }
-      );
-    },
-    [updateTask, flashSaved]
-  );
+    (fieldName: string, value: unknown) => {
+      // Clear existing timer for this field
+      if (debounceTimers.current[fieldName]) {
+        clearTimeout(debounceTimers.current[fieldName]);
+      }
 
-  // Save progress with logging
-  const saveProgress = useCallback(
-    (value: number) => {
-      const t = taskRef.current;
-      if (value !== t.progress) {
-        updateProgress.mutate(
+      debounceTimers.current[fieldName] = setTimeout(() => {
+        delete debounceTimers.current[fieldName];
+
+        // Special handling for progress — log it
+        if (fieldName === "progress") {
+          const t = taskRef.current;
+          const newProgress = value as number;
+          if (newProgress !== t.progress) {
+            updateProgress.mutate(
+              {
+                taskId: t.id,
+                projectId: t.project_id,
+                progressBefore: t.progress,
+                progressAfter: newProgress,
+              },
+              {
+                onSuccess: () => {
+                  setSavedField(fieldName);
+                  setShowSaved(true);
+                  setTimeout(() => setShowSaved(false), 1500);
+                },
+              }
+            );
+          }
+          return;
+        }
+
+        // Regular field save
+        updateTask.mutate(
           {
-            taskId: t.id,
-            projectId: t.project_id,
-            progressBefore: t.progress,
-            progressAfter: value,
+            id: taskRef.current.id,
+            projectId: taskRef.current.project_id,
+            updates: { [fieldName]: value },
           },
-          { onSuccess: () => flashSaved() }
+          {
+            onSuccess: () => {
+              setSavedField(fieldName);
+              setShowSaved(true);
+              setTimeout(() => setShowSaved(false), 1500);
+            },
+          }
         );
-      }
-    },
-    [updateProgress, flashSaved]
-  );
-
-  // Debounced save for text fields (name, notes, comments)
-  const debouncedSave = useCallback(
-    (key: keyof UpdateTaskPayload, value: string | null) => {
-      if (debounceTimers.current[key]) {
-        clearTimeout(debounceTimers.current[key]);
-      }
-      debounceTimers.current[key] = setTimeout(() => {
-        saveField({ [key]: value });
       }, DEBOUNCE_MS);
     },
-    [saveField]
+    [updateTask, updateProgress]
   );
 
   // Cleanup any remaining timers on final unmount
@@ -119,22 +134,17 @@ export function TaskEditPanel({
 
   // When task.id changes: flush pending saves to the PREVIOUS task, then reset form
   useEffect(() => {
-    const pendingKeys = Object.keys(
-      debounceTimers.current
-    ) as (keyof UpdateTaskPayload)[];
+    const pendingKeys = Object.keys(debounceTimers.current);
 
     if (pendingKeys.length > 0) {
-      // Build an updates object from the current (stale) form values
       const updates: UpdateTaskPayload = {};
       for (const key of pendingKeys) {
         clearTimeout(debounceTimers.current[key]);
-        (updates as Record<string, unknown>)[key as string] =
-          formRef.current[key];
+        (updates as Record<string, unknown>)[key] =
+          formRef.current[key as keyof UpdateTaskPayload];
       }
       debounceTimers.current = {};
 
-      // Save to the PREVIOUS task — prevTaskIdRef still holds its ID
-      // because we update the ref AFTER this block
       updateTask.mutate({
         id: prevTaskIdRef.current,
         projectId: prevTaskProjectIdRef.current,
@@ -145,7 +155,6 @@ export function TaskEditPanel({
       debounceTimers.current = {};
     }
 
-    // Advance the previous-task refs to the newly selected task
     prevTaskIdRef.current = task.id;
     prevTaskProjectIdRef.current = task.project_id;
 
@@ -163,10 +172,29 @@ export function TaskEditPanel({
       comments: task.comments,
       notes: task.notes,
     });
-    setConfirmDelete(false);
-    setSaved(false);
+    setShowDeleteConfirm(false);
+    setShowSaved(false);
+    setSavedField(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
+
+  // Count all descendants for cascade delete warning
+  const descendantCount = useMemo(() => {
+    if (!hasChildren || !allTasks) return 0;
+    const tree = buildTaskTree(allTasks);
+    const flat = flattenTree(tree);
+    const taskNode = flat.find((n) => n.id === task.id);
+    if (!taskNode || taskNode.children.length === 0) return 0;
+    // Count all descendants
+    const count = (nodes: SitePlanTaskNode[]): number => {
+      let c = 0;
+      for (const n of nodes) {
+        c += 1 + count(n.children);
+      }
+      return c;
+    };
+    return count(taskNode.children);
+  }, [task.id, hasChildren, allTasks]);
 
   const handleDelete = () => {
     deleteTask.mutate(
@@ -175,35 +203,24 @@ export function TaskEditPanel({
     );
   };
 
-  // Local state setter
-  const set = <K extends keyof UpdateTaskPayload>(
-    key: K,
-    val: UpdateTaskPayload[K]
-  ) => setForm((f) => ({ ...f, [key]: val }));
-
-  // Immediate save handler for selects / dates
-  const setAndSave = <K extends keyof UpdateTaskPayload>(
+  // Unified change handler — updates local state and debounces save
+  const handleChange = <K extends keyof UpdateTaskPayload>(
     key: K,
     val: UpdateTaskPayload[K]
   ) => {
-    set(key, val);
-    saveField({ [key]: val });
+    setForm((f) => ({ ...f, [key]: val }));
+    saveField(key, val);
   };
 
-  // On-blur save for non-debounced text fields (predecessors, assigned_to, responsible)
-  const handleBlurSave = (key: keyof UpdateTaskPayload) => {
-    const current = formRef.current[key];
-    const original = task[key as keyof SitePlanTask];
-    if (current !== original) {
-      saveField({ [key]: current });
-    }
-  };
+  // CSS class for field that just saved (green border flash)
+  const savedFieldClass = (fieldName: string) =>
+    savedField === fieldName
+      ? "ring-2 ring-green-400 transition-all duration-300"
+      : "transition-all duration-300";
 
-  // Debounced text change handler (name, notes, comments)
-  const handleDebouncedChange = (key: keyof UpdateTaskPayload, value: string | null) => {
-    set(key, value);
-    debouncedSave(key, value);
-  };
+  // Close any open combobox when task changes
+  const comboboxKeyRef = useRef(task.id);
+  comboboxKeyRef.current = task.id;
 
   return (
     <>
@@ -222,14 +239,17 @@ export function TaskEditPanel({
               {task.type}
             </span>
             <StatusBadge status={task.status} />
-            {saved && (
+            {isSaving && (
+              <span className="flex items-center gap-1 text-xs text-slate-400">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Saving...
+              </span>
+            )}
+            {!isSaving && showSaved && (
               <span className="flex items-center gap-1 text-xs text-green-600 animate-in fade-in duration-200">
                 <Check className="h-3 w-3" />
                 Saved
               </span>
-            )}
-            {(updateTask.isPending || updateProgress.isPending) && (
-              <span className="text-xs text-slate-400">Saving...</span>
             )}
           </div>
           <button
@@ -242,7 +262,7 @@ export function TaskEditPanel({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {/* Name — debounced */}
+          {/* Name */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Task Name
@@ -250,12 +270,12 @@ export function TaskEditPanel({
             <input
               type="text"
               value={form.name ?? ""}
-              onChange={(e) => handleDebouncedChange("name", e.target.value)}
-              className="w-full text-lg font-semibold text-slate-900 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) => handleChange("name", e.target.value)}
+              className={`w-full text-lg font-semibold text-slate-900 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${savedFieldClass("name")}`}
             />
           </div>
 
-          {/* Status — immediate */}
+          {/* Status */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Status
@@ -263,9 +283,9 @@ export function TaskEditPanel({
             <select
               value={form.status ?? task.status}
               onChange={(e) =>
-                setAndSave("status", e.target.value as TaskStatus)
+                handleChange("status", e.target.value as TaskStatus)
               }
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("status")}`}
             >
               {Object.entries(STATUS_LABELS).map(([val, label]) => (
                 <option key={val} value={val}>
@@ -275,21 +295,18 @@ export function TaskEditPanel({
             </select>
           </div>
 
-          {/* Progress — immediate on commit */}
+          {/* Progress */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Progress
             </label>
             <ProgressSlider
               value={form.progress ?? task.progress}
-              onChange={(v) => {
-                set("progress", v);
-                saveProgress(v);
-              }}
+              onChange={(v) => handleChange("progress", v)}
             />
           </div>
 
-          {/* Dates — immediate */}
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">
@@ -298,8 +315,8 @@ export function TaskEditPanel({
               <input
                 type="date"
                 value={form.start_date ?? ""}
-                onChange={(e) => setAndSave("start_date", e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+                onChange={(e) => handleChange("start_date", e.target.value)}
+                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("start_date")}`}
               />
             </div>
             <div>
@@ -309,8 +326,8 @@ export function TaskEditPanel({
               <input
                 type="date"
                 value={form.end_date ?? ""}
-                onChange={(e) => setAndSave("end_date", e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+                onChange={(e) => handleChange("end_date", e.target.value)}
+                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("end_date")}`}
               />
             </div>
             <div>
@@ -321,9 +338,9 @@ export function TaskEditPanel({
                 type="date"
                 value={form.actual_start ?? ""}
                 onChange={(e) =>
-                  setAndSave("actual_start", e.target.value || null)
+                  handleChange("actual_start", e.target.value || null)
                 }
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("actual_start")}`}
               />
             </div>
             <div>
@@ -334,14 +351,14 @@ export function TaskEditPanel({
                 type="date"
                 value={form.actual_end ?? ""}
                 onChange={(e) =>
-                  setAndSave("actual_end", e.target.value || null)
+                  handleChange("actual_end", e.target.value || null)
                 }
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("actual_end")}`}
               />
             </div>
           </div>
 
-          {/* Predecessors — save on blur */}
+          {/* Predecessors */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Predecessors
@@ -349,44 +366,41 @@ export function TaskEditPanel({
             <input
               type="text"
               value={form.predecessors ?? ""}
-              onChange={(e) => set("predecessors", e.target.value || null)}
-              onBlur={() => handleBlurSave("predecessors")}
+              onChange={(e) => handleChange("predecessors", e.target.value || null)}
               placeholder="e.g. 1, 3FS+2d"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("predecessors")}`}
             />
           </div>
 
-          {/* Assigned To — save on blur */}
+          {/* Assigned To — autocomplete from company members */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Assigned To
             </label>
-            <input
-              type="text"
+            <MemberCombobox
               value={form.assigned_to ?? ""}
-              onChange={(e) => set("assigned_to", e.target.value || null)}
-              onBlur={() => handleBlurSave("assigned_to")}
+              onChange={(val) => handleChange("assigned_to", val || null)}
+              members={members ?? []}
               placeholder="Person or team"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+              className={savedFieldClass("assigned_to")}
             />
           </div>
 
-          {/* Responsible — save on blur */}
+          {/* Responsible — autocomplete from company members */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Responsible
             </label>
-            <input
-              type="text"
+            <MemberCombobox
               value={form.responsible ?? ""}
-              onChange={(e) => set("responsible", e.target.value || null)}
-              onBlur={() => handleBlurSave("responsible")}
+              onChange={(val) => handleChange("responsible", val || null)}
+              members={members ?? []}
               placeholder="Name or trade"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
+              className={savedFieldClass("responsible")}
             />
           </div>
 
-          {/* Comments — debounced */}
+          {/* Comments */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Comments
@@ -394,15 +408,15 @@ export function TaskEditPanel({
             <textarea
               value={form.comments ?? ""}
               onChange={(e) =>
-                handleDebouncedChange("comments", e.target.value || null)
+                handleChange("comments", e.target.value || null)
               }
               rows={2}
               placeholder="Add comments..."
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none"
+              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none ${savedFieldClass("comments")}`}
             />
           </div>
 
-          {/* Notes — debounced */}
+          {/* Notes */}
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">
               Notes
@@ -410,10 +424,10 @@ export function TaskEditPanel({
             <textarea
               value={form.notes ?? ""}
               onChange={(e) =>
-                handleDebouncedChange("notes", e.target.value || null)
+                handleChange("notes", e.target.value || null)
               }
               rows={3}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none"
+              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none ${savedFieldClass("notes")}`}
             />
           </div>
 
@@ -464,9 +478,9 @@ export function TaskEditPanel({
 
           {/* Delete */}
           <div className="pt-2 border-t border-slate-100">
-            {!confirmDelete ? (
+            {!showDeleteConfirm ? (
               <button
-                onClick={() => setConfirmDelete(true)}
+                onClick={() => setShowDeleteConfirm(true)}
                 className="flex items-center gap-2 text-sm text-red-600 hover:text-red-700 py-2"
               >
                 <Trash2 className="h-4 w-4" />
@@ -474,11 +488,15 @@ export function TaskEditPanel({
               </button>
             ) : (
               <div className="space-y-2">
-                {hasChildren && (
-                  <p className="text-xs text-red-600">
-                    This task has children. Deleting will remove all children
-                    too.
-                  </p>
+                {hasChildren && descendantCount > 0 && (
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-red-700">
+                      Deleting this {task.type} will permanently delete{" "}
+                      <span className="font-bold">{descendantCount}</span> child
+                      task{descendantCount !== 1 ? "s" : ""}. This cannot be undone.
+                    </p>
+                  </div>
                 )}
                 <div className="flex items-center gap-2">
                   <button
@@ -492,7 +510,7 @@ export function TaskEditPanel({
                     {deleteTask.isPending ? "Deleting..." : "Confirm Delete"}
                   </button>
                   <button
-                    onClick={() => setConfirmDelete(false)}
+                    onClick={() => setShowDeleteConfirm(false)}
                     className="px-3 py-2 text-sm text-slate-600 hover:text-slate-700 min-h-[44px]"
                   >
                     Cancel
@@ -504,5 +522,87 @@ export function TaskEditPanel({
         </div>
       </div>
     </>
+  );
+}
+
+// ─── MemberCombobox ─────────────────────────────────────────
+
+function MemberCombobox({
+  value,
+  onChange,
+  members,
+  placeholder,
+  className = "",
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  members: CompanyMember[];
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync external value
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const filtered = useMemo(
+    () =>
+      members.filter((m) =>
+        m.name.toLowerCase().includes(inputValue.toLowerCase())
+      ),
+    [members, inputValue]
+  );
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={(e) => {
+          setInputValue(e.target.value);
+          setOpen(true);
+          onChange(e.target.value);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          // Delay to allow click on dropdown
+          setTimeout(() => setOpen(false), 150);
+        }}
+        placeholder={placeholder}
+        className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${className}`}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+          {filtered.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setInputValue(m.name);
+                onChange(m.name);
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
+            >
+              <span className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
+                {m.name.charAt(0).toUpperCase()}
+              </span>
+              <span className="truncate">{m.name}</span>
+              {m.email && (
+                <span className="text-xs text-slate-400 truncate ml-auto">
+                  {m.email}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

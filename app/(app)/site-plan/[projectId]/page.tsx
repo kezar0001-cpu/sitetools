@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
@@ -10,7 +10,7 @@ import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSite
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { buildTaskTree, flattenTree, computeWorkProgress } from "@/types/siteplan";
-import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
+import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
 import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
@@ -116,6 +116,8 @@ function applyFilter(
 function ProjectDetailInner() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const projectId = params.projectId as string;
 
   const { data: project } = useSitePlanProject(projectId);
@@ -138,18 +140,95 @@ function ProjectDetailInner() {
     return map;
   }, [delayLogs]);
 
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [allExpanded, setAllExpanded] = useState(true);
-  const [mobileExpandedIds, setMobileExpandedIds] = useState<Set<string>>(new Set());
-  const [selectedTask, setSelectedTask] = useState<SitePlanTaskNode | null>(
-    null
+  // Helper to update URL search params
+  const updateSearchParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      for (const [key, val] of Object.entries(updates)) {
+        if (val === null || val === "") {
+          newParams.delete(key);
+        } else {
+          newParams.set(key, val);
+        }
+      }
+      const qs = newParams.toString();
+      router.replace(pathname + (qs ? `?${qs}` : ""), { scroll: false });
+    },
+    [searchParams, pathname, router]
   );
+
+  // Derive filter from URL search params
+  const filter = useMemo<TaskFilter>(() => {
+    const filterParam = searchParams.get("filter");
+    const searchParam = searchParams.get("search");
+    const assignedParam = searchParams.get("assignedTo");
+    const typeParam = searchParams.get("type");
+
+    // Support predefined filter aliases (used by Summary page links)
+    if (filterParam === "overdue") {
+      return { status: ["delayed" as const], type: [], assignedTo: "", search: "" };
+    }
+    if (filterParam === "due_this_week") {
+      return { status: ["in_progress" as const, "not_started" as const], type: [], assignedTo: "", search: "" };
+    }
+    if (filterParam === "no_progress") {
+      return { status: ["not_started" as const], type: [], assignedTo: "", search: "" };
+    }
+
+    const statusParam = searchParams.get("status");
+    return {
+      status: statusParam ? statusParam.split(",") as TaskStatus[] : [],
+      type: typeParam ? typeParam.split(",") as TaskType[] : [],
+      assignedTo: assignedParam ?? "",
+      search: searchParam ?? "",
+    };
+  }, [searchParams]);
+
+  const setFilter = useCallback(
+    (f: TaskFilter) => {
+      updateSearchParams({
+        status: f.status.length > 0 ? f.status.join(",") : null,
+        type: f.type.length > 0 ? f.type.join(",") : null,
+        assignedTo: f.assignedTo || null,
+        search: f.search || null,
+        filter: null, // clear predefined alias
+      });
+    },
+    [updateSearchParams]
+  );
+
+  // Derive expandedIds from URL
+  const expandedIdsParam = searchParams.get("expanded");
+  const [expandedIds, setExpandedIdsState] = useState<Set<string>>(() =>
+    expandedIdsParam ? new Set(expandedIdsParam.split(",")) : new Set()
+  );
+  const [allExpanded, setAllExpanded] = useState(!expandedIdsParam);
+  const [mobileExpandedIds, setMobileExpandedIds] = useState<Set<string>>(new Set());
+
+  // Derive selected task from URL
+  const taskIdParam = searchParams.get("task");
+
+  // Find selected task from URL param or local state
+  const [selectedTaskLocal, setSelectedTaskLocal] = useState<SitePlanTaskNode | null>(null);
+
+  const setExpandedIds = useCallback(
+    (updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+      setExpandedIdsState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        // Persist to URL (but only if not all-expanded)
+        const ids = Array.from(next).join(",");
+        updateSearchParams({ expanded: ids || null });
+        return next;
+      });
+    },
+    [updateSearchParams]
+  );
+
   const [showImport, setShowImport] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [filter, setFilter] = useState<TaskFilter>(EMPTY_FILTER);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Inline input state
@@ -163,6 +242,22 @@ function ProjectDetailInner() {
 
   // Flatten for link dialog
   const flatTasks = useMemo(() => flattenTree(tree), [tree]);
+
+  // Resolve selected task: prefer URL param, fall back to local state
+  const selectedTask = useMemo(() => {
+    if (taskIdParam && flatTasks.length > 0) {
+      return flatTasks.find((t) => t.id === taskIdParam) ?? selectedTaskLocal;
+    }
+    return selectedTaskLocal;
+  }, [taskIdParam, flatTasks, selectedTaskLocal]);
+
+  const setSelectedTask = useCallback(
+    (task: SitePlanTaskNode | null) => {
+      setSelectedTaskLocal(task);
+      updateSearchParams({ task: task?.id ?? null });
+    },
+    [updateSearchParams]
+  );
 
   // Visible rows based on expanded state
   const visibleRows = useMemo(() => {
@@ -415,6 +510,25 @@ function ProjectDetailInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [selectedTask, handleIndent, handleOutdent]);
 
+  // Compute phase index for accent coloring
+  const phaseIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    let idx = 0;
+    for (const row of visibleRows) {
+      if (row.type === "phase") {
+        map.set(row.id, idx);
+        idx++;
+      }
+    }
+    // For non-phase tasks, inherit from parent
+    for (const row of visibleRows) {
+      if (row.type !== "phase" && row.parent_id) {
+        map.set(row.id, map.get(row.parent_id) ?? 0);
+      }
+    }
+    return map;
+  }, [visibleRows]);
+
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
@@ -541,6 +655,7 @@ function ProjectDetailInner() {
                               delayCount={delayCountMap.get(node.id) ?? 0}
                               dragHandleProps={dragProvided.dragHandleProps}
                               isDragging={dragSnapshot.isDragging}
+                              phaseIndex={phaseIndexMap.get(node.id) ?? 0}
                             />
 
                             {/* Mobile: card view */}

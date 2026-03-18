@@ -1,10 +1,21 @@
 "use client";
 
-import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
 import { ProgressBar } from "./ProgressSlider";
+
+// Phase accent border colors by index
+const PHASE_ACCENT_COLORS = [
+  "border-l-indigo-500",
+  "border-l-violet-500",
+  "border-l-emerald-500",
+  "border-l-amber-500",
+  "border-l-rose-500",
+  "border-l-sky-500",
+];
 
 interface TaskRowProps {
   node: SitePlanTaskNode;
@@ -16,6 +27,7 @@ interface TaskRowProps {
   delayCount?: number;
   dragHandleProps?: DraggableProvided["dragHandleProps"];
   isDragging?: boolean;
+  phaseIndex?: number;
 }
 
 // Distinctive backgrounds per type
@@ -151,6 +163,7 @@ export function TaskRow({
   delayCount = 0,
   dragHandleProps,
   isDragging,
+  phaseIndex = 0,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -171,9 +184,19 @@ export function TaskRow({
     ? "text-slate-300 tabular-nums"
     : "text-slate-500 tabular-nums";
 
+  // Phase accent border color
+  const accentBorder = isPhase
+    ? `border-l-[3px] ${PHASE_ACCENT_COLORS[phaseIndex % PHASE_ACCENT_COLORS.length]}`
+    : "";
+
+  // Phase rows get sticky positioning so they stay visible during scrolling
+  const stickyStyle = isPhase
+    ? "sticky top-[32px] z-[5]"
+    : "";
+
   return (
     <div
-      className={`hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
+      className={`hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${accentBorder} ${stickyStyle} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
       onClick={() => onSelect(node)}
       role="button"
       tabIndex={0}
@@ -190,9 +213,9 @@ export function TaskRow({
         <GripVertical className="h-3.5 w-3.5" />
       </div>
 
-      {/* Row number */}
-      <div className={`w-8 shrink-0 text-center text-xs tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
-        {rowNumber}
+      {/* WBS code */}
+      <div className={`w-8 shrink-0 text-center text-[10px] tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
+        {node.wbs_code || rowNumber}
       </div>
 
       {/* Task Name — nesting guides + expand chevron */}
@@ -222,12 +245,12 @@ export function TaskRow({
 
         {/* Name — wraps to multiple lines */}
         <span
-          className={`text-sm break-words min-w-0 ${text} ${
+          className={`break-words min-w-0 ${text} ${
             isPhase
-              ? "font-bold tracking-wide uppercase"
+              ? "font-semibold text-sm tracking-wide uppercase"
               : isSubtask
-                ? "font-normal text-slate-500"
-                : "font-medium"
+                ? "text-xs font-normal text-slate-500"
+                : "text-xs font-medium"
           }`}
         >
           {node.name}
@@ -391,6 +414,7 @@ interface MobileTaskCardProps {
   node: SitePlanTaskNode;
   onSelect: (task: SitePlanTaskNode) => void;
   onLogDelay?: (task: SitePlanTaskNode) => void;
+  onUpdateProgress?: (task: SitePlanTaskNode) => void;
   delayCount?: number;
   mobileExpanded: boolean;
   onToggleMobileExpand: () => void;
@@ -402,12 +426,41 @@ export function MobileTaskCard({
   node,
   onSelect,
   onLogDelay,
+  onUpdateProgress,
   delayCount = 0,
   mobileExpanded,
   onToggleMobileExpand,
   dragHandleProps,
   isDragging,
 }: MobileTaskCardProps) {
+  // Swipe-left gesture state
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const swipeThreshold = 60;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const dx = e.touches[0].clientX - touchStartRef.current.x;
+    const dy = e.touches[0].clientY - touchStartRef.current.y;
+    // Only detect horizontal swipe
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (dx < 0) {
+      setSwipeOffset(Math.max(dx, -150));
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (swipeOffset < -swipeThreshold) {
+      setSwipeOffset(-150); // Snap open
+    } else {
+      setSwipeOffset(0); // Snap closed
+    }
+    touchStartRef.current = null;
+  }, [swipeOffset]);
   const isPhase = node.type === "phase";
   const isSubtask = node.type === "subtask";
   const person = node.assigned_to || node.responsible || null;
@@ -428,10 +481,41 @@ export function MobileTaskCard({
 
   return (
     <div
-      className={`md:hidden border-b border-slate-200 ${
+      className={`md:hidden border-b border-slate-200 relative overflow-hidden ${
         isPhase ? "bg-slate-800" : isSubtask ? "bg-slate-50" : "bg-white"
       } ${indentCls} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""}`}
     >
+      {/* Swipe-revealed quick actions */}
+      <div className="absolute right-0 top-0 bottom-0 flex items-stretch z-0">
+        <button
+          onClick={() => { onLogDelay?.(node); setSwipeOffset(0); }}
+          className="w-[50px] bg-red-500 text-white flex flex-col items-center justify-center text-[10px] font-medium gap-0.5"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          Delay
+        </button>
+        <button
+          onClick={() => { onSelect(node); setSwipeOffset(0); }}
+          className="w-[50px] bg-blue-500 text-white flex flex-col items-center justify-center text-[10px] font-medium gap-0.5"
+        >
+          <Pencil className="h-4 w-4" />
+          Edit
+        </button>
+        <button
+          onClick={() => { onUpdateProgress?.(node); setSwipeOffset(0); }}
+          className="w-[50px] bg-emerald-500 text-white flex flex-col items-center justify-center text-[10px] font-medium gap-0.5"
+        >
+          <BarChart2 className="h-4 w-4" />
+          Progress
+        </button>
+      </div>
+      <div
+        className={`relative z-[1] ${isPhase ? "bg-slate-800" : isSubtask ? "bg-slate-50" : "bg-white"}`}
+        style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 || swipeOffset === -150 ? "transform 0.2s ease-out" : "none" }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
       {/* Primary row — always visible */}
       <div className="flex items-center gap-2 px-3 py-3 min-h-[56px]">
         {/* Drag handle */}
@@ -603,6 +687,7 @@ export function MobileTaskCard({
           </div>
         </div>
       )}
+      </div>{/* end swipe wrapper */}
     </div>
   );
 }

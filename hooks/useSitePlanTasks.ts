@@ -10,7 +10,7 @@ import type {
   CreateTaskPayload,
   UpdateTaskPayload,
 } from "@/types/siteplan";
-import { computeTaskStatus } from "@/types/siteplan";
+import { computeTaskStatus, generateWbsCode } from "@/types/siteplan";
 
 function tasksKey(projectId: string) {
   return ["siteplan", "tasks", projectId];
@@ -86,9 +86,36 @@ export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: CreateTaskPayload) => {
+      // Compute WBS code from sibling count at target level
+      let siblingQuery = supabase
+        .from("siteplan_tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", payload.project_id);
+
+      if (payload.parent_id) {
+        siblingQuery = siblingQuery.eq("parent_id", payload.parent_id);
+      } else {
+        siblingQuery = siblingQuery.is("parent_id", null);
+      }
+
+      const { count } = await siblingQuery.then((res) => ({ count: res.count ?? 0 }));
+
+      // If parent exists, get parent's WBS code
+      let parentWbs: string | null = null;
+      if (payload.parent_id) {
+        const { data: parent } = await supabase
+          .from("siteplan_tasks")
+          .select("wbs_code")
+          .eq("id", payload.parent_id)
+          .single();
+        parentWbs = parent?.wbs_code ?? null;
+      }
+
+      const wbs_code = generateWbsCode(parentWbs, count);
+
       const { data, error } = await supabase
         .from("siteplan_tasks")
-        .insert(payload)
+        .insert({ ...payload, wbs_code })
         .select()
         .single();
       if (error) throw error;
@@ -254,18 +281,15 @@ export function useReorderTask() {
       projectId: string;
       moves: { id: string; sort_order: number; parent_id: string | null }[];
     }) => {
-      // Batch-update all moved rows in a single Promise.all
-      await Promise.all(
-        moves.map(({ id, sort_order, parent_id }) =>
-          supabase
-            .from("siteplan_tasks")
-            .update({ sort_order, parent_id })
-            .eq("id", id)
-            .then(({ error }) => {
-              if (error) throw error;
-            })
-        )
-      );
+      // Atomic reorder via Postgres RPC — single transaction
+      const { error } = await supabase.rpc("reorder_siteplan_tasks", {
+        updates: moves.map(({ id, sort_order, parent_id }) => ({
+          id,
+          sort_order,
+          parent_id: parent_id ?? null,
+        })),
+      });
+      if (error) throw error;
     },
     onMutate: async ({ projectId, moves }) => {
       await qc.cancelQueries({ queryKey: tasksKey(projectId) });

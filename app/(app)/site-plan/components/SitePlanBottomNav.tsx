@@ -9,10 +9,10 @@ interface SitePlanBottomNavProps {
 }
 
 const tabs = [
-  { id: "tasks", label: "Tasks", icon: ListTodo, href: (id: string) => `/site-plan/${id}` },
+  { id: "plan", label: "Plan", icon: ListTodo, href: (id: string) => `/site-plan/${id}` },
   { id: "gantt", label: "Gantt", icon: BarChart3, href: (id: string) => `/site-plan/${id}/gantt` },
-  { id: "daily", label: "Daily", icon: Calendar, href: (id: string) => `/site-plan/${id}/daily` },
   { id: "summary", label: "Summary", icon: PieChart, href: (id: string) => `/site-plan/${id}/summary` },
+  { id: "daily", label: "Daily", icon: Calendar, href: (id: string) => `/site-plan/${id}/daily` },
 ];
 
 export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
@@ -24,7 +24,7 @@ export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
     ? "daily"
     : pathname.includes("/summary")
     ? "summary"
-    : "tasks";
+    : "plan";
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 md:hidden safe-area-pb">
