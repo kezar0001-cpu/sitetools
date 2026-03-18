@@ -113,6 +113,8 @@ export interface CreateTaskPayload {
 
 export interface UpdateTaskPayload {
   name?: string;
+  type?: TaskType;
+  parent_id?: string | null;
   status?: TaskStatus;
   start_date?: string;
   end_date?: string;
