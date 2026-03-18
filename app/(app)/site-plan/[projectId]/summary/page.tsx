@@ -214,26 +214,35 @@ function SummaryPageInner() {
                 </div>
               </div>
 
-              {/* Quick stats */}
+              {/* Quick stats — clickable to filter list view */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
+                <button
+                  onClick={() => router.push(`/site-plan/${projectId}?filter=overdue`)}
+                  className="rounded-xl border border-red-200 bg-red-50 p-4 text-center cursor-pointer hover:bg-red-100 hover:border-red-300 transition-colors"
+                >
                   <p className="text-2xl font-bold text-red-700">
                     {stats.overdue}
                   </p>
                   <p className="text-xs text-red-600 mt-1">Overdue</p>
-                </div>
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+                </button>
+                <button
+                  onClick={() => router.push(`/site-plan/${projectId}?filter=due_this_week`)}
+                  className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center cursor-pointer hover:bg-amber-100 hover:border-amber-300 transition-colors"
+                >
                   <p className="text-2xl font-bold text-amber-700">
                     {stats.dueThisWeek}
                   </p>
                   <p className="text-xs text-amber-600 mt-1">Due This Week</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center">
+                </button>
+                <button
+                  onClick={() => router.push(`/site-plan/${projectId}?filter=no_progress`)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-colors"
+                >
                   <p className="text-2xl font-bold text-slate-700">
                     {stats.noProgress}
                   </p>
                   <p className="text-xs text-slate-600 mt-1">No Progress</p>
-                </div>
+                </button>
               </div>
 
               {/* Critical path alerts */}
@@ -245,9 +254,10 @@ function SummaryPageInner() {
                   </h2>
                   <div className="space-y-2">
                     {stats.criticalTasks.map((t) => (
-                      <div
+                      <button
                         key={t.id}
-                        className="flex items-center justify-between p-3 rounded-lg border border-red-200 bg-red-50"
+                        onClick={() => router.push(`/site-plan/${projectId}?task=${t.id}`)}
+                        className="w-full flex items-center justify-between p-3 rounded-lg border border-red-200 bg-red-50 cursor-pointer hover:bg-red-100 hover:border-red-300 transition-colors text-left"
                       >
                         <div>
                           <p className="text-sm font-medium text-red-800">
@@ -258,7 +268,7 @@ function SummaryPageInner() {
                           </p>
                         </div>
                         <StatusBadge status={t.status} />
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>

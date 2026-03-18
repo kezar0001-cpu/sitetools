@@ -35,7 +35,11 @@ interface GanttChartProps {
   delayLogs?: SitePlanDelayLog[];
   showDependencies?: boolean;
   onTaskClick?: (task: SitePlanTask) => void;
+  onDoubleClick?: (task: SitePlanTask) => void;
+  onDateChange?: (task: SitePlanTask, start_date: string, end_date: string) => void;
+  onProgressChange?: (task: SitePlanTask, progress: number) => void;
   onLogDelay?: (task: SitePlanTask) => void;
+  canEdit?: boolean;
 }
 
 // ─── Constants ──────────────────────────────────────────────
@@ -235,7 +239,11 @@ export function GanttChart({
   delayLogs,
   showDependencies: initialShowDeps = true,
   onTaskClick,
+  onDoubleClick,
+  onDateChange,
+  onProgressChange,
   onLogDelay,
+  canEdit = true,
 }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("week");
   const [viewFilter, setViewFilter] = useState<ViewFilter>("programme");
@@ -424,9 +432,95 @@ export function GanttChart({
     };
   }, [zoom]);
 
+  // Drag state for interactive bar resizing
+  const [dragState, setDragState] = useState<{
+    task: SitePlanTask;
+    mode: "move" | "resize-end";
+    startX: number;
+    origStartDate: Date;
+    origEndDate: Date;
+    currentStartDate: Date;
+    currentEndDate: Date;
+  } | null>(null);
+
+  const handleBarMouseDown = useCallback(
+    (e: React.MouseEvent, task: SitePlanTask, mode: "move" | "resize-end") => {
+      if (!canEdit || task.type === "phase") return;
+      e.stopPropagation();
+      e.preventDefault();
+      setDragState({
+        task,
+        mode,
+        startX: e.clientX,
+        origStartDate: new Date(task.start_date),
+        origEndDate: new Date(task.end_date),
+        currentStartDate: new Date(task.start_date),
+        currentEndDate: new Date(task.end_date),
+      });
+    },
+    [canEdit]
+  );
+
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragState.startX;
+      const pxPerDay = totalTimelineWidth / totalDays;
+      const daysDelta = Math.round(dx / pxPerDay);
+
+      if (dragState.mode === "move") {
+        setDragState((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentStartDate: addDays(prev.origStartDate, daysDelta),
+                currentEndDate: addDays(prev.origEndDate, daysDelta),
+              }
+            : prev
+        );
+      } else {
+        // resize-end: only move end date, keep at least 1 day duration
+        setDragState((prev) => {
+          if (!prev) return prev;
+          const newEnd = addDays(prev.origEndDate, daysDelta);
+          if (newEnd <= prev.origStartDate) return prev;
+          return { ...prev, currentEndDate: newEnd };
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (dragState) {
+        const fmt = (d: Date) => d.toISOString().split("T")[0];
+        const newStart = fmt(dragState.currentStartDate);
+        const newEnd = fmt(dragState.currentEndDate);
+        const origStart = fmt(dragState.origStartDate);
+        const origEnd = fmt(dragState.origEndDate);
+
+        if (newStart !== origStart || newEnd !== origEnd) {
+          onDateChange?.(dragState.task, newStart, newEnd);
+        }
+      }
+      setDragState(null);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragState, totalTimelineWidth, totalDays, onDateChange]);
+
   // Bar click handler
   const handleBarClick = (task: SitePlanTask) => {
     setSelectedBar(task);
+  };
+
+  // Bar double-click handler
+  const handleBarDoubleClick = (task: SitePlanTask) => {
+    onDoubleClick?.(task);
   };
 
   return (
@@ -710,11 +804,24 @@ export function GanttChart({
 
               const taskData = tasks.find((t) => t.id === node.id)!;
 
+              // If this bar is being dragged, override positions
+              const isDragging = dragState?.task.id === node.id;
+              const effectiveBarX = isDragging
+                ? getBarX(dragState!.currentStartDate, rangeStart, totalDays, totalTimelineWidth)
+                : barX;
+              const effectiveBarEndX = isDragging
+                ? getBarX(dragState!.currentEndDate, rangeStart, totalDays, totalTimelineWidth)
+                : barEndX;
+              const effectiveBarWidth = isDragging
+                ? Math.max(4, effectiveBarEndX - effectiveBarX)
+                : barWidth;
+
               return (
                 <g
                   key={node.id}
-                  className="cursor-pointer"
+                  className={canEdit && !isPhase ? "cursor-grab" : "cursor-pointer"}
                   onClick={() => handleBarClick(taskData)}
+                  onDoubleClick={() => handleBarDoubleClick(taskData)}
                 >
                   {/* Phase summary bar (diamond ends) */}
                   {isPhase ? (
@@ -742,23 +849,39 @@ export function GanttChart({
                     <>
                       {/* Main bar */}
                       <rect
-                        x={barX}
+                        x={effectiveBarX}
                         y={barY}
-                        width={barWidth}
+                        width={effectiveBarWidth}
                         height={barHeight}
                         fill={colors.bg}
                         rx={4}
+                        onMouseDown={(e) => handleBarMouseDown(e, taskData, "move")}
+                        style={canEdit ? { cursor: isDragging ? "grabbing" : "grab" } : undefined}
                       />
 
                       {/* Progress fill */}
                       {node.progress > 0 && (
                         <rect
-                          x={barX}
+                          x={effectiveBarX}
                           y={barY}
-                          width={Math.min(progressWidth, barWidth)}
+                          width={Math.min((node.progress / 100) * effectiveBarWidth, effectiveBarWidth)}
                           height={barHeight}
                           fill={colors.progress}
                           rx={4}
+                          style={{ pointerEvents: "none" }}
+                        />
+                      )}
+
+                      {/* Resize handle on right edge */}
+                      {canEdit && (
+                        <rect
+                          x={effectiveBarX + effectiveBarWidth - 6}
+                          y={barY}
+                          width={6}
+                          height={barHeight}
+                          fill="transparent"
+                          style={{ cursor: "ew-resize" }}
+                          onMouseDown={(e) => handleBarMouseDown(e, taskData, "resize-end")}
                         />
                       )}
 
