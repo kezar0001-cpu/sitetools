@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type {
   SitePlanTask,
@@ -95,6 +96,10 @@ export function useCreateTask() {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: tasksKey(data.project_id) });
+      toast.success("Task created", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
@@ -147,10 +152,14 @@ export function useUpdateTask() {
       }
       return { prev };
     },
+    onSuccess: () => {
+      toast.success("Task updated", { duration: 3000 });
+    },
     onError: (_err, { projectId }, context) => {
       if (context?.prev) {
         qc.setQueryData(tasksKey(projectId), context.prev);
       }
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
     onSettled: (_data, _err, { projectId }) => {
       qc.invalidateQueries({ queryKey: tasksKey(projectId) });
@@ -196,6 +205,12 @@ export function useUpdateProgress() {
         updates: { progress: progressAfter },
       });
     },
+    onSuccess: () => {
+      toast.success("Progress updated", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
+    },
     onSettled: (_data, _err, { taskId }) => {
       qc.invalidateQueries({ queryKey: progressLogKey(taskId) });
     },
@@ -221,6 +236,10 @@ export function useDeleteTask() {
     },
     onSuccess: (projectId) => {
       qc.invalidateQueries({ queryKey: tasksKey(projectId) });
+      toast.success("Task deleted", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
@@ -267,6 +286,7 @@ export function useReorderTask() {
       if (context?.prev) {
         qc.setQueryData(tasksKey(projectId), context.prev);
       }
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
     onSettled: (_data, _err, { projectId }) => {
       qc.invalidateQueries({ queryKey: tasksKey(projectId) });
@@ -296,6 +316,10 @@ export function useBulkCreateTasks() {
       if (data.length > 0) {
         qc.invalidateQueries({ queryKey: tasksKey(data[0].project_id) });
       }
+      toast.success("Tasks imported", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
@@ -394,6 +418,10 @@ export function useHierarchicalImport() {
       if (data.length > 0) {
         qc.invalidateQueries({ queryKey: tasksKey(data[0].project_id) });
       }
+      toast.success("Tasks imported", { duration: 3000 });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
 }
