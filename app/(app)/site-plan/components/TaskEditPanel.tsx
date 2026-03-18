@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { X, Trash2, Check } from "lucide-react";
+import { X, Trash2, Check, Loader2 } from "lucide-react";
 import type { SitePlanTask, TaskStatus, UpdateTaskPayload } from "@/types/siteplan";
 import { STATUS_LABELS } from "@/types/siteplan";
 import {
@@ -57,6 +57,10 @@ export function TaskEditPanel({
   formRef.current = form;
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Track the PREVIOUS task's identity so pending saves flush to the correct row
+  const prevTaskIdRef = useRef<string>(task.id);
+  const prevTaskProjectIdRef = useRef<string>(task.project_id);
+
   // Flash a saved indicator briefly
   const flashSaved = useCallback(() => {
     setSaved(true);
@@ -106,18 +110,44 @@ export function TaskEditPanel({
     [saveField]
   );
 
-  // Cleanup debounce timers on unmount or task change
+  // Cleanup any remaining timers on final unmount
   useEffect(() => {
     return () => {
       Object.values(debounceTimers.current).forEach(clearTimeout);
     };
-  }, [task.id]);
+  }, []);
 
-  // Reset form when task changes
+  // When task.id changes: flush pending saves to the PREVIOUS task, then reset form
   useEffect(() => {
-    // Flush pending debounced saves before switching tasks
-    Object.values(debounceTimers.current).forEach(clearTimeout);
-    debounceTimers.current = {};
+    const pendingKeys = Object.keys(
+      debounceTimers.current
+    ) as (keyof UpdateTaskPayload)[];
+
+    if (pendingKeys.length > 0) {
+      // Build an updates object from the current (stale) form values
+      const updates: UpdateTaskPayload = {};
+      for (const key of pendingKeys) {
+        clearTimeout(debounceTimers.current[key]);
+        (updates as Record<string, unknown>)[key as string] =
+          formRef.current[key];
+      }
+      debounceTimers.current = {};
+
+      // Save to the PREVIOUS task — prevTaskIdRef still holds its ID
+      // because we update the ref AFTER this block
+      updateTask.mutate({
+        id: prevTaskIdRef.current,
+        projectId: prevTaskProjectIdRef.current,
+        updates,
+      });
+    } else {
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+      debounceTimers.current = {};
+    }
+
+    // Advance the previous-task refs to the newly selected task
+    prevTaskIdRef.current = task.id;
+    prevTaskProjectIdRef.current = task.project_id;
 
     setForm({
       name: task.name,
@@ -453,9 +483,13 @@ export function TaskEditPanel({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleDelete}
-                    className="px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg min-h-[44px]"
+                    disabled={deleteTask.isPending}
+                    className="px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg min-h-[44px] disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    Confirm Delete
+                    {deleteTask.isPending && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    {deleteTask.isPending ? "Deleting..." : "Confirm Delete"}
                   </button>
                   <button
                     onClick={() => setConfirmDelete(false)}

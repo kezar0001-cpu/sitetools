@@ -6,7 +6,7 @@ import { ChevronLeft, AlertTriangle } from "lucide-react";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
 import type { TaskStatus } from "@/types/siteplan";
-import { STATUS_LABELS } from "@/types/siteplan";
+import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import { ProgressBar } from "../../components/ProgressSlider";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SitePlanBottomNav } from "../../components/SitePlanBottomNav";
@@ -118,13 +118,7 @@ function SummaryPageInner() {
       }
     }
 
-    const workItems = tasks.filter((t) => t.type !== "phase");
-    const overall =
-      workItems.length > 0
-        ? Math.round(
-            workItems.reduce((s, t) => s + t.progress, 0) / workItems.length
-          )
-        : 0;
+    const overall = computeWorkProgress(tasks);
 
     return { counts, overdue, dueThisWeek, noProgress, criticalTasks, overall };
   }, [tasks]);
