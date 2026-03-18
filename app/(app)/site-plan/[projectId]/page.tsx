@@ -183,9 +183,10 @@ function ProjectDetailInner() {
   }, [tree, expandedIds, allExpanded, filter]);
 
   const overallProgress = useMemo(() => {
-    if (!tasks || tasks.length === 0) return 0;
+    const workItems = (tasks ?? []).filter((t) => t.type !== "phase");
+    if (workItems.length === 0) return 0;
     return Math.round(
-      tasks.reduce((s, t) => s + t.progress, 0) / tasks.length
+      workItems.reduce((s, t) => s + t.progress, 0) / workItems.length
     );
   }, [tasks]);
 

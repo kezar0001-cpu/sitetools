@@ -107,20 +107,22 @@ function SummaryPageInner() {
     const criticalTasks: typeof tasks = [];
 
     for (const t of tasks) {
+      if (t.type === "phase") continue; // phases are containers, not work items
       counts[t.status]++;
       const end = new Date(t.end_date);
       if (end < now && t.progress < 100) overdue++;
       if (end >= now && end <= weekEnd && t.progress < 100) dueThisWeek++;
-      if (t.progress === 0 && t.type !== "phase") noProgress++;
+      if (t.progress === 0) noProgress++;
       if (t.status === "delayed" && !t.actual_start) {
         criticalTasks.push(t);
       }
     }
 
+    const workItems = tasks.filter((t) => t.type !== "phase");
     const overall =
-      tasks.length > 0
+      workItems.length > 0
         ? Math.round(
-            tasks.reduce((s, t) => s + t.progress, 0) / tasks.length
+            workItems.reduce((s, t) => s + t.progress, 0) / workItems.length
           )
         : 0;
 
