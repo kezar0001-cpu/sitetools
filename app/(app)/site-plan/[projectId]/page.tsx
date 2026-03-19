@@ -289,7 +289,7 @@ function ProjectDetailInner() {
       else next.add(id);
       return next;
     });
-  }, []);
+  }, [setExpandedIds]);
 
   const toggleMobileExpand = useCallback((id: string) => {
     setMobileExpandedIds((prev) => {
@@ -320,7 +320,7 @@ function ProjectDetailInner() {
       afterIndex: tasks?.length ?? 0,
     });
     setSelectedTask(null);
-  }, [selectedTask, tasks]);
+  }, [selectedTask, tasks, setSelectedTask]);
 
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({

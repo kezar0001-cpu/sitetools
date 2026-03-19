@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ListTodo, BarChart3, PieChart, Calendar, ClipboardList } from "lucide-react";
+import { ListTodo, BarChart3, PieChart, ClipboardList } from "lucide-react";
 
 interface SitePlanBottomNavProps {
   projectId: string;
