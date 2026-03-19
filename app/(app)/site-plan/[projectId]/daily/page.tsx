@@ -21,9 +21,13 @@ import {
   FileText,
   X,
   Loader2,
+  Camera,
+  HardHat,
+  Truck,
 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { useSitePlanProject } from "@/hooks/useSitePlan";
+import { useSitePlanProject, useCompanyId } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useCreateTask, useDeleteTask } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs, useCreateDelayLog } from "@/hooks/useSitePlanDelays";
 import {
@@ -41,6 +45,9 @@ import type {
   SitePlanDelayLog,
 } from "@/types/siteplan";
 import { STATUS_LABELS, DELAY_CATEGORIES } from "@/types/siteplan";
+import { getDiaries } from "@/lib/diary/client";
+import type { SiteDiaryWithCounts } from "@/lib/diary/types";
+import { DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/diary/types";
 import { StatusBadge } from "../../components/StatusBadge";
 import { ProgressBar } from "../../components/ProgressSlider";
 import { SitePlanBottomNav } from "../../components/SitePlanBottomNav";
@@ -789,6 +796,7 @@ function DailySummaryInner() {
   const { data: project } = useSitePlanProject(projectId);
   const { data: tasks, isLoading } = useSitePlanTasks(projectId);
   const { data: allDelayLogs } = useProjectDelayLogs(projectId);
+  const { data: companyId } = useCompanyId();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showAddTask, setShowAddTask] = useState(false);
@@ -806,11 +814,25 @@ function DailySummaryInner() {
   const temperatureNum = report?.temperature ?? null;
   const siteStatus = report?.site_status ?? "on_programme";
   const summaryNote = report?.notes ?? "";
-
   const setWeather = (v: WeatherCondition) => updateReport({ weather: v });
   const setTemperature = (v: number | null) => debouncedSave({ temperature: v });
   const setSiteStatus = (v: typeof siteStatus) => updateReport({ site_status: v });
   const setSummaryNote = (v: string) => debouncedSave({ notes: v || null });
+
+  // Fetch matching SiteDiary entry for the selected date + project
+  const [diaryForDate, setDiaryForDate] = useState<SiteDiaryWithCounts | null>(null);
+  const [diaryLoading, setDiaryLoading] = useState(false);
+  useMemo(() => {
+    if (!companyId) return;
+    setDiaryLoading(true);
+    getDiaries(companyId, projectId)
+      .then((diaries) => {
+        const match = diaries.find((d) => d.date === selectedDateISO);
+        setDiaryForDate(match ?? null);
+      })
+      .catch(() => setDiaryForDate(null))
+      .finally(() => setDiaryLoading(false));
+  }, [companyId, projectId, selectedDateISO]);
 
   // ── Task filtering ────────────────────────────────────────
   // dueOnSelectedDate: tasks whose end_date is exactly selectedDate
@@ -927,32 +949,37 @@ function DailySummaryInner() {
                 </div>
 
                 {/* Weather + Temperature */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-1.5">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Weather Conditions</label>
+                  <div className="flex items-center gap-2 flex-wrap">
                     {WEATHER_OPTIONS.map(({ value, label, icon: Icon }) => (
                       <button
                         key={value}
                         onClick={() => setWeather(value)}
-                        title={label}
-                        className={`p-2 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium min-h-[44px] border transition-colors ${
                           weather === value
-                            ? "bg-blue-100 text-blue-600 ring-2 ring-blue-300"
-                            : "bg-slate-50 text-slate-400 hover:bg-slate-100"
+                            ? "bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-200"
+                            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50"
                         }`}
                       >
-                        <Icon className="h-5 w-5" />
+                        <Icon className="h-4 w-4" />
+                        <span>{label}</span>
                       </button>
                     ))}
                   </div>
-                  <input
-                    type="number"
-                    value={temperatureNum ?? ""}
-                    onChange={(e) =>
-                      setTemperature(e.target.value ? parseInt(e.target.value) : null)
-                    }
-                    placeholder="°C"
-                    className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm min-h-[44px]"
-                  />
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-500">Temperature</label>
+                    <input
+                      type="number"
+                      value={temperatureNum ?? ""}
+                      onChange={(e) =>
+                        setTemperature(e.target.value ? parseInt(e.target.value) : null)
+                      }
+                      placeholder="°C"
+                      className="w-20 border border-slate-200 rounded-lg px-3 py-2 text-sm min-h-[44px]"
+                    />
+                    <span className="text-xs text-slate-400">°C</span>
+                  </div>
                 </div>
 
                 {/* Site status */}
@@ -978,6 +1005,70 @@ function DailySummaryInner() {
                   rows={2}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none min-h-[44px]"
                 />
+              </div>
+
+              {/* ─── SITE DIARY INTEGRATION ─── */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <FileText className="h-4 w-4 text-indigo-600" />
+                    Site Diary
+                  </h2>
+                  {diaryLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                  ) : diaryForDate ? (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${DIARY_STATUS_BADGE[diaryForDate.status]}`}>
+                      {DIARY_STATUS_LABELS[diaryForDate.status]}
+                    </span>
+                  ) : null}
+                </div>
+
+                {diaryForDate ? (
+                  <div className="p-4 space-y-3">
+                    {/* Summary stats from SiteDiary */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="text-center p-2 bg-amber-50 rounded-lg">
+                        <HardHat className="h-4 w-4 mx-auto text-amber-600 mb-1" />
+                        <p className="text-lg font-bold text-amber-700">{diaryForDate.total_workers}</p>
+                        <p className="text-[10px] text-amber-600 font-medium">Workers</p>
+                      </div>
+                      <div className="text-center p-2 bg-blue-50 rounded-lg">
+                        <Truck className="h-4 w-4 mx-auto text-blue-600 mb-1" />
+                        <p className="text-lg font-bold text-blue-700">{diaryForDate.total_equipment_rows}</p>
+                        <p className="text-[10px] text-blue-600 font-medium">Equipment</p>
+                      </div>
+                      <div className="text-center p-2 bg-emerald-50 rounded-lg">
+                        <Camera className="h-4 w-4 mx-auto text-emerald-600 mb-1" />
+                        <p className="text-lg font-bold text-emerald-700">{diaryForDate.total_photos}</p>
+                        <p className="text-[10px] text-emerald-600 font-medium">Photos</p>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/dashboard/diary/${diaryForDate.id}`}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      Open Full Site Diary
+                      <ChevronRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="p-4 text-center space-y-3">
+                    <p className="text-sm text-slate-500">
+                      No site diary for this date yet.
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Record labour, equipment, photos, and safety observations in the Site Diary module.
+                    </p>
+                    <Link
+                      href="/dashboard/diary"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg min-h-[44px] transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create Site Diary Entry
+                    </Link>
+                  </div>
+                )}
               </div>
 
               {/* ─── DUE TODAY ─── */}

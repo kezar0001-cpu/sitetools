@@ -45,8 +45,8 @@ interface GanttChartProps {
 
 const ROW_HEIGHT = 40;
 const HEADER_HEIGHT = 50;
-const LEFT_PANEL_WIDTH_DESKTOP = 320;
-const LEFT_PANEL_WIDTH_MOBILE = 120;
+const LEFT_PANEL_WIDTH_DESKTOP = 520;
+const LEFT_PANEL_WIDTH_MOBILE = 160;
 
 const STATUS_BAR_COLORS: Record<TaskStatus, { bg: string; progress: string }> = {
   not_started: { bg: "#cbd5e1", progress: "#94a3b8" },
@@ -597,15 +597,17 @@ export function GanttChart({
           className="shrink-0 border-r border-slate-200 overflow-y-auto overflow-x-hidden bg-white z-10"
           style={{ width: "var(--gantt-left-width)" }}
         >
-          {/* Header spacer */}
+          {/* Column headers */}
           <div
             className="border-b border-slate-300 bg-slate-100 flex items-end"
             style={{ height: HEADER_HEIGHT }}
           >
-            <div className="flex items-center px-2 py-1 text-[11px] font-semibold text-slate-500 uppercase w-full">
-              <span className="w-12 shrink-0 hidden md:block">WBS</span>
-              <span className="flex-1 min-w-0">Task</span>
-              <span className="w-10 shrink-0 text-center hidden md:block">%</span>
+            <div className="flex items-center text-[10px] font-semibold text-slate-500 uppercase w-full">
+              <span className="flex-1 min-w-0 px-2 py-1 truncate">Task</span>
+              <span className="hidden md:block w-14 shrink-0 text-center py-1 border-l border-slate-300">Dur.</span>
+              <span className="hidden md:block w-[70px] shrink-0 text-center py-1 border-l border-slate-300">Start</span>
+              <span className="hidden md:block w-[70px] shrink-0 text-center py-1 border-l border-slate-300">Finish</span>
+              <span className="hidden lg:block w-16 shrink-0 text-center py-1 border-l border-slate-300">Pred.</span>
             </div>
           </div>
 
@@ -614,6 +616,7 @@ export function GanttChart({
             const isPhase = node.type === "phase";
             const indent = isPhase ? 0 : node.type === "milestone" ? 0 : node.type === "task" ? 1 : 2;
             const delayCount = delayCountMap.get(node.id) ?? 0;
+            const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
 
             return (
               <div
@@ -626,30 +629,39 @@ export function GanttChart({
                 style={{ height: ROW_HEIGHT, paddingLeft: indent * 12 }}
                 onClick={() => onTaskClick?.(tasks.find((t) => t.id === node.id)!)}
               >
-                {/* WBS */}
-                <span className="w-12 shrink-0 text-[10px] tabular-nums opacity-60 hidden md:block px-1">
-                  {node.wbs_code}
-                </span>
-
-                {/* Name */}
+                {/* Name — fixed width, truncated */}
                 <span
-                  className={`flex-1 min-w-0 text-xs truncate px-1 ${
+                  className={`flex-1 min-w-0 text-xs truncate px-1.5 ${
                     isPhase ? "font-bold uppercase" : node.type === "subtask" ? "text-slate-500" : "font-medium"
                   }`}
+                  title={node.name}
                 >
                   {node.name}
+                  {delayCount > 0 && (
+                    <span className="ml-1 text-[9px] font-bold text-red-500">
+                      ({delayCount})
+                    </span>
+                  )}
                 </span>
 
-                {/* Delay badge */}
-                {delayCount > 0 && (
-                  <span className="shrink-0 text-[9px] font-bold text-red-500 mr-1">
-                    {delayCount}
-                  </span>
-                )}
+                {/* Duration */}
+                <span className={`hidden md:block w-14 shrink-0 text-center text-[10px] tabular-nums border-l ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+                  {node.duration_days}d
+                </span>
 
-                {/* Progress */}
-                <span className="w-10 shrink-0 text-center text-[10px] tabular-nums hidden md:block">
-                  {node.progress}%
+                {/* Start Date */}
+                <span className={`hidden md:block w-[70px] shrink-0 text-center text-[10px] tabular-nums border-l ${isPhase ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>
+                  {fmtDate(node.start_date)}
+                </span>
+
+                {/* End Date */}
+                <span className={`hidden md:block w-[70px] shrink-0 text-center text-[10px] tabular-nums border-l ${isPhase ? "border-slate-700 text-slate-300" : node.status === "delayed" ? "border-slate-200 text-red-600" : "border-slate-200 text-slate-500"}`}>
+                  {fmtDate(node.end_date)}
+                </span>
+
+                {/* Predecessors */}
+                <span className={`hidden lg:block w-16 shrink-0 text-center text-[10px] tabular-nums truncate border-l ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
+                  {node.predecessors || ""}
                 </span>
               </div>
             );

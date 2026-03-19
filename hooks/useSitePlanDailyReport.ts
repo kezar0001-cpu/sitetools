@@ -16,6 +16,18 @@ export type WeatherCondition =
 
 export type SiteStatus = "on_programme" | "at_risk" | "delayed";
 
+export interface LaborEntry {
+  trade: string;
+  workers: number;
+  hours: number;
+}
+
+export interface EquipmentEntry {
+  name: string;
+  quantity: number;
+  hours: number;
+}
+
 export interface DailyReport {
   id: string;
   project_id: string;
@@ -24,6 +36,11 @@ export interface DailyReport {
   temperature: number | null;
   site_status: SiteStatus;
   notes: string | null;
+  safety_incidents: string | null;
+  visitors: string | null;
+  labor: LaborEntry[] | null;
+  equipment: EquipmentEntry[] | null;
+  photo_urls: string[] | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -34,6 +51,11 @@ export interface DailyReportPayload {
   temperature?: number | null;
   site_status?: SiteStatus;
   notes?: string | null;
+  safety_incidents?: string | null;
+  visitors?: string | null;
+  labor?: LaborEntry[] | null;
+  equipment?: EquipmentEntry[] | null;
+  photo_urls?: string[] | null;
 }
 
 // ─── Query key ───────────────────────────────────────────────

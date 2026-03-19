@@ -289,7 +289,7 @@ function ProjectDetailInner() {
       else next.add(id);
       return next;
     });
-  }, []);
+  }, [setExpandedIds]);
 
   const toggleMobileExpand = useCallback((id: string) => {
     setMobileExpandedIds((prev) => {
@@ -320,7 +320,7 @@ function ProjectDetailInner() {
       afterIndex: tasks?.length ?? 0,
     });
     setSelectedTask(null);
-  }, [selectedTask, tasks]);
+  }, [selectedTask, tasks, setSelectedTask]);
 
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({
@@ -344,60 +344,78 @@ function ProjectDetailInner() {
   };
 
   // ─── Indent / Outdent ──────────────────────────────────────
+  // Allows flexible nesting: phases can contain phases, tasks can contain tasks/subtasks,
+  // and subtasks can nest deeper. The indent operation makes the task a child of the row above it.
 
   const indentTask = useCallback(
-    (taskId: string, newType: TaskType) => {
-      // Determine new parent based on type
-      let newParentId: string | null = null;
-      if (newType === "task" || newType === "subtask") {
-        const taskIndex = visibleRows.findIndex((r) => r.id === taskId);
-        for (let i = taskIndex - 1; i >= 0; i--) {
-          const prev = visibleRows[i];
-          if (newType === "task" && prev.type === "phase") {
-            newParentId = prev.id;
-            break;
-          }
-          if (newType === "subtask" && prev.type === "task") {
-            newParentId = prev.id;
-            break;
-          }
-        }
-      }
-
+    (taskId: string, newType: TaskType, newParentId: string | null) => {
       updateTask.mutate({
         id: taskId,
         projectId,
         updates: { type: newType, parent_id: newParentId },
       });
     },
-    [visibleRows, updateTask, projectId]
+    [updateTask, projectId]
   );
 
   const handleIndent = useCallback(() => {
     if (!selectedTask) return;
-    const newType: TaskType =
-      selectedTask.type === "phase" ? "task" : "subtask";
+    const taskIndex = visibleRows.findIndex((r) => r.id === selectedTask.id);
+    if (taskIndex <= 0) return;
+
+    // Find the nearest row above that can be a parent
+    const above = visibleRows[taskIndex - 1];
+    if (!above) return;
+
+    // Determine new type based on what we're nesting under
+    let newType: TaskType = selectedTask.type;
+    if (above.type === "phase") {
+      // Nesting under a phase: become task (or stay phase if phase-under-phase)
+      newType = selectedTask.type === "phase" ? "phase" : "task";
+    } else if (above.type === "task") {
+      newType = "subtask";
+    } else if (above.type === "subtask") {
+      newType = "subtask";
+    }
+
     pushUndo({
       taskId: selectedTask.id,
       projectId,
-      before: { type: selectedTask.type },
-      after: { type: newType },
+      before: { type: selectedTask.type, parent_id: selectedTask.parent_id },
+      after: { type: newType, parent_id: above.id },
     });
-    indentTask(selectedTask.id, newType);
-  }, [selectedTask, projectId, pushUndo, indentTask]);
+    indentTask(selectedTask.id, newType, above.id);
+  }, [selectedTask, visibleRows, projectId, pushUndo, indentTask]);
 
   const handleOutdent = useCallback(() => {
-    if (!selectedTask) return;
-    const newType: TaskType =
-      selectedTask.type === "subtask" ? "task" : "phase";
+    if (!selectedTask || !selectedTask.parent_id) return;
+
+    // Find the parent to get its parent (grandparent becomes the new parent)
+    const parent = visibleRows.find((r) => r.id === selectedTask.parent_id);
+    const grandparentId = parent?.parent_id ?? null;
+
+    // Determine new type: promote one level up
+    let newType: TaskType = selectedTask.type;
+    if (grandparentId === null) {
+      // Moving to root level
+      newType = "phase";
+    } else {
+      const grandparent = visibleRows.find((r) => r.id === grandparentId);
+      if (grandparent?.type === "phase") {
+        newType = selectedTask.type === "phase" ? "phase" : "task";
+      } else {
+        newType = "subtask";
+      }
+    }
+
     pushUndo({
       taskId: selectedTask.id,
       projectId,
-      before: { type: selectedTask.type },
-      after: { type: newType },
+      before: { type: selectedTask.type, parent_id: selectedTask.parent_id },
+      after: { type: newType, parent_id: grandparentId },
     });
-    indentTask(selectedTask.id, newType);
-  }, [selectedTask, projectId, pushUndo, indentTask]);
+    indentTask(selectedTask.id, newType, grandparentId);
+  }, [selectedTask, visibleRows, projectId, pushUndo, indentTask]);
 
   // ─── Link / Unlink ────────────────────────────────────────
 
@@ -456,25 +474,28 @@ function ProjectDetailInner() {
       const dest = destination.index;
 
       if (dest === 0) {
-        // Dropped at top — becomes a root-level item (keep type)
+        // Dropped at top — becomes a root-level item
         newParentId = null;
       } else {
         // Look at the row above the destination to infer parent
         const above = rows[dest - 1];
         if (moved.type === "subtask") {
-          // Subtask should nest under a task
-          if (above.type === "task") newParentId = above.id;
-          else if (above.type === "subtask") newParentId = above.parent_id;
+          // Subtask should nest under a task or subtask
+          if (above.type === "task" || above.type === "subtask") newParentId = above.type === "subtask" ? above.parent_id : above.id;
+          else if (above.type === "phase") newParentId = above.id;
           else newParentId = null;
         } else if (moved.type === "task") {
           // Task nests under a phase
           if (above.type === "phase") newParentId = above.id;
-          else if (above.type === "task" || above.type === "subtask")
-            newParentId = above.parent_id;
+          else if (above.type === "task") newParentId = above.parent_id;
+          else if (above.type === "subtask") newParentId = above.parent_id;
           else newParentId = null;
         } else {
-          // Phase — always root
-          newParentId = null;
+          // Phase — can nest under another phase or be root
+          if (above.type === "phase" && above.parent_id === null) {
+            // Keep existing parent
+          }
+          newParentId = moved.parent_id;
         }
       }
 
@@ -500,10 +521,10 @@ function ProjectDetailInner() {
 
       if (e.key === "Tab" && !e.shiftKey) {
         e.preventDefault();
-        if (selectedTask.type !== "subtask") handleIndent();
+        handleIndent();
       } else if (e.key === "Tab" && e.shiftKey) {
         e.preventDefault();
-        if (selectedTask.type !== "phase") handleOutdent();
+        if (selectedTask.parent_id) handleOutdent();
       }
     };
     window.addEventListener("keydown", handler);

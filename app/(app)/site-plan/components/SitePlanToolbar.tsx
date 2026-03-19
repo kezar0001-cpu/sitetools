@@ -341,164 +341,118 @@ export function SitePlanToolbar(props: ToolbarProps) {
   } = props;
 
   const [showFilter, setShowFilter] = useState(false);
+  const [showMobileActions, setShowMobileActions] = useState(false);
 
-  const canIndent =
-    selectedTask !== null && selectedTask.type !== "subtask";
+  const canIndent = selectedTask !== null;
   const canOutdent =
-    selectedTask !== null && selectedTask.type !== "phase";
+    selectedTask !== null && selectedTask.parent_id !== null;
   const hasSelectedPredecessors =
     selectedTask !== null && !!selectedTask.predecessors;
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50 overflow-x-auto">
-      {/* Undo / Redo */}
-      <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
-      <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
-
-      <Divider />
-
-      {/* Expand/Collapse */}
-      <TBtn
-        icon={ChevronsUpDown}
-        label={allExpanded ? "Collapse All" : "Expand All"}
-        onClick={onToggleAll}
-      />
-
-      {/* View toggles */}
-      <div className="hidden md:flex items-center border border-slate-200 rounded-md ml-1">
-        <button
-          onClick={() => onViewChange("list")}
-          title="List View"
-          className={`p-1.5 rounded-l-md ${
-            currentView === "list"
-              ? "bg-blue-50 text-blue-600"
-              : "text-slate-500 hover:bg-slate-100"
-          }`}
-        >
-          <List className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={() => onViewChange("gantt")}
-          title="Gantt View"
-          className={`p-1.5 ${
-            currentView === "gantt"
-              ? "bg-blue-50 text-blue-600"
-              : "text-slate-500 hover:bg-slate-100"
-          }`}
-        >
-          <BarChart3 className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={() => onViewChange("daily")}
-          title="Daily Summary"
-          className={`p-1.5 ${
-            currentView === "daily"
-              ? "bg-blue-50 text-blue-600"
-              : "text-slate-500 hover:bg-slate-100"
-          }`}
-        >
-          <Calendar className="h-3.5 w-3.5" />
-        </button>
-        <button
-          onClick={() => onViewChange("summary")}
-          title="Summary View"
-          className={`p-1.5 rounded-r-md ${
-            currentView === "summary"
-              ? "bg-blue-50 text-blue-600"
-              : "text-slate-500 hover:bg-slate-100"
-          }`}
-        >
-          <PieChart className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <Divider />
-
-      {/* Filter */}
-      <div className="relative">
+    <>
+      {/* ─── Desktop toolbar (unchanged) ─── */}
+      <div className="hidden md:flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50 overflow-x-auto">
+        <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
+        <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
+        <Divider />
         <TBtn
-          icon={Filter}
-          label="Filter"
-          onClick={() => setShowFilter(!showFilter)}
-          active={isFilterActive(filter)}
+          icon={ChevronsUpDown}
+          label={allExpanded ? "Collapse All" : "Expand All"}
+          onClick={onToggleAll}
         />
-        {isFilterActive(filter) && (
-          <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
-        )}
-        {/* Desktop: dropdown */}
-        {showFilter && (
-          <div className="hidden md:block">
+
+        {/* View toggles */}
+        <div className="flex items-center border border-slate-200 rounded-md ml-1">
+          <button
+            onClick={() => onViewChange("list")}
+            title="List View"
+            className={`p-1.5 rounded-l-md ${
+              currentView === "list"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onViewChange("gantt")}
+            title="Gantt View"
+            className={`p-1.5 ${
+              currentView === "gantt"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onViewChange("daily")}
+            title="Daily Summary"
+            className={`p-1.5 ${
+              currentView === "daily"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            <Calendar className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onViewChange("summary")}
+            title="Summary View"
+            className={`p-1.5 rounded-r-md ${
+              currentView === "summary"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            <PieChart className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <Divider />
+
+        {/* Filter */}
+        <div className="relative">
+          <TBtn
+            icon={Filter}
+            label="Filter"
+            onClick={() => setShowFilter(!showFilter)}
+            active={isFilterActive(filter)}
+          />
+          {isFilterActive(filter) && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
+          )}
+          {showFilter && (
             <FilterDropdown
               filter={filter}
               onFilterChange={onFilterChange}
               onClose={() => setShowFilter(false)}
             />
-          </div>
-        )}
-      </div>
-      {/* Mobile: bottom sheet filter */}
-      {showFilter && (
-        <MobileFilterSheet
-          filter={filter}
-          onFilterChange={onFilterChange}
-          onClose={() => setShowFilter(false)}
-        />
-      )}
+          )}
+        </div>
 
-      <Divider />
+        <Divider />
 
-      {/* Indent / Outdent */}
-      <TBtn
-        icon={IndentDecrease}
-        label="Outdent (promote)"
-        onClick={onOutdent}
-        disabled={!canOutdent}
-      />
-      <TBtn
-        icon={IndentIncrease}
-        label="Indent (demote)"
-        onClick={onIndent}
-        disabled={!canIndent}
-      />
+        <TBtn icon={IndentDecrease} label="Outdent" onClick={onOutdent} disabled={!canOutdent} />
+        <TBtn icon={IndentIncrease} label="Indent" onClick={onIndent} disabled={!canIndent} />
+        <Divider />
+        <TBtn icon={Link2} label="Link Tasks" onClick={onLinkTasks} disabled={!selectedTask} />
+        <TBtn icon={Unlink2} label="Unlink" onClick={onUnlinkTask} disabled={!hasSelectedPredecessors} />
+        <Divider />
+        <TBtn icon={FileSpreadsheet} label="Import" onClick={onImport} />
 
-      <Divider />
-
-      {/* Link / Unlink tasks */}
-      <TBtn
-        icon={Link2}
-        label="Link Tasks (set predecessor)"
-        onClick={onLinkTasks}
-        disabled={!selectedTask}
-      />
-      <TBtn
-        icon={Unlink2}
-        label="Unlink (clear predecessors)"
-        onClick={onUnlinkTask}
-        disabled={!hasSelectedPredecessors}
-      />
-
-      <Divider />
-
-      {/* Import */}
-      <TBtn icon={FileSpreadsheet} label="Import" onClick={onImport} />
-
-      {/* Add Row */}
-      <div className="hidden md:flex items-center gap-0.5">
         <button
           onClick={onAddRow}
-          title="Add Row (same indent as selected)"
+          title="Add Row"
           className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-blue-600 hover:bg-blue-50 rounded min-h-[28px]"
         >
           <Plus className="h-3.5 w-3.5" />
           Add Row
         </button>
-      </div>
 
-      {/* Spacer */}
-      <div className="flex-1" />
+        <div className="flex-1" />
 
-      {/* Baselines */}
-      <div className="hidden md:flex items-center">
         <button
           onClick={onSaveBaseline}
           title="Save Baseline"
@@ -512,14 +466,103 @@ export function SitePlanToolbar(props: ToolbarProps) {
             </span>
           )}
         </button>
+
+        <TBtn
+          icon={isFullscreen ? Minimize2 : Maximize2}
+          label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          onClick={onToggleFullscreen}
+        />
       </div>
 
-      {/* Fullscreen */}
-      <TBtn
-        icon={isFullscreen ? Minimize2 : Maximize2}
-        label={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-        onClick={onToggleFullscreen}
-      />
-    </div>
+      {/* ─── Mobile toolbar — clean horizontal action bar ─── */}
+      <div className="md:hidden border-b border-slate-200 bg-slate-50">
+        {/* Primary actions row */}
+        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto">
+          <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
+          <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
+          <Divider />
+          <TBtn icon={ChevronsUpDown} label="Expand/Collapse" onClick={onToggleAll} />
+          <div className="relative">
+            <TBtn
+              icon={Filter}
+              label="Filter"
+              onClick={() => setShowFilter(!showFilter)}
+              active={isFilterActive(filter)}
+            />
+            {isFilterActive(filter) && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
+            )}
+          </div>
+          <div className="flex-1" />
+          {/* More actions toggle */}
+          <button
+            onClick={() => setShowMobileActions(!showMobileActions)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg min-h-[36px] transition-colors ${
+              showMobileActions ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:bg-slate-100"
+            }`}
+          >
+            {showMobileActions ? "Less" : "More"}
+          </button>
+        </div>
+
+        {/* Expanded mobile actions */}
+        {showMobileActions && (
+          <div className="flex items-center gap-1.5 px-2 pb-2 flex-wrap">
+            <button
+              onClick={onIndent}
+              disabled={!canIndent}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+            >
+              <IndentIncrease className="h-3.5 w-3.5" />
+              Indent
+            </button>
+            <button
+              onClick={onOutdent}
+              disabled={!canOutdent}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+            >
+              <IndentDecrease className="h-3.5 w-3.5" />
+              Outdent
+            </button>
+            <button
+              onClick={onLinkTasks}
+              disabled={!selectedTask}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Link
+            </button>
+            <button
+              onClick={onImport}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 min-h-[36px]"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Import
+            </button>
+            <button
+              onClick={onSaveBaseline}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 min-h-[36px]"
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+              Baselines
+              {baselineCount > 0 && (
+                <span className="text-[9px] bg-slate-200 px-1 rounded-full">{baselineCount}</span>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile: bottom sheet filter */}
+      {showFilter && (
+        <div className="md:hidden">
+          <MobileFilterSheet
+            filter={filter}
+            onFilterChange={onFilterChange}
+            onClose={() => setShowFilter(false)}
+          />
+        </div>
+      )}
+    </>
   );
 }
