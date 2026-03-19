@@ -168,7 +168,8 @@ export function TaskRow({
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
   const isSubtask = node.type === "subtask";
-  const indentLevel = isPhase ? 0 : node.type === "task" ? 1 : 2;
+  // Compute indent level based on task type
+  const indentLevel = node.type === "phase" ? 0 : node.type === "task" ? 1 : 2;
 
   // For phases, derive display values from children so the phase reflects actual child data
   const phaseStats = isPhase ? computePhaseStats(node.children) : null;

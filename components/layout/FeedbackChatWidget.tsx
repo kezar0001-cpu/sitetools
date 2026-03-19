@@ -1,12 +1,20 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { ChangeEvent, useRef, useState } from "react";
 
 const SUPPORT_EMAIL = "admin@buildstate.com.au";
 
+/** Routes that show a bottom navigation bar on mobile */
+function useHasBottomNav() {
+  const pathname = usePathname();
+  return pathname.startsWith("/site-plan/") && pathname.split("/").length > 2;
+}
+
 export function FeedbackChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const hasBottomNav = useHasBottomNav();
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [isCapturing, setIsCapturing] = useState(false);
@@ -136,9 +144,9 @@ export function FeedbackChatWidget() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className={`fixed right-5 z-40 transition-all ${hasBottomNav ? "bottom-20" : "bottom-5"}`}>
       {isOpen ? (
-        <div className="w-[340px] rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur-sm">
+        <div className="w-[340px] max-h-[70vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-2xl backdrop-blur-sm">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">Feedback chat</p>
