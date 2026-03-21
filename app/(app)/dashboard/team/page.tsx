@@ -122,7 +122,11 @@ export default function TeamPage() {
       const updatedInvitations = await fetchCompanyInvitations(activeCompanyId);
       setInvitations(updatedInvitations);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send invitation.");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : (err as { message?: string })?.message ?? "Failed to send invitation.";
+      toast.error(msg);
     } finally {
       setInviteLoading(false);
     }
