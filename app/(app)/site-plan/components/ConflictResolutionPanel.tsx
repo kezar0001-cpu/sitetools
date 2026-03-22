@@ -279,7 +279,7 @@ function ConflictCard({
                 />
               </div>
               <span className="text-[10px] font-medium text-slate-600 w-8 text-right">
-                {localValue}%
+                {Number(localValue)}%
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ function ConflictCard({
                 />
               </div>
               <span className="text-[10px] font-medium text-slate-600 w-8 text-right">
-                {conflict.remoteValue}%
+                {Number(conflict.remoteValue)}%
               </span>
             </div>
             {progressAverage !== null && (
