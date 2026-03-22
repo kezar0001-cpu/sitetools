@@ -271,9 +271,8 @@ function ProgressTab({
   task,
   form,
   onChange,
-  savedField,
   logs,
-}: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "savedField" | "logs">) {
+}: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "logs">) {
   return (
     <div className="space-y-5">
       <div>
@@ -400,7 +399,6 @@ export function TaskEditorTabs({
             task={task}
             form={form}
             onChange={onChange}
-            savedField={savedField}
             logs={logs}
           />
         )}

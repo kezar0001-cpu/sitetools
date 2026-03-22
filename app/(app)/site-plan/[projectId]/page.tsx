@@ -305,7 +305,6 @@ function ProjectDetailInner() {
     tree,
     flatTasks,
     expandedIds,
-    setExpandedIds,
     allExpanded,
     mobileExpandedIds,
     toggleExpand,

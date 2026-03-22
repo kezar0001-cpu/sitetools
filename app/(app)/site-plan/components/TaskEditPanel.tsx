@@ -27,7 +27,6 @@ import {
   useConflictDetection,
   CONFLICT_FIELD_LABELS,
   TEXT_CONFLICT_FIELDS,
-  saveFieldPref,
 } from "@/hooks/useConflictDetection";
 import type { ConflictField, ConflictEntry } from "@/hooks/useConflictDetection";
 import { StatusBadge } from "./StatusBadge";
@@ -394,8 +393,9 @@ export function TaskEditPanel({
 
   // Cleanup timers on unmount
   useEffect(() => {
+    const timers = debounceTimers.current;
     return () => {
-      Object.values(debounceTimers.current).forEach(clearTimeout);
+      Object.values(timers).forEach(clearTimeout);
     };
   }, []);
 
