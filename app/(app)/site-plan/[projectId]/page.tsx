@@ -234,6 +234,8 @@ function ProjectDetailInner() {
   const [editMode, setEditMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(45);
+  const [isResizing, setIsResizing] = useState(false);
 
   // Inline input state
   const [inlineInput, setInlineInput] = useState<{
@@ -606,17 +608,47 @@ function ProjectDetailInner() {
     return map;
   }, [visibleRows]);
 
+  const handleDragResizer = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    
+    // Create handlers that capture the document's mouse events
+    const handleMouseMove = (mouseEvent: MouseEvent) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const newWidthPercent = ((mouseEvent.clientX - rect.left) / rect.width) * 100;
+      // Constrain between 20% and 80%
+      setLeftPaneWidth(Math.min(Math.max(newWidthPercent, 20), 80));
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+    
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  }, []);
+
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
 
   return (
-    <div
-      ref={containerRef}
-      className={`relative flex h-full bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
-    >
-      {/* Main content — left pane: task list (full width on mobile, fixed 45% on desktop) */}
-      <div className="flex-1 md:flex-none flex flex-col min-w-0 md:w-[45%]">
+    <>
+      <style>{`
+        @media (min-width: 768px) {
+          .desktop-pane-split-left { width: ${leftPaneWidth}% !important; flex: none !important; }
+          .desktop-pane-split-right { width: ${100 - leftPaneWidth}% !important; flex: none !important; }
+        }
+      `}</style>
+      <div
+        ref={containerRef}
+        className={`relative flex h-full bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
+      >
+        {/* Main content — left pane: task list (full width on mobile, dynamic 45% on desktop) */}
+        <div className={`flex-1 flex flex-col min-w-0 desktop-pane-split-left ${isResizing ? 'pointer-events-none select-none' : ''}`}>
         {/* Project header */}
         <div className="px-4 py-2 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-3">
@@ -798,10 +830,17 @@ function ProjectDetailInner() {
         </div>
       </div>
 
+      {/* Splitter (desktop only) */}
+      <div
+        className="hidden md:block w-1 hover:w-1.5 bg-slate-200 hover:bg-blue-400 cursor-col-resize active:bg-blue-500 transition-colors z-[60] shrink-0"
+        onMouseDown={handleDragResizer}
+        title="Drag to resize panes"
+      />
+
       {/* Right panel — Gantt chart (desktop, always visible) or task edit panel */}
-      <div className="hidden md:flex flex-col border-l border-slate-200" style={{ width: "55%", minWidth: 0 }}>
+      <div className={`hidden md:flex flex-col border-l border-slate-200 desktop-pane-split-right ${isResizing ? 'pointer-events-none select-none' : ''}`} style={{ minWidth: 0 }}>
         {/* Gantt chart — fills the right pane */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden relative">
           {!isLoading && tasks && tasks.length > 0 ? (
             <GanttChart
               tasks={tasks}
@@ -822,7 +861,7 @@ function ProjectDetailInner() {
 
         {/* Task edit panel slides over Gantt when a task is selected (non-edit mode) */}
         {selectedTask && !editMode && (
-          <div className="absolute right-0 top-0 bottom-0 z-20" style={{ width: "55%" }}>
+          <div className="absolute right-0 top-0 bottom-0 z-20" style={{ width: `${100 - leftPaneWidth}%` }}>
             <TaskEditPanel
               task={selectedTask}
               onClose={() => setSelectedTask(null)}
@@ -891,6 +930,7 @@ function ProjectDetailInner() {
       <AddTaskFAB onAdd={handleFABAdd} currentType={selectedTask?.type ?? "task"} />
       <SitePlanBottomNav projectId={projectId} />
     </div>
+    </>
   );
 }
 

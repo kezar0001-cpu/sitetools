@@ -250,7 +250,6 @@ export function GanttChart({
   const [expandedPhases] = useState<Set<string>>(new Set());
   const [allExpanded] = useState(true);
   const timelineRef = useRef<HTMLDivElement>(null);
-  const taskListRef = useRef<HTMLDivElement>(null);
 
   // Build delay count map
   const delayCountMap = useMemo(() => {
@@ -362,19 +361,6 @@ export function GanttChart({
       timelineRef.current.scrollLeft = Math.max(0, todayX - containerWidth / 2);
     }
   }, [todayX]);
-
-  // Sync vertical scroll between task list and timeline
-  const handleTimelineScroll = useCallback(() => {
-    if (timelineRef.current && taskListRef.current) {
-      taskListRef.current.scrollTop = timelineRef.current.scrollTop;
-    }
-  }, []);
-
-  const handleTaskListScroll = useCallback(() => {
-    if (timelineRef.current && taskListRef.current) {
-      timelineRef.current.scrollTop = taskListRef.current.scrollTop;
-    }
-  }, []);
 
   // Initial scroll to today
   useEffect(() => {
@@ -523,155 +509,15 @@ export function GanttChart({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 bg-white flex-wrap">
-        {/* Zoom controls */}
-        <span className="text-xs font-medium text-slate-500">Zoom:</span>
-        <div className="flex items-center border border-slate-200 rounded-md">
-          {(["day", "week", "month", "quarter"] as ZoomLevel[]).map((z) => (
-            <button
-              key={z}
-              onClick={() => setZoom(z)}
-              className={`px-2.5 py-1.5 text-xs font-medium capitalize min-h-[32px] ${
-                zoom === z
-                  ? "bg-blue-100 text-blue-700"
-                  : "text-slate-500 hover:bg-slate-50"
-              } ${z === "day" ? "rounded-l-md" : z === "quarter" ? "rounded-r-md" : ""}`}
-            >
-              {z}
-            </button>
-          ))}
-        </div>
-
-        {/* View filter toggle */}
-        <div className="flex items-center border border-slate-200 rounded-md ml-2">
-          <button
-            onClick={() => setViewFilter("programme")}
-            className={`px-2.5 py-1.5 text-xs font-medium min-h-[32px] rounded-l-md ${
-              viewFilter === "programme"
-                ? "bg-blue-100 text-blue-700"
-                : "text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            Programme
-          </button>
-          <button
-            onClick={() => setViewFilter("today")}
-            className={`px-2.5 py-1.5 text-xs font-medium min-h-[32px] rounded-r-md ${
-              viewFilter === "today"
-                ? "bg-blue-100 text-blue-700"
-                : "text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            Today&apos;s Work
-          </button>
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Dependencies toggle */}
-        <button
-          onClick={() => setShowDeps(!showDeps)}
-          className={`px-2.5 py-1.5 text-xs font-medium rounded-md min-h-[32px] ${
-            showDeps ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:bg-slate-50 border border-slate-200"
-          }`}
-        >
-          Deps
-        </button>
-
-        {/* Today button */}
-        <button
-          onClick={scrollToToday}
-          className="px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md min-h-[32px] border border-red-200"
-        >
-          Today
-        </button>
-      </div>
+      {/* Toolbar removed */}
 
       {/* Main split pane */}
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Left panel — sticky task list */}
-        <div
-          ref={taskListRef}
-          onScroll={handleTaskListScroll}
-          className="shrink-0 border-r border-slate-200 overflow-y-auto overflow-x-hidden bg-white z-10"
-          style={{ width: "var(--gantt-left-width)" }}
-        >
-          {/* Column headers */}
-          <div
-            className="border-b border-slate-300 bg-slate-100 flex items-end"
-            style={{ height: HEADER_HEIGHT }}
-          >
-            <div className="flex items-center text-[10px] font-semibold text-slate-500 uppercase w-full">
-              <span className="flex-1 min-w-0 px-2 py-1 truncate">Task</span>
-              <span className="hidden md:block w-14 shrink-0 text-center py-1 border-l border-slate-300">Dur.</span>
-              <span className="hidden md:block w-[70px] shrink-0 text-center py-1 border-l border-slate-300">Start</span>
-              <span className="hidden md:block w-[70px] shrink-0 text-center py-1 border-l border-slate-300">Finish</span>
-              <span className="hidden lg:block w-16 shrink-0 text-center py-1 border-l border-slate-300">Pred.</span>
-            </div>
-          </div>
-
-          {/* Task rows */}
-          {flatTasks.map((node) => {
-            const isPhase = node.type === "phase";
-            const indent = isPhase ? 0 : node.type === "milestone" ? 0 : node.type === "task" ? 1 : 2;
-            const delayCount = delayCountMap.get(node.id) ?? 0;
-            const fmtDate = (d: string) => new Date(d).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" });
-
-            return (
-              <div
-                key={node.id}
-                className={`flex items-center border-b cursor-pointer ${
-                  isPhase
-                    ? "bg-slate-800 text-white border-slate-700"
-                    : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"
-                }`}
-                style={{ height: ROW_HEIGHT, paddingLeft: indent * 12 }}
-                onClick={() => onTaskClick?.(tasks.find((t) => t.id === node.id)!)}
-              >
-                {/* Name — fixed width, truncated */}
-                <span
-                  className={`flex-1 min-w-0 text-xs truncate px-1.5 ${
-                    isPhase ? "font-bold uppercase" : node.type === "subtask" ? "text-slate-500" : "font-medium"
-                  }`}
-                  title={node.name}
-                >
-                  {node.name}
-                  {delayCount > 0 && (
-                    <span className="ml-1 text-[9px] font-bold text-red-500">
-                      ({delayCount})
-                    </span>
-                  )}
-                </span>
-
-                {/* Duration */}
-                <span className={`hidden md:block w-14 shrink-0 text-center text-[10px] tabular-nums border-l ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-                  {node.duration_days}d
-                </span>
-
-                {/* Start Date */}
-                <span className={`hidden md:block w-[70px] shrink-0 text-center text-[10px] tabular-nums border-l ${isPhase ? "border-slate-700 text-slate-300" : "border-slate-200 text-slate-500"}`}>
-                  {fmtDate(node.start_date)}
-                </span>
-
-                {/* End Date */}
-                <span className={`hidden md:block w-[70px] shrink-0 text-center text-[10px] tabular-nums border-l ${isPhase ? "border-slate-700 text-slate-300" : node.status === "delayed" ? "border-slate-200 text-red-600" : "border-slate-200 text-slate-500"}`}>
-                  {fmtDate(node.end_date)}
-                </span>
-
-                {/* Predecessors */}
-                <span className={`hidden lg:block w-16 shrink-0 text-center text-[10px] tabular-nums truncate border-l ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
-                  {node.predecessors || ""}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+      {/* Left panel removed */}
 
         {/* Right panel — scrollable SVG timeline */}
         <div
           ref={timelineRef}
-          onScroll={handleTimelineScroll}
           className="flex-1 overflow-auto"
         >
           <svg
@@ -1239,16 +1085,7 @@ export function GanttChart({
         </div>
       )}
 
-      {/* CSS variable for responsive left panel width */}
       <style jsx>{`
-        :root {
-          --gantt-left-width: ${LEFT_PANEL_WIDTH_MOBILE}px;
-        }
-        @media (min-width: 768px) {
-          :root {
-            --gantt-left-width: ${LEFT_PANEL_WIDTH_DESKTOP}px;
-          }
-        }
       `}</style>
     </div>
   );
