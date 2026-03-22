@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams, usePathname } from "next/navigat
 import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
+import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
@@ -24,6 +25,7 @@ import { SitePlanBottomNav } from "../components/SitePlanBottomNav";
 import { AddTaskFAB } from "../components/AddTaskFAB";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
+import { GanttChart } from "../components/GanttChart";
 import { QueryProvider } from "@/components/QueryProvider";
 
 // ─── Undo/Redo stack ────────────────────────────────────────
@@ -229,6 +231,8 @@ function ProjectDetailInner() {
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Inline input state
@@ -257,6 +261,35 @@ function ProjectDetailInner() {
       updateSearchParams({ task: task?.id ?? null });
     },
     [updateSearchParams]
+  );
+
+  // Toggle edit mode — clear selections on exit
+  const handleToggleEditMode = useCallback(() => {
+    setEditMode((prev) => {
+      if (prev) {
+        setCheckedIds(new Set());
+        setSelectedTask(null);
+      }
+      return !prev;
+    });
+  }, [setSelectedTask]);
+
+  // Check/uncheck a task — in edit mode this is "select for bulk action"
+  const handleCheck = useCallback(
+    (task: SitePlanTaskNode, checked: boolean) => {
+      setCheckedIds((prev) => {
+        const next = new Set(prev);
+        if (checked) {
+          next.add(task.id);
+          setSelectedTask(task);
+        } else {
+          next.delete(task.id);
+          if (next.size === 0) setSelectedTask(null);
+        }
+        return next;
+      });
+    },
+    [setSelectedTask]
   );
 
   // Visible rows based on expanded state
@@ -306,8 +339,12 @@ function ProjectDetailInner() {
   };
 
   const handleSelect = (node: SitePlanTaskNode) => {
-    setSelectedTask(node);
-    setInlineInput(null);
+    if (editMode) {
+      handleCheck(node, !checkedIds.has(node.id));
+    } else {
+      setSelectedTask(node);
+      setInlineInput(null);
+    }
   };
 
   /** Add a new row at the same indent level as the currently selected row */
@@ -452,11 +489,30 @@ function ProjectDetailInner() {
   }, []);
 
   // ─── View navigation ─────────────────────────────────────
+  // Gantt is now embedded — no route change needed for gantt view.
+  // This handler is kept for legacy compatibility (e.g., BottomNav) but is a no-op.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleViewChange = (_view: string) => {};
 
-  const handleViewChange = (view: "list" | "gantt") => {
-    if (view === "list") return; // already on list
-    router.push(`/site-plan/${projectId}/${view}`);
-  };
+  // Gantt date drag handler
+  const handleGanttDateChange = useCallback(
+    (task: SitePlanTask, start_date: string, end_date: string) => {
+      updateTask.mutate(
+        { id: task.id, projectId, updates: { start_date, end_date } },
+        { onSuccess: () => toast.success("Dates updated") }
+      );
+    },
+    [updateTask, projectId]
+  );
+
+  // Gantt task click — open edit panel
+  const handleGanttTaskClick = useCallback(
+    (task: SitePlanTask) => {
+      const node = flatTasks.find((t) => t.id === task.id);
+      if (node) setSelectedTask(node);
+    },
+    [flatTasks, setSelectedTask]
+  );
 
   // ─── Drag and drop ──────────────────────────────────────────
 
@@ -557,10 +613,10 @@ function ProjectDetailInner() {
   return (
     <div
       ref={containerRef}
-      className={`flex h-full bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
+      className={`relative flex h-full bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
     >
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main content — left pane: task list (full width on mobile, fixed 45% on desktop) */}
+      <div className="flex-1 md:flex-none flex flex-col min-w-0 md:w-[45%]">
         {/* Project header */}
         <div className="px-4 py-2 border-b border-slate-200 bg-white">
           <div className="flex items-center gap-3">
@@ -603,8 +659,8 @@ function ProjectDetailInner() {
           onAddRow={handleAddRow}
           onSaveBaseline={() => setShowBaselines(true)}
           baselineCount={baselines?.length ?? 0}
-          currentView="list"
-          onViewChange={handleViewChange}
+          editMode={editMode}
+          onToggleEditMode={handleToggleEditMode}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
         />
@@ -674,9 +730,12 @@ function ProjectDetailInner() {
                               onSelect={handleSelect}
                               onLogDelay={(t) => setDelayTask(t)}
                               delayCount={delayCountMap.get(node.id) ?? 0}
-                              dragHandleProps={dragProvided.dragHandleProps}
+                              dragHandleProps={editMode ? undefined : dragProvided.dragHandleProps}
                               isDragging={dragSnapshot.isDragging}
                               phaseIndex={phaseIndexMap.get(node.id) ?? 0}
+                              editMode={editMode}
+                              isChecked={checkedIds.has(node.id)}
+                              onCheck={handleCheck}
                             />
 
                             {/* Mobile: card view */}
@@ -739,21 +798,45 @@ function ProjectDetailInner() {
         </div>
       </div>
 
-      {/* Right panel — task edit */}
-      {selectedTask && (
-        <div className="hidden md:block">
-          <TaskEditPanel
-            task={selectedTask}
-            onClose={() => setSelectedTask(null)}
-            hasChildren={hasChildrenForSelected}
-            onAddSubtask={() =>
-              startInlineAdd("subtask", selectedTask.id)
-            }
-          />
+      {/* Right panel — Gantt chart (desktop, always visible) or task edit panel */}
+      <div className="hidden md:flex flex-col border-l border-slate-200" style={{ width: "55%", minWidth: 0 }}>
+        {/* Gantt chart — fills the right pane */}
+        <div className="flex-1 overflow-hidden">
+          {!isLoading && tasks && tasks.length > 0 ? (
+            <GanttChart
+              tasks={tasks}
+              baselines={baselines?.[0]?.snapshot}
+              delayLogs={delayLogs}
+              onTaskClick={handleGanttTaskClick}
+              onDoubleClick={handleGanttTaskClick}
+              onDateChange={handleGanttDateChange}
+              onLogDelay={(t) => setDelayTask(t as SitePlanTaskNode)}
+              canEdit={!editMode}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+              {isLoading ? "Loading..." : "Add tasks to see the Gantt chart."}
+            </div>
+          )}
         </div>
-      )}
 
-      {selectedTask && (
+        {/* Task edit panel slides over Gantt when a task is selected (non-edit mode) */}
+        {selectedTask && !editMode && (
+          <div className="absolute right-0 top-0 bottom-0 z-20" style={{ width: "55%" }}>
+            <TaskEditPanel
+              task={selectedTask}
+              onClose={() => setSelectedTask(null)}
+              hasChildren={hasChildrenForSelected}
+              onAddSubtask={() =>
+                startInlineAdd("subtask", selectedTask.id)
+              }
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Mobile task edit panel (non-edit mode only) */}
+      {selectedTask && !editMode && (
         <div className="md:hidden">
           <TaskEditPanel
             task={selectedTask}

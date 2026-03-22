@@ -28,6 +28,10 @@ interface TaskRowProps {
   dragHandleProps?: DraggableProvided["dragHandleProps"];
   isDragging?: boolean;
   phaseIndex?: number;
+  /** When true, show checkbox and suppress expand-to-edit behaviour */
+  editMode?: boolean;
+  isChecked?: boolean;
+  onCheck?: (task: SitePlanTaskNode, checked: boolean) => void;
 }
 
 // Distinctive backgrounds per type
@@ -164,6 +168,9 @@ export function TaskRow({
   dragHandleProps,
   isDragging,
   phaseIndex = 0,
+  editMode = false,
+  isChecked = false,
+  onCheck,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -205,14 +212,29 @@ export function TaskRow({
         if (e.key === "Enter" || e.key === " ") onSelect(node);
       }}
     >
-      {/* Drag handle */}
-      <div
-        {...(dragHandleProps ?? {})}
-        className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing self-center ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-3.5 w-3.5" />
-      </div>
+      {/* Checkbox (edit mode) or Drag handle */}
+      {editMode ? (
+        <div
+          className={`w-7 shrink-0 flex items-center justify-center`}
+          onClick={(e) => { e.stopPropagation(); onCheck?.(node, !isChecked); }}
+        >
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={(e) => { e.stopPropagation(); onCheck?.(node, e.target.checked); }}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-slate-400 accent-blue-600 cursor-pointer"
+          />
+        </div>
+      ) : (
+        <div
+          {...(dragHandleProps ?? {})}
+          className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing self-center ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </div>
+      )}
 
       {/* WBS code */}
       <div className={`w-8 shrink-0 text-center text-[10px] tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>

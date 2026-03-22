@@ -14,9 +14,9 @@ import {
   Plus,
   FileSpreadsheet,
   ChevronsUpDown,
-  BarChart3,
-  List,
   Bookmark,
+  Pencil,
+  Check,
   X,
 } from "lucide-react";
 import type { TaskType, TaskStatus, SitePlanTaskNode } from "@/types/siteplan";
@@ -85,9 +85,9 @@ interface ToolbarProps {
   onSaveBaseline: () => void;
   baselineCount: number;
 
-  // View
-  currentView: "list" | "gantt";
-  onViewChange: (view: "list" | "gantt") => void;
+  // Edit mode
+  editMode: boolean;
+  onToggleEditMode: () => void;
 
   // Fullscreen
   isFullscreen: boolean;
@@ -332,8 +332,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
     onAddRow,
     onSaveBaseline,
     baselineCount,
-    currentView,
-    onViewChange,
+    editMode,
+    onToggleEditMode,
     isFullscreen,
     onToggleFullscreen,
   } = props;
@@ -341,15 +341,15 @@ export function SitePlanToolbar(props: ToolbarProps) {
   const [showFilter, setShowFilter] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
 
-  const canIndent = selectedTask !== null;
+  const canIndent = editMode && selectedTask !== null;
   const canOutdent =
-    selectedTask !== null && selectedTask.parent_id !== null;
+    editMode && selectedTask !== null && selectedTask.parent_id !== null;
   const hasSelectedPredecessors =
-    selectedTask !== null && !!selectedTask.predecessors;
+    editMode && selectedTask !== null && !!selectedTask.predecessors;
 
   return (
     <>
-      {/* ─── Desktop toolbar (unchanged) ─── */}
+      {/* ─── Desktop toolbar ─── */}
       <div className="hidden md:flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50 overflow-x-auto">
         <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
         <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
@@ -360,31 +360,42 @@ export function SitePlanToolbar(props: ToolbarProps) {
           onClick={onToggleAll}
         />
 
-        {/* View toggles */}
-        <div className="flex items-center border border-slate-200 rounded-md ml-1">
-          <button
-            onClick={() => onViewChange("list")}
-            title="List View"
-            className={`p-1.5 rounded-l-md ${
-              currentView === "list"
-                ? "bg-blue-50 text-blue-600"
-                : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            <List className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => onViewChange("gantt")}
-            title="Gantt View"
-            className={`p-1.5 rounded-r-md ${
-              currentView === "gantt"
-                ? "bg-blue-50 text-blue-600"
-                : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            <BarChart3 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        <Divider />
+
+        {/* Edit mode toggle */}
+        <button
+          onClick={onToggleEditMode}
+          title={editMode ? "Exit Edit Mode" : "Edit Mode"}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md min-h-[28px] transition-colors ${
+            editMode
+              ? "bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200"
+              : "text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          {editMode ? (
+            <>
+              <Check className="h-3.5 w-3.5" />
+              Done
+            </>
+          ) : (
+            <>
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </>
+          )}
+        </button>
+
+        {/* Edit-mode controls — only shown when editing */}
+        {editMode && (
+          <>
+            <Divider />
+            <TBtn icon={IndentDecrease} label="Outdent" onClick={onOutdent} disabled={!canOutdent} />
+            <TBtn icon={IndentIncrease} label="Indent" onClick={onIndent} disabled={!canIndent} />
+            <Divider />
+            <TBtn icon={Link2} label="Link Tasks" onClick={onLinkTasks} disabled={!selectedTask} />
+            <TBtn icon={Unlink2} label="Unlink" onClick={onUnlinkTask} disabled={!hasSelectedPredecessors} />
+          </>
+        )}
 
         <Divider />
 
@@ -410,12 +421,6 @@ export function SitePlanToolbar(props: ToolbarProps) {
 
         <Divider />
 
-        <TBtn icon={IndentDecrease} label="Outdent" onClick={onOutdent} disabled={!canOutdent} />
-        <TBtn icon={IndentIncrease} label="Indent" onClick={onIndent} disabled={!canIndent} />
-        <Divider />
-        <TBtn icon={Link2} label="Link Tasks" onClick={onLinkTasks} disabled={!selectedTask} />
-        <TBtn icon={Unlink2} label="Unlink" onClick={onUnlinkTask} disabled={!hasSelectedPredecessors} />
-        <Divider />
         <TBtn icon={FileSpreadsheet} label="Import" onClick={onImport} />
 
         <button
@@ -450,7 +455,7 @@ export function SitePlanToolbar(props: ToolbarProps) {
         />
       </div>
 
-      {/* ─── Mobile toolbar — clean horizontal action bar ─── */}
+      {/* ─── Mobile toolbar ─── */}
       <div className="md:hidden border-b border-slate-200 bg-slate-50">
         {/* Primary actions row */}
         <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto">
@@ -469,7 +474,23 @@ export function SitePlanToolbar(props: ToolbarProps) {
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
             )}
           </div>
+
+          {/* Edit mode toggle */}
+          <button
+            onClick={onToggleEditMode}
+            title={editMode ? "Exit Edit Mode" : "Edit Mode"}
+            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg min-h-[36px] transition-colors ${
+              editMode
+                ? "bg-amber-100 text-amber-700 border border-amber-300"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+            {editMode ? "Done" : "Edit"}
+          </button>
+
           <div className="flex-1" />
+
           {/* More actions toggle */}
           <button
             onClick={() => setShowMobileActions(!showMobileActions)}
@@ -484,30 +505,34 @@ export function SitePlanToolbar(props: ToolbarProps) {
         {/* Expanded mobile actions */}
         {showMobileActions && (
           <div className="flex items-center gap-1.5 px-2 pb-2 flex-wrap">
-            <button
-              onClick={onIndent}
-              disabled={!canIndent}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-            >
-              <IndentIncrease className="h-3.5 w-3.5" />
-              Indent
-            </button>
-            <button
-              onClick={onOutdent}
-              disabled={!canOutdent}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-            >
-              <IndentDecrease className="h-3.5 w-3.5" />
-              Outdent
-            </button>
-            <button
-              onClick={onLinkTasks}
-              disabled={!selectedTask}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              Link
-            </button>
+            {editMode && (
+              <>
+                <button
+                  onClick={onIndent}
+                  disabled={!canIndent}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+                >
+                  <IndentIncrease className="h-3.5 w-3.5" />
+                  Indent
+                </button>
+                <button
+                  onClick={onOutdent}
+                  disabled={!canOutdent}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+                >
+                  <IndentDecrease className="h-3.5 w-3.5" />
+                  Outdent
+                </button>
+                <button
+                  onClick={onLinkTasks}
+                  disabled={!selectedTask}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  Link
+                </button>
+              </>
+            )}
             <button
               onClick={onImport}
               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 min-h-[36px]"
