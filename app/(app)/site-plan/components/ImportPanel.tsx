@@ -5,88 +5,11 @@ import { X, AlertCircle, Check, FileSpreadsheet } from "lucide-react";
 import type { ImportedRow, TaskType } from "@/types/siteplan";
 import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
 import type { HierarchicalTask } from "@/hooks/useSitePlanTasks";
+import { parseCsvToTasks } from "@/lib/csvParser";
 
 interface ImportPanelProps {
   projectId: string;
   onClose: () => void;
-}
-
-// ─── CSV Parser ─────────────────────────────────────────────
-
-function parseCSV(text: string): ImportedRow[] {
-  const lines = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-  const col = (name: string) => headers.indexOf(name);
-
-  const nameIdx = col("name") ?? col("task_name") ?? col("task name");
-  const typeIdx = col("type");
-  const parentIdx = col("parent_name") ?? col("parent") ?? col("wbs_parent");
-  const startIdx = col("start_date") ?? col("start") ?? col("start date");
-  const endIdx = col("end_date") ?? col("end") ?? col("finish") ?? col("finish date");
-  const durationIdx = col("duration") ?? col("duration_days");
-  const responsibleIdx = col("responsible") ?? col("resource") ?? col("resource_names");
-  const predecessorsIdx = col("predecessors") ?? col("predecessor");
-  const assignedIdx = col("assigned_to") ?? col("assigned to") ?? col("resource_names");
-  const commentsIdx = col("comments") ?? col("notes") ?? col("comment");
-  const outlineIdx = col("outline_level") ?? col("outline level") ?? col("level");
-
-  if (nameIdx === -1 || (startIdx === -1 && durationIdx === -1)) {
-    throw new Error(
-      "CSV must have at least: name, start_date (or start). Optional: end_date, duration, type, parent_name, responsible, outline_level"
-    );
-  }
-
-  return lines.slice(1).map((line) => {
-    // Handle quoted CSV fields
-    const cols: string[] = [];
-    let current = "";
-    let inQuotes = false;
-    for (const ch of line) {
-      if (ch === '"') {
-        inQuotes = !inQuotes;
-      } else if (ch === "," && !inQuotes) {
-        cols.push(current.trim());
-        current = "";
-      } else {
-        current += ch;
-      }
-    }
-    cols.push(current.trim());
-
-    const outlineLevel = outlineIdx >= 0 ? parseInt(cols[outlineIdx] ?? "0", 10) || 0 : -1;
-    let taskType: TaskType = "task";
-    if (typeIdx >= 0) {
-      const raw = (cols[typeIdx] ?? "task").toLowerCase();
-      if (raw === "phase" || raw === "summary" || raw === "milestone") taskType = "phase";
-      else if (raw === "subtask" || raw === "sub-task") taskType = "subtask";
-    } else if (outlineLevel >= 0) {
-      // Auto-detect from outline level: 0-1 = phase, 2 = task, 3+ = subtask
-      if (outlineLevel <= 1) taskType = "phase";
-      else if (outlineLevel === 2) taskType = "task";
-      else taskType = "subtask";
-    }
-
-    const duration = durationIdx >= 0 ? parseInt(cols[durationIdx] ?? "7", 10) || 7 : 7;
-
-    return {
-      name: cols[nameIdx] ?? "",
-      type: taskType,
-      parent_name: parentIdx >= 0 ? cols[parentIdx] ?? "" : "",
-      start_date: startIdx >= 0 ? cols[startIdx] ?? "" : "",
-      end_date: endIdx >= 0 ? cols[endIdx] ?? "" : "",
-      duration,
-      predecessors: predecessorsIdx >= 0 ? cols[predecessorsIdx] ?? "" : "",
-      responsible: responsibleIdx >= 0 ? cols[responsibleIdx] ?? "" : "",
-      assigned_to: assignedIdx >= 0 ? cols[assignedIdx] ?? "" : "",
-      comments: commentsIdx >= 0 ? cols[commentsIdx] ?? "" : "",
-      outline_level: outlineLevel,
-    };
-  }).filter((r) => r.name.trim() !== "");
 }
 
 // ─── MS Project XML Parser ──────────────────────────────────
@@ -260,7 +183,7 @@ async function parseFile(
 
   if (ext === "csv") {
     const text = await file.text();
-    return { rows: parseCSV(text), format: "CSV" };
+    return { rows: parseCsvToTasks(text), format: "CSV" };
   }
 
   if (ext === "xml") {
@@ -280,7 +203,7 @@ async function parseFile(
 
   // Fallback: try as CSV
   const text = await file.text();
-  return { rows: parseCSV(text), format: "CSV" };
+  return { rows: parseCsvToTasks(text), format: "CSV" };
 }
 
 // ─── Hierarchy builder ──────────────────────────────────────
