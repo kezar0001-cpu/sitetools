@@ -46,6 +46,8 @@ interface TaskRowProps {
   isChecked?: boolean;
   onCheck?: (task: SitePlanTaskNode, checked: boolean) => void;
   hiddenColumns?: Set<string>;
+  /** Highlight the row with a yellow background (used to show cascade delay impact) */
+  isHighlighted?: boolean;
 }
 
 // Distinctive backgrounds per type
@@ -186,6 +188,7 @@ export function TaskRow({
   isChecked = false,
   onCheck,
   hiddenColumns = new Set(),
+  isHighlighted = false,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -200,8 +203,8 @@ export function TaskRow({
   const displayEndDate = phaseStats?.endDate ?? node.end_date;
   const displayStatus = phaseStats?.status ?? node.status;
 
-  const bg = isDragging ? "bg-blue-50" : rowBg[node.type];
-  const text = isDragging ? "text-slate-900" : rowText[node.type];
+  const bg = isDragging ? "bg-blue-50" : isHighlighted ? "bg-yellow-100" : rowBg[node.type];
+  const text = isDragging ? "text-slate-900" : isHighlighted ? "text-slate-900" : rowText[node.type];
   const borderColor = isPhase ? "border-slate-700" : "border-slate-200";
   const dateCls = isPhase
     ? "text-slate-300 tabular-nums"
@@ -622,6 +625,7 @@ interface MobileTaskCardProps {
   onToggleMobileExpand: () => void;
   dragHandleProps?: DraggableProvided["dragHandleProps"];
   isDragging?: boolean;
+  isHighlighted?: boolean;
 }
 
 export function MobileTaskCard({
@@ -634,6 +638,7 @@ export function MobileTaskCard({
   onToggleMobileExpand,
   dragHandleProps,
   isDragging,
+  isHighlighted = false,
 }: MobileTaskCardProps) {
   // Swipe-left gesture state
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -684,7 +689,7 @@ export function MobileTaskCard({
   return (
     <div
       className={`md:hidden border-b border-slate-200 relative overflow-hidden ${
-        isPhase ? "bg-slate-800" : isSubtask ? "bg-slate-50" : "bg-white"
+        isDragging ? "bg-white" : isHighlighted ? "bg-yellow-100" : isPhase ? "bg-slate-800" : isSubtask ? "bg-slate-50" : "bg-white"
       } ${indentCls} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""}`}
     >
       {/* Swipe-revealed quick actions */}

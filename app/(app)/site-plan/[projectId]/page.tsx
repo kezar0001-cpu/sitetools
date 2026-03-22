@@ -143,6 +143,7 @@ interface VirtualRowData {
   inlineAfterIndex: number;
   inlineParentId: string | null;
   inlineType: TaskType;
+  highlightedTaskIds: Set<string>;
 }
 
 /** Rendered for every visible row in the FixedSizeList. Defined outside the page component so
@@ -167,6 +168,7 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
     inlineAfterIndex,
     inlineParentId,
     inlineType,
+    highlightedTaskIds,
   } = data;
 
   // Placeholder row inserted when isUsingPlaceholder is true
@@ -229,6 +231,7 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
             isChecked={checkedIds.has(node.id)}
             onCheck={handleCheck}
             hiddenColumns={hiddenColumns}
+            isHighlighted={highlightedTaskIds.has(node.id)}
           />
         </div>
       )}
@@ -353,6 +356,8 @@ function ProjectDetailInner() {
   const [showBaselines, setShowBaselines] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
+  const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -804,6 +809,41 @@ function ProjectDetailInner() {
     return items;
   }, [visibleRows, allExpanded, expandedIds, inlineInput]);
 
+  /** Called by DelayLogDialog when a cascade delay impacts successor tasks */
+  const handleDelayImpact = useCallback((affectedTaskIds: string[]) => {
+    if (affectedTaskIds.length === 0) return;
+
+    const idSet = new Set(affectedTaskIds);
+    setHighlightedTaskIds(idSet);
+
+    // Clear any existing highlight timer
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedTaskIds(new Set());
+    }, 3000);
+
+    // Find the first affected task in the visible list and scroll to it
+    const scrollToFirstImpacted = () => {
+      const firstIdx = listItems.findIndex(
+        (item) => item.kind === "task" && idSet.has(item.node.id)
+      );
+      if (firstIdx >= 0 && listRef.current) {
+        listRef.current.scrollToItem(firstIdx, "smart");
+      }
+    };
+
+    toast.success(
+      `Delay cascaded to ${affectedTaskIds.length} successor task${affectedTaskIds.length !== 1 ? "s" : ""}`,
+      {
+        duration: 5000,
+        action: {
+          label: "View Impact",
+          onClick: scrollToFirstImpacted,
+        },
+      }
+    );
+  }, [listItems, listRef]);
+
   /** Stable data object passed to every virtual row — only changes when content changes */
   const rowData = useMemo<VirtualRowData>(() => ({
     listItems,
@@ -824,11 +864,12 @@ function ProjectDetailInner() {
     inlineAfterIndex: inlineInput?.afterIndex ?? 0,
     inlineParentId: inlineInput?.parentId ?? null,
     inlineType: inlineInput?.type ?? "task",
+    highlightedTaskIds,
   }), [
     listItems, allExpanded, expandedIds, toggleExpand, handleSelect,
     setDelayTask, delayCountMap, phaseIndexMap, editMode, checkedIds,
     handleCheck, hiddenColumns, startInlineAdd, projectId,
-    inlineInput,
+    inlineInput, highlightedTaskIds,
   ]);
 
   /** Track desktop list container height for FixedSizeList */
@@ -1117,6 +1158,7 @@ function ProjectDetailInner() {
                                   }
                                   dragHandleProps={dragProvided.dragHandleProps}
                                   isDragging={dragSnapshot.isDragging}
+                                  isHighlighted={highlightedTaskIds.has(node.id)}
                                 />
                               </div>
                             )}
@@ -1256,6 +1298,7 @@ function ProjectDetailInner() {
           task={delayTask}
           projectId={projectId}
           onClose={() => setDelayTask(null)}
+          onImpact={handleDelayImpact}
         />
       )}
 

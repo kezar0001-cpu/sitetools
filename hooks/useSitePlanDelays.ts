@@ -74,7 +74,8 @@ export function useCreateDelayLog() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Single atomic RPC: inserts the log + cascades date shifts in one transaction
+      // Single atomic RPC: inserts the log + cascades date shifts in one transaction.
+      // Returns { log_id: string, affected_task_ids: string[] }
       const { data, error } = await supabase.rpc("log_siteplan_delay", {
         p_task_id: payload.task_id,
         p_delay_days: payload.delay_days,
@@ -85,14 +86,16 @@ export function useCreateDelayLog() {
       });
       if (error) throw error;
 
-      return data as string; // UUID of the new delay log record
+      const result = data as { log_id: string; affected_task_ids: string[] };
+      return result;
     },
-    onSuccess: (_data, { payload, projectId }) => {
+    onSuccess: (data, { payload, projectId }) => {
       qc.invalidateQueries({ queryKey: delayLogsKey(payload.task_id) });
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
       // Tasks may have shifted — refresh the task list
       qc.invalidateQueries({ queryKey: ["siteplan", "tasks", projectId] });
       toast.success("Delay logged", { duration: 3000 });
+      return data;
     },
     onError: () => {
       toast.error("Failed to save — please retry", { duration: Infinity });

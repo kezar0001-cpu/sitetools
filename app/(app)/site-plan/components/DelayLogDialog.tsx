@@ -17,12 +17,15 @@ interface DelayLogDialogProps {
   task: SitePlanTask;
   projectId: string;
   onClose: () => void;
+  /** Called after a successful delay log when impacts_completion=true, with the affected successor task IDs */
+  onImpact?: (affectedTaskIds: string[]) => void;
 }
 
 export function DelayLogDialog({
   task,
   projectId,
   onClose,
+  onImpact,
 }: DelayLogDialogProps) {
   const { data: logs } = useDelayLogs(task.id);
   const createDelay = useCreateDelayLog();
@@ -50,11 +53,15 @@ export function DelayLogDialog({
         projectId,
       },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           setDelayDays(1);
           setDelayReason("");
           setDelayCategory("Weather");
           setImpactsCompletion(true);
+          if (impactsCompletion && onImpact) {
+            const ids: string[] = data?.affected_task_ids ?? [];
+            if (ids.length > 0) onImpact(ids);
+          }
         },
       }
     );
