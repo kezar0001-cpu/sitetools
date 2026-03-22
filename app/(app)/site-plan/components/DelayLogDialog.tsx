@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type {
   SitePlanTask,
   DelayCategory,
@@ -27,6 +28,7 @@ export function DelayLogDialog({
   onClose,
   onImpact,
 }: DelayLogDialogProps) {
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const { data: logs } = useDelayLogs(task.id);
   const createDelay = useCreateDelayLog();
   const deleteDelay = useDeleteDelayLog();
@@ -81,12 +83,19 @@ export function DelayLogDialog({
       />
 
       {/* Dialog — bottom sheet on mobile, centered modal on desktop */}
-      <div className="fixed inset-x-0 bottom-0 z-50 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white rounded-t-2xl md:rounded-xl shadow-xl max-h-[90vh] flex flex-col">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delay-log-dialog-title"
+        tabIndex={-1}
+        className="fixed inset-x-0 bottom-0 z-50 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-white rounded-t-2xl md:rounded-xl shadow-xl max-h-[90vh] flex flex-col focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-red-500" />
-            <h2 className="text-sm font-bold text-slate-900">Log Delay</h2>
+            <h2 id="delay-log-dialog-title" className="text-sm font-bold text-slate-900">Log Delay</h2>
           </div>
           <button
             onClick={onClose}

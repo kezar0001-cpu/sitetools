@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, Bookmark, Trash2 } from "lucide-react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { SitePlanTask } from "@/types/siteplan";
 import {
   useSitePlanBaselines,
@@ -20,6 +21,7 @@ export function BaselineDialog({
   tasks,
   onClose,
 }: BaselineDialogProps) {
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const { data: baselines } = useSitePlanBaselines(projectId);
   const saveBaseline = useSaveBaseline();
   const deleteBaseline = useDeleteBaseline();
@@ -38,12 +40,19 @@ export function BaselineDialog({
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed inset-x-4 top-[15%] z-50 max-w-md mx-auto bg-white rounded-xl shadow-xl">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="baseline-dialog-title"
+        tabIndex={-1}
+        className="fixed inset-x-4 top-[15%] z-50 max-w-md mx-auto bg-white rounded-xl shadow-xl focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Bookmark className="h-4 w-4 text-slate-500" />
-            <span className="text-sm font-semibold text-slate-900">
+            <span id="baseline-dialog-title" className="text-sm font-semibold text-slate-900">
               Baselines
             </span>
           </div>

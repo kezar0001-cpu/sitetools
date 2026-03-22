@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, Link2 } from "lucide-react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { SitePlanTaskNode } from "@/types/siteplan";
 import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 
@@ -16,6 +17,7 @@ export function LinkTasksDialog({
   allTasks,
   onClose,
 }: LinkTasksDialogProps) {
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const updateTask = useUpdateTask();
 
   // Parse existing predecessors (row numbers or IDs)
@@ -51,12 +53,19 @@ export function LinkTasksDialog({
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
-      <div className="fixed inset-x-4 top-[10%] z-50 max-w-md mx-auto bg-white rounded-xl shadow-xl">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="link-tasks-dialog-title"
+        tabIndex={-1}
+        className="fixed inset-x-4 top-[10%] z-50 max-w-md mx-auto bg-white rounded-xl shadow-xl focus:outline-none"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Link2 className="h-4 w-4 text-slate-500" />
-            <span className="text-sm font-semibold text-slate-900">
+            <span id="link-tasks-dialog-title" className="text-sm font-semibold text-slate-900">
               Link Predecessors
             </span>
           </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { TaskType } from "@/types/siteplan";
 import { useCreateTask } from "@/hooks/useSitePlanTasks";
 
@@ -18,6 +19,7 @@ export function CreateTaskSheet({
   parentId,
   onClose,
 }: CreateTaskSheetProps) {
+  const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -50,9 +52,16 @@ export function CreateTaskSheet({
         onClick={onClose}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[80vh] flex flex-col md:static md:inset-auto md:w-96 md:border-l md:border-slate-200 md:rounded-none md:shadow-none md:h-full">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-task-dialog-title"
+        tabIndex={-1}
+        className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[80vh] flex flex-col md:static md:inset-auto md:w-96 md:border-l md:border-slate-200 md:rounded-none md:shadow-none md:h-full focus:outline-none"
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <h3 className="text-sm font-semibold text-slate-900">
+          <h3 id="create-task-dialog-title" className="text-sm font-semibold text-slate-900">
             New {typeLabel}
           </h3>
           <button
