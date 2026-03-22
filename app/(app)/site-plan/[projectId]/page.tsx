@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, Fragment } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
@@ -237,11 +237,23 @@ function ProjectDetailInner() {
   const [leftPaneWidth, setLeftPaneWidth] = useState(45);
   const [isResizing, setIsResizing] = useState(false);
 
+  // Column visibility state
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const handleToggleColumn = useCallback((col: string) => {
+    setHiddenColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  }, []);
+
   // Inline input state
   const [inlineInput, setInlineInput] = useState<{
     type: TaskType;
     parentId: string | null;
     afterIndex: number;
+    afterTaskId: string | null;
   } | null>(null);
 
   const tree = useMemo(() => (tasks ? buildTaskTree(tasks) : []), [tasks]);
@@ -349,35 +361,62 @@ function ProjectDetailInner() {
     }
   };
 
-  /** Add a new row at the same indent level as the currently selected row */
+  /** Add a new row at the same indent level as the currently selected row, directly below it */
   const handleAddRow = useCallback(() => {
     const type: TaskType = selectedTask?.type ?? "task";
     const parentId = selectedTask?.parent_id ?? null;
+    const selectedIdx = selectedTask
+      ? visibleRows.findIndex((r) => r.id === selectedTask.id)
+      : -1;
+    const sortOrder = selectedIdx >= 0 ? selectedIdx + 1 : tasks?.length ?? 0;
     setInlineInput({
       type,
       parentId,
-      afterIndex: tasks?.length ?? 0,
+      afterIndex: sortOrder,
+      afterTaskId: selectedTask?.id ?? null,
     });
     setSelectedTask(null);
-  }, [selectedTask, tasks, setSelectedTask]);
+  }, [selectedTask, tasks, visibleRows, setSelectedTask]);
 
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({
       type,
       parentId: null,
       afterIndex: tasks?.length ?? 0,
+      afterTaskId: null,
     });
     setSelectedTask(null);
   };
 
   const startInlineAdd = (
     type: TaskType,
-    parentId: string | null = null
+    parentId: string | null = null,
+    afterTaskId: string | null = null
   ) => {
+    // Find the last visible row belonging to the afterTaskId subtree
+    let resolvedAfterTaskId = afterTaskId;
+    if (afterTaskId) {
+      const phaseIdx = visibleRows.findIndex((r) => r.id === afterTaskId);
+      if (phaseIdx >= 0) {
+        let lastIdx = phaseIdx;
+        for (let i = phaseIdx + 1; i < visibleRows.length; i++) {
+          const row = visibleRows[i];
+          // Stop when we hit a sibling or parent-level phase
+          if (row.type === "phase" && row.parent_id === visibleRows[phaseIdx].parent_id) break;
+          lastIdx = i;
+        }
+        resolvedAfterTaskId = visibleRows[lastIdx].id;
+      }
+    }
+    const afterIdx = resolvedAfterTaskId
+      ? visibleRows.findIndex((r) => r.id === resolvedAfterTaskId)
+      : -1;
+    const sortOrder = afterIdx >= 0 ? afterIdx + 1 : tasks?.length ?? 0;
     setInlineInput({
       type,
       parentId,
-      afterIndex: tasks?.length ?? 0,
+      afterIndex: sortOrder,
+      afterTaskId: resolvedAfterTaskId,
     });
     setSelectedTask(null);
   };
@@ -399,6 +438,7 @@ function ProjectDetailInner() {
 
   const handleIndent = useCallback(() => {
     if (!selectedTask) return;
+    // Use visibleRows to find the row visually above the selected task
     const taskIndex = visibleRows.findIndex((r) => r.id === selectedTask.id);
     if (taskIndex <= 0) return;
 
@@ -429,8 +469,8 @@ function ProjectDetailInner() {
   const handleOutdent = useCallback(() => {
     if (!selectedTask || !selectedTask.parent_id) return;
 
-    // Find the parent to get its parent (grandparent becomes the new parent)
-    const parent = visibleRows.find((r) => r.id === selectedTask.parent_id);
+    // Use flatTasks (all tasks) so parent lookup works even when rows are collapsed
+    const parent = flatTasks.find((r) => r.id === selectedTask.parent_id);
     const grandparentId = parent?.parent_id ?? null;
 
     // Determine new type: promote one level up
@@ -439,7 +479,7 @@ function ProjectDetailInner() {
       // Moving to root level
       newType = "phase";
     } else {
-      const grandparent = visibleRows.find((r) => r.id === grandparentId);
+      const grandparent = flatTasks.find((r) => r.id === grandparentId);
       if (grandparent?.type === "phase") {
         newType = selectedTask.type === "phase" ? "phase" : "task";
       } else {
@@ -454,7 +494,7 @@ function ProjectDetailInner() {
       after: { type: newType, parent_id: grandparentId },
     });
     indentTask(selectedTask.id, newType, grandparentId);
-  }, [selectedTask, visibleRows, projectId, pushUndo, indentTask]);
+  }, [selectedTask, flatTasks, projectId, pushUndo, indentTask]);
 
   // ─── Link / Unlink ────────────────────────────────────────
 
@@ -732,7 +772,10 @@ function ProjectDetailInner() {
             </div>
           ) : (
             <DragDropContext onDragEnd={handleDragEnd}>
-              <TaskListHeader />
+              <TaskListHeader
+                hiddenColumns={hiddenColumns}
+                onToggleColumn={handleToggleColumn}
+              />
 
               <Droppable droppableId="task-list">
                 {(droppableProvided) => (
@@ -741,73 +784,85 @@ function ProjectDetailInner() {
                     {...droppableProvided.droppableProps}
                   >
                     {visibleRows.map((node, idx) => (
-                      <Draggable
-                        key={node.id}
-                        draggableId={node.id}
-                        index={idx}
-                      >
-                        {(dragProvided, dragSnapshot) => (
-                          <div
-                            ref={dragProvided.innerRef}
-                            {...dragProvided.draggableProps}
-                          >
-                            {/* Desktop: spreadsheet row */}
-                            <TaskRow
-                              node={node}
-                              rowNumber={idx + 1}
-                              expanded={
-                                allExpanded || expandedIds.has(node.id)
-                              }
-                              onToggle={() => toggleExpand(node.id)}
-                              onSelect={handleSelect}
-                              onLogDelay={(t) => setDelayTask(t)}
-                              delayCount={delayCountMap.get(node.id) ?? 0}
-                              dragHandleProps={editMode ? undefined : dragProvided.dragHandleProps}
-                              isDragging={dragSnapshot.isDragging}
-                              phaseIndex={phaseIndexMap.get(node.id) ?? 0}
-                              editMode={editMode}
-                              isChecked={checkedIds.has(node.id)}
-                              onCheck={handleCheck}
-                            />
+                      <Fragment key={node.id}>
+                        <Draggable
+                          draggableId={node.id}
+                          index={idx}
+                        >
+                          {(dragProvided, dragSnapshot) => (
+                            <div
+                              ref={dragProvided.innerRef}
+                              {...dragProvided.draggableProps}
+                            >
+                              {/* Desktop: spreadsheet row */}
+                              <TaskRow
+                                node={node}
+                                rowNumber={idx + 1}
+                                expanded={
+                                  allExpanded || expandedIds.has(node.id)
+                                }
+                                onToggle={() => toggleExpand(node.id)}
+                                onSelect={handleSelect}
+                                onLogDelay={(t) => setDelayTask(t)}
+                                delayCount={delayCountMap.get(node.id) ?? 0}
+                                dragHandleProps={editMode ? undefined : dragProvided.dragHandleProps}
+                                isDragging={dragSnapshot.isDragging}
+                                phaseIndex={phaseIndexMap.get(node.id) ?? 0}
+                                editMode={editMode}
+                                isChecked={checkedIds.has(node.id)}
+                                onCheck={handleCheck}
+                                hiddenColumns={hiddenColumns}
+                              />
 
-                            {/* Mobile: card view */}
-                            <MobileTaskCard
-                              node={node}
-                              onSelect={handleSelect}
-                              onLogDelay={(t) => setDelayTask(t)}
-                              delayCount={delayCountMap.get(node.id) ?? 0}
-                              mobileExpanded={mobileExpandedIds.has(node.id)}
-                              onToggleMobileExpand={() =>
-                                toggleMobileExpand(node.id)
-                              }
-                              dragHandleProps={dragProvided.dragHandleProps}
-                              isDragging={dragSnapshot.isDragging}
-                            />
+                              {/* Mobile: card view */}
+                              <MobileTaskCard
+                                node={node}
+                                onSelect={handleSelect}
+                                onLogDelay={(t) => setDelayTask(t)}
+                                delayCount={delayCountMap.get(node.id) ?? 0}
+                                mobileExpanded={mobileExpandedIds.has(node.id)}
+                                onToggleMobileExpand={() =>
+                                  toggleMobileExpand(node.id)
+                                }
+                                dragHandleProps={dragProvided.dragHandleProps}
+                                isDragging={dragSnapshot.isDragging}
+                              />
 
-                            {!dragSnapshot.isDragging &&
-                              node.type === "phase" &&
-                              (allExpanded || expandedIds.has(node.id)) &&
-                              (idx === visibleRows.length - 1 ||
-                                visibleRows[idx + 1]?.type === "phase") && (
-                                <button
-                                  onClick={() =>
-                                    startInlineAdd("task", node.id)
-                                  }
-                                  className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px] md:border-l-0 border-l-4 border-l-slate-600"
-                                >
-                                  + Add Task
-                                </button>
-                              )}
-                          </div>
+                              {!dragSnapshot.isDragging &&
+                                node.type === "phase" &&
+                                (allExpanded || expandedIds.has(node.id)) && (
+                                  <button
+                                    onClick={() =>
+                                      startInlineAdd("task", node.id, node.id)
+                                    }
+                                    className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px] md:border-l-0 border-l-4 border-l-slate-600"
+                                  >
+                                    + Add Task
+                                  </button>
+                                )}
+                            </div>
+                          )}
+                        </Draggable>
+
+                        {/* Inline input — shown directly after its target row */}
+                        {inlineInput?.afterTaskId === node.id && (
+                          <InlineTaskInput
+                            projectId={projectId}
+                            contextParentId={inlineInput.parentId}
+                            contextType={inlineInput.type}
+                            sortOrder={inlineInput.afterIndex}
+                            onCancel={() => setInlineInput(null)}
+                          />
                         )}
-                      </Draggable>
+                      </Fragment>
                     ))}
                     {droppableProvided.placeholder}
                   </div>
                 )}
               </Droppable>
 
-              {inlineInput && (
+              {/* Fallback: show inline input at bottom when no specific afterTaskId */}
+              {inlineInput && !inlineInput.afterTaskId && (
                 <InlineTaskInput
                   projectId={projectId}
                   contextParentId={inlineInput.parentId}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil } from "lucide-react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Columns } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
@@ -15,6 +15,19 @@ const PHASE_ACCENT_COLORS = [
   "border-l-amber-500",
   "border-l-rose-500",
   "border-l-sky-500",
+];
+
+// ─── Column definitions ─────────────────────────────────────
+
+export const COLUMN_DEFS: { id: string; label: string }[] = [
+  { id: "dur", label: "Duration" },
+  { id: "start", label: "Start" },
+  { id: "finish", label: "Finish" },
+  { id: "pred", label: "Predecessors" },
+  { id: "pct", label: "% Complete" },
+  { id: "status", label: "Status" },
+  { id: "delays", label: "Delays" },
+  { id: "assigned", label: "Assigned" },
 ];
 
 interface TaskRowProps {
@@ -32,6 +45,7 @@ interface TaskRowProps {
   editMode?: boolean;
   isChecked?: boolean;
   onCheck?: (task: SitePlanTaskNode, checked: boolean) => void;
+  hiddenColumns?: Set<string>;
 }
 
 // Distinctive backgrounds per type
@@ -171,6 +185,7 @@ export function TaskRow({
   editMode = false,
   isChecked = false,
   onCheck,
+  hiddenColumns = new Set(),
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -201,6 +216,8 @@ export function TaskRow({
   const stickyStyle = isPhase
     ? "sticky top-[32px] z-[5]"
     : "";
+
+  const show = (col: string) => !hiddenColumns.has(col);
 
   return (
     <div
@@ -287,88 +304,176 @@ export function TaskRow({
       </div>
 
       {/* Duration */}
-      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-        <span className={isPhase ? "font-bold text-white" : isSubtask ? "text-slate-400" : "text-slate-600"}>
-          {node.duration_days}d
-        </span>
-      </div>
+      {show("dur") && (
+        <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+          <span className={isPhase ? "font-bold text-white" : isSubtask ? "text-slate-400" : "text-slate-600"}>
+            {node.duration_days}d
+          </span>
+        </div>
+      )}
 
       {/* Start Date */}
-      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-        <span className={dateCls}>
-          {formatDate(displayStartDate)}
-        </span>
-      </div>
+      {show("start") && (
+        <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+          <span className={dateCls}>
+            {formatDate(displayStartDate)}
+          </span>
+        </div>
+      )}
 
       {/* End Date */}
-      <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-        <span className={isPhase ? "text-red-300 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
-          {formatDate(displayEndDate)}
-        </span>
-      </div>
+      {show("finish") && (
+        <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+          <span className={isPhase ? "text-red-300 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
+            {formatDate(displayEndDate)}
+          </span>
+        </div>
+      )}
 
       {/* Predecessors — desktop only */}
-      <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
-        <span className="break-words min-w-0">{node.predecessors || ""}</span>
-      </div>
+      {show("pred") && (
+        <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+          <span className="break-words min-w-0">{node.predecessors || ""}</span>
+        </div>
+      )}
 
       {/* % Complete */}
-      <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-        <span className={isPhase ? "font-bold text-white tabular-nums" : node.progress >= 100 ? "text-green-600 font-semibold tabular-nums" : "text-slate-600 tabular-nums"}>
-          {displayProgress}%
-        </span>
-      </div>
+      {show("pct") && (
+        <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+          <span className={isPhase ? "font-bold text-white tabular-nums" : node.progress >= 100 ? "text-green-600 font-semibold tabular-nums" : "text-slate-600 tabular-nums"}>
+            {displayProgress}%
+          </span>
+        </div>
+      )}
 
       {/* Status badge — visible on md+ as a pill, dot on mobile */}
-      <div className={`hidden md:flex w-24 shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${isPhase ? statusBadgePhase[displayStatus] : statusBadgeCls[node.status]}`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${statusDot[displayStatus]}`} />
-          {STATUS_LABELS[displayStatus]}
-        </span>
-      </div>
+      {show("status") && (
+        <div className={`hidden md:flex w-24 shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${isPhase ? statusBadgePhase[displayStatus] : statusBadgeCls[node.status]}`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${statusDot[displayStatus]}`} />
+            {STATUS_LABELS[displayStatus]}
+          </span>
+        </div>
+      )}
 
       {/* Delay badge + log action */}
-      <div className={`w-12 shrink-0 flex items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-        {delayCount > 0 ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onLogDelay?.(node);
-            }}
-            className="flex items-center gap-0.5 text-red-500 hover:text-red-600 min-w-[32px] min-h-[28px] justify-center"
-            title={`${delayCount} delay${delayCount !== 1 ? "s" : ""} — click to view/add`}
-          >
-            <AlertTriangle className="h-3.5 w-3.5" />
-            <span className="text-[10px] font-bold">{delayCount}</span>
-          </button>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onLogDelay?.(node);
-            }}
-            className={`min-w-[32px] min-h-[28px] flex items-center justify-center rounded hover:bg-slate-200/50 ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
-            title="Log Delay"
-          >
-            <AlertTriangle className="h-3 w-3" />
-          </button>
-        )}
-      </div>
+      {show("delays") && (
+        <div className={`w-12 shrink-0 flex items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+          {delayCount > 0 ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLogDelay?.(node);
+              }}
+              className="flex items-center gap-0.5 text-red-500 hover:text-red-600 min-w-[32px] min-h-[28px] justify-center"
+              title={`${delayCount} delay${delayCount !== 1 ? "s" : ""} — click to view/add`}
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-bold">{delayCount}</span>
+            </button>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onLogDelay?.(node);
+              }}
+              className={`min-w-[32px] min-h-[28px] flex items-center justify-center rounded hover:bg-slate-200/50 ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+              title="Log Delay"
+            >
+              <AlertTriangle className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Assigned To — desktop only */}
-      <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
-        <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>
-      </div>
+      {show("assigned") && (
+        <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
+          <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Column header matching MS Project spreadsheet style */
-export function TaskListHeader() {
+// ─── Column visibility context menu ─────────────────────────
+
+function ColumnMenu({
+  hiddenColumns,
+  onToggleColumn,
+  onClose,
+}: {
+  hiddenColumns: Set<string>;
+  onToggleColumn: (col: string) => void;
+  onClose: () => void;
+}) {
   return (
-    <div className="hidden md:flex items-center border-b-2 border-slate-300 bg-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider min-h-[32px] sticky top-0 z-10">
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[180px]">
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">
+          Show / Hide Columns
+        </div>
+        {COLUMN_DEFS.map((col) => (
+          <button
+            key={col.id}
+            onClick={() => onToggleColumn(col.id)}
+            className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded"
+          >
+            <span
+              className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
+                !hiddenColumns.has(col.id)
+                  ? "bg-blue-600 border-blue-600 text-white"
+                  : "border-slate-300"
+              }`}
+            >
+              {!hiddenColumns.has(col.id) && (
+                <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            {col.label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Column header matching MS Project spreadsheet style */
+export function TaskListHeader({
+  hiddenColumns = new Set(),
+  onToggleColumn,
+}: {
+  hiddenColumns?: Set<string>;
+  onToggleColumn?: (col: string) => void;
+}) {
+  const [showMenu, setShowMenu] = useState(false);
+
+  const show = (col: string) => !hiddenColumns.has(col);
+
+  // Click a column header to hide it; show tooltip hint
+  const handleColClick = (col: string) => {
+    onToggleColumn?.(col);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, col: string) => {
+    e.preventDefault();
+    // Right-click opens the full column menu
+    setShowMenu(true);
+    void col;
+  };
+
+  const colHeaderCls = "shrink-0 text-center py-1.5 border-r border-slate-300 cursor-pointer select-none hover:bg-slate-200 transition-colors group relative";
+
+  return (
+    <div
+      className="hidden md:flex items-center border-b-2 border-slate-300 bg-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider min-h-[32px] sticky top-0 z-10"
+      onContextMenu={(e) => { e.preventDefault(); setShowMenu(true); }}
+    >
       {/* Drag handle spacer */}
       <div className="w-7 shrink-0" />
 
@@ -377,49 +482,123 @@ export function TaskListHeader() {
         #
       </div>
 
-      {/* Task Name */}
+      {/* Task Name — not hideable */}
       <div className="flex-1 min-w-0 px-2 py-1.5 border-r border-slate-300">
         Task Name
       </div>
 
       {/* Duration */}
-      <div className="w-16 shrink-0 text-center py-1.5 border-r border-slate-300">
-        Dur.
-      </div>
+      {show("dur") && (
+        <div
+          className={`w-16 ${colHeaderCls}`}
+          onClick={() => handleColClick("dur")}
+          onContextMenu={(e) => handleContextMenu(e, "dur")}
+          title="Click to hide"
+        >
+          Dur.
+        </div>
+      )}
 
       {/* Start Date */}
-      <div className="w-20 shrink-0 text-center py-1.5 border-r border-slate-300">
-        Start
-      </div>
+      {show("start") && (
+        <div
+          className={`w-20 ${colHeaderCls}`}
+          onClick={() => handleColClick("start")}
+          onContextMenu={(e) => handleContextMenu(e, "start")}
+          title="Click to hide"
+        >
+          Start
+        </div>
+      )}
 
       {/* End Date */}
-      <div className="w-20 shrink-0 text-center py-1.5 border-r border-slate-300">
-        Finish
-      </div>
+      {show("finish") && (
+        <div
+          className={`w-20 ${colHeaderCls}`}
+          onClick={() => handleColClick("finish")}
+          onContextMenu={(e) => handleContextMenu(e, "finish")}
+          title="Click to hide"
+        >
+          Finish
+        </div>
+      )}
 
       {/* Predecessors */}
-      <div className="hidden lg:block w-24 shrink-0 text-center py-1.5 border-r border-slate-300">
-        Pred.
-      </div>
+      {show("pred") && (
+        <div
+          className={`hidden lg:block w-24 ${colHeaderCls}`}
+          onClick={() => handleColClick("pred")}
+          onContextMenu={(e) => handleContextMenu(e, "pred")}
+          title="Click to hide"
+        >
+          Pred.
+        </div>
+      )}
 
       {/* % Complete */}
-      <div className="w-16 shrink-0 text-center py-1.5 border-r border-slate-300">
-        %
-      </div>
+      {show("pct") && (
+        <div
+          className={`w-16 ${colHeaderCls}`}
+          onClick={() => handleColClick("pct")}
+          onContextMenu={(e) => handleContextMenu(e, "pct")}
+          title="Click to hide"
+        >
+          %
+        </div>
+      )}
 
       {/* Status */}
-      <div className="hidden md:block w-24 shrink-0 text-center py-1.5 border-r border-slate-300">
-        Status
-      </div>
+      {show("status") && (
+        <div
+          className={`hidden md:block w-24 ${colHeaderCls}`}
+          onClick={() => handleColClick("status")}
+          onContextMenu={(e) => handleContextMenu(e, "status")}
+          title="Click to hide"
+        >
+          Status
+        </div>
+      )}
 
       {/* Delays */}
-      <div className="w-12 shrink-0 text-center py-1.5 border-r border-slate-300">
-        Delays
-      </div>
+      {show("delays") && (
+        <div
+          className={`w-12 ${colHeaderCls}`}
+          onClick={() => handleColClick("delays")}
+          onContextMenu={(e) => handleContextMenu(e, "delays")}
+          title="Click to hide"
+        >
+          Delays
+        </div>
+      )}
 
       {/* Assigned To */}
-      <div className="hidden lg:block w-24 shrink-0 text-center py-1.5">
-        Assigned
+      {show("assigned") && (
+        <div
+          className={`hidden lg:block w-24 ${colHeaderCls} border-r-0`}
+          onClick={() => handleColClick("assigned")}
+          onContextMenu={(e) => handleContextMenu(e, "assigned")}
+          title="Click to hide"
+        >
+          Assigned
+        </div>
+      )}
+
+      {/* Column visibility toggle button */}
+      <div className="relative shrink-0 ml-auto">
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
+          title="Show/hide columns"
+          className="p-1.5 hover:bg-slate-200 rounded flex items-center justify-center text-slate-400 hover:text-slate-600"
+        >
+          <Columns className="h-3.5 w-3.5" />
+        </button>
+        {showMenu && (
+          <ColumnMenu
+            hiddenColumns={hiddenColumns}
+            onToggleColumn={(col) => { onToggleColumn?.(col); }}
+            onClose={() => setShowMenu(false)}
+          />
+        )}
       </div>
     </div>
   );

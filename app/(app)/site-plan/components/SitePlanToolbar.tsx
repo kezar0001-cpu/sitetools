@@ -341,9 +341,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
   const [showFilter, setShowFilter] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
 
-  const canIndent = editMode && selectedTask !== null;
-  const canOutdent =
-    editMode && selectedTask !== null && selectedTask.parent_id !== null;
+  const canIndent = selectedTask !== null;
+  const canOutdent = selectedTask !== null && selectedTask.parent_id !== null;
   const hasSelectedPredecessors =
     editMode && selectedTask !== null && !!selectedTask.predecessors;
 
@@ -385,12 +384,14 @@ export function SitePlanToolbar(props: ToolbarProps) {
           )}
         </button>
 
+        {/* Indent/Outdent — always available when a task is selected */}
+        <Divider />
+        <TBtn icon={IndentDecrease} label="Outdent (Shift+Tab)" onClick={onOutdent} disabled={!canOutdent} />
+        <TBtn icon={IndentIncrease} label="Indent (Tab)" onClick={onIndent} disabled={!canIndent} />
+
         {/* Edit-mode controls — only shown when editing */}
         {editMode && (
           <>
-            <Divider />
-            <TBtn icon={IndentDecrease} label="Outdent" onClick={onOutdent} disabled={!canOutdent} />
-            <TBtn icon={IndentIncrease} label="Indent" onClick={onIndent} disabled={!canIndent} />
             <Divider />
             <TBtn icon={Link2} label="Link Tasks" onClick={onLinkTasks} disabled={!selectedTask} />
             <TBtn icon={Unlink2} label="Unlink" onClick={onUnlinkTask} disabled={!hasSelectedPredecessors} />
@@ -505,33 +506,31 @@ export function SitePlanToolbar(props: ToolbarProps) {
         {/* Expanded mobile actions */}
         {showMobileActions && (
           <div className="flex items-center gap-1.5 px-2 pb-2 flex-wrap">
+            <button
+              onClick={onIndent}
+              disabled={!canIndent}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+            >
+              <IndentIncrease className="h-3.5 w-3.5" />
+              Indent
+            </button>
+            <button
+              onClick={onOutdent}
+              disabled={!canOutdent}
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+            >
+              <IndentDecrease className="h-3.5 w-3.5" />
+              Outdent
+            </button>
             {editMode && (
-              <>
-                <button
-                  onClick={onIndent}
-                  disabled={!canIndent}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-                >
-                  <IndentIncrease className="h-3.5 w-3.5" />
-                  Indent
-                </button>
-                <button
-                  onClick={onOutdent}
-                  disabled={!canOutdent}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-                >
-                  <IndentDecrease className="h-3.5 w-3.5" />
-                  Outdent
-                </button>
-                <button
-                  onClick={onLinkTasks}
-                  disabled={!selectedTask}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                  Link
-                </button>
-              </>
+              <button
+                onClick={onLinkTasks}
+                disabled={!selectedTask}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                Link
+              </button>
             )}
             <button
               onClick={onImport}
