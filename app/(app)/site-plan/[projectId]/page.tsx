@@ -5,6 +5,8 @@ import { useParams, useRouter, useSearchParams, usePathname } from "next/navigat
 import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
+import { FixedSizeList } from "react-window";
+import type { ListChildComponentProps } from "react-window";
 import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
@@ -111,6 +113,127 @@ function applyFilter(
       return false;
     return true;
   });
+}
+
+// ─── Virtual task list ──────────────────────────────────────
+
+const DESKTOP_ROW_HEIGHT = 40; // px — fixed row height for FixedSizeList
+
+type TaskListItem =
+  | { kind: "task"; node: SitePlanTaskNode; taskIndex: number }
+  | { kind: "add_task"; phaseId: string; phaseNode: SitePlanTaskNode }
+  | { kind: "inline_input"; parentId: string | null; type: TaskType; sortOrder: number };
+
+interface VirtualRowData {
+  listItems: TaskListItem[];
+  allExpanded: boolean;
+  expandedIds: Set<string>;
+  toggleExpand: (id: string) => void;
+  handleSelect: (node: SitePlanTaskNode) => void;
+  setDelayTask: (node: SitePlanTaskNode | null) => void;
+  delayCountMap: Map<string, number>;
+  phaseIndexMap: Map<string, number>;
+  editMode: boolean;
+  checkedIds: Set<string>;
+  handleCheck: (node: SitePlanTaskNode, checked: boolean) => void;
+  hiddenColumns: Set<string>;
+  startInlineAdd: (type: TaskType, parentId: string | null, afterTaskId: string | null) => void;
+  projectId: string;
+  setInlineInput: (v: null) => void;
+  inlineAfterIndex: number;
+  inlineParentId: string | null;
+  inlineType: TaskType;
+}
+
+/** Rendered for every visible row in the FixedSizeList. Defined outside the page component so
+ *  react-window can reuse it without remounting on every render. */
+function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowData>) {
+  const {
+    listItems,
+    allExpanded,
+    expandedIds,
+    toggleExpand,
+    handleSelect,
+    setDelayTask,
+    delayCountMap,
+    phaseIndexMap,
+    editMode,
+    checkedIds,
+    handleCheck,
+    hiddenColumns,
+    startInlineAdd,
+    projectId,
+    setInlineInput,
+    inlineAfterIndex,
+    inlineParentId,
+    inlineType,
+  } = data;
+
+  // Placeholder row inserted when isUsingPlaceholder is true
+  if (index >= listItems.length) return <div style={style} />;
+
+  const item = listItems[index];
+
+  if (item.kind === "add_task") {
+    return (
+      <div style={style} className="overflow-hidden">
+        <button
+          onClick={() => startInlineAdd("task", item.phaseId, item.phaseNode.id)}
+          className="w-full h-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 hidden md:flex items-center border-b border-slate-100"
+        >
+          + Add Task
+        </button>
+      </div>
+    );
+  }
+
+  if (item.kind === "inline_input") {
+    return (
+      <div style={style} className="overflow-hidden">
+        <InlineTaskInput
+          projectId={projectId}
+          contextParentId={inlineParentId}
+          contextType={inlineType}
+          sortOrder={inlineAfterIndex}
+          onCancel={() => setInlineInput(null)}
+        />
+      </div>
+    );
+  }
+
+  // kind === "task"
+  const node = item.node;
+  const expanded = allExpanded || expandedIds.has(node.id);
+
+  return (
+    <Draggable draggableId={node.id} index={item.taskIndex} key={node.id}>
+      {(dragProvided, dragSnapshot) => (
+        <div
+          ref={dragProvided.innerRef}
+          {...dragProvided.draggableProps}
+          style={{ ...style, ...dragProvided.draggableProps.style }}
+          className="overflow-hidden"
+        >
+          <TaskRow
+            node={node}
+            rowNumber={item.taskIndex + 1}
+            expanded={expanded}
+            onToggle={() => toggleExpand(node.id)}
+            onSelect={handleSelect}
+            onLogDelay={setDelayTask}
+            delayCount={delayCountMap.get(node.id) ?? 0}
+            dragHandleProps={editMode ? undefined : dragProvided.dragHandleProps}
+            isDragging={dragSnapshot.isDragging}
+            phaseIndex={phaseIndexMap.get(node.id) ?? 0}
+            editMode={editMode}
+            isChecked={checkedIds.has(node.id)}
+            onCheck={handleCheck}
+            hiddenColumns={hiddenColumns}
+          />
+        </div>
+      )}
+    </Draggable>
+  );
 }
 
 // ─── Main page ──────────────────────────────────────────────
@@ -235,6 +358,12 @@ function ProjectDetailInner() {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const [leftPaneWidth, setLeftPaneWidth] = useState(45);
+
+  // ─── Virtual list state ──────────────────────────────────────
+  const desktopContainerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<FixedSizeList<VirtualRowData>>(null);
+  const [desktopListHeight, setDesktopListHeight] = useState(500);
+  const [stickyPhaseNode, setStickyPhaseNode] = useState<SitePlanTaskNode | null>(null);
   const [isResizing, setIsResizing] = useState(false);
 
   // Column visibility state
@@ -352,14 +481,14 @@ function ProjectDetailInner() {
     setExpandedIds(new Set());
   };
 
-  const handleSelect = (node: SitePlanTaskNode) => {
+  const handleSelect = useCallback((node: SitePlanTaskNode) => {
     if (editMode) {
       handleCheck(node, !checkedIds.has(node.id));
     } else {
       setSelectedTask(node);
       setInlineInput(null);
     }
-  };
+  }, [editMode, handleCheck, checkedIds, setSelectedTask]);
 
   /** Add a new row at the same indent level as the currently selected row, directly below it */
   const handleAddRow = useCallback(() => {
@@ -388,7 +517,7 @@ function ProjectDetailInner() {
     setSelectedTask(null);
   };
 
-  const startInlineAdd = (
+  const startInlineAdd = useCallback((
     type: TaskType,
     parentId: string | null = null,
     afterTaskId: string | null = null
@@ -419,7 +548,7 @@ function ProjectDetailInner() {
       afterTaskId: resolvedAfterTaskId,
     });
     setSelectedTask(null);
-  };
+  }, [visibleRows, tasks, setSelectedTask]);
 
   // ─── Indent / Outdent ──────────────────────────────────────
   // Allows flexible nesting: phases can contain phases, tasks can contain tasks/subtasks,
@@ -562,6 +691,8 @@ function ProjectDetailInner() {
     (result: DropResult) => {
       const { source, destination } = result;
       if (!destination || source.index === destination.index) return;
+      // Ignore drops between the desktop and mobile droppables
+      if (source.droppableId !== destination.droppableId) return;
 
       const rows = [...visibleRows];
       const [moved] = rows.splice(source.index, 1);
@@ -647,6 +778,104 @@ function ProjectDetailInner() {
     }
     return map;
   }, [visibleRows]);
+
+  // ─── Virtual list memos & effects ──────────────────────────
+
+  /** Flat list for FixedSizeList: task rows + "Add Task" buttons + inline inputs */
+  const listItems = useMemo<TaskListItem[]>(() => {
+    const items: TaskListItem[] = [];
+    let taskIndex = 0;
+    for (const node of visibleRows) {
+      items.push({ kind: "task", node, taskIndex: taskIndex++ });
+      // "Add Task" affordance after each expanded phase
+      if (node.type === "phase" && (allExpanded || expandedIds.has(node.id))) {
+        items.push({ kind: "add_task", phaseId: node.id, phaseNode: node });
+      }
+      // Inline input inserted after its target row
+      if (inlineInput?.afterTaskId === node.id) {
+        items.push({
+          kind: "inline_input",
+          parentId: inlineInput.parentId,
+          type: inlineInput.type,
+          sortOrder: inlineInput.afterIndex,
+        });
+      }
+    }
+    return items;
+  }, [visibleRows, allExpanded, expandedIds, inlineInput]);
+
+  /** Stable data object passed to every virtual row — only changes when content changes */
+  const rowData = useMemo<VirtualRowData>(() => ({
+    listItems,
+    allExpanded,
+    expandedIds,
+    toggleExpand,
+    handleSelect,
+    setDelayTask,
+    delayCountMap,
+    phaseIndexMap,
+    editMode,
+    checkedIds,
+    handleCheck,
+    hiddenColumns,
+    startInlineAdd,
+    projectId,
+    setInlineInput,
+    inlineAfterIndex: inlineInput?.afterIndex ?? 0,
+    inlineParentId: inlineInput?.parentId ?? null,
+    inlineType: inlineInput?.type ?? "task",
+  }), [
+    listItems, allExpanded, expandedIds, toggleExpand, handleSelect,
+    setDelayTask, delayCountMap, phaseIndexMap, editMode, checkedIds,
+    handleCheck, hiddenColumns, startInlineAdd, projectId,
+    inlineInput,
+  ]);
+
+  /** Track desktop list container height for FixedSizeList */
+  useEffect(() => {
+    const el = desktopContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setDesktopListHeight(entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  /** Scroll virtual list to inline input row when it's activated */
+  useEffect(() => {
+    if (!inlineInput?.afterTaskId || !listRef.current) return;
+    const idx = listItems.findIndex((item) => item.kind === "inline_input");
+    if (idx >= 0) listRef.current.scrollToItem(idx, "smart");
+  }, [inlineInput, listItems]);
+
+  /** Handle FixedSizeList scroll — update sticky phase banner without re-rendering items */
+  const handleVirtualScroll = useCallback(
+    ({ scrollOffset }: { scrollOffset: number }) => {
+      const topItemIndex = Math.floor(scrollOffset / DESKTOP_ROW_HEIGHT);
+      if (topItemIndex === 0) {
+        setStickyPhaseNode(null);
+        return;
+      }
+      const topItem = listItems[topItemIndex];
+      // If top item is a phase row itself, no sticky banner needed
+      if (topItem?.kind === "task" && topItem.node.type === "phase") {
+        setStickyPhaseNode(null);
+        return;
+      }
+      // Walk backwards to find the nearest phase above the top visible row
+      let found: SitePlanTaskNode | null = null;
+      for (let i = topItemIndex - 1; i >= 0; i--) {
+        const item = listItems[i];
+        if (item?.kind === "task" && item.node.type === "phase") {
+          found = item.node;
+          break;
+        }
+      }
+      setStickyPhaseNode((prev) => (prev?.id === found?.id ? prev : found));
+    },
+    [listItems]
+  );
 
   const handleDragResizer = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -737,12 +966,14 @@ function ProjectDetailInner() {
           onToggleFullscreen={toggleFullscreen}
         />
 
-        {/* Task list */}
-        <div className="flex-1 overflow-auto pb-20 md:pb-4">
+        {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
+        <div className="flex-1 flex flex-col min-h-0">
           {isLoading ? (
-            <TaskListSkeleton />
+            <div className="flex-1 overflow-auto pb-20 md:pb-4">
+              <TaskListSkeleton />
+            </div>
           ) : visibleRows.length === 0 && !inlineInput ? (
-            <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="flex-1 overflow-auto pb-20 md:pb-4 flex flex-col items-center justify-center py-20 text-center px-4">
               {isFilterActive(filter) ? (
                 <>
                   <p className="text-sm text-slate-500 mb-4">
@@ -772,114 +1003,160 @@ function ProjectDetailInner() {
             </div>
           ) : (
             <DragDropContext onDragEnd={handleDragEnd}>
-              <TaskListHeader
-                hiddenColumns={hiddenColumns}
-                onToggleColumn={handleToggleColumn}
-              />
+              {/* ── Desktop: virtualised FixedSizeList (md+) ────────────── */}
+              <div className="hidden md:flex flex-col flex-1 min-h-0">
+                <TaskListHeader
+                  hiddenColumns={hiddenColumns}
+                  onToggleColumn={handleToggleColumn}
+                />
 
-              <Droppable droppableId="task-list">
-                {(droppableProvided) => (
-                  <div
-                    ref={droppableProvided.innerRef}
-                    {...droppableProvided.droppableProps}
-                  >
-                    {visibleRows.map((node, idx) => (
-                      <Fragment key={node.id}>
-                        <Draggable
-                          draggableId={node.id}
-                          index={idx}
-                        >
-                          {(dragProvided, dragSnapshot) => (
-                            <div
-                              ref={dragProvided.innerRef}
-                              {...dragProvided.draggableProps}
-                            >
-                              {/* Desktop: spreadsheet row */}
-                              <TaskRow
-                                node={node}
-                                rowNumber={idx + 1}
-                                expanded={
-                                  allExpanded || expandedIds.has(node.id)
-                                }
-                                onToggle={() => toggleExpand(node.id)}
-                                onSelect={handleSelect}
-                                onLogDelay={(t) => setDelayTask(t)}
-                                delayCount={delayCountMap.get(node.id) ?? 0}
-                                dragHandleProps={editMode ? undefined : dragProvided.dragHandleProps}
-                                isDragging={dragSnapshot.isDragging}
-                                phaseIndex={phaseIndexMap.get(node.id) ?? 0}
-                                editMode={editMode}
-                                isChecked={checkedIds.has(node.id)}
-                                onCheck={handleCheck}
-                                hiddenColumns={hiddenColumns}
-                              />
-
-                              {/* Mobile: card view */}
-                              <MobileTaskCard
-                                node={node}
-                                onSelect={handleSelect}
-                                onLogDelay={(t) => setDelayTask(t)}
-                                delayCount={delayCountMap.get(node.id) ?? 0}
-                                mobileExpanded={mobileExpandedIds.has(node.id)}
-                                onToggleMobileExpand={() =>
-                                  toggleMobileExpand(node.id)
-                                }
-                                dragHandleProps={dragProvided.dragHandleProps}
-                                isDragging={dragSnapshot.isDragging}
-                              />
-
-                              {!dragSnapshot.isDragging &&
-                                node.type === "phase" &&
-                                (allExpanded || expandedIds.has(node.id)) && (
-                                  <button
-                                    onClick={() =>
-                                      startInlineAdd("task", node.id, node.id)
-                                    }
-                                    className="w-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 min-h-[32px] md:border-l-0 border-l-4 border-l-slate-600"
-                                  >
-                                    + Add Task
-                                  </button>
-                                )}
-                            </div>
-                          )}
-                        </Draggable>
-
-                        {/* Inline input — shown directly after its target row */}
-                        {inlineInput?.afterTaskId === node.id && (
-                          <InlineTaskInput
-                            projectId={projectId}
-                            contextParentId={inlineInput.parentId}
-                            contextType={inlineInput.type}
-                            sortOrder={inlineInput.afterIndex}
-                            onCancel={() => setInlineInput(null)}
-                          />
-                        )}
-                      </Fragment>
-                    ))}
-                    {droppableProvided.placeholder}
+                {/* Sticky phase context banner — shown when a phase header has scrolled off-screen */}
+                {stickyPhaseNode && (
+                  <div className="shrink-0 bg-slate-800 border-b border-slate-700 px-3 py-1 flex items-center gap-2 z-[5]">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phase</span>
+                    <span className="text-xs font-semibold text-white truncate">{stickyPhaseNode.name}</span>
                   </div>
                 )}
-              </Droppable>
 
-              {/* Fallback: show inline input at bottom when no specific afterTaskId */}
-              {inlineInput && !inlineInput.afterTaskId && (
-                <InlineTaskInput
-                  projectId={projectId}
-                  contextParentId={inlineInput.parentId}
-                  contextType={inlineInput.type}
-                  sortOrder={inlineInput.afterIndex}
-                  onCancel={() => setInlineInput(null)}
-                />
-              )}
+                {/* FixedSizeList container — fills remaining height */}
+                <div className="flex-1 min-h-0" ref={desktopContainerRef}>
+                  <Droppable
+                    droppableId="task-list"
+                    mode="virtual"
+                    renderClone={(provided, _snapshot, rubric) => {
+                      const srcNode = visibleRows[rubric.source.index];
+                      return (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                          style={{ height: DESKTOP_ROW_HEIGHT, overflow: "hidden", ...provided.draggableProps.style }}
+                        >
+                          {srcNode && (
+                            <TaskRow
+                              node={srcNode}
+                              rowNumber={rubric.source.index + 1}
+                              expanded={false}
+                              onToggle={() => {}}
+                              onSelect={() => {}}
+                              isDragging={true}
+                              phaseIndex={phaseIndexMap.get(srcNode.id) ?? 0}
+                              hiddenColumns={hiddenColumns}
+                            />
+                          )}
+                        </div>
+                      );
+                    }}
+                  >
+                    {(provided, snapshot) => (
+                      <FixedSizeList
+                        ref={listRef}
+                        height={desktopListHeight}
+                        itemCount={listItems.length + (snapshot.isUsingPlaceholder ? 1 : 0)}
+                        itemSize={DESKTOP_ROW_HEIGHT}
+                        outerRef={provided.innerRef}
+                        itemData={rowData}
+                        onScroll={handleVirtualScroll}
+                        width="100%"
+                        overscanCount={5}
+                      >
+                        {VirtualRow}
+                      </FixedSizeList>
+                    )}
+                  </Droppable>
+                </div>
 
-              {!inlineInput && visibleRows.length > 0 && (
-                <button
-                  onClick={() => startInlineAdd("phase")}
-                  className="w-full text-left pl-10 py-2.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 border-b border-slate-100 min-h-[36px]"
-                >
-                  + Add Phase
-                </button>
-              )}
+                {/* Inline input at end of list (no afterTaskId) */}
+                {inlineInput && !inlineInput.afterTaskId && (
+                  <InlineTaskInput
+                    projectId={projectId}
+                    contextParentId={inlineInput.parentId}
+                    contextType={inlineInput.type}
+                    sortOrder={inlineInput.afterIndex}
+                    onCancel={() => setInlineInput(null)}
+                  />
+                )}
+
+                {!inlineInput && visibleRows.length > 0 && (
+                  <button
+                    onClick={() => startInlineAdd("phase")}
+                    className="shrink-0 w-full text-left pl-10 py-2.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 border-b border-slate-100 min-h-[36px]"
+                  >
+                    + Add Phase
+                  </button>
+                )}
+              </div>
+
+              {/* ── Mobile: standard rendering with MobileTaskCard (< md) ── */}
+              <div className="md:hidden flex-1 overflow-auto pb-20">
+                <Droppable droppableId="task-list-mobile">
+                  {(droppableProvided) => (
+                    <div
+                      ref={droppableProvided.innerRef}
+                      {...droppableProvided.droppableProps}
+                    >
+                      {visibleRows.map((node, idx) => (
+                        <Fragment key={node.id}>
+                          <Draggable
+                            draggableId={`m-${node.id}`}
+                            index={idx}
+                          >
+                            {(dragProvided, dragSnapshot) => (
+                              <div
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                              >
+                                <MobileTaskCard
+                                  node={node}
+                                  onSelect={handleSelect}
+                                  onLogDelay={(t) => setDelayTask(t)}
+                                  delayCount={delayCountMap.get(node.id) ?? 0}
+                                  mobileExpanded={mobileExpandedIds.has(node.id)}
+                                  onToggleMobileExpand={() =>
+                                    toggleMobileExpand(node.id)
+                                  }
+                                  dragHandleProps={dragProvided.dragHandleProps}
+                                  isDragging={dragSnapshot.isDragging}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+
+                          {inlineInput?.afterTaskId === node.id && (
+                            <InlineTaskInput
+                              projectId={projectId}
+                              contextParentId={inlineInput.parentId}
+                              contextType={inlineInput.type}
+                              sortOrder={inlineInput.afterIndex}
+                              onCancel={() => setInlineInput(null)}
+                            />
+                          )}
+                        </Fragment>
+                      ))}
+                      {droppableProvided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+
+                {inlineInput && !inlineInput.afterTaskId && (
+                  <InlineTaskInput
+                    projectId={projectId}
+                    contextParentId={inlineInput.parentId}
+                    contextType={inlineInput.type}
+                    sortOrder={inlineInput.afterIndex}
+                    onCancel={() => setInlineInput(null)}
+                  />
+                )}
+
+                {!inlineInput && visibleRows.length > 0 && (
+                  <button
+                    onClick={() => startInlineAdd("phase")}
+                    className="w-full text-left pl-10 py-2.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 border-b border-slate-100 min-h-[36px]"
+                  >
+                    + Add Phase
+                  </button>
+                )}
+              </div>
             </DragDropContext>
           )}
         </div>
