@@ -12,8 +12,10 @@ import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
-import { buildTaskTree, flattenTree, computeWorkProgress } from "@/types/siteplan";
+import { computeWorkProgress } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
+import { useTaskTree } from "@/hooks/useTaskTree";
+import { useTaskFiltering } from "@/hooks/useTaskFiltering";
 import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
@@ -85,34 +87,6 @@ function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
     canRedo: redoStack.current.length > 0,
     revision,
   };
-}
-
-// ─── Filter logic ───────────────────────────────────────────
-
-function applyFilter(
-  rows: SitePlanTaskNode[],
-  filter: TaskFilter
-): SitePlanTaskNode[] {
-  if (!isFilterActive(filter)) return rows;
-  return rows.filter((node) => {
-    if (filter.status.length > 0 && !filter.status.includes(node.status))
-      return false;
-    if (filter.type.length > 0 && !filter.type.includes(node.type))
-      return false;
-    if (
-      filter.assignedTo &&
-      !(node.assigned_to ?? "")
-        .toLowerCase()
-        .includes(filter.assignedTo.toLowerCase())
-    )
-      return false;
-    if (
-      filter.search &&
-      !node.name.toLowerCase().includes(filter.search.toLowerCase())
-    )
-      return false;
-    return true;
-  });
 }
 
 // ─── Virtual task list ──────────────────────────────────────
@@ -325,32 +299,36 @@ function ProjectDetailInner() {
     [updateSearchParams]
   );
 
-  // Derive expandedIds from URL
+  // Derive expandedIds from URL and initialise the task tree hook
   const expandedIdsParam = searchParams.get("expanded");
-  const [expandedIds, setExpandedIdsState] = useState<Set<string>>(() =>
-    expandedIdsParam ? new Set(expandedIdsParam.split(",")) : new Set()
-  );
-  const [allExpanded, setAllExpanded] = useState(!expandedIdsParam);
-  const [mobileExpandedIds, setMobileExpandedIds] = useState<Set<string>>(new Set());
+  const {
+    tree,
+    flatTasks,
+    expandedIds,
+    allExpanded,
+    mobileExpandedIds,
+    toggleExpand,
+    toggleAll,
+    toggleMobileExpand,
+  } = useTaskTree(tasks, {
+    initialExpandedIds: expandedIdsParam
+      ? new Set(expandedIdsParam.split(","))
+      : new Set(),
+    initialAllExpanded: !expandedIdsParam,
+  });
+
+  // Sync expandedIds back to URL whenever they change
+  useEffect(() => {
+    const ids = Array.from(expandedIds).join(",");
+    updateSearchParams({ expanded: ids || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedIds]);
 
   // Derive selected task from URL
   const taskIdParam = searchParams.get("task");
 
   // Find selected task from URL param or local state
   const [selectedTaskLocal, setSelectedTaskLocal] = useState<SitePlanTaskNode | null>(null);
-
-  const setExpandedIds = useCallback(
-    (updater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
-      setExpandedIdsState((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        // Persist to URL (but only if not all-expanded)
-        const ids = Array.from(next).join(",");
-        updateSearchParams({ expanded: ids || null });
-        return next;
-      });
-    },
-    [updateSearchParams]
-  );
 
   const [showImport, setShowImport] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
@@ -389,11 +367,6 @@ function ProjectDetailInner() {
     afterIndex: number;
     afterTaskId: string | null;
   } | null>(null);
-
-  const tree = useMemo(() => (tasks ? buildTaskTree(tasks) : []), [tasks]);
-
-  // Flatten for link dialog
-  const flatTasks = useMemo(() => flattenTree(tree), [tree]);
 
   // Resolve selected task: prefer URL param, fall back to local state
   const selectedTask = useMemo(() => {
@@ -440,51 +413,18 @@ function ProjectDetailInner() {
     [setSelectedTask]
   );
 
-  // Visible rows based on expanded state
-  const visibleRows = useMemo(() => {
-    const rows: SitePlanTaskNode[] = [];
-    const walk = (nodes: SitePlanTaskNode[]) => {
-      for (const node of nodes) {
-        rows.push(node);
-        if (
-          node.children.length > 0 &&
-          (allExpanded || expandedIds.has(node.id))
-        ) {
-          walk(node.children);
-        }
-      }
-    };
-    walk(tree);
-    return applyFilter(rows, filter);
-  }, [tree, expandedIds, allExpanded, filter]);
+  // Visible rows + phase colour map
+  const { visibleRows, phaseIndexMap } = useTaskFiltering(
+    tree,
+    expandedIds,
+    allExpanded,
+    filter
+  );
 
   const overallProgress = useMemo(
     () => computeWorkProgress(tasks ?? []),
     [tasks]
   );
-
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, [setExpandedIds]);
-
-  const toggleMobileExpand = useCallback((id: string) => {
-    setMobileExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const toggleAll = () => {
-    setAllExpanded((prev) => !prev);
-    setExpandedIds(new Set());
-  };
 
   const handleSelect = useCallback((node: SitePlanTaskNode) => {
     if (editMode) {
@@ -764,25 +704,6 @@ function ProjectDetailInner() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [selectedTask, handleIndent, handleOutdent]);
-
-  // Compute phase index for accent coloring
-  const phaseIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    let idx = 0;
-    for (const row of visibleRows) {
-      if (row.type === "phase") {
-        map.set(row.id, idx);
-        idx++;
-      }
-    }
-    // For non-phase tasks, inherit from parent
-    for (const row of visibleRows) {
-      if (row.type !== "phase" && row.parent_id) {
-        map.set(row.id, map.get(row.parent_id) ?? 0);
-      }
-    }
-    return map;
-  }, [visibleRows]);
 
   // ─── Virtual list memos & effects ──────────────────────────
 
