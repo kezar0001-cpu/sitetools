@@ -8,11 +8,11 @@ import {
   Loader2,
   AlertTriangle,
   RefreshCw,
-  GitMerge,
   User,
   Clock,
+  GitMerge,
 } from "lucide-react";
-import type { SitePlanTask, SitePlanTaskNode, TaskStatus, UpdateTaskPayload } from "@/types/siteplan";
+import type { SitePlanTask, SitePlanTaskNode, UpdateTaskPayload } from "@/types/siteplan";
 import { STATUS_LABELS, buildTaskTree, flattenTree } from "@/types/siteplan";
 import {
   useUpdateTask,
@@ -22,9 +22,17 @@ import {
   useSitePlanTasks,
 } from "@/hooks/useSitePlanTasks";
 import { useCompanyId } from "@/hooks/useSitePlan";
-import { useCompanyMembers, type CompanyMember } from "@/hooks/useCompanyMembers";
+import { useCompanyMembers } from "@/hooks/useCompanyMembers";
+import {
+  useConflictDetection,
+  CONFLICT_FIELD_LABELS,
+  TEXT_CONFLICT_FIELDS,
+  saveFieldPref,
+} from "@/hooks/useConflictDetection";
+import type { ConflictField, ConflictEntry } from "@/hooks/useConflictDetection";
 import { StatusBadge } from "./StatusBadge";
-import { ProgressSlider } from "./ProgressSlider";
+import { TaskEditorTabs } from "./TaskEditorTabs";
+import type { TaskStatus } from "@/types/siteplan";
 
 interface TaskEditPanelProps {
   task: SitePlanTask;
@@ -34,60 +42,6 @@ interface TaskEditPanelProps {
 }
 
 const DEBOUNCE_MS = 600;
-
-// Fields that are tracked for conflict detection
-const CONFLICT_FIELDS = [
-  "name", "status", "progress", "start_date", "end_date",
-  "actual_start", "actual_end", "predecessors", "responsible",
-  "assigned_to", "comments", "notes",
-] as const;
-
-type ConflictField = (typeof CONFLICT_FIELDS)[number];
-
-const CONFLICT_FIELD_LABELS: Record<ConflictField, string> = {
-  name: "Task Name",
-  status: "Status",
-  progress: "Progress",
-  start_date: "Planned Start",
-  end_date: "Planned End",
-  actual_start: "Actual Start",
-  actual_end: "Actual End",
-  predecessors: "Predecessors",
-  responsible: "Responsible",
-  assigned_to: "Assigned To",
-  comments: "Comments",
-  notes: "Notes",
-};
-
-// Fields where character-level diff / merge makes sense
-const TEXT_FIELDS = new Set<ConflictField>([
-  "name", "predecessors", "responsible", "assigned_to", "comments", "notes",
-]);
-
-interface ConflictEntry {
-  field: ConflictField;
-  remoteValue: unknown;
-  changedBy: string | null;
-  changedAt: string;
-}
-
-// ─── localStorage helpers for remembered preferences ────────
-
-const PREF_KEY = (field: ConflictField) => `siteplan_conflict_pref_${field}`;
-
-function getFieldPref(field: ConflictField): "keep_local" | "use_remote" | "merge" | null {
-  try {
-    const v = localStorage.getItem(PREF_KEY(field));
-    if (v === "keep_local" || v === "use_remote" || v === "merge") return v;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function saveFieldPref(field: ConflictField, choice: "keep_local" | "use_remote" | "merge") {
-  try { localStorage.setItem(PREF_KEY(field), choice); } catch { /* ignore */ }
-}
 
 // ─── Utilities ───────────────────────────────────────────────
 
@@ -101,12 +55,15 @@ function computeCharDiff(local: string, remote: string): DiffSegment[] {
   }
 
   const m = local.length, n = remote.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array(n + 1).fill(0)
+  );
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
-      dp[i][j] = local[i - 1] === remote[j - 1]
-        ? dp[i - 1][j - 1] + 1
-        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+      dp[i][j] =
+        local[i - 1] === remote[j - 1]
+          ? dp[i - 1][j - 1] + 1
+          : Math.max(dp[i - 1][j], dp[i][j - 1]);
     }
   }
 
@@ -125,7 +82,6 @@ function computeCharDiff(local: string, remote: string): DiffSegment[] {
     }
   }
 
-  // Merge consecutive same-type segments
   const merged: DiffSegment[] = [];
   for (const seg of raw) {
     if (merged.length > 0 && merged[merged.length - 1].type === seg.type) {
@@ -162,7 +118,11 @@ function formatConflictValue(field: ConflictField, value: unknown): string {
       const d = new Date(value as string);
       return isNaN(d.getTime())
         ? String(value)
-        : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        : d.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
     }
     default:
       return String(value);
@@ -174,7 +134,7 @@ function formatConflictValue(field: ConflictField, value: unknown): string {
 interface ConflictCardProps {
   conflict: ConflictEntry;
   localValue: unknown;
-  members: CompanyMember[] | undefined;
+  members: ReturnType<typeof useCompanyMembers>["data"];
   onKeepLocal: (remember: boolean) => void;
   onUseRemote: (remember: boolean) => void;
   onApplyMerge: (mergeText: string, remember: boolean) => void;
@@ -192,7 +152,7 @@ function ConflictCard({
   const [mergeText, setMergeText] = useState(String(localValue ?? ""));
   const [remember, setRemember] = useState(false);
 
-  const isTextField = TEXT_FIELDS.has(conflict.field);
+  const isTextField = TEXT_CONFLICT_FIELDS.has(conflict.field);
   const label = CONFLICT_FIELD_LABELS[conflict.field];
 
   const changedByMember = members?.find((m) => m.id === conflict.changedBy);
@@ -200,24 +160,29 @@ function ConflictCard({
 
   const diffSegments = useMemo(() => {
     if (!isTextField || !mergeOpen) return null;
-    return computeCharDiff(String(localValue ?? ""), String(conflict.remoteValue ?? ""));
+    return computeCharDiff(
+      String(localValue ?? ""),
+      String(conflict.remoteValue ?? "")
+    );
   }, [isTextField, mergeOpen, localValue, conflict.remoteValue]);
 
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-3">
-      {/* Header: field label + who changed it + when */}
       <div>
-        <span className="text-xs font-semibold text-amber-800">{label} conflict</span>
+        <span className="text-xs font-semibold text-amber-800">
+          {label} conflict
+        </span>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <User className="h-3 w-3 text-amber-600 shrink-0" />
           <span className="text-[11px] text-amber-700">{changedByName}</span>
           <span className="text-[11px] text-amber-500">·</span>
           <Clock className="h-3 w-3 text-amber-600 shrink-0" />
-          <span className="text-[11px] text-amber-700">{relativeTime(conflict.changedAt)}</span>
+          <span className="text-[11px] text-amber-700">
+            {relativeTime(conflict.changedAt)}
+          </span>
         </div>
       </div>
 
-      {/* Side-by-side comparison */}
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
@@ -237,7 +202,6 @@ function ConflictCard({
         </div>
       </div>
 
-      {/* Merge diff + editor (text fields only) */}
       {mergeOpen && isTextField && (
         <div className="space-y-2">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
@@ -273,7 +237,6 @@ function ConflictCard({
         </div>
       )}
 
-      {/* Action buttons */}
       <div className="space-y-2">
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
@@ -317,7 +280,6 @@ function ConflictCard({
           )}
         </div>
 
-        {/* Remember preference checkbox */}
         <label className="flex items-center gap-1.5 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -358,6 +320,7 @@ export function TaskEditPanel({
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
+  const [showSaved, setShowSaved] = useState(false);
 
   const updateTask = useUpdateTask();
   const updateProgress = useUpdateProgress();
@@ -368,31 +331,16 @@ export function TaskEditPanel({
   const { data: members } = useCompanyMembers(companyId ?? null);
 
   const isSaving = updateTask.isPending || updateProgress.isPending;
-  const [showSaved, setShowSaved] = useState(false);
 
-  // Refs to track latest values for debounce callbacks
+  // Refs for debounce callbacks and latest values
   const taskRef = useRef(task);
   taskRef.current = task;
   const formRef = useRef(form);
   formRef.current = form;
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // ─── Conflict detection ────────────────────────────────────
-  // lastKnownValues holds the last server-confirmed field values.
-  // When the parent's Realtime subscription fires an UPDATE for this task,
-  // the `task` prop updates; we compare each field to detect remote changes.
-  const lastKnownValues = useRef<Partial<Record<ConflictField, unknown>>>(
-    Object.fromEntries(CONFLICT_FIELDS.map((f) => [f, task[f as keyof SitePlanTask]]))
-  );
-  const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
-  // Guard: skip conflict detection on the render following a task-switch
-  const justSwitchedRef = useRef(false);
+  // ─── Debounced save ──────────────────────────────────────────
 
-  // Track the PREVIOUS task's identity so pending saves flush to the correct row
-  const prevTaskIdRef = useRef<string>(task.id);
-  const prevTaskProjectIdRef = useRef<string>(task.project_id);
-
-  // Unified save function — all fields go through this with debounce
   const saveField = useCallback(
     (fieldName: string, value: unknown) => {
       if (debounceTimers.current[fieldName]) {
@@ -402,7 +350,6 @@ export function TaskEditPanel({
       debounceTimers.current[fieldName] = setTimeout(() => {
         delete debounceTimers.current[fieldName];
 
-        // Special handling for progress — log it
         if (fieldName === "progress") {
           const t = taskRef.current;
           const newProgress = value as number;
@@ -426,7 +373,6 @@ export function TaskEditPanel({
           return;
         }
 
-        // Regular field save
         updateTask.mutate(
           {
             id: taskRef.current.id,
@@ -435,8 +381,6 @@ export function TaskEditPanel({
           },
           {
             onSuccess: () => {
-              lastKnownValues.current[fieldName as ConflictField] = value;
-              setConflicts((prev) => prev.filter((c) => c.field !== fieldName));
               setSavedField(fieldName);
               setShowSaved(true);
               setTimeout(() => setShowSaved(false), 1500);
@@ -448,111 +392,27 @@ export function TaskEditPanel({
     [updateTask, updateProgress]
   );
 
-  // Cleanup any remaining timers on final unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       Object.values(debounceTimers.current).forEach(clearTimeout);
     };
   }, []);
 
-  // Detect remote field changes (Realtime UPDATE fired by the parent's subscription).
-  // Skips the render immediately after a task-switch.
+  // ─── Conflict detection ──────────────────────────────────────
+
+  const { conflicts, handleKeepLocal, handleUseRemote, handleApplyMerge } =
+    useConflictDetection(task, {
+      debounceTimers,
+      setForm,
+      saveField,
+      updateTask,
+      formRef,
+    });
+
+  // ─── Reset UI on task switch ─────────────────────────────────
+
   useEffect(() => {
-    if (justSwitchedRef.current) {
-      justSwitchedRef.current = false;
-      return;
-    }
-
-    const newConflicts: ConflictEntry[] = [];
-    const autoAcceptRemote: { field: ConflictField; remoteValue: unknown }[] = [];
-
-    for (const field of CONFLICT_FIELDS) {
-      const remoteValue = task[field as keyof SitePlanTask] as unknown;
-      const knownValue = lastKnownValues.current[field];
-
-      if (remoteValue === knownValue) continue; // no change
-
-      if (Object.hasOwn(debounceTimers.current, field)) {
-        // Remote changed AND local edit is pending — potential conflict
-        const pref = getFieldPref(field);
-
-        if (pref === "keep_local") {
-          // Auto-keep local: accept remote as the new baseline, keep local pending save
-          lastKnownValues.current[field] = remoteValue;
-        } else if (pref === "use_remote") {
-          // Auto-use remote: cancel local pending save, adopt remote value
-          clearTimeout(debounceTimers.current[field]);
-          delete debounceTimers.current[field];
-          autoAcceptRemote.push({ field, remoteValue });
-          lastKnownValues.current[field] = remoteValue;
-        } else {
-          // No saved preference (or "merge"): surface the conflict UI
-          newConflicts.push({
-            field,
-            remoteValue,
-            changedBy: task.updated_by,
-            changedAt: task.updated_at,
-          });
-        }
-      } else {
-        // No pending local edit: silently accept the remote value
-        lastKnownValues.current[field] = remoteValue;
-        setForm((f) => ({ ...f, [field]: remoteValue }));
-      }
-    }
-
-    // Apply auto-accepted remote values in one batch
-    if (autoAcceptRemote.length > 0) {
-      setForm((f) => {
-        const next = { ...f };
-        for (const { field, remoteValue } of autoAcceptRemote) {
-          (next as Record<string, unknown>)[field] = remoteValue;
-        }
-        return next;
-      });
-    }
-
-    if (newConflicts.length > 0) {
-      setConflicts((prev) => {
-        const merged = prev.filter((c) => !newConflicts.find((n) => n.field === c.field));
-        return [...merged, ...newConflicts];
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task]);
-
-  // When task.id changes: flush pending saves to the PREVIOUS task, then reset form
-  useEffect(() => {
-    const pendingKeys = Object.keys(debounceTimers.current);
-
-    if (pendingKeys.length > 0) {
-      const updates: UpdateTaskPayload = {};
-      for (const key of pendingKeys) {
-        clearTimeout(debounceTimers.current[key]);
-        (updates as Record<string, unknown>)[key] =
-          formRef.current[key as keyof UpdateTaskPayload];
-      }
-      debounceTimers.current = {};
-
-      updateTask.mutate({
-        id: prevTaskIdRef.current,
-        projectId: prevTaskProjectIdRef.current,
-        updates,
-      });
-    } else {
-      Object.values(debounceTimers.current).forEach(clearTimeout);
-      debounceTimers.current = {};
-    }
-
-    prevTaskIdRef.current = task.id;
-    prevTaskProjectIdRef.current = task.project_id;
-
-    justSwitchedRef.current = true;
-    lastKnownValues.current = Object.fromEntries(
-      CONFLICT_FIELDS.map((f) => [f, task[f as keyof SitePlanTask]])
-    );
-    setConflicts([]);
-
     setForm({
       name: task.name,
       status: task.status,
@@ -573,7 +433,8 @@ export function TaskEditPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
-  // Count all descendants for cascade delete warning
+  // ─── Cascade delete warning ──────────────────────────────────
+
   const descendantCount = useMemo(() => {
     if (!hasChildren || !allTasks) return 0;
     const tree = buildTaskTree(allTasks);
@@ -582,7 +443,9 @@ export function TaskEditPanel({
     if (!taskNode || taskNode.children.length === 0) return 0;
     const count = (nodes: SitePlanTaskNode[]): number => {
       let c = 0;
-      for (const n of nodes) { c += 1 + count(n.children); }
+      for (const n of nodes) {
+        c += 1 + count(n.children);
+      }
       return c;
     };
     return count(taskNode.children);
@@ -595,49 +458,8 @@ export function TaskEditPanel({
     );
   };
 
-  // ─── Conflict resolution handlers ──────────────────────────
+  // ─── Unified change handler ──────────────────────────────────
 
-  const handleKeepLocal = useCallback(
-    (field: ConflictField, remember: boolean) => {
-      if (remember) saveFieldPref(field, "keep_local");
-      // Accept remote as new baseline so it won't re-trigger; keep local pending save
-      lastKnownValues.current[field] = task[field as keyof SitePlanTask] as unknown;
-      setConflicts((prev) => prev.filter((c) => c.field !== field));
-    },
-    [task]
-  );
-
-  const handleUseRemote = useCallback(
-    (field: ConflictField, remoteValue: unknown, remember: boolean) => {
-      if (remember) saveFieldPref(field, "use_remote");
-      if (debounceTimers.current[field]) {
-        clearTimeout(debounceTimers.current[field]);
-        delete debounceTimers.current[field];
-      }
-      setForm((f) => ({ ...f, [field]: remoteValue }));
-      lastKnownValues.current[field] = remoteValue;
-      setConflicts((prev) => prev.filter((c) => c.field !== field));
-    },
-    []
-  );
-
-  const handleApplyMerge = useCallback(
-    (field: ConflictField, mergeText: string, remember: boolean) => {
-      if (remember) saveFieldPref(field, "merge");
-      if (debounceTimers.current[field]) {
-        clearTimeout(debounceTimers.current[field]);
-        delete debounceTimers.current[field];
-      }
-      const value = mergeText || null;
-      setForm((f) => ({ ...f, [field]: value }));
-      saveField(field, value);
-      lastKnownValues.current[field] = value;
-      setConflicts((prev) => prev.filter((c) => c.field !== field));
-    },
-    [saveField]
-  );
-
-  // Unified change handler — updates local state and debounces save
   const handleChange = <K extends keyof UpdateTaskPayload>(
     key: K,
     val: UpdateTaskPayload[K]
@@ -645,16 +467,6 @@ export function TaskEditPanel({
     setForm((f) => ({ ...f, [key]: val }));
     saveField(key, val);
   };
-
-  // CSS class for field that just saved (green border flash)
-  const savedFieldClass = (fieldName: string) =>
-    savedField === fieldName
-      ? "ring-2 ring-green-400 transition-all duration-300"
-      : "transition-all duration-300";
-
-  // Close any open combobox when task changes
-  const comboboxKeyRef = useRef(task.id);
-  comboboxKeyRef.current = task.id;
 
   return (
     <>
@@ -667,7 +479,7 @@ export function TaskEditPanel({
       {/* Panel */}
       <div className="fixed inset-x-0 bottom-0 z-50 md:static md:inset-auto md:w-96 md:border-l md:border-slate-200 bg-white md:h-full flex flex-col max-h-[85vh] md:max-h-full rounded-t-2xl md:rounded-none shadow-xl md:shadow-none">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-slate-400 uppercase">
               {task.type}
@@ -694,9 +506,9 @@ export function TaskEditPanel({
           </button>
         </div>
 
-        {/* Conflict resolution section */}
+        {/* Conflict resolution */}
         {conflicts.length > 0 && (
-          <div className="mx-4 mt-3 space-y-2">
+          <div className="mx-4 mt-3 space-y-2 shrink-0">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
               <RefreshCw className="h-3.5 w-3.5 shrink-0" />
               {conflicts.length === 1
@@ -709,7 +521,9 @@ export function TaskEditPanel({
                 conflict={conflict}
                 localValue={form[conflict.field as keyof UpdateTaskPayload]}
                 members={members}
-                onKeepLocal={(remember) => handleKeepLocal(conflict.field, remember)}
+                onKeepLocal={(remember) =>
+                  handleKeepLocal(conflict.field, remember)
+                }
                 onUseRemote={(remember) =>
                   handleUseRemote(conflict.field, conflict.remoteValue, remember)
                 }
@@ -721,349 +535,64 @@ export function TaskEditPanel({
           </div>
         )}
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Task Name
-            </label>
-            <input
-              type="text"
-              value={form.name ?? ""}
-              onChange={(e) => handleChange("name", e.target.value)}
-              className={`w-full text-lg font-semibold text-slate-900 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${savedFieldClass("name")}`}
-            />
-          </div>
+        {/* Tabbed editor */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <TaskEditorTabs
+            task={task}
+            form={form}
+            onChange={handleChange}
+            savedField={savedField}
+            members={members ?? []}
+            logs={logs ?? []}
+            onAddSubtask={onAddSubtask}
+          />
+        </div>
 
-          {/* Status */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Status
-            </label>
-            <select
-              value={form.status ?? task.status}
-              onChange={(e) =>
-                handleChange("status", e.target.value as TaskStatus)
-              }
-              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("status")}`}
-            >
-              {Object.entries(STATUS_LABELS).map(([val, label]) => (
-                <option key={val} value={val}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Progress */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Progress
-            </label>
-            <ProgressSlider
-              value={form.progress ?? task.progress}
-              onChange={(v) => handleChange("progress", v)}
-            />
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">
-                Planned Start
-              </label>
-              <input
-                type="date"
-                value={form.start_date ?? ""}
-                onChange={(e) => handleChange("start_date", e.target.value)}
-                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("start_date")}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">
-                Planned End
-              </label>
-              <input
-                type="date"
-                value={form.end_date ?? ""}
-                onChange={(e) => handleChange("end_date", e.target.value)}
-                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("end_date")}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">
-                Actual Start
-              </label>
-              <input
-                type="date"
-                value={form.actual_start ?? ""}
-                onChange={(e) =>
-                  handleChange("actual_start", e.target.value || null)
-                }
-                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("actual_start")}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">
-                Actual End
-              </label>
-              <input
-                type="date"
-                value={form.actual_end ?? ""}
-                onChange={(e) =>
-                  handleChange("actual_end", e.target.value || null)
-                }
-                className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("actual_end")}`}
-              />
-            </div>
-          </div>
-
-          {/* Predecessors */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Predecessors
-            </label>
-            <input
-              type="text"
-              value={form.predecessors ?? ""}
-              onChange={(e) => handleChange("predecessors", e.target.value || null)}
-              placeholder="e.g. 1, 3FS+2d"
-              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedFieldClass("predecessors")}`}
-            />
-          </div>
-
-          {/* Assigned To — autocomplete from company members */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Assigned To
-            </label>
-            <MemberCombobox
-              value={form.assigned_to ?? ""}
-              onChange={(val) => handleChange("assigned_to", val || null)}
-              members={members ?? []}
-              placeholder="Person or team"
-              className={savedFieldClass("assigned_to")}
-            />
-          </div>
-
-          {/* Responsible — autocomplete from company members */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Responsible
-            </label>
-            <MemberCombobox
-              value={form.responsible ?? ""}
-              onChange={(val) => handleChange("responsible", val || null)}
-              members={members ?? []}
-              placeholder="Name or trade"
-              className={savedFieldClass("responsible")}
-            />
-          </div>
-
-          {/* Comments */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Comments
-            </label>
-            <textarea
-              value={form.comments ?? ""}
-              onChange={(e) =>
-                handleChange("comments", e.target.value || null)
-              }
-              rows={2}
-              placeholder="Add comments..."
-              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none ${savedFieldClass("comments")}`}
-            />
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1">
-              Notes
-            </label>
-            <textarea
-              value={form.notes ?? ""}
-              onChange={(e) =>
-                handleChange("notes", e.target.value || null)
-              }
-              rows={3}
-              className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm resize-none ${savedFieldClass("notes")}`}
-            />
-          </div>
-
-          {/* Add subtask */}
-          {task.type !== "subtask" && onAddSubtask && (
+        {/* Delete footer */}
+        <div className="px-4 py-3 border-t border-slate-100 shrink-0">
+          {!showDeleteConfirm ? (
             <button
-              onClick={onAddSubtask}
-              className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-2 text-sm text-red-600 hover:text-red-700 py-2"
             >
-              + Add Subtask
+              <Trash2 className="h-4 w-4" />
+              Delete task
             </button>
-          )}
-
-          {/* Progress log */}
-          {logs && logs.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-2">
-                Progress History
-              </label>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                {logs.map((log) => (
-                  <div
-                    key={log.id}
-                    className="text-xs text-slate-500 flex items-center gap-2"
-                  >
-                    <span>
-                      {log.progress_before}% → {log.progress_after}%
-                    </span>
-                    <span className="text-slate-300">·</span>
-                    <span>
-                      {new Date(log.logged_at).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </span>
-                    {log.note && (
-                      <>
-                        <span className="text-slate-300">·</span>
-                        <span className="truncate">{log.note}</span>
-                      </>
-                    )}
-                  </div>
-                ))}
+          ) : (
+            <div className="space-y-2">
+              {hasChildren && descendantCount > 0 && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-700">
+                    Deleting this {task.type} will permanently delete{" "}
+                    <span className="font-bold">{descendantCount}</span> child
+                    task{descendantCount !== 1 ? "s" : ""}. This cannot be
+                    undone.
+                  </p>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteTask.isPending}
+                  className="px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg min-h-[44px] disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {deleteTask.isPending && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                  {deleteTask.isPending ? "Deleting..." : "Confirm Delete"}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-3 py-2 text-sm text-slate-600 hover:text-slate-700 min-h-[44px]"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           )}
-
-          {/* Delete */}
-          <div className="pt-2 border-t border-slate-100">
-            {!showDeleteConfirm ? (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="flex items-center gap-2 text-sm text-red-600 hover:text-red-700 py-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete task
-              </button>
-            ) : (
-              <div className="space-y-2">
-                {hasChildren && descendantCount > 0 && (
-                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                    <p className="text-xs text-red-700">
-                      Deleting this {task.type} will permanently delete{" "}
-                      <span className="font-bold">{descendantCount}</span> child
-                      task{descendantCount !== 1 ? "s" : ""}. This cannot be undone.
-                    </p>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleteTask.isPending}
-                    className="px-3 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg min-h-[44px] disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {deleteTask.isPending && (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    )}
-                    {deleteTask.isPending ? "Deleting..." : "Confirm Delete"}
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-2 text-sm text-slate-600 hover:text-slate-700 min-h-[44px]"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </>
-  );
-}
-
-// ─── MemberCombobox ─────────────────────────────────────────
-
-function MemberCombobox({
-  value,
-  onChange,
-  members,
-  placeholder,
-  className = "",
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  members: CompanyMember[];
-  placeholder: string;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync external value
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
-
-  const filtered = useMemo(
-    () =>
-      members.filter((m) =>
-        m.name.toLowerCase().includes(inputValue.toLowerCase())
-      ),
-    [members, inputValue]
-  );
-
-  return (
-    <div className="relative">
-      <input
-        ref={inputRef}
-        type="text"
-        value={inputValue}
-        onChange={(e) => {
-          setInputValue(e.target.value);
-          setOpen(true);
-          onChange(e.target.value);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // Delay to allow click on dropdown
-          setTimeout(() => setOpen(false), 150);
-        }}
-        placeholder={placeholder}
-        className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${className}`}
-      />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-          {filtered.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setInputValue(m.name);
-                onChange(m.name);
-                setOpen(false);
-              }}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"
-            >
-              <span className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
-                {m.name.charAt(0).toUpperCase()}
-              </span>
-              <span className="truncate">{m.name}</span>
-              {m.email && (
-                <span className="text-xs text-slate-400 truncate ml-auto">
-                  {m.email}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
