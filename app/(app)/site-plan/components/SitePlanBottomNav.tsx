@@ -1,22 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ListTodo, BarChart3 } from "lucide-react";
 
 interface SitePlanBottomNavProps {
   projectId: string;
 }
 
-const tabs = [
-  { id: "plan", label: "Plan", icon: ListTodo, href: (id: string) => `/site-plan/${id}` },
-  { id: "gantt", label: "Gantt", icon: BarChart3, href: (id: string) => `/site-plan/${id}/gantt` },
-];
-
 export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const activeTab = pathname.includes("/gantt") ? "gantt" : "plan";
+  // "timeline" view param means the Gantt/timeline tab is active
+  const isTimeline = searchParams.get("view") === "timeline";
+  // Treat /gantt path (legacy redirect) or view=timeline as gantt tab active
+  const activeTab = isTimeline || pathname.includes("/gantt") ? "gantt" : "plan";
+
+  const tabs = [
+    {
+      id: "plan",
+      label: "Plan",
+      icon: ListTodo,
+      href: `/site-plan/${projectId}`,
+    },
+    {
+      id: "gantt",
+      label: "Gantt",
+      icon: BarChart3,
+      href: `/site-plan/${projectId}?view=timeline`,
+    },
+  ];
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 md:hidden safe-area-pb">
@@ -26,7 +40,7 @@ export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
           return (
             <Link
               key={id}
-              href={href(projectId)}
+              href={href}
               className={`flex flex-col items-center justify-center flex-1 h-full min-w-[44px] gap-0.5 transition-colors ${
                 active
                   ? "text-blue-600"
