@@ -225,11 +225,33 @@ export function TaskRow({
   return (
     <div
       className={`hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${accentBorder} ${stickyStyle} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
-      onClick={() => onSelect(node)}
-      role="button"
+      onClick={(e) => {
+        if (editMode && e.shiftKey) {
+          onCheck?.(node, !isChecked);
+        } else {
+          onSelect(node);
+        }
+      }}
+      role="treeitem"
+      aria-expanded={hasChildren ? expanded : undefined}
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onSelect(node);
+        if (e.key === "Enter") {
+          onSelect(node);
+        } else if (e.key === " ") {
+          e.preventDefault();
+          if (hasChildren) {
+            onToggle();
+          } else {
+            onSelect(node);
+          }
+        } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          const rows = Array.from(document.querySelectorAll('[role="treeitem"]'));
+          const idx = rows.indexOf(e.currentTarget as Element);
+          const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
+          (next as HTMLElement)?.focus();
+        }
       }}
     >
       {/* Checkbox (edit mode) or Drag handle */}
