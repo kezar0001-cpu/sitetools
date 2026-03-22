@@ -31,6 +31,14 @@ export const TEXT_CONFLICT_FIELDS = new Set<ConflictField>([
   "name", "predecessors", "responsible", "assigned_to", "comments", "notes",
 ]);
 
+/** Fields that hold ISO date strings — support delta display and midpoint merge */
+export const DATE_CONFLICT_FIELDS = new Set<ConflictField>([
+  "start_date", "end_date", "actual_start", "actual_end",
+]);
+
+/** Fields that hold numeric progress values — support average merge */
+export const PROGRESS_CONFLICT_FIELDS = new Set<ConflictField>(["progress"]);
+
 export interface ConflictEntry {
   field: ConflictField;
   remoteValue: unknown;
@@ -39,8 +47,9 @@ export interface ConflictEntry {
 }
 
 // ─── localStorage preference helpers ────────────────────────
+// Key pattern aligned with task requirement: conflictResolution_${fieldName}
 
-const PREF_KEY = (field: ConflictField) => `siteplan_conflict_pref_${field}`;
+const PREF_KEY = (field: ConflictField) => `conflictResolution_${field}`;
 
 function getFieldPref(
   field: ConflictField
@@ -235,14 +244,21 @@ export function useConflictDetection(
     [setForm]
   );
 
+  /**
+   * Apply a resolved value for any field type:
+   * - Text fields: the manually edited merge text (or empty string → null)
+   * - Date fields: an ISO date string chosen/computed from local/remote/midpoint
+   * - Progress fields: a number chosen or averaged from local + remote
+   */
   const handleApplyMerge = useCallback(
-    (field: ConflictField, mergeText: string, remember: boolean) => {
+    (field: ConflictField, resolvedValue: unknown, remember: boolean) => {
       if (remember) saveFieldPref(field, "merge");
       if (debounceTimers.current[field]) {
         clearTimeout(debounceTimers.current[field]);
         delete debounceTimers.current[field];
       }
-      const value = mergeText || null;
+      // Coerce empty string to null (clears a text/date field), keep 0 as-is for numbers
+      const value = resolvedValue === "" ? null : resolvedValue;
       setForm((f) => ({ ...f, [field]: value }));
       saveField(field, value);
       lastKnownValues.current[field] = value;
