@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ListTodo, BarChart3, PieChart, ClipboardList } from "lucide-react";
+import { ListTodo, BarChart3 } from "lucide-react";
 
 interface SitePlanBottomNavProps {
   projectId: string;
@@ -11,20 +11,12 @@ interface SitePlanBottomNavProps {
 const tabs = [
   { id: "plan", label: "Plan", icon: ListTodo, href: (id: string) => `/site-plan/${id}` },
   { id: "gantt", label: "Gantt", icon: BarChart3, href: (id: string) => `/site-plan/${id}/gantt` },
-  { id: "daily", label: "Daily", icon: ClipboardList, href: (id: string) => `/site-plan/${id}/daily` },
-  { id: "summary", label: "Summary", icon: PieChart, href: (id: string) => `/site-plan/${id}/summary` },
 ];
 
 export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
   const pathname = usePathname();
 
-  const activeTab = pathname.includes("/gantt")
-    ? "gantt"
-    : pathname.includes("/daily")
-    ? "daily"
-    : pathname.includes("/summary")
-    ? "summary"
-    : "plan";
+  const activeTab = pathname.includes("/gantt") ? "gantt" : "plan";
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 md:hidden safe-area-pb">

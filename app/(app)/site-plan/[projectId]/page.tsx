@@ -164,7 +164,7 @@ function ProjectDetailInner() {
     const assignedParam = searchParams.get("assignedTo");
     const typeParam = searchParams.get("type");
 
-    // Support predefined filter aliases (used by Summary page links)
+    // Support predefined filter aliases
     if (filterParam === "overdue") {
       return { status: ["delayed" as const], type: [], assignedTo: "", search: "" };
     }
@@ -453,7 +453,7 @@ function ProjectDetailInner() {
 
   // ─── View navigation ─────────────────────────────────────
 
-  const handleViewChange = (view: "list" | "gantt" | "summary" | "daily") => {
+  const handleViewChange = (view: "list" | "gantt") => {
     if (view === "list") return; // already on list
     router.push(`/site-plan/${projectId}/${view}`);
   };
