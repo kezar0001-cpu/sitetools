@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import type {
@@ -24,11 +25,20 @@ function progressLogKey(taskId: string) {
 
 export function useSitePlanTasks(projectId: string) {
   const qc = useQueryClient();
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Realtime subscription
   useEffect(() => {
     if (!projectId) return;
-    const channel = supabase
+
+    // Cleanup any previous subscription before creating a new one
+    if (channelRef.current) {
+      channelRef.current.unsubscribe();
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
+    channelRef.current = supabase
       .channel(`siteplan_tasks_${projectId}`)
       .on(
         "postgres_changes",
@@ -45,7 +55,11 @@ export function useSitePlanTasks(projectId: string) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [projectId, qc]);
 
