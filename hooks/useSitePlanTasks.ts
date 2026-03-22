@@ -84,7 +84,7 @@ export function useProgressLog(taskId: string | null) {
 
 export function useCreateTask() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<SitePlanTask, Error, CreateTaskPayload>({
     mutationFn: async (payload: CreateTaskPayload) => {
       // Compute WBS code from sibling count at target level
       let siblingQuery = supabase
@@ -133,7 +133,7 @@ export function useCreateTask() {
 
 export function useUpdateTask() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<SitePlanTask, Error, { id: string; projectId: string; updates: UpdateTaskPayload }, { prev?: SitePlanTask[] }>({
     mutationFn: async ({
       id,
       projectId,
@@ -198,7 +198,7 @@ export function useUpdateProgress() {
   const qc = useQueryClient();
   const updateTask = useUpdateTask();
 
-  return useMutation({
+  return useMutation<void, Error, { taskId: string; projectId: string; progressBefore: number; progressAfter: number; note?: string }>({
     mutationFn: async ({
       taskId,
       projectId,
@@ -246,7 +246,7 @@ export function useUpdateProgress() {
 
 export function useDeleteTask() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<string, Error, { id: string; projectId: string }>({
     mutationFn: async ({
       id,
       projectId,
@@ -273,7 +273,7 @@ export function useDeleteTask() {
 
 export function useReorderTask() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<void, Error, { projectId: string; moves: { id: string; sort_order: number; parent_id: string | null }[] }, { prev?: SitePlanTask[] }>({
     mutationFn: async ({
       projectId,
       moves,
@@ -320,7 +320,7 @@ export function useReorderTask() {
 
 export function useBulkCreateTasks() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<SitePlanTask[], Error, { projectId: string; tasks: Omit<CreateTaskPayload, "project_id">[] }>({
     mutationFn: async ({
       projectId,
       tasks,
@@ -364,7 +364,7 @@ export interface HierarchicalTask
 
 export function useHierarchicalImport() {
   const qc = useQueryClient();
-  return useMutation({
+  return useMutation<SitePlanTask[], Error, { projectId: string; tasks: HierarchicalTask[] }>({
     mutationFn: async ({
       projectId,
       tasks,
@@ -438,7 +438,7 @@ export function useHierarchicalImport() {
 
       return allInserted;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: SitePlanTask[]) => {
       if (data.length > 0) {
         qc.invalidateQueries({ queryKey: tasksKey(data[0].project_id) });
       }

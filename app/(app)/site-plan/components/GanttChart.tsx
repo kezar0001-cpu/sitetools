@@ -45,8 +45,6 @@ interface GanttChartProps {
 
 const ROW_HEIGHT = 40;
 const HEADER_HEIGHT = 50;
-const LEFT_PANEL_WIDTH_DESKTOP = 520;
-const LEFT_PANEL_WIDTH_MOBILE = 160;
 
 const STATUS_BAR_COLORS: Record<TaskStatus, { bg: string; progress: string }> = {
   not_started: { bg: "#cbd5e1", progress: "#94a3b8" },
@@ -244,8 +242,8 @@ export function GanttChart({
   canEdit = true,
 }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("week");
-  const [viewFilter, setViewFilter] = useState<ViewFilter>("programme");
-  const [showDeps, setShowDeps] = useState(initialShowDeps);
+  const [viewFilter] = useState<ViewFilter>("programme");
+  const [showDeps] = useState(initialShowDeps);
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [expandedPhases] = useState<Set<string>>(new Set());
   const [allExpanded] = useState(true);
