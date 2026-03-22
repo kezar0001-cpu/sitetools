@@ -17,8 +17,8 @@ const FOCUSABLE_SELECTORS = [
  */
 export function useFocusTrap<T extends HTMLElement>(
   onClose: () => void
-): React.RefObject<T | null> {
-  const containerRef = useRef<T | null>(null);
+): React.RefObject<T> {
+  const containerRef = useRef<T>(null);
   const previouslyFocusedRef = useRef<Element | null>(null);
 
   useEffect(() => {
