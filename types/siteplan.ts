@@ -36,6 +36,7 @@ export interface SitePlanTask {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  updated_by: string | null;
 }
 
 export interface SitePlanProgressLog {

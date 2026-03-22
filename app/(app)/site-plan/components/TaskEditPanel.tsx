@@ -1,7 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { X, Trash2, Check, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
+import {
+  X,
+  Trash2,
+  Check,
+  Loader2,
+  AlertTriangle,
+  RefreshCw,
+  GitMerge,
+  User,
+  Clock,
+} from "lucide-react";
 import type { SitePlanTask, SitePlanTaskNode, TaskStatus, UpdateTaskPayload } from "@/types/siteplan";
 import { STATUS_LABELS, buildTaskTree, flattenTree } from "@/types/siteplan";
 import {
@@ -49,10 +59,282 @@ const CONFLICT_FIELD_LABELS: Record<ConflictField, string> = {
   notes: "Notes",
 };
 
+// Fields where character-level diff / merge makes sense
+const TEXT_FIELDS = new Set<ConflictField>([
+  "name", "predecessors", "responsible", "assigned_to", "comments", "notes",
+]);
+
 interface ConflictEntry {
   field: ConflictField;
   remoteValue: unknown;
+  changedBy: string | null;
+  changedAt: string;
 }
+
+// ─── localStorage helpers for remembered preferences ────────
+
+const PREF_KEY = (field: ConflictField) => `siteplan_conflict_pref_${field}`;
+
+function getFieldPref(field: ConflictField): "keep_local" | "use_remote" | "merge" | null {
+  try {
+    const v = localStorage.getItem(PREF_KEY(field));
+    if (v === "keep_local" || v === "use_remote" || v === "merge") return v;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function saveFieldPref(field: ConflictField, choice: "keep_local" | "use_remote" | "merge") {
+  try { localStorage.setItem(PREF_KEY(field), choice); } catch { /* ignore */ }
+}
+
+// ─── Utilities ───────────────────────────────────────────────
+
+type DiffSegment = { text: string; type: "equal" | "insert" | "delete" };
+
+/** LCS-based character-level diff between two strings. Capped at 500 chars each. */
+function computeCharDiff(local: string, remote: string): DiffSegment[] {
+  const MAX = 500;
+  if (local.length > MAX || remote.length > MAX) {
+    return [{ text: local, type: "delete" }, { text: remote, type: "insert" }];
+  }
+
+  const m = local.length, n = remote.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = local[i - 1] === remote[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+
+  const raw: DiffSegment[] = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && local[i - 1] === remote[j - 1]) {
+      raw.unshift({ text: local[i - 1], type: "equal" });
+      i--; j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      raw.unshift({ text: remote[j - 1], type: "insert" });
+      j--;
+    } else {
+      raw.unshift({ text: local[i - 1], type: "delete" });
+      i--;
+    }
+  }
+
+  // Merge consecutive same-type segments
+  const merged: DiffSegment[] = [];
+  for (const seg of raw) {
+    if (merged.length > 0 && merged[merged.length - 1].type === seg.type) {
+      merged[merged.length - 1].text += seg.text;
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+  return merged;
+}
+
+function relativeTime(isoString: string): string {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  return `${Math.floor(diffHr / 24)}d ago`;
+}
+
+function formatConflictValue(field: ConflictField, value: unknown): string {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  switch (field) {
+    case "status":
+      return STATUS_LABELS[value as TaskStatus] ?? String(value);
+    case "progress":
+      return `${value}%`;
+    case "start_date":
+    case "end_date":
+    case "actual_start":
+    case "actual_end": {
+      const d = new Date(value as string);
+      return isNaN(d.getTime())
+        ? String(value)
+        : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    }
+    default:
+      return String(value);
+  }
+}
+
+// ─── ConflictCard ────────────────────────────────────────────
+
+interface ConflictCardProps {
+  conflict: ConflictEntry;
+  localValue: unknown;
+  members: CompanyMember[] | undefined;
+  onKeepLocal: (remember: boolean) => void;
+  onUseRemote: (remember: boolean) => void;
+  onApplyMerge: (mergeText: string, remember: boolean) => void;
+}
+
+function ConflictCard({
+  conflict,
+  localValue,
+  members,
+  onKeepLocal,
+  onUseRemote,
+  onApplyMerge,
+}: ConflictCardProps) {
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeText, setMergeText] = useState(String(localValue ?? ""));
+  const [remember, setRemember] = useState(false);
+
+  const isTextField = TEXT_FIELDS.has(conflict.field);
+  const label = CONFLICT_FIELD_LABELS[conflict.field];
+
+  const changedByMember = members?.find((m) => m.id === conflict.changedBy);
+  const changedByName = changedByMember?.name ?? "Another user";
+
+  const diffSegments = useMemo(() => {
+    if (!isTextField || !mergeOpen) return null;
+    return computeCharDiff(String(localValue ?? ""), String(conflict.remoteValue ?? ""));
+  }, [isTextField, mergeOpen, localValue, conflict.remoteValue]);
+
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-3">
+      {/* Header: field label + who changed it + when */}
+      <div>
+        <span className="text-xs font-semibold text-amber-800">{label} conflict</span>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <User className="h-3 w-3 text-amber-600 shrink-0" />
+          <span className="text-[11px] text-amber-700">{changedByName}</span>
+          <span className="text-[11px] text-amber-500">·</span>
+          <Clock className="h-3 w-3 text-amber-600 shrink-0" />
+          <span className="text-[11px] text-amber-700">{relativeTime(conflict.changedAt)}</span>
+        </div>
+      </div>
+
+      {/* Side-by-side comparison */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            Your version
+          </span>
+          <div className="text-xs text-slate-700 bg-white border border-blue-200 rounded p-2 min-h-[32px] break-words whitespace-pre-wrap">
+            {formatConflictValue(conflict.field, localValue)}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            Their version
+          </span>
+          <div className="text-xs text-slate-700 bg-white border border-amber-200 rounded p-2 min-h-[32px] break-words whitespace-pre-wrap">
+            {formatConflictValue(conflict.field, conflict.remoteValue)}
+          </div>
+        </div>
+      </div>
+
+      {/* Merge diff + editor (text fields only) */}
+      {mergeOpen && isTextField && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+            Character diff
+          </div>
+          <div className="text-xs font-mono leading-relaxed bg-white border border-slate-200 rounded p-2 break-all">
+            {diffSegments?.map((seg, idx) => (
+              <span
+                key={idx}
+                className={
+                  seg.type === "equal"
+                    ? "text-slate-700"
+                    : seg.type === "insert"
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-700 line-through"
+                }
+              >
+                {seg.text}
+              </span>
+            ))}
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
+              Edit result
+            </div>
+            <textarea
+              value={mergeText}
+              onChange={(e) => setMergeText(e.target.value)}
+              rows={3}
+              className="w-full text-xs border border-slate-200 rounded p-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => onKeepLocal(remember)}
+            className="px-2 py-1 text-[10px] font-medium bg-white border border-blue-300 rounded hover:bg-blue-50 text-blue-700"
+          >
+            Keep Local
+          </button>
+
+          {isTextField && (
+            <button
+              onClick={() => {
+                setMergeText(String(localValue ?? ""));
+                setMergeOpen((v) => !v);
+              }}
+              className={`flex items-center gap-1 px-2 py-1 text-[10px] font-medium border rounded ${
+                mergeOpen
+                  ? "bg-slate-700 text-white border-slate-700"
+                  : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <GitMerge className="h-3 w-3" />
+              Merge
+            </button>
+          )}
+
+          <button
+            onClick={() => onUseRemote(remember)}
+            className="px-2 py-1 text-[10px] font-medium bg-amber-600 text-white rounded hover:bg-amber-700"
+          >
+            Use Remote
+          </button>
+
+          {mergeOpen && isTextField && (
+            <button
+              onClick={() => onApplyMerge(mergeText, remember)}
+              className="px-2 py-1 text-[10px] font-medium bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Apply Merge
+            </button>
+          )}
+        </div>
+
+        {/* Remember preference checkbox */}
+        <label className="flex items-center gap-1.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="w-3 h-3 rounded border-slate-300 accent-blue-600"
+          />
+          <span className="text-[10px] text-slate-500">
+            Remember my choice for {label}
+          </span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// ─── TaskEditPanel ───────────────────────────────────────────
 
 export function TaskEditPanel({
   task,
@@ -113,7 +395,6 @@ export function TaskEditPanel({
   // Unified save function — all fields go through this with debounce
   const saveField = useCallback(
     (fieldName: string, value: unknown) => {
-      // Clear existing timer for this field
       if (debounceTimers.current[fieldName]) {
         clearTimeout(debounceTimers.current[fieldName]);
       }
@@ -154,9 +435,7 @@ export function TaskEditPanel({
           },
           {
             onSuccess: () => {
-              // Mark this field's server state as confirmed
               lastKnownValues.current[fieldName as ConflictField] = value;
-              // Clear any resolved conflict for this field
               setConflicts((prev) => prev.filter((c) => c.field !== fieldName));
               setSavedField(fieldName);
               setShowSaved(true);
@@ -177,16 +456,15 @@ export function TaskEditPanel({
   }, []);
 
   // Detect remote field changes (Realtime UPDATE fired by the parent's subscription).
-  // Runs whenever the task prop changes; skips the render immediately after a task-switch
-  // (handled by the task.id effect above).
+  // Skips the render immediately after a task-switch.
   useEffect(() => {
     if (justSwitchedRef.current) {
-      // This render was triggered by a task-switch — skip conflict detection
       justSwitchedRef.current = false;
       return;
     }
 
     const newConflicts: ConflictEntry[] = [];
+    const autoAcceptRemote: { field: ConflictField; remoteValue: unknown }[] = [];
 
     for (const field of CONFLICT_FIELDS) {
       const remoteValue = task[field as keyof SitePlanTask] as unknown;
@@ -195,8 +473,27 @@ export function TaskEditPanel({
       if (remoteValue === knownValue) continue; // no change
 
       if (Object.hasOwn(debounceTimers.current, field)) {
-        // Remote changed AND local edit is pending — conflict!
-        newConflicts.push({ field, remoteValue });
+        // Remote changed AND local edit is pending — potential conflict
+        const pref = getFieldPref(field);
+
+        if (pref === "keep_local") {
+          // Auto-keep local: accept remote as the new baseline, keep local pending save
+          lastKnownValues.current[field] = remoteValue;
+        } else if (pref === "use_remote") {
+          // Auto-use remote: cancel local pending save, adopt remote value
+          clearTimeout(debounceTimers.current[field]);
+          delete debounceTimers.current[field];
+          autoAcceptRemote.push({ field, remoteValue });
+          lastKnownValues.current[field] = remoteValue;
+        } else {
+          // No saved preference (or "merge"): surface the conflict UI
+          newConflicts.push({
+            field,
+            remoteValue,
+            changedBy: task.updated_by,
+            changedAt: task.updated_at,
+          });
+        }
       } else {
         // No pending local edit: silently accept the remote value
         lastKnownValues.current[field] = remoteValue;
@@ -204,9 +501,19 @@ export function TaskEditPanel({
       }
     }
 
+    // Apply auto-accepted remote values in one batch
+    if (autoAcceptRemote.length > 0) {
+      setForm((f) => {
+        const next = { ...f };
+        for (const { field, remoteValue } of autoAcceptRemote) {
+          (next as Record<string, unknown>)[field] = remoteValue;
+        }
+        return next;
+      });
+    }
+
     if (newConflicts.length > 0) {
       setConflicts((prev) => {
-        // Merge: replace existing entries for the same field
         const merged = prev.filter((c) => !newConflicts.find((n) => n.field === c.field));
         return [...merged, ...newConflicts];
       });
@@ -240,7 +547,6 @@ export function TaskEditPanel({
     prevTaskIdRef.current = task.id;
     prevTaskProjectIdRef.current = task.project_id;
 
-    // Reset lastKnownValues and conflicts for the new task
     justSwitchedRef.current = true;
     lastKnownValues.current = Object.fromEntries(
       CONFLICT_FIELDS.map((f) => [f, task[f as keyof SitePlanTask]])
@@ -274,12 +580,9 @@ export function TaskEditPanel({
     const flat = flattenTree(tree);
     const taskNode = flat.find((n) => n.id === task.id);
     if (!taskNode || taskNode.children.length === 0) return 0;
-    // Count all descendants
     const count = (nodes: SitePlanTaskNode[]): number => {
       let c = 0;
-      for (const n of nodes) {
-        c += 1 + count(n.children);
-      }
+      for (const n of nodes) { c += 1 + count(n.children); }
       return c;
     };
     return count(taskNode.children);
@@ -292,26 +595,47 @@ export function TaskEditPanel({
     );
   };
 
-  // Conflict resolution handlers
-  const handleKeepMine = useCallback((field: ConflictField) => {
-    // Accept the remote value as the new "known" baseline (so it doesn't re-trigger),
-    // but keep the local pending edit in the form and debounce timer.
-    lastKnownValues.current[field] = task[field as keyof SitePlanTask] as unknown;
-    setConflicts((prev) => prev.filter((c) => c.field !== field));
-  }, [task]);
+  // ─── Conflict resolution handlers ──────────────────────────
 
-  const handleAcceptTheirs = useCallback((field: ConflictField, remoteValue: unknown) => {
-    // Cancel any pending local save for this field
-    if (debounceTimers.current[field]) {
-      clearTimeout(debounceTimers.current[field]);
-      delete debounceTimers.current[field];
-    }
-    // Update the form to the remote value
-    setForm((f) => ({ ...f, [field]: remoteValue }));
-    // Update lastKnownValues so we don't re-flag this change
-    lastKnownValues.current[field] = remoteValue;
-    setConflicts((prev) => prev.filter((c) => c.field !== field));
-  }, []);
+  const handleKeepLocal = useCallback(
+    (field: ConflictField, remember: boolean) => {
+      if (remember) saveFieldPref(field, "keep_local");
+      // Accept remote as new baseline so it won't re-trigger; keep local pending save
+      lastKnownValues.current[field] = task[field as keyof SitePlanTask] as unknown;
+      setConflicts((prev) => prev.filter((c) => c.field !== field));
+    },
+    [task]
+  );
+
+  const handleUseRemote = useCallback(
+    (field: ConflictField, remoteValue: unknown, remember: boolean) => {
+      if (remember) saveFieldPref(field, "use_remote");
+      if (debounceTimers.current[field]) {
+        clearTimeout(debounceTimers.current[field]);
+        delete debounceTimers.current[field];
+      }
+      setForm((f) => ({ ...f, [field]: remoteValue }));
+      lastKnownValues.current[field] = remoteValue;
+      setConflicts((prev) => prev.filter((c) => c.field !== field));
+    },
+    []
+  );
+
+  const handleApplyMerge = useCallback(
+    (field: ConflictField, mergeText: string, remember: boolean) => {
+      if (remember) saveFieldPref(field, "merge");
+      if (debounceTimers.current[field]) {
+        clearTimeout(debounceTimers.current[field]);
+        delete debounceTimers.current[field];
+      }
+      const value = mergeText || null;
+      setForm((f) => ({ ...f, [field]: value }));
+      saveField(field, value);
+      lastKnownValues.current[field] = value;
+      setConflicts((prev) => prev.filter((c) => c.field !== field));
+    },
+    [saveField]
+  );
 
   // Unified change handler — updates local state and debounces save
   const handleChange = <K extends keyof UpdateTaskPayload>(
@@ -370,33 +694,29 @@ export function TaskEditPanel({
           </button>
         </div>
 
-        {/* Conflict banner — shown when a remote update conflicts with a pending local edit */}
+        {/* Conflict resolution section */}
         {conflicts.length > 0 && (
-          <div className="mx-4 mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+          <div className="mx-4 mt-3 space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
               <RefreshCw className="h-3.5 w-3.5 shrink-0" />
-              Edited by another user
+              {conflicts.length === 1
+                ? "1 field edited remotely while you were typing"
+                : `${conflicts.length} fields edited remotely while you were typing`}
             </div>
-            {conflicts.map(({ field, remoteValue }) => (
-              <div key={field} className="flex items-center justify-between gap-2">
-                <span className="text-xs text-amber-700 truncate">
-                  {CONFLICT_FIELD_LABELS[field]} changed
-                </span>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    onClick={() => handleKeepMine(field)}
-                    className="px-2 py-1 text-[10px] font-medium bg-white border border-amber-300 rounded hover:bg-amber-100 text-amber-700"
-                  >
-                    Keep mine
-                  </button>
-                  <button
-                    onClick={() => handleAcceptTheirs(field, remoteValue)}
-                    className="px-2 py-1 text-[10px] font-medium bg-amber-600 text-white rounded hover:bg-amber-700"
-                  >
-                    Accept theirs
-                  </button>
-                </div>
-              </div>
+            {conflicts.map((conflict) => (
+              <ConflictCard
+                key={conflict.field}
+                conflict={conflict}
+                localValue={form[conflict.field as keyof UpdateTaskPayload]}
+                members={members}
+                onKeepLocal={(remember) => handleKeepLocal(conflict.field, remember)}
+                onUseRemote={(remember) =>
+                  handleUseRemote(conflict.field, conflict.remoteValue, remember)
+                }
+                onApplyMerge={(mergeText, remember) =>
+                  handleApplyMerge(conflict.field, mergeText, remember)
+                }
+              />
             ))}
           </div>
         )}
