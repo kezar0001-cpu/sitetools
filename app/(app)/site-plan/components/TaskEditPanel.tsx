@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useDebounceAsync } from "@/hooks/useDebounceAsync";
 import {
   X,
   Trash2,
@@ -69,24 +70,19 @@ export function TaskEditPanel({
 
   const isSaving = updateTask.isPending || updateProgress.isPending;
 
-  // Refs for debounce callbacks and latest values
+  // Refs for latest values (needed inside debounced callbacks)
   const taskRef = useRef(task);
   taskRef.current = task;
   const formRef = useRef(form);
   formRef.current = form;
-  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const { schedule, timersRef: debounceTimers } = useDebounceAsync(DEBOUNCE_MS);
 
   // ─── Debounced save ──────────────────────────────────────────
 
   const saveField = useCallback(
     (fieldName: string, value: unknown) => {
-      if (debounceTimers.current[fieldName]) {
-        clearTimeout(debounceTimers.current[fieldName]);
-      }
-
-      debounceTimers.current[fieldName] = setTimeout(() => {
-        delete debounceTimers.current[fieldName];
-
+      schedule(fieldName, () => {
         if (fieldName === "progress") {
           const t = taskRef.current;
           const newProgress = value as number;
@@ -124,18 +120,10 @@ export function TaskEditPanel({
             },
           }
         );
-      }, DEBOUNCE_MS);
+      });
     },
-    [updateTask, updateProgress]
+    [schedule, updateTask, updateProgress]
   );
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    const timers = debounceTimers.current;
-    return () => {
-      Object.values(timers).forEach(clearTimeout);
-    };
-  }, []);
 
   // ─── Conflict detection ──────────────────────────────────────
 

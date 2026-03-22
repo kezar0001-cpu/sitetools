@@ -3,7 +3,8 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import { ChevronLeft, ChevronRight, List, GitBranch } from "lucide-react";
 import type { SitePlanTask, SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
-import { buildTaskTree } from "@/types/siteplan";
+import { buildTaskTree, STATUS_LABELS } from "@/types/siteplan";
+import { STATUS_TIMELINE_COLORS } from "@/lib/sitePlanColors";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -16,54 +17,7 @@ type DisplayMode = "summary" | "detailed";
 
 // ─── Constants ───────────────────────────────────────────────
 
-const STATUS_COLORS: Record<
-  TaskStatus,
-  { track: string; fill: string; text: string; dot: string; badge: string }
-> = {
-  not_started: {
-    track: "#e2e8f0",
-    fill: "#94a3b8",
-    text: "#475569",
-    dot: "#94a3b8",
-    badge: "bg-slate-100 text-slate-600",
-  },
-  in_progress: {
-    track: "#bfdbfe",
-    fill: "#3b82f6",
-    text: "#1d4ed8",
-    dot: "#3b82f6",
-    badge: "bg-blue-100 text-blue-700",
-  },
-  completed: {
-    track: "#bbf7d0",
-    fill: "#22c55e",
-    text: "#15803d",
-    dot: "#22c55e",
-    badge: "bg-green-100 text-green-700",
-  },
-  delayed: {
-    track: "#fecaca",
-    fill: "#ef4444",
-    text: "#b91c1c",
-    dot: "#ef4444",
-    badge: "bg-red-100 text-red-700",
-  },
-  on_hold: {
-    track: "#fde68a",
-    fill: "#f59e0b",
-    text: "#92400e",
-    dot: "#f59e0b",
-    badge: "bg-amber-100 text-amber-700",
-  },
-};
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  not_started: "Not Started",
-  in_progress: "In Progress",
-  completed: "Done",
-  delayed: "Delayed",
-  on_hold: "On Hold",
-};
+const STATUS_COLORS = STATUS_TIMELINE_COLORS;
 
 // ─── Helpers ─────────────────────────────────────────────────
 

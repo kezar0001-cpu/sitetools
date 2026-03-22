@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { companyKeys } from "@/lib/queryKeys";
 
 export interface CompanyMember {
   id: string;
@@ -12,7 +13,7 @@ export interface CompanyMember {
 
 export function useCompanyMembers(companyId: string | null) {
   return useQuery<CompanyMember[]>({
-    queryKey: ["company-members", companyId],
+    queryKey: companyKeys.members(companyId),
     queryFn: async () => {
       if (!companyId) return [];
 

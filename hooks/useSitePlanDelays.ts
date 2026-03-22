@@ -3,18 +3,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { sitePlanKeys } from "@/lib/queryKeys";
 import type {
   SitePlanDelayLog,
   CreateDelayLogPayload,
 } from "@/types/siteplan";
 
-function delayLogsKey(taskId: string) {
-  return ["siteplan", "delay-logs", taskId];
-}
-
-function projectDelayLogsKey(projectId: string) {
-  return ["siteplan", "delay-logs-project", projectId];
-}
+const delayLogsKey = sitePlanKeys.delayLogs;
+const projectDelayLogsKey = sitePlanKeys.projectDelayLogs;
 
 // ─── Queries ────────────────────────────────────────────────
 
@@ -93,7 +89,7 @@ export function useCreateDelayLog() {
       qc.invalidateQueries({ queryKey: delayLogsKey(payload.task_id) });
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
       // Tasks may have shifted — refresh the task list
-      qc.invalidateQueries({ queryKey: ["siteplan", "tasks", projectId] });
+      qc.invalidateQueries({ queryKey: sitePlanKeys.tasks(projectId) });
       toast.success("Delay logged", { duration: 3000 });
       return data;
     },
@@ -163,7 +159,7 @@ export function useDeleteDelayLog() {
     onSuccess: (_data, { taskId, projectId }) => {
       qc.invalidateQueries({ queryKey: delayLogsKey(taskId) });
       qc.invalidateQueries({ queryKey: projectDelayLogsKey(projectId) });
-      qc.invalidateQueries({ queryKey: ["siteplan", "tasks", projectId] });
+      qc.invalidateQueries({ queryKey: sitePlanKeys.tasks(projectId) });
       toast.success("Delay removed", { duration: 3000 });
     },
     onError: () => {
