@@ -79,6 +79,7 @@ export interface SitePlanDelayLog {
   logged_by: string;
   logged_at: string;
   impacts_completion: boolean;
+  affected_task_ids: string[];
 }
 
 export interface CreateDelayLogPayload {
