@@ -16,7 +16,6 @@ import type {
   SitePlanTask,
   SitePlanTaskNode,
   SitePlanDelayLog,
-  TaskStatus,
 } from "@/types/siteplan";
 import {
   buildTaskTree,
