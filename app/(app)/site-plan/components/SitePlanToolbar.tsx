@@ -13,12 +13,14 @@ import {
   Minimize2,
   Plus,
   FileSpreadsheet,
+  Download,
   ChevronsUpDown,
   Bookmark,
   Pencil,
   Check,
   X,
   MoreHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import type { TaskType, TaskStatus, SitePlanTaskNode } from "@/types/siteplan";
 import { STATUS_LABELS } from "@/types/siteplan";
@@ -79,6 +81,10 @@ interface ToolbarProps {
 
   // Import
   onImport: () => void;
+
+  // Export
+  onExportCsv: () => void;
+  onExportMsProject: () => void;
 
   // Add — single button, inserts at same indent as selected row
   onAddRow: () => void;
@@ -393,6 +399,40 @@ function MobileMoreMenu({
   );
 }
 
+// ─── Export dropdown ────────────────────────────────────────
+
+function ExportDropdown({
+  onExportCsv,
+  onExportMsProject,
+  onClose,
+}: {
+  onExportCsv: () => void;
+  onExportMsProject: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
+      <div className="absolute top-full left-0 mt-1 w-52 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1">
+        <button
+          onClick={() => { onExportCsv(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <FileSpreadsheet className="h-4 w-4 shrink-0 text-slate-400" />
+          Export as CSV
+        </button>
+        <button
+          onClick={() => { onExportMsProject(); onClose(); }}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          <Download className="h-4 w-4 shrink-0 text-slate-400" />
+          Export as MS Project XML
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─── Main toolbar ───────────────────────────────────────────
 
 export function SitePlanToolbar(props: ToolbarProps) {
@@ -411,6 +451,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
     filter,
     onFilterChange,
     onImport,
+    onExportCsv,
+    onExportMsProject,
     onAddRow,
     onSaveBaseline,
     baselineCount,
@@ -423,6 +465,7 @@ export function SitePlanToolbar(props: ToolbarProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [showFilter, setShowFilter] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   const canIndent = selectedTask !== null;
@@ -440,6 +483,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
       onClick: onToggleAll,
     },
     { icon: FileSpreadsheet, label: "Import", onClick: onImport },
+    { icon: Download, label: "Export CSV", onClick: onExportCsv },
+    { icon: Download, label: "Export MS Project XML", onClick: onExportMsProject },
     {
       icon: Bookmark,
       label: "Baselines",
@@ -657,6 +702,26 @@ export function SitePlanToolbar(props: ToolbarProps) {
         <Divider />
 
         <TBtn icon={FileSpreadsheet} label="Import" onClick={onImport} />
+
+        <div className="relative">
+          <button
+            onClick={() => setShowExport(!showExport)}
+            title="Export"
+            className={`flex items-center gap-0.5 p-1.5 rounded hover:bg-slate-200 min-w-[32px] min-h-[32px] transition-colors ${
+              showExport ? "bg-slate-200 text-slate-700" : "text-slate-600"
+            }`}
+          >
+            <Download className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3" />
+          </button>
+          {showExport && (
+            <ExportDropdown
+              onExportCsv={onExportCsv}
+              onExportMsProject={onExportMsProject}
+              onClose={() => setShowExport(false)}
+            />
+          )}
+        </div>
 
         <button
           onClick={onAddRow}

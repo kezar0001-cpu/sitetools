@@ -32,6 +32,8 @@ import { TaskListSkeleton } from "../components/Skeleton";
 import { GanttChart } from "../components/GanttChart";
 import { MilestoneTimeline } from "../components/MilestoneTimeline";
 import { QueryProvider } from "@/components/QueryProvider";
+import { downloadCsv } from "@/lib/csvExporter";
+import { downloadMsProjectXml } from "@/lib/msProjectExporter";
 
 // ─── Undo/Redo stack ────────────────────────────────────────
 
@@ -455,6 +457,16 @@ function ProjectDetailInner() {
     });
     setSelectedTask(null);
   }, [selectedTask, tasks, visibleRows, setSelectedTask]);
+
+  const handleExportCsv = useCallback(() => {
+    const slug = (project?.name ?? "siteplan").replace(/\s+/g, "_");
+    downloadCsv(visibleRows, `${slug}.csv`);
+  }, [visibleRows, project]);
+
+  const handleExportMsProject = useCallback(() => {
+    const slug = (project?.name ?? "siteplan").replace(/\s+/g, "_");
+    downloadMsProjectXml(visibleRows, `${slug}.xml`);
+  }, [visibleRows, project]);
 
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({
@@ -937,6 +949,8 @@ function ProjectDetailInner() {
           filter={filter}
           onFilterChange={setFilter}
           onImport={() => setShowImport(true)}
+          onExportCsv={handleExportCsv}
+          onExportMsProject={handleExportMsProject}
           onAddRow={handleAddRow}
           onSaveBaseline={() => setShowBaselines(true)}
           baselineCount={baselines?.length ?? 0}
