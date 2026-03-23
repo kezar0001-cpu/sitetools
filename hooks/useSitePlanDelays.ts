@@ -138,18 +138,34 @@ export function useUpdateDelayLog() {
   });
 }
 
-/** Delete a delay log */
+/** Delete a delay log, reversing any cascaded date shifts when impacts_completion=true. */
 export function useDeleteDelayLog() {
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       id,
+      impacts_completion,
     }: {
       id: string;
       taskId: string;
       projectId: string;
+      impacts_completion: boolean;
     }) => {
+      if (impacts_completion) {
+        const confirmed = window.confirm(
+          "This delay shifted task dates. Deleting it will reverse those date shifts for this task and all dependents. Continue?"
+        );
+        if (!confirmed) throw new Error("cancelled");
+
+        // Reverse the cascade before the row is deleted
+        const { error: reverseError } = await supabase.rpc(
+          "reverse_siteplan_delay",
+          { p_log_id: id }
+        );
+        if (reverseError) throw reverseError;
+      }
+
       const { error } = await supabase
         .from("siteplan_delay_logs")
         .delete()
@@ -162,7 +178,8 @@ export function useDeleteDelayLog() {
       qc.invalidateQueries({ queryKey: sitePlanKeys.tasks(projectId) });
       toast.success("Delay removed", { duration: 3000 });
     },
-    onError: () => {
+    onError: (error) => {
+      if ((error as Error).message === "cancelled") return;
       toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });

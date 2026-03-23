@@ -69,8 +69,13 @@ export function DelayLogDialog({
     );
   };
 
-  const handleDelete = (id: string) => {
-    deleteDelay.mutate({ id, taskId: task.id, projectId });
+  const handleDelete = (log: NonNullable<typeof logs>[number]) => {
+    deleteDelay.mutate({
+      id: log.id,
+      taskId: task.id,
+      projectId,
+      impacts_completion: log.impacts_completion,
+    });
     setConfirmDeleteId(null);
   };
 
@@ -226,7 +231,7 @@ export function DelayLogDialog({
                         {confirmDeleteId === log.id ? (
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => handleDelete(log.id)}
+                              onClick={() => handleDelete(log)}
                               className="px-2 py-1 text-xs text-white bg-red-600 rounded min-h-[28px]"
                             >
                               Confirm
