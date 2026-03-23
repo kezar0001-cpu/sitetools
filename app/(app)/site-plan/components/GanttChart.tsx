@@ -12,6 +12,7 @@ import {
   X,
   AlertTriangle,
   Share2,
+  GitBranch,
 } from "lucide-react";
 import type {
   SitePlanTask,
@@ -24,6 +25,7 @@ import {
 } from "@/types/siteplan";
 import { StatusBadge } from "./StatusBadge";
 import { STATUS_BAR_COLORS } from "@/lib/sitePlanColors";
+import { computeCriticalPath } from "@/lib/criticalPath";
 import {
   daysBetween,
   addDays,
@@ -221,6 +223,7 @@ export function GanttChart({
   const [zoom, setZoom] = useState<ZoomLevel>("week");
   const [viewFilter] = useState<ViewFilter>("programme");
   const [showDeps, setShowDeps] = useState(initialShowDeps);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
   const [arrowTooltip, setArrowTooltip] = useState<{
@@ -265,6 +268,12 @@ export function GanttChart({
     }
     return map;
   }, [baselines]);
+
+  // Critical path computation (only when toggle is on)
+  const criticalPathIds = useMemo(
+    () => (showCriticalPath ? computeCriticalPath(tasks) : new Set<string>()),
+    [showCriticalPath, tasks]
+  );
 
   // Build tree and flatten
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
@@ -529,6 +538,23 @@ export function GanttChart({
           <span className="sm:hidden">Deps</span>
         </button>
 
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+
+        {/* Critical Path toggle */}
+        <button
+          onClick={() => setShowCriticalPath((v) => !v)}
+          title={showCriticalPath ? "Hide critical path" : "Show critical path"}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded min-h-[28px] transition-colors ${
+            showCriticalPath
+              ? "bg-red-100 text-red-700 border border-red-300"
+              : "text-slate-500 hover:bg-slate-200 border border-transparent"
+          }`}
+        >
+          <GitBranch className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Critical Path</span>
+          <span className="sm:hidden">CP</span>
+        </button>
+
         {/* Clear selected dependency */}
         {selectedDep && (
           <>
@@ -709,6 +735,9 @@ export function GanttChart({
                 selectedDep !== null &&
                 (node.id === selectedDep.predId || node.id === selectedDep.succId);
               const isDepDimmed = selectedDep !== null && !isDepHighlighted;
+
+              // Critical path
+              const isCritical = showCriticalPath && criticalPathIds.has(node.id);
 
               return (
                 <g
@@ -892,6 +921,43 @@ export function GanttChart({
                       stroke="#3b82f6"
                       strokeWidth={2}
                       rx={5}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
+
+                  {/* Critical path highlight */}
+                  {isCritical && !isMilestone && !isPhase && (
+                    <rect
+                      x={effectiveBarX - 2}
+                      y={barY - 2}
+                      width={effectiveBarWidth + 4}
+                      height={barHeight + 4}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      rx={5}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
+                  {isCritical && isPhase && (
+                    <rect
+                      x={barX - 2}
+                      y={barY - 2}
+                      width={barWidth + 4}
+                      height={barHeight + 4}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      rx={3}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
+                  {isCritical && isMilestone && (
+                    <polygon
+                      points={`${barX + 10},${barY + barHeight / 2 - 2} ${barX + 1},${barY - 1} ${barX - 10},${barY + barHeight / 2 - 2} ${barX + 1},${barY + barHeight + 1}`}
+                      fill="none"
+                      stroke="#ef4444"
+                      strokeWidth={2}
                       style={{ pointerEvents: "none" }}
                     />
                   )}
