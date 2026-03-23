@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { sitePlanKeys } from "@/lib/queryKeys";
 import type {
   SitePlanTask,
   SitePlanProgressLog,
@@ -13,13 +14,8 @@ import type {
 } from "@/types/siteplan";
 import { computeTaskStatus, generateWbsCode } from "@/types/siteplan";
 
-function tasksKey(projectId: string) {
-  return ["siteplan", "tasks", projectId];
-}
-
-function progressLogKey(taskId: string) {
-  return ["siteplan", "progress-log", taskId];
-}
+const tasksKey = sitePlanKeys.tasks;
+const progressLogKey = sitePlanKeys.progressLog;
 
 // ─── Queries ────────────────────────────────────────────────
 

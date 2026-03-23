@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { sitePlanKeys } from "@/lib/queryKeys";
 import type { SitePlanTask } from "@/types/siteplan";
 
 export interface Baseline {
@@ -14,9 +15,7 @@ export interface Baseline {
   created_at: string;
 }
 
-function baselinesKey(projectId: string) {
-  return ["siteplan", "baselines", projectId];
-}
+const baselinesKey = sitePlanKeys.baselines;
 
 export function useSitePlanBaselines(projectId: string) {
   return useQuery<Baseline[]>({

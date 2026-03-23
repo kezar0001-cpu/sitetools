@@ -3,12 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Project } from "@/lib/workspace/types";
-
-const PROJECTS_KEY = ["siteplan", "projects"];
+import { sitePlanKeys } from "@/lib/queryKeys";
 
 export function useCompanyId() {
   return useQuery<string>({
-    queryKey: ["siteplan", "company-id"],
+    queryKey: sitePlanKeys.companyId(),
     queryFn: async () => {
       const {
         data: { user },
@@ -38,7 +37,7 @@ export function useSitePlanProjects() {
   const { data: companyId } = useCompanyId();
 
   return useQuery<ProjectWithStats[]>({
-    queryKey: [...PROJECTS_KEY, companyId],
+    queryKey: sitePlanKeys.projectList(companyId),
     queryFn: async () => {
       const { data, error } = await supabase.rpc(
         "get_siteplan_projects_with_stats",
@@ -72,7 +71,7 @@ export function useSitePlanProjects() {
 /** Fetch a single Buildstate project */
 export function useSitePlanProject(projectId: string) {
   return useQuery<Project | null>({
-    queryKey: ["siteplan", "project", projectId],
+    queryKey: sitePlanKeys.project(projectId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")

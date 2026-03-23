@@ -16,13 +16,24 @@ import type {
   SitePlanTask,
   SitePlanTaskNode,
   SitePlanDelayLog,
-  TaskStatus,
 } from "@/types/siteplan";
 import {
   buildTaskTree,
   flattenTree,
 } from "@/types/siteplan";
 import { StatusBadge } from "./StatusBadge";
+import { STATUS_BAR_COLORS } from "@/lib/sitePlanColors";
+import {
+  daysBetween,
+  addDays,
+  startOfWeek,
+  startOfMonth,
+  startOfQuarter,
+  formatMonth,
+  formatWeek,
+  formatDay,
+  formatQuarter,
+} from "@/lib/siteplanDateUtils";
 
 // ─── Types ──────────────────────────────────────────────────
 
@@ -46,64 +57,12 @@ interface GanttChartProps {
 const ROW_HEIGHT = 40;
 const HEADER_HEIGHT = 50;
 
-const STATUS_BAR_COLORS: Record<TaskStatus, { bg: string; progress: string }> = {
-  not_started: { bg: "#cbd5e1", progress: "#94a3b8" },
-  in_progress: { bg: "#93c5fd", progress: "#3b82f6" },
-  completed: { bg: "#86efac", progress: "#22c55e" },
-  delayed: { bg: "#fca5a5", progress: "#ef4444" },
-  on_hold: { bg: "#fcd34d", progress: "#f59e0b" },
-};
-
 const ZOOM_COLUMN_WIDTH: Record<ZoomLevel, number> = {
   day: 40,
   week: 120,
   month: 200,
   quarter: 300,
 };
-
-// ─── Date helpers ───────────────────────────────────────────
-
-function daysBetween(a: Date, b: Date): number {
-  return Math.ceil((b.getTime() - a.getTime()) / 86400000);
-}
-
-function addDays(d: Date, n: number): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
-}
-
-function startOfWeek(d: Date): Date {
-  const r = new Date(d);
-  r.setDate(r.getDate() - r.getDay() + 1); // Monday
-  return r;
-}
-
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
-function startOfQuarter(d: Date): Date {
-  const qMonth = Math.floor(d.getMonth() / 3) * 3;
-  return new Date(d.getFullYear(), qMonth, 1);
-}
-
-function formatMonth(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-}
-
-function formatWeek(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function formatDay(d: Date): string {
-  return d.toLocaleDateString("en-US", { day: "numeric" });
-}
-
-function formatQuarter(d: Date): string {
-  const q = Math.floor(d.getMonth() / 3) + 1;
-  return `Q${q} ${d.getFullYear()}`;
-}
 
 // ─── Timescale generation ───────────────────────────────────
 

@@ -6,16 +6,12 @@ import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
 import { ProgressBar } from "./ProgressSlider";
-
-// Phase accent border colors by index
-const PHASE_ACCENT_COLORS = [
-  "border-l-indigo-500",
-  "border-l-violet-500",
-  "border-l-emerald-500",
-  "border-l-amber-500",
-  "border-l-rose-500",
-  "border-l-sky-500",
-];
+import {
+  PHASE_ACCENT_COLORS,
+  STATUS_DOT_STYLES,
+  STATUS_TASK_BADGE_STYLES,
+  STATUS_PHASE_BADGE_STYLES,
+} from "@/lib/sitePlanColors";
 
 // ─── Column definitions ─────────────────────────────────────
 
@@ -63,31 +59,10 @@ const rowText: Record<string, string> = {
   subtask: "text-slate-600",
 };
 
-// Status dot colors for compact inline badge
-const statusDot: Record<TaskStatus, string> = {
-  not_started: "bg-slate-400",
-  in_progress: "bg-blue-500",
-  completed: "bg-green-500",
-  delayed: "bg-red-500",
-  on_hold: "bg-amber-500",
-};
-
-const statusBadgeCls: Record<TaskStatus, string> = {
-  not_started: "bg-slate-100 text-slate-600",
-  in_progress: "bg-blue-50 text-blue-700",
-  completed: "bg-green-50 text-green-700",
-  delayed: "bg-red-50 text-red-700",
-  on_hold: "bg-amber-50 text-amber-700",
-};
-
-// Phase uses inverted badge colors
-const statusBadgePhase: Record<TaskStatus, string> = {
-  not_started: "bg-slate-600 text-slate-200",
-  in_progress: "bg-blue-500/20 text-blue-200",
-  completed: "bg-green-500/20 text-green-200",
-  delayed: "bg-red-500/20 text-red-200",
-  on_hold: "bg-amber-500/20 text-amber-200",
-};
+// Aliases for local readability
+const statusDot = STATUS_DOT_STYLES;
+const statusBadgeCls = STATUS_TASK_BADGE_STYLES;
+const statusBadgePhase = STATUS_PHASE_BADGE_STYLES;
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-US", {
