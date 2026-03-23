@@ -11,6 +11,7 @@ import {
   Calendar,
   X,
   AlertTriangle,
+  Share2,
 } from "lucide-react";
 import type {
   SitePlanTask,
@@ -187,6 +188,23 @@ function getBarX(
   return (days / totalDays) * totalWidth;
 }
 
+// ─── Dependency arrow color ─────────────────────────────────
+
+function getDepArrowColor(pred: SitePlanTaskNode, succ: SitePlanTaskNode): string {
+  // Red: successor is delayed, or predecessor's end is after successor's start (constraint violated)
+  if (succ.status === "delayed") return "#ef4444";
+  const predEnd = new Date(pred.end_date);
+  const succStart = new Date(succ.start_date);
+  if (predEnd > succStart) return "#ef4444";
+
+  // Yellow: tight gap (≤ 3 days) or successor is on hold
+  const gapDays = daysBetween(predEnd, succStart);
+  if (gapDays <= 3 || succ.status === "on_hold") return "#f59e0b";
+
+  // Green: on time
+  return "#22c55e";
+}
+
 // ─── Main component ─────────────────────────────────────────
 
 export function GanttChart({
@@ -202,8 +220,15 @@ export function GanttChart({
 }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("week");
   const [viewFilter] = useState<ViewFilter>("programme");
-  const [showDeps] = useState(initialShowDeps);
+  const [showDeps, setShowDeps] = useState(initialShowDeps);
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
+  const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
+  const [arrowTooltip, setArrowTooltip] = useState<{
+    x: number;
+    y: number;
+    predName: string;
+    succName: string;
+  } | null>(null);
   const [expandedPhases] = useState<Set<string>>(new Set());
   const [allExpanded] = useState(true);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -466,7 +491,58 @@ export function GanttChart({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Toolbar removed */}
+      {/* Controls bar */}
+      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-200 bg-slate-50 flex-shrink-0 overflow-x-auto">
+        {/* Zoom buttons */}
+        <span className="text-[10px] font-medium text-slate-400 uppercase mr-1 hidden md:inline">Zoom</span>
+        {(["day", "week", "month", "quarter"] as ZoomLevel[]).map((z) => (
+          <button
+            key={z}
+            onClick={() => setZoom(z)}
+            className={`px-2 py-1 text-[11px] font-medium rounded capitalize min-h-[28px] transition-colors ${
+              zoom === z
+                ? "bg-blue-100 text-blue-700"
+                : "text-slate-500 hover:bg-slate-200"
+            }`}
+          >
+            {z.charAt(0).toUpperCase() + z.slice(1)}
+          </button>
+        ))}
+
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+
+        {/* Show Dependencies toggle */}
+        <button
+          onClick={() => {
+            setShowDeps((v) => !v);
+            if (showDeps) setSelectedDep(null);
+          }}
+          title={showDeps ? "Hide dependency arrows" : "Show dependency arrows"}
+          className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded min-h-[28px] transition-colors ${
+            showDeps
+              ? "bg-blue-100 text-blue-700 border border-blue-200"
+              : "text-slate-500 hover:bg-slate-200 border border-transparent"
+          }`}
+        >
+          <Share2 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Show Dependencies</span>
+          <span className="sm:hidden">Deps</span>
+        </button>
+
+        {/* Clear selected dependency */}
+        {selectedDep && (
+          <>
+            <div className="w-px h-4 bg-slate-200 mx-1" />
+            <button
+              onClick={() => setSelectedDep(null)}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-200 rounded min-h-[28px]"
+            >
+              <X className="h-3 w-3" />
+              Clear selection
+            </button>
+          </>
+        )}
+      </div>
 
       {/* Main split pane */}
       <div className="flex flex-1 overflow-hidden relative">
@@ -481,6 +557,7 @@ export function GanttChart({
             width={totalTimelineWidth}
             height={svgHeight + HEADER_HEIGHT}
             className="select-none"
+            onClick={() => setSelectedDep(null)}
           >
             {/* Background grid */}
             {columns.map((col, i) => (
@@ -627,10 +704,17 @@ export function GanttChart({
                 ? Math.max(4, effectiveBarEndX - effectiveBarX)
                 : barWidth;
 
+              // Dependency highlight / dim
+              const isDepHighlighted =
+                selectedDep !== null &&
+                (node.id === selectedDep.predId || node.id === selectedDep.succId);
+              const isDepDimmed = selectedDep !== null && !isDepHighlighted;
+
               return (
                 <g
                   key={node.id}
                   className={canEdit && !isPhase ? "cursor-grab" : "cursor-pointer"}
+                  opacity={isDepDimmed ? 0.25 : 1}
                   onClick={() => handleBarClick(taskData)}
                   onDoubleClick={() => handleBarDoubleClick(taskData)}
                 >
@@ -796,25 +880,50 @@ export function GanttChart({
                       opacity={0.5}
                     />
                   )}
+
+                  {/* Dependency highlight ring */}
+                  {isDepHighlighted && !isMilestone && !isPhase && (
+                    <rect
+                      x={effectiveBarX - 2}
+                      y={barY - 2}
+                      width={effectiveBarWidth + 4}
+                      height={barHeight + 4}
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      rx={5}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
                 </g>
               );
             })}
 
             {/* Dependency arrows */}
             {showDeps &&
-              flatTasks.map((node, i) => {
-                if (!node.predecessors) return null;
-                const preds = node.predecessors.split(",").map((p) => p.trim());
+              flatTasks.flatMap((node, i) => {
+                if (!node.predecessors) return [];
+                // Cap at 50 dependencies per task
+                const preds = node.predecessors
+                  .split(",")
+                  .map((p) => p.trim())
+                  .filter(Boolean)
+                  .slice(0, 50);
 
-                return preds.map((predCode) => {
+                return preds.flatMap((predCode) => {
                   const predNode = flatTasks.find(
                     (t) =>
                       t.wbs_code === predCode ||
                       predCode.startsWith(t.wbs_code + "FS")
                   );
-                  if (!predNode) return null;
+                  if (!predNode) return [];
 
                   const predIdx = flatTasks.indexOf(predNode);
+                  const isSelected =
+                    selectedDep?.predId === predNode.id &&
+                    selectedDep?.succId === node.id;
+                  const arrowColor = getDepArrowColor(predNode, node);
+
                   const predEndX = getBarX(
                     new Date(predNode.end_date),
                     rangeStart,
@@ -828,30 +937,72 @@ export function GanttChart({
                     totalTimelineWidth
                   );
 
-                  const predCenterY = HEADER_HEIGHT + predIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
-                  const succCenterY = HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
+                  const predCenterY =
+                    HEADER_HEIGHT + predIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+                  const succCenterY =
+                    HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-                  // Elbow connector: pred end → right → down/up → succ start
-                  const midX = predEndX + 10;
-                  const path = `M ${predEndX} ${predCenterY} L ${midX} ${predCenterY} L ${midX} ${succCenterY} L ${succStartX} ${succCenterY}`;
+                  // Elbow connector: pred end → right elbow → down/up → succ start
+                  const elbowX = predEndX + 10;
+                  const pathD = `M ${predEndX} ${predCenterY} L ${elbowX} ${predCenterY} L ${elbowX} ${succCenterY} L ${succStartX} ${succCenterY}`;
+                  const arrowOpacity = selectedDep && !isSelected ? 0.15 : 0.85;
 
-                  return (
-                    <g key={`dep-${predNode.id}-${node.id}`}>
+                  return [
+                    <g
+                      key={`dep-${predNode.id}-${node.id}`}
+                      style={{ cursor: "pointer" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDep(
+                          isSelected
+                            ? null
+                            : { predId: predNode.id, succId: node.id }
+                        );
+                      }}
+                    >
+                      {/* Wide invisible hit area */}
                       <path
-                        d={path}
+                        d={pathD}
                         fill="none"
-                        stroke="#94a3b8"
-                        strokeWidth={1}
-                        opacity={0.6}
+                        stroke="transparent"
+                        strokeWidth={12}
+                        onMouseEnter={(e) =>
+                          setArrowTooltip({
+                            x: e.clientX,
+                            y: e.clientY,
+                            predName: predNode.name,
+                            succName: node.name,
+                          })
+                        }
+                        onMouseMove={(e) =>
+                          setArrowTooltip((prev) =>
+                            prev
+                              ? { ...prev, x: e.clientX, y: e.clientY }
+                              : null
+                          )
+                        }
+                        onMouseLeave={() => setArrowTooltip(null)}
                       />
+
+                      {/* Visible path */}
+                      <path
+                        d={pathD}
+                        fill="none"
+                        stroke={arrowColor}
+                        strokeWidth={isSelected ? 2.5 : 1.5}
+                        opacity={arrowOpacity}
+                        style={{ pointerEvents: "none" }}
+                      />
+
                       {/* Arrow head */}
                       <polygon
-                        points={`${succStartX},${succCenterY} ${succStartX - 5},${succCenterY - 3} ${succStartX - 5},${succCenterY + 3}`}
-                        fill="#94a3b8"
-                        opacity={0.6}
+                        points={`${succStartX},${succCenterY} ${succStartX - 6},${succCenterY - 3} ${succStartX - 6},${succCenterY + 3}`}
+                        fill={arrowColor}
+                        opacity={arrowOpacity}
+                        style={{ pointerEvents: "none" }}
                       />
-                    </g>
-                  );
+                    </g>,
+                  ];
                 });
               })}
           </svg>
@@ -1039,6 +1190,18 @@ export function GanttChart({
               Log Delay
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Dependency arrow hover tooltip */}
+      {arrowTooltip && (
+        <div
+          className="fixed z-[200] pointer-events-none bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap"
+          style={{ left: arrowTooltip.x + 14, top: arrowTooltip.y - 36 }}
+        >
+          <span className="font-semibold">{arrowTooltip.predName}</span>
+          <span className="text-slate-300"> must finish before </span>
+          <span className="font-semibold">{arrowTooltip.succName}</span>
         </div>
       )}
 
