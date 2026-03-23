@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, type ElementType, type RefObject, type KeyboardEvent } from "react";
 import {
   Undo2,
   Redo2,
@@ -18,9 +18,11 @@ import {
   Pencil,
   Check,
   X,
+  MoreHorizontal,
 } from "lucide-react";
 import type { TaskType, TaskStatus, SitePlanTaskNode } from "@/types/siteplan";
 import { STATUS_LABELS } from "@/types/siteplan";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 // ─── Filter types ───────────────────────────────────────────
 
@@ -104,7 +106,7 @@ function TBtn({
   active,
   className,
 }: {
-  icon: React.ElementType;
+  icon: ElementType;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -116,7 +118,7 @@ function TBtn({
       onClick={onClick}
       disabled={disabled}
       title={label}
-      className={`p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center transition-colors ${
+      className={`p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed min-w-[32px] min-h-[32px] flex items-center justify-center transition-colors ${
         active ? "bg-blue-100 text-blue-600" : "text-slate-600"
       } ${className ?? ""}`}
     >
@@ -129,7 +131,7 @@ function Divider() {
   return <div className="w-px h-6 bg-slate-200 mx-1" />;
 }
 
-// ─── Filter dropdown ────────────────────────────────────────
+// ─── Filter controls ────────────────────────────────────────
 
 /** Shared filter controls used by both desktop dropdown and mobile sheet */
 function FilterControls({
@@ -180,9 +182,7 @@ function FilterControls({
       <input
         type="text"
         value={filter.search}
-        onChange={(e) =>
-          onFilterChange({ ...filter, search: e.target.value })
-        }
+        onChange={(e) => onFilterChange({ ...filter, search: e.target.value })}
         placeholder="Search task names..."
         className={inputCls}
       />
@@ -193,21 +193,19 @@ function FilterControls({
           Status
         </span>
         <div className="flex flex-wrap gap-1.5 mt-1.5">
-          {(Object.entries(STATUS_LABELS) as [TaskStatus, string][]).map(
-            ([val, label]) => (
-              <button
-                key={val}
-                onClick={() => toggleStatus(val)}
-                className={`font-medium rounded-md border ${btnSize} ${
-                  filter.status.includes(val)
-                    ? "bg-blue-50 border-blue-300 text-blue-700"
-                    : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                {label}
-              </button>
-            )
-          )}
+          {(Object.entries(STATUS_LABELS) as [TaskStatus, string][]).map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => toggleStatus(val)}
+              className={`font-medium rounded-md border ${btnSize} ${
+                filter.status.includes(val)
+                  ? "bg-blue-50 border-blue-300 text-blue-700"
+                  : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -241,9 +239,7 @@ function FilterControls({
         <input
           type="text"
           value={filter.assignedTo}
-          onChange={(e) =>
-            onFilterChange({ ...filter, assignedTo: e.target.value })
-          }
+          onChange={(e) => onFilterChange({ ...filter, assignedTo: e.target.value })}
           placeholder="Filter by person..."
           className={`${inputCls} mt-1`}
         />
@@ -274,11 +270,7 @@ function FilterDropdown({
 }) {
   return (
     <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3">
-      <FilterControls
-        filter={filter}
-        onFilterChange={onFilterChange}
-        onClose={onClose}
-      />
+      <FilterControls filter={filter} onFilterChange={onFilterChange} onClose={onClose} />
     </div>
   );
 }
@@ -295,17 +287,107 @@ function MobileFilterSheet({
 }) {
   return (
     <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto p-4 safe-area-pb">
+        <FilterControls filter={filter} onFilterChange={onFilterChange} onClose={onClose} mobile />
+      </div>
+    </>
+  );
+}
+
+// ─── Mobile More menu ────────────────────────────────────────
+
+interface MenuItem {
+  icon: ElementType;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  badge?: number;
+}
+
+/** Keyboard-accessible dropdown for secondary actions on mobile */
+function MobileMoreMenu({
+  items,
+  onClose,
+  triggerRef,
+}: {
+  items: MenuItem[];
+  onClose: () => void;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const firstItem = menuRef.current?.querySelector<HTMLElement>(
+      '[role="menuitem"]:not([aria-disabled="true"])'
+    );
+    firstItem?.focus();
+  }, []);
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const menuItems: HTMLElement[] = menuRef.current
+      ? Array.from(
+          menuRef.current.querySelectorAll<HTMLElement>(
+            '[role="menuitem"]:not([aria-disabled="true"])'
+          )
+        )
+      : [];
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        menuItems[(currentIndex + 1) % menuItems.length]?.focus();
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        menuItems[(currentIndex - 1 + menuItems.length) % menuItems.length]?.focus();
+        break;
+      case "Escape":
+        e.preventDefault();
+        onClose();
+        triggerRef.current?.focus();
+        break;
+      case "Tab":
+        onClose();
+        break;
+    }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
       <div
-        className="fixed inset-0 bg-black/20 z-40 md:hidden"
-        onClick={onClose}
-      />
-      <div className="fixed inset-x-0 bottom-0 z-50 md:hidden bg-white rounded-t-2xl shadow-xl max-h-[85vh] overflow-y-auto p-4 safe-area-pb">
-        <FilterControls
-          filter={filter}
-          onFilterChange={onFilterChange}
-          onClose={onClose}
-          mobile
-        />
+        ref={menuRef}
+        role="menu"
+        aria-label="More actions"
+        onKeyDown={handleKeyDown}
+        className="absolute right-0 top-full mt-1 w-52 bg-white border border-slate-200 rounded-lg shadow-lg z-50 py-1"
+      >
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.label}
+              role="menuitem"
+              onClick={() => {
+                item.onClick();
+                onClose();
+              }}
+              disabled={item.disabled}
+              aria-disabled={item.disabled}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:bg-slate-100"
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span>{item.label}</span>
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="ml-auto text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </>
   );
@@ -338,18 +420,150 @@ export function SitePlanToolbar(props: ToolbarProps) {
     onToggleFullscreen,
   } = props;
 
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [showFilter, setShowFilter] = useState(false);
-  const [showMobileActions, setShowMobileActions] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   const canIndent = selectedTask !== null;
   const canOutdent = selectedTask !== null && selectedTask.parent_id !== null;
   const hasSelectedPredecessors =
     editMode && selectedTask !== null && !!selectedTask.predecessors;
 
+  // Items shown in the mobile More... dropdown
+  const moreMenuItems: MenuItem[] = [
+    { icon: Undo2, label: "Undo", onClick: onUndo, disabled: !canUndo },
+    { icon: Redo2, label: "Redo", onClick: onRedo, disabled: !canRedo },
+    {
+      icon: ChevronsUpDown,
+      label: allExpanded ? "Collapse All" : "Expand All",
+      onClick: onToggleAll,
+    },
+    { icon: FileSpreadsheet, label: "Import", onClick: onImport },
+    {
+      icon: Bookmark,
+      label: "Baselines",
+      onClick: onSaveBaseline,
+      badge: baselineCount,
+    },
+    {
+      icon: editMode ? Check : Pencil,
+      label: editMode ? "Done Editing" : "Edit Mode",
+      onClick: onToggleEditMode,
+    },
+    ...(editMode
+      ? [
+          {
+            icon: IndentDecrease,
+            label: "Outdent",
+            onClick: onOutdent,
+            disabled: !canOutdent,
+          },
+          {
+            icon: IndentIncrease,
+            label: "Indent",
+            onClick: onIndent,
+            disabled: !canIndent,
+          },
+          {
+            icon: Link2,
+            label: "Link Tasks",
+            onClick: onLinkTasks,
+            disabled: !selectedTask,
+          },
+          {
+            icon: Unlink2,
+            label: "Unlink",
+            onClick: onUnlinkTask,
+            disabled: !hasSelectedPredecessors,
+          },
+        ]
+      : []),
+    {
+      icon: isFullscreen ? Minimize2 : Maximize2,
+      label: isFullscreen ? "Exit Fullscreen" : "Fullscreen",
+      onClick: onToggleFullscreen,
+    },
+  ];
+
+  // ── Mobile layout ──────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <>
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-200 bg-slate-50">
+          {/* Filter */}
+          <div className="relative">
+            <button
+              onClick={() => setShowFilter(!showFilter)}
+              title="Filter"
+              aria-pressed={isFilterActive(filter)}
+              className={`p-2 rounded-lg min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors ${
+                isFilterActive(filter)
+                  ? "bg-blue-100 text-blue-600"
+                  : "text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <Filter className="h-5 w-5" />
+            </button>
+            {isFilterActive(filter) && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" aria-hidden="true" />
+            )}
+          </div>
+
+          {/* Add */}
+          <button
+            onClick={onAddRow}
+            title="Add Row"
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px] transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </button>
+
+          <div className="flex-1" />
+
+          {/* More... */}
+          <div className="relative">
+            <button
+              ref={moreButtonRef}
+              onClick={() => setShowMore(!showMore)}
+              aria-haspopup="menu"
+              aria-expanded={showMore}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg min-h-[44px] transition-colors ${
+                showMore
+                  ? "bg-blue-100 text-blue-700"
+                  : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+              More
+            </button>
+            {showMore && (
+              <MobileMoreMenu
+                items={moreMenuItems}
+                onClose={() => setShowMore(false)}
+                triggerRef={moreButtonRef}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Filter bottom sheet */}
+        {showFilter && (
+          <MobileFilterSheet
+            filter={filter}
+            onFilterChange={onFilterChange}
+            onClose={() => setShowFilter(false)}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ── Desktop layout ─────────────────────────────────────────
   return (
     <>
-      {/* ─── Desktop toolbar ─── */}
-      <div className="hidden md:flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50 overflow-x-auto">
+      <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50 overflow-x-auto">
         <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
         <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
         <Divider />
@@ -386,15 +600,35 @@ export function SitePlanToolbar(props: ToolbarProps) {
 
         {/* Indent/Outdent — always available when a task is selected */}
         <Divider />
-        <TBtn icon={IndentDecrease} label="Outdent (Shift+Tab)" onClick={onOutdent} disabled={!canOutdent} />
-        <TBtn icon={IndentIncrease} label="Indent (Tab)" onClick={onIndent} disabled={!canIndent} />
+        <TBtn
+          icon={IndentDecrease}
+          label="Outdent (Shift+Tab)"
+          onClick={onOutdent}
+          disabled={!canOutdent}
+        />
+        <TBtn
+          icon={IndentIncrease}
+          label="Indent (Tab)"
+          onClick={onIndent}
+          disabled={!canIndent}
+        />
 
         {/* Edit-mode controls — only shown when editing */}
         {editMode && (
           <>
             <Divider />
-            <TBtn icon={Link2} label="Link Tasks" onClick={onLinkTasks} disabled={!selectedTask} />
-            <TBtn icon={Unlink2} label="Unlink" onClick={onUnlinkTask} disabled={!hasSelectedPredecessors} />
+            <TBtn
+              icon={Link2}
+              label="Link Tasks"
+              onClick={onLinkTasks}
+              disabled={!selectedTask}
+            />
+            <TBtn
+              icon={Unlink2}
+              label="Unlink"
+              onClick={onUnlinkTask}
+              disabled={!hasSelectedPredecessors}
+            />
           </>
         )}
 
@@ -409,7 +643,7 @@ export function SitePlanToolbar(props: ToolbarProps) {
             active={isFilterActive(filter)}
           />
           {isFilterActive(filter) && (
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" aria-hidden="true" />
           )}
           {showFilter && (
             <FilterDropdown
@@ -455,114 +689,6 @@ export function SitePlanToolbar(props: ToolbarProps) {
           onClick={onToggleFullscreen}
         />
       </div>
-
-      {/* ─── Mobile toolbar ─── */}
-      <div className="md:hidden border-b border-slate-200 bg-slate-50">
-        {/* Primary actions row */}
-        <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto">
-          <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
-          <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
-          <Divider />
-          <TBtn icon={ChevronsUpDown} label="Expand/Collapse" onClick={onToggleAll} />
-          <div className="relative">
-            <TBtn
-              icon={Filter}
-              label="Filter"
-              onClick={() => setShowFilter(!showFilter)}
-              active={isFilterActive(filter)}
-            />
-            {isFilterActive(filter) && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full" />
-            )}
-          </div>
-
-          {/* Edit mode toggle */}
-          <button
-            onClick={onToggleEditMode}
-            title={editMode ? "Exit Edit Mode" : "Edit Mode"}
-            className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg min-h-[36px] transition-colors ${
-              editMode
-                ? "bg-amber-100 text-amber-700 border border-amber-300"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-            {editMode ? "Done" : "Edit"}
-          </button>
-
-          <div className="flex-1" />
-
-          {/* More actions toggle */}
-          <button
-            onClick={() => setShowMobileActions(!showMobileActions)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg min-h-[36px] transition-colors ${
-              showMobileActions ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            {showMobileActions ? "Less" : "More"}
-          </button>
-        </div>
-
-        {/* Expanded mobile actions */}
-        {showMobileActions && (
-          <div className="flex items-center gap-1.5 px-2 pb-2 flex-wrap">
-            <button
-              onClick={onIndent}
-              disabled={!canIndent}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-            >
-              <IndentIncrease className="h-3.5 w-3.5" />
-              Indent
-            </button>
-            <button
-              onClick={onOutdent}
-              disabled={!canOutdent}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-            >
-              <IndentDecrease className="h-3.5 w-3.5" />
-              Outdent
-            </button>
-            {editMode && (
-              <button
-                onClick={onLinkTasks}
-                disabled={!selectedTask}
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 disabled:opacity-30 min-h-[36px]"
-              >
-                <Link2 className="h-3.5 w-3.5" />
-                Link
-              </button>
-            )}
-            <button
-              onClick={onImport}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 min-h-[36px]"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              Import
-            </button>
-            <button
-              onClick={onSaveBaseline}
-              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white border border-slate-200 text-slate-600 min-h-[36px]"
-            >
-              <Bookmark className="h-3.5 w-3.5" />
-              Baselines
-              {baselineCount > 0 && (
-                <span className="text-[9px] bg-slate-200 px-1 rounded-full">{baselineCount}</span>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Mobile: bottom sheet filter */}
-      {showFilter && (
-        <div className="md:hidden">
-          <MobileFilterSheet
-            filter={filter}
-            onFilterChange={onFilterChange}
-            onClose={() => setShowFilter(false)}
-          />
-        </div>
-      )}
     </>
   );
 }
