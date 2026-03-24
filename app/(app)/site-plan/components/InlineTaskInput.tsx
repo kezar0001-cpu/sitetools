@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * @deprecated Desktop task creation now goes through CreateTaskSheet.
+ * This component is retained for mobile quick-add only (FAB + inline list entry on small screens).
+ */
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { TaskType } from "@/types/siteplan";
 import { useCreateTask } from "@/hooks/useSitePlanTasks";

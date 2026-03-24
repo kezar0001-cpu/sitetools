@@ -10,6 +10,7 @@ interface CreateTaskSheetProps {
   projectId: string;
   type: TaskType;
   parentId?: string | null;
+  sortOrder?: number;
   onClose: () => void;
 }
 
@@ -17,6 +18,7 @@ export function CreateTaskSheet({
   projectId,
   type,
   parentId,
+  sortOrder,
   onClose,
 }: CreateTaskSheetProps) {
   const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
@@ -40,6 +42,7 @@ export function CreateTaskSheet({
         start_date: startDate,
         end_date: endDate,
         responsible: responsible.trim() || undefined,
+        sort_order: sortOrder,
       },
       { onSuccess: () => onClose() }
     );
