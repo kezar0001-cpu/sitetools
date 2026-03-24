@@ -259,7 +259,7 @@ export function TaskRow({
       </div>
 
       {/* Task Name — nesting guides + expand chevron */}
-      <div className={`flex items-start min-w-0 flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div className={`flex items-start min-w-[80px] flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
         {/* Vertical nesting guide lines */}
         <NestingGuides depth={indentLevel} />
 
@@ -346,9 +346,9 @@ export function TaskRow({
         </div>
       )}
 
-      {/* Status badge — visible on md+ as a pill, dot on mobile */}
+      {/* Status badge — visible on lg+ as a pill, dot on mobile */}
       {show("status") && (
-        <div className={`hidden md:flex w-24 shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+        <div className={`hidden lg:flex w-24 shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${isPhase ? statusBadgePhase[displayStatus] : statusBadgeCls[node.status]}`}
           >
@@ -483,7 +483,7 @@ export function TaskListHeader({
       </div>
 
       {/* Task Name — not hideable */}
-      <div className="flex-1 min-w-0 px-2 py-1.5 border-r border-slate-300">
+      <div className="flex-1 min-w-[80px] px-2 py-1.5 border-r border-slate-300">
         Task Name
       </div>
 
@@ -550,7 +550,7 @@ export function TaskListHeader({
       {/* Status */}
       {show("status") && (
         <div
-          className={`hidden md:block w-24 ${colHeaderCls}`}
+          className={`hidden lg:block w-24 ${colHeaderCls}`}
           onClick={() => handleColClick("status")}
           onContextMenu={(e) => handleContextMenu(e, "status")}
           title="Click to hide"

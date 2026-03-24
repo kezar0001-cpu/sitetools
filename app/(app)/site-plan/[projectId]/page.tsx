@@ -9,7 +9,7 @@ import { FixedSizeList } from "react-window";
 import type { ListChildComponentProps } from "react-window";
 import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
-import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
+import { useSitePlanTasks, useUpdateTask, useReorderTask, useSetTaskPredecessors } from "@/hooks/useSitePlanTasks";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { computeWorkProgress } from "@/types/siteplan";
@@ -229,6 +229,7 @@ function ProjectDetailInner() {
   const { data: tasks, isLoading } = useSitePlanTasks(projectId);
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
+  const setTaskPredecessors = useSetTaskPredecessors();
   const { data: baselines } = useSitePlanBaselines(projectId);
 
   const { data: delayLogs } = useProjectDelayLogs(projectId);
@@ -595,16 +596,10 @@ function ProjectDetailInner() {
 
   const handleUnlinkTask = () => {
     if (!selectedTask) return;
-    pushUndo({
+    setTaskPredecessors.mutate({
       taskId: selectedTask.id,
+      predecessorIds: [],
       projectId,
-      before: { predecessors: selectedTask.predecessors },
-      after: { predecessors: null },
-    });
-    updateTask.mutate({
-      id: selectedTask.id,
-      projectId,
-      updates: { predecessors: null },
     });
   };
 
