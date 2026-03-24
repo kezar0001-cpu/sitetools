@@ -18,6 +18,7 @@ import {
   useProgressLog,
   useSitePlanTasks,
 } from "@/hooks/useSitePlanTasks";
+import { useDelayLogs } from "@/hooks/useSitePlanDelays";
 import { useCompanyId } from "@/hooks/useSitePlan";
 import { useCompanyMembers } from "@/hooks/useCompanyMembers";
 import { useConflictDetection } from "@/hooks/useConflictDetection";
@@ -42,6 +43,10 @@ export function TaskEditPanel({
   hasChildren,
   onAddSubtask,
 }: TaskEditPanelProps) {
+  const [progressNote, setProgressNote] = useState("");
+  const progressNoteRef = useRef("");
+  progressNoteRef.current = progressNote;
+
   const [form, setForm] = useState<UpdateTaskPayload>({
     name: task.name,
     status: task.status,
@@ -64,6 +69,7 @@ export function TaskEditPanel({
   const updateProgress = useUpdateProgress();
   const deleteTask = useDeleteTask();
   const { data: logs } = useProgressLog(task.id);
+  const { data: delayLogs } = useDelayLogs(task.id);
   const { data: allTasks } = useSitePlanTasks(task.project_id);
   const { data: companyId } = useCompanyId();
   const { data: members } = useCompanyMembers(companyId ?? null);
@@ -87,18 +93,21 @@ export function TaskEditPanel({
           const t = taskRef.current;
           const newProgress = value as number;
           if (newProgress !== t.progress) {
+            const note = progressNoteRef.current.trim() || undefined;
             updateProgress.mutate(
               {
                 taskId: t.id,
                 projectId: t.project_id,
                 progressBefore: t.progress,
                 progressAfter: newProgress,
+                note,
               },
               {
                 onSuccess: () => {
                   setSavedField(fieldName);
                   setShowSaved(true);
                   setTimeout(() => setShowSaved(false), 1500);
+                  setProgressNote("");
                 },
               }
             );
@@ -156,6 +165,7 @@ export function TaskEditPanel({
     setShowDeleteConfirm(false);
     setShowSaved(false);
     setSavedField(null);
+    setProgressNote("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
@@ -251,6 +261,9 @@ export function TaskEditPanel({
             savedField={savedField}
             members={members ?? []}
             logs={logs ?? []}
+            delayLogs={delayLogs ?? []}
+            progressNote={progressNote}
+            onProgressNoteChange={setProgressNote}
             onAddSubtask={onAddSubtask}
           />
         </div>
