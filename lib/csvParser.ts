@@ -166,6 +166,43 @@ export function detectCircularDependencies(rows: ImportedRow[]): string | null {
 }
 
 /**
+ * Resolves the predecessor references in each ImportedRow to the flat-list
+ * index (_tempIndex) of the referenced task.
+ *
+ * Predecessors may be expressed as:
+ *   - Task names (case-insensitive exact match)
+ *   - 1-based row numbers (e.g. "3", "5")
+ *
+ * Returns a parallel array where result[i] is the list of resolved indices
+ * that are predecessors of rows[i].  Unresolvable references are silently
+ * skipped (they may come from external IDs in MS-Project exports).
+ */
+export function resolvePredecessorIndices(rows: ImportedRow[]): number[][] {
+  const nameToIdx = new Map<string, number>();
+  rows.forEach((r, i) => nameToIdx.set(r.name.toLowerCase(), i));
+
+  return rows.map((r) => {
+    if (!r.predecessors) return [];
+    const indices: number[] = [];
+    for (const ref of r.predecessors.split(/[,;]/).map((s) => s.trim()).filter(Boolean)) {
+      // Try name match first
+      const byName = nameToIdx.get(ref.toLowerCase());
+      if (byName !== undefined) {
+        indices.push(byName);
+        continue;
+      }
+      // Try 1-based row number
+      const rowNum = parseInt(ref, 10);
+      if (!isNaN(rowNum) && rowNum >= 1 && rowNum <= rows.length) {
+        indices.push(rowNum - 1);
+      }
+      // Unknown references (e.g. MS Project UIDs) are skipped
+    }
+    return indices;
+  });
+}
+
+/**
  * Parses a CSV string into an array of ImportedRow objects.
  * Throws on missing required columns, invalid date formats, or circular dependencies.
  */

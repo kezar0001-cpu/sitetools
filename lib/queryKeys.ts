@@ -24,6 +24,8 @@ export const sitePlanKeys = {
     ["siteplan", "tasks", projectId] as const,
   progressLog: (taskId: string) =>
     ["siteplan", "progress-log", taskId] as const,
+  taskPredecessors: (taskId: string) =>
+    ["siteplan", "task-predecessors", taskId] as const,
 
   // ── Delay logs ──────────────────────────────────────────────
   delayLogs: (taskId: string) =>
