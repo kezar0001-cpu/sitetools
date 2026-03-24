@@ -69,13 +69,41 @@ export function useSitePlanTasks(projectId: string) {
   return useQuery<SitePlanTask[]>({
     queryKey: tasksKey(projectId),
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: tasks, error } = await supabase
         .from("siteplan_tasks")
         .select("*")
         .eq("project_id", projectId)
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      if (!tasks || tasks.length === 0) return [];
+
+      // Hydrate the `predecessors` string from the join table so that all
+      // downstream consumers (Gantt arrows, critical path, PRED column) work
+      // correctly after the migration away from the text column.
+      const taskIds = tasks.map((t) => t.id);
+      const { data: predRows } = await supabase
+        .from("siteplan_task_predecessors")
+        .select("task_id, predecessor_id")
+        .in("task_id", taskIds);
+
+      if (predRows && predRows.length > 0) {
+        const idToWbs = new Map<string, string>(tasks.map((t) => [t.id, t.wbs_code]));
+        const predMap = new Map<string, string[]>();
+        for (const row of predRows) {
+          const wbs = idToWbs.get(row.predecessor_id);
+          if (wbs) {
+            const existing = predMap.get(row.task_id) ?? [];
+            existing.push(wbs);
+            predMap.set(row.task_id, existing);
+          }
+        }
+        return tasks.map((t) => {
+          const wbsCodes = predMap.get(t.id);
+          return wbsCodes?.length ? { ...t, predecessors: wbsCodes.join(", ") } : t;
+        });
+      }
+
+      return tasks;
     },
     enabled: !!projectId,
   });
