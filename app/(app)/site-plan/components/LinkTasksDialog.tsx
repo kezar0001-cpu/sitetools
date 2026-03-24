@@ -4,7 +4,10 @@ import { useState } from "react";
 import { X, Link2 } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { SitePlanTaskNode } from "@/types/siteplan";
-import { useUpdateTask } from "@/hooks/useSitePlanTasks";
+import {
+  useTaskPredecessors,
+  useSetTaskPredecessors,
+} from "@/hooks/useSitePlanTasks";
 
 interface LinkTasksDialogProps {
   task: SitePlanTaskNode;
@@ -18,33 +21,36 @@ export function LinkTasksDialog({
   onClose,
 }: LinkTasksDialogProps) {
   const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
-  const updateTask = useUpdateTask();
+  const { data: existingRows = [], isLoading } = useTaskPredecessors(task.id);
+  const setTaskPredecessors = useSetTaskPredecessors();
 
-  // Parse existing predecessors (row numbers or IDs)
-  const existingPreds = task.predecessors
-    ? task.predecessors.split(",").map((p) => p.trim())
-    : [];
+  // Initialise from join table; kept in sync locally as the user toggles
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
+    existingRows.map((r) => r.predecessor_id)
+  );
 
-  const [selectedPreds, setSelectedPreds] = useState<string[]>(existingPreds);
+  // Sync once the query resolves (handles first render before data arrives)
+  const [initialised, setInitialised] = useState(false);
+  if (!isLoading && !initialised) {
+    setInitialised(true);
+    setSelectedIds(existingRows.map((r) => r.predecessor_id));
+  }
 
   // Available tasks to link (exclude self)
   const otherTasks = allTasks.filter((t) => t.id !== task.id);
 
-  const togglePred = (rowNum: string) => {
-    setSelectedPreds((prev) =>
-      prev.includes(rowNum)
-        ? prev.filter((p) => p !== rowNum)
-        : [...prev, rowNum]
+  const togglePred = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
   };
 
   const handleSave = () => {
-    const predString = selectedPreds.join(", ");
-    updateTask.mutate(
+    setTaskPredecessors.mutate(
       {
-        id: task.id,
+        taskId: task.id,
+        predecessorIds: selectedIds,
         projectId: task.project_id,
-        updates: { predecessors: predString || null },
       },
       { onSuccess: () => onClose() }
     );
@@ -87,21 +93,18 @@ export function LinkTasksDialog({
 
         {/* Task list */}
         <div className="max-h-80 overflow-y-auto">
-          {otherTasks.map((t, i) => {
-            const rowNum = String(i + 1);
-            const isSelected =
-              selectedPreds.includes(rowNum) ||
-              selectedPreds.includes(t.id);
+          {otherTasks.map((t) => {
+            const isSelected = selectedIds.includes(t.id);
             return (
               <button
                 key={t.id}
-                onClick={() => togglePred(rowNum)}
+                onClick={() => togglePred(t.id)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left border-b border-slate-50 hover:bg-slate-50 ${
                   isSelected ? "bg-blue-50" : ""
                 }`}
               >
                 <span className="w-8 text-xs text-slate-400 tabular-nums text-center shrink-0">
-                  {rowNum}
+                  {t.wbs_code || "—"}
                 </span>
                 <div
                   className={`w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center ${
@@ -146,8 +149,8 @@ export function LinkTasksDialog({
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
           <p className="text-xs text-slate-500">
-            {selectedPreds.length} predecessor
-            {selectedPreds.length !== 1 ? "s" : ""} selected
+            {selectedIds.length} predecessor
+            {selectedIds.length !== 1 ? "s" : ""} selected
           </p>
           <div className="flex gap-2">
             <button
@@ -158,10 +161,10 @@ export function LinkTasksDialog({
             </button>
             <button
               onClick={handleSave}
-              disabled={updateTask.isPending}
+              disabled={setTaskPredecessors.isPending}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg min-h-[36px]"
             >
-              {updateTask.isPending ? "Saving..." : "Save"}
+              {setTaskPredecessors.isPending ? "Saving..." : "Save"}
             </button>
           </div>
         </div>

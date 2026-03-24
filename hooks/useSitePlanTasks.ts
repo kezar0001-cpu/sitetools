@@ -12,10 +12,17 @@ import type {
   CreateTaskPayload,
   UpdateTaskPayload,
 } from "@/types/siteplan";
+
+/** A row from siteplan_task_predecessors */
+export interface TaskPredecessorRow {
+  task_id: string;
+  predecessor_id: string;
+}
 import { computeTaskStatus, generateWbsCode } from "@/types/siteplan";
 
 const tasksKey = sitePlanKeys.tasks;
 const progressLogKey = sitePlanKeys.progressLog;
+const taskPredecessorsKey = sitePlanKeys.taskPredecessors;
 
 // ─── Queries ────────────────────────────────────────────────
 
@@ -87,6 +94,64 @@ export function useProgressLog(taskId: string | null) {
       return data ?? [];
     },
     enabled: !!taskId,
+  });
+}
+
+/**
+ * Fetches the predecessor UUIDs for a single task from the join table.
+ */
+export function useTaskPredecessors(taskId: string | null) {
+  return useQuery<TaskPredecessorRow[]>({
+    queryKey: taskPredecessorsKey(taskId ?? ""),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("siteplan_task_predecessors")
+        .select("task_id, predecessor_id")
+        .eq("task_id", taskId!);
+      if (error) throw error;
+      return (data ?? []) as TaskPredecessorRow[];
+    },
+    enabled: !!taskId,
+  });
+}
+
+/**
+ * Replaces all predecessor links for a task atomically:
+ * deletes existing rows then inserts the new set.
+ */
+export function useSetTaskPredecessors() {
+  const qc = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { taskId: string; predecessorIds: string[]; projectId: string }
+  >({
+    mutationFn: async ({ taskId, predecessorIds }) => {
+      // Delete existing links for this task
+      const { error: delErr } = await supabase
+        .from("siteplan_task_predecessors")
+        .delete()
+        .eq("task_id", taskId);
+      if (delErr) throw delErr;
+
+      if (predecessorIds.length === 0) return;
+
+      const rows = predecessorIds.map((predecessor_id) => ({
+        task_id: taskId,
+        predecessor_id,
+      }));
+      const { error: insErr } = await supabase
+        .from("siteplan_task_predecessors")
+        .insert(rows);
+      if (insErr) throw insErr;
+    },
+    onSuccess: (_data, { taskId, projectId }) => {
+      qc.invalidateQueries({ queryKey: taskPredecessorsKey(taskId) });
+      qc.invalidateQueries({ queryKey: tasksKey(projectId) });
+    },
+    onError: () => {
+      toast.error("Failed to save — please retry", { duration: Infinity });
+    },
   });
 }
 
@@ -367,9 +432,11 @@ export function useBulkCreateTasks() {
  * The hook resolves these to real parent_id UUIDs during insertion.
  */
 export interface HierarchicalTask
-  extends Omit<CreateTaskPayload, "project_id"> {
+  extends Omit<CreateTaskPayload, "project_id" | "predecessors"> {
   _tempIndex: number;
   _parentIndex: number;
+  /** Resolved predecessor _tempIndex values (not UUIDs yet). */
+  _predecessorIndices?: number[];
 }
 
 export function useHierarchicalImport() {
@@ -416,16 +483,16 @@ export function useHierarchicalImport() {
           deferred.length = 0;
         }
 
-        // Build insert rows with resolved parent_id
+        // Build insert rows with resolved parent_id (strip all internal fields)
         const rows = ready.map((t) => {
           const parentId =
             t._parentIndex >= 0
               ? indexToId.get(t._parentIndex) ?? null
               : null;
-          // Strip internal fields
-          const { _tempIndex, _parentIndex, ...rest } = t;
+          const { _tempIndex, _parentIndex, _predecessorIndices, ...rest } = t;
           void _tempIndex;
           void _parentIndex;
+          void _predecessorIndices;
           return { ...rest, project_id: projectId, parent_id: parentId };
         });
 
@@ -444,6 +511,24 @@ export function useHierarchicalImport() {
 
         remaining.length = 0;
         remaining.push(...deferred);
+      }
+
+      // Insert predecessor links using the resolved tempIndex → UUID map
+      const predRows: { task_id: string; predecessor_id: string }[] = [];
+      for (const t of tasks) {
+        if (!t._predecessorIndices?.length) continue;
+        const taskId = indexToId.get(t._tempIndex);
+        if (!taskId) continue;
+        for (const predIdx of t._predecessorIndices) {
+          const predId = indexToId.get(predIdx);
+          if (predId) predRows.push({ task_id: taskId, predecessor_id: predId });
+        }
+      }
+      if (predRows.length > 0) {
+        const { error: predErr } = await supabase
+          .from("siteplan_task_predecessors")
+          .insert(predRows);
+        if (predErr) throw predErr;
       }
 
       return allInserted;

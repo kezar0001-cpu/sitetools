@@ -5,7 +5,7 @@ import { X, AlertCircle, Check, FileSpreadsheet } from "lucide-react";
 import type { ImportedRow, TaskType } from "@/types/siteplan";
 import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
 import type { HierarchicalTask } from "@/hooks/useSitePlanTasks";
-import { parseCsvToTasks } from "@/lib/csvParser";
+import { parseCsvToTasks, resolvePredecessorIndices } from "@/lib/csvParser";
 
 interface ImportPanelProps {
   projectId: string;
@@ -260,6 +260,9 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
       .toISOString()
       .split("T")[0];
 
+    // Resolve predecessor references (names / row numbers) → flat indices
+    const predIndicesByRow = resolvePredecessorIndices(rows);
+
     // Build hierarchical tasks with _tempIndex and _parentIndex.
     // We use a stack that tracks the outline_level → _tempIndex mapping
     // so each row knows who its parent is.
@@ -285,11 +288,11 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
       tasks.push({
         _tempIndex: i,
         _parentIndex: parentIndex,
+        _predecessorIndices: predIndicesByRow[i],
         name: row.name,
         type: row.type,
         start_date: row.start_date || today,
         end_date: row.end_date || nextWeek,
-        predecessors: row.predecessors || undefined,
         responsible: row.responsible || undefined,
         assigned_to: row.assigned_to || undefined,
         comments: row.comments || undefined,
