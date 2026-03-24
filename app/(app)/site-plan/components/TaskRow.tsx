@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Columns } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Columns, Plus } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
@@ -44,6 +44,10 @@ interface TaskRowProps {
   hiddenColumns?: Set<string>;
   /** Highlight the row with a yellow background (used to show cascade delay impact) */
   isHighlighted?: boolean;
+  /** Opens CreateTaskSheet to insert a sibling row immediately below this one */
+  onAddBelow?: (node: SitePlanTaskNode) => void;
+  /** Opens CreateTaskSheet to insert a child row under this task */
+  onAddSubtask?: (node: SitePlanTaskNode) => void;
 }
 
 // Distinctive backgrounds per type
@@ -164,6 +168,8 @@ export function TaskRow({
   onCheck,
   hiddenColumns = new Set(),
   isHighlighted = false,
+  onAddBelow,
+  onAddSubtask,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -197,9 +203,34 @@ export function TaskRow({
 
   const show = (col: string) => !hiddenColumns.has(col);
 
+  // Row-level add menu (desktop only)
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+  const plusButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!showAddMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (plusButtonRef.current && !plusButtonRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAddMenu]);
+
+  const handlePlusClick = (e: { stopPropagation: () => void }) => {
+    e.stopPropagation();
+    if (plusButtonRef.current) {
+      const rect = plusButtonRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 2, left: rect.left });
+    }
+    setShowAddMenu((v) => !v);
+  };
+
   return (
     <div
-      className={`hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${accentBorder} ${stickyStyle} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
+      className={`group hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${accentBorder} ${stickyStyle} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
       onClick={(e) => {
         if (editMode && e.shiftKey) {
           onCheck?.(node, !isChecked);
@@ -301,6 +332,53 @@ export function TaskRow({
           className={`ml-auto shrink-0 md:hidden w-2.5 h-2.5 rounded-full ${statusDot[node.status]}`}
           title={STATUS_LABELS[node.status]}
         />
+
+        {/* Desktop row-level add action — visible on hover */}
+        {!editMode && (onAddBelow || onAddSubtask) && (
+          <div className="relative shrink-0 self-center hidden md:block ml-1">
+            <button
+              ref={plusButtonRef}
+              onClick={handlePlusClick}
+              className={`rounded p-0.5 flex items-center justify-center min-w-[20px] min-h-[20px] transition-opacity ${isPhase ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200"} ${showAddMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
+              aria-label="Add task"
+              title="Add task…"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+
+            {showAddMenu && dropdownPos && (
+              <div
+                style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left }}
+                className="z-[9999] bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+              >
+                {onAddBelow && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAddMenu(false);
+                      onAddBelow(node);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 text-left"
+                  >
+                    Add task below
+                  </button>
+                )}
+                {onAddSubtask && node.type !== "subtask" && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAddMenu(false);
+                      onAddSubtask(node);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 text-left"
+                  >
+                    Add subtask
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Duration */}
