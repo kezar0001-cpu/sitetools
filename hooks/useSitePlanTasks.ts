@@ -18,7 +18,7 @@ export interface TaskPredecessorRow {
   task_id: string;
   predecessor_id: string;
 }
-import { computeTaskStatus, generateWbsCode } from "@/types/siteplan";
+import { computeTaskStatus } from "@/types/siteplan";
 
 const tasksKey = sitePlanKeys.tasks;
 const progressLogKey = sitePlanKeys.progressLog;
@@ -210,40 +210,25 @@ export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation<SitePlanTask, Error, CreateTaskPayload>({
     mutationFn: async (payload: CreateTaskPayload) => {
-      // Compute WBS code from sibling count at target level
-      let siblingQuery = supabase
-        .from("siteplan_tasks")
-        .select("id", { count: "exact", head: true })
-        .eq("project_id", payload.project_id);
-
-      if (payload.parent_id) {
-        siblingQuery = siblingQuery.eq("parent_id", payload.parent_id);
-      } else {
-        siblingQuery = siblingQuery.is("parent_id", null);
-      }
-
-      const { count } = await siblingQuery.then((res) => ({ count: res.count ?? 0 }));
-
-      // If parent exists, get parent's WBS code
-      let parentWbs: string | null = null;
-      if (payload.parent_id) {
-        const { data: parent } = await supabase
-          .from("siteplan_tasks")
-          .select("wbs_code")
-          .eq("id", payload.parent_id)
-          .single();
-        parentWbs = parent?.wbs_code ?? null;
-      }
-
-      const wbs_code = generateWbsCode(parentWbs, count);
-
-      const { data, error } = await supabase
-        .from("siteplan_tasks")
-        .insert({ ...payload, wbs_code })
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc("create_siteplan_task", {
+        p_project_id:  payload.project_id,
+        p_name:        payload.name,
+        p_type:        payload.type,
+        p_start_date:  payload.start_date,
+        p_end_date:    payload.end_date,
+        p_parent_id:   payload.parent_id ?? null,
+        p_status:      "not_started",
+        p_progress:    0,
+        p_sort_order:  payload.sort_order ?? 0,
+        p_responsible: payload.responsible ?? null,
+        p_assigned_to: payload.assigned_to ?? null,
+        p_comments:    payload.comments ?? null,
+        p_notes:       payload.notes ?? null,
+        p_predecessors: payload.predecessors ?? null,
+      });
       if (error) throw error;
-      return data as SitePlanTask;
+      // rpc with RETURNS SETOF returns an array; we always get exactly one row
+      return (Array.isArray(data) ? data[0] : data) as SitePlanTask;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: tasksKey(data.project_id) });
