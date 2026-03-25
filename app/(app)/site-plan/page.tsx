@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FolderOpen } from "lucide-react";
 import { useSitePlanProjects } from "@/hooks/useSitePlan";
 import type { ProjectWithStats } from "@/hooks/useSitePlan";
 import type { ProjectHealth } from "@/types/siteplan";
 import { HealthBadge } from "./components/StatusBadge";
 import { ProgressBar } from "./components/ProgressSlider";
 import { ProjectGridSkeleton } from "./components/Skeleton";
+import { SitePlanOnboardingEmptyState } from "./components/OnboardingEmptyState";
 import { QueryProvider } from "@/components/QueryProvider";
 
 function deriveHealth(p: ProjectWithStats): ProjectHealth {
@@ -71,22 +71,7 @@ function SitePlanDashboardInner() {
       {isLoading ? (
         <ProjectGridSkeleton />
       ) : !projects || projects.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <FolderOpen className="h-12 w-12 text-slate-300 mb-4" />
-          <h2 className="text-base font-semibold text-slate-700">
-            No projects found
-          </h2>
-          <p className="text-sm text-slate-500 mt-1 mb-6 max-w-md">
-            Create a project in your Buildstate workspace first, then come back
-            here to build your construction programme.
-          </p>
-          <a
-            href="/dashboard/projects"
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
-          >
-            Go to Projects
-          </a>
-        </div>
+        <SitePlanOnboardingEmptyState />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
