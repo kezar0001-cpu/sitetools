@@ -28,6 +28,8 @@ export function useDelayLogs(taskId: string | null) {
       return data ?? [];
     },
     enabled: !!taskId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
@@ -49,6 +51,8 @@ export function useProjectDelayLogs(projectId: string) {
       });
     },
     enabled: !!projectId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 

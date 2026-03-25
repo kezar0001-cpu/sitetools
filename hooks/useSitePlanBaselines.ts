@@ -75,6 +75,8 @@ export function useSitePlanBaselines(projectId: string) {
       return (data ?? []) as Baseline[];
     },
     enabled: !!projectId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
