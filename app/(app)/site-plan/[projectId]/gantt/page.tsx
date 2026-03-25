@@ -9,5 +9,5 @@ export default function GanttPage({
 }: {
   params: { projectId: string };
 }) {
-  redirect(`/site-plan/${params.projectId}`);
+  redirect(`/site-plan/${params.projectId}?view=gantt`);
 }

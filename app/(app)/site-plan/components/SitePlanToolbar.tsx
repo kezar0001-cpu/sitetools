@@ -102,6 +102,10 @@ interface ToolbarProps {
   // Fullscreen
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+
+  // View toggle (desktop only)
+  view?: "list" | "gantt" | "split";
+  onViewChange?: (view: "list" | "gantt" | "split") => void;
 }
 
 // ─── Toolbar button ─────────────────────────────────────────
@@ -464,6 +468,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
     onToggleEditMode,
     isFullscreen,
     onToggleFullscreen,
+    view,
+    onViewChange,
   } = props;
 
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -751,6 +757,26 @@ export function SitePlanToolbar(props: ToolbarProps) {
             </span>
           )}
         </button>
+
+        {/* View toggle */}
+        {onViewChange && (
+          <div className="flex items-center border border-slate-200 rounded overflow-hidden mr-0.5">
+            {(["list", "gantt", "split"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => onViewChange(v)}
+                title={`${v.charAt(0).toUpperCase() + v.slice(1)} view`}
+                className={`px-2.5 py-1 text-[11px] font-medium capitalize transition-colors ${
+                  view === v
+                    ? "bg-slate-800 text-white"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {v === "list" ? "List" : v === "gantt" ? "Gantt" : "Split"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <TBtn
           icon={isFullscreen ? Minimize2 : Maximize2}
