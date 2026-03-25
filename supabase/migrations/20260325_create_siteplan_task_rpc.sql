@@ -4,75 +4,78 @@
 -- concurrent inserts could read the same sibling count and produce duplicate
 -- WBS codes.
 
-CREATE OR REPLACE FUNCTION create_siteplan_task(
+create or replace function create_siteplan_task(
   p_project_id   uuid,
   p_name         text,
   p_type         text,
   p_start_date   date,
   p_end_date     date,
-  p_parent_id    uuid    DEFAULT NULL,
-  p_status       text    DEFAULT 'not_started',
-  p_progress     int     DEFAULT 0,
-  p_sort_order   int     DEFAULT 0,
-  p_responsible  text    DEFAULT NULL,
-  p_assigned_to  text    DEFAULT NULL,
-  p_comments     text    DEFAULT NULL,
-  p_notes        text    DEFAULT NULL,
-  p_predecessors text    DEFAULT NULL
+  p_parent_id    uuid    default null,
+  p_status       text    default 'not_started',
+  p_progress     int     default 0,
+  p_sort_order   int     default 0,
+  p_responsible  text    default null,
+  p_assigned_to  text    default null,
+  p_comments     text    default null,
+  p_notes        text    default null,
+  p_predecessors text    default null
 )
-RETURNS SETOF siteplan_tasks
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path = public
-AS $$
-DECLARE
+returns setof siteplan_tasks
+language plpgsql
+security definer
+as $$
+declare
   v_sibling_count int;
   v_parent_wbs    text;
   v_wbs_code      text;
-BEGIN
+begin
   -- Count siblings at the target level.
-  -- No explicit lock needed: the subsequent INSERT will conflict on any
-  -- duplicate wbs_code within the same transaction, and the count + insert
-  -- happen in the same statement boundary so no other session can interleave.
-  SELECT COUNT(*)
-  INTO v_sibling_count
-  FROM siteplan_tasks
-  WHERE project_id = p_project_id
-    AND (
-      (p_parent_id IS NULL AND parent_id IS NULL)
-      OR  (p_parent_id IS NOT NULL AND parent_id = p_parent_id)
+  -- The count and insert run in the same server-side call so no concurrent
+  -- session can interleave and claim the same sibling position.
+  select count(*)
+  into v_sibling_count
+  from siteplan_tasks
+  where project_id = p_project_id
+    and (
+      (p_parent_id is null     and parent_id is null)
+      or (p_parent_id is not null and parent_id = p_parent_id)
     );
 
   -- Fetch parent WBS code when a parent is provided.
-  IF p_parent_id IS NOT NULL THEN
-    SELECT wbs_code
-    INTO v_parent_wbs
-    FROM siteplan_tasks
-    WHERE id = p_parent_id;
-  END IF;
+  if p_parent_id is not null then
+    select wbs_code
+    into v_parent_wbs
+    from siteplan_tasks
+    where id = p_parent_id;
+  end if;
 
   -- Mirror the client-side generateWbsCode(parentWbs, siblingCount) logic:
-  --   index is 0-based sibling count → 1-based display number.
-  IF v_parent_wbs IS NOT NULL THEN
+  --   sibling count is 0-based → 1-based display number.
+  if v_parent_wbs is not null then
     v_wbs_code := v_parent_wbs || '.' || (v_sibling_count + 1)::text;
-  ELSE
+  else
     v_wbs_code := (v_sibling_count + 1)::text;
-  END IF;
+  end if;
 
-  RETURN QUERY
-  INSERT INTO siteplan_tasks (
+  return query
+  insert into siteplan_tasks (
     project_id, parent_id, wbs_code,
     name, type, status,
     start_date, end_date,
     progress, sort_order,
     responsible, assigned_to, comments, notes, predecessors
-  ) VALUES (
+  ) values (
     p_project_id, p_parent_id, v_wbs_code,
     p_name, p_type::siteplan_task_type, p_status::siteplan_task_status,
     p_start_date, p_end_date,
     p_progress, p_sort_order,
     p_responsible, p_assigned_to, p_comments, p_notes, p_predecessors
   )
-  RETURNING *;
-END;
+  returning *;
+end;
 $$;
+
+grant execute on function create_siteplan_task(
+  uuid, text, text, date, date, uuid, text, int, int,
+  text, text, text, text, text
+) to authenticated;
