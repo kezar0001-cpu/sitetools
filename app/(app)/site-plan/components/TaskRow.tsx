@@ -8,6 +8,7 @@ import type { DraggableProvided } from "@hello-pangea/dnd";
 import { ProgressBar } from "./ProgressSlider";
 import {
   PHASE_ACCENT_COLORS,
+  PHASE_BG_COLORS,
   STATUS_DOT_STYLES,
   STATUS_TASK_BADGE_STYLES,
   STATUS_PHASE_BADGE_STYLES,
@@ -50,17 +51,18 @@ interface TaskRowProps {
   onAddSubtask?: (node: SitePlanTaskNode) => void;
 }
 
-// Distinctive backgrounds per type
+// Distinctive backgrounds per type (phase bg is computed dynamically from phaseIndex)
 const rowBg: Record<string, string> = {
-  phase: "bg-slate-800",
   task: "bg-white",
   subtask: "bg-slate-50",
+  milestone: "bg-white",
 };
 
 const rowText: Record<string, string> = {
   phase: "text-white",
   task: "text-slate-900",
-  subtask: "text-slate-600",
+  subtask: "text-slate-500",
+  milestone: "text-slate-900",
 };
 
 // Aliases for local readability
@@ -174,8 +176,8 @@ export function TaskRow({
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
   const isSubtask = node.type === "subtask";
-  // Compute indent level based on task type
-  const indentLevel = node.type === "phase" ? 0 : node.type === "task" ? 1 : 2;
+  // Compute indent level based on task type (subtasks get extra indent for visual hierarchy)
+  const indentLevel = node.type === "phase" ? 0 : node.type === "task" ? 1 : node.type === "subtask" ? 3 : 2;
 
   // For phases, derive display values from children so the phase reflects actual child data
   const phaseStats = isPhase ? computePhaseStats(node.children) : null;
@@ -184,11 +186,12 @@ export function TaskRow({
   const displayEndDate = phaseStats?.endDate ?? node.end_date;
   const displayStatus = phaseStats?.status ?? node.status;
 
-  const bg = isDragging ? "bg-blue-50" : isHighlighted ? "bg-yellow-100" : rowBg[node.type];
+  const phaseBg = PHASE_BG_COLORS[phaseIndex % PHASE_BG_COLORS.length];
+  const bg = isDragging ? "bg-blue-50" : isHighlighted ? "bg-yellow-100" : isPhase ? phaseBg : rowBg[node.type] ?? "bg-white";
   const text = isDragging ? "text-slate-900" : isHighlighted ? "text-slate-900" : rowText[node.type];
-  const borderColor = isPhase ? "border-slate-700" : "border-slate-200";
+  const borderColor = isPhase ? "border-white/10" : "border-slate-200";
   const dateCls = isPhase
-    ? "text-slate-300 tabular-nums"
+    ? "text-white/70 tabular-nums"
     : "text-slate-500 tabular-nums";
 
   // Phase accent border color
@@ -277,7 +280,7 @@ export function TaskRow({
       ) : (
         <div
           {...(dragHandleProps ?? {})}
-          className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing self-center ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+          className={`w-7 shrink-0 flex items-center justify-center cursor-grab active:cursor-grabbing self-center ${isPhase ? "text-white/40 hover:text-white/70" : "text-slate-300 hover:text-slate-500"}`}
           onClick={(e) => e.stopPropagation()}
         >
           <GripVertical className="h-3.5 w-3.5" />
@@ -294,20 +297,27 @@ export function TaskRow({
         {/* Vertical nesting guide lines */}
         <NestingGuides depth={indentLevel} />
 
-        {/* Expand/collapse */}
-        {hasChildren ? (
+        {/* Expand/collapse or milestone diamond */}
+        {node.type === "milestone" ? (
+          <span
+            className="w-5 shrink-0 mr-1 flex items-center justify-center text-amber-500 text-xs leading-none"
+            aria-label="Milestone"
+          >
+            ◆
+          </span>
+        ) : hasChildren ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggle();
             }}
-            className={`p-0.5 rounded min-w-[20px] min-h-[20px] flex items-center justify-center shrink-0 mr-1 ${isPhase ? "hover:bg-slate-700" : "hover:bg-slate-200"}`}
+            className={`p-0.5 rounded min-w-[20px] min-h-[20px] flex items-center justify-center shrink-0 mr-1 ${isPhase ? "hover:bg-white/10" : "hover:bg-slate-200"}`}
             aria-label={expanded ? "Collapse" : "Expand"}
           >
             {expanded ? (
-              <ChevronDown className={`h-3.5 w-3.5 ${isPhase ? "text-slate-300" : "text-slate-500"}`} />
+              <ChevronDown className={`h-3.5 w-3.5 ${isPhase ? "text-white/70" : "text-slate-500"}`} />
             ) : (
-              <ChevronRight className={`h-3.5 w-3.5 ${isPhase ? "text-slate-300" : "text-slate-500"}`} />
+              <ChevronRight className={`h-3.5 w-3.5 ${isPhase ? "text-white/70" : "text-slate-500"}`} />
             )}
           </button>
         ) : (
@@ -318,14 +328,27 @@ export function TaskRow({
         <span
           className={`break-words min-w-0 ${text} ${
             isPhase
-              ? "font-semibold text-sm tracking-wide uppercase"
+              ? "font-bold text-sm tracking-wide uppercase"
               : isSubtask
-                ? "text-xs font-normal text-slate-500"
+                ? "text-xs font-light text-slate-400"
                 : "text-xs font-medium"
           }`}
         >
           {node.name}
         </span>
+
+        {/* Phase inline mini progress bar */}
+        {isPhase && (
+          <div className="ml-2 flex items-center gap-1.5 shrink-0 self-center">
+            <div className="w-16 h-1.5 rounded-full bg-white/20 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-white/75 transition-all"
+                style={{ width: `${displayProgress}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-white/60 tabular-nums">{displayProgress}%</span>
+          </div>
+        )}
 
         {/* Mobile status dot — always visible */}
         <span
@@ -339,7 +362,7 @@ export function TaskRow({
             <button
               ref={plusButtonRef}
               onClick={handlePlusClick}
-              className={`rounded p-0.5 flex items-center justify-center min-w-[20px] min-h-[20px] transition-opacity ${isPhase ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200"} ${showAddMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
+              className={`rounded p-0.5 flex items-center justify-center min-w-[20px] min-h-[20px] transition-opacity ${isPhase ? "text-white/50 hover:text-white hover:bg-white/15" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200"} ${showAddMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
               aria-label="Add task"
               title="Add task…"
             >
@@ -402,7 +425,7 @@ export function TaskRow({
       {/* End Date */}
       {show("finish") && (
         <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-          <span className={isPhase ? "text-red-300 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
+          <span className={isPhase ? "text-white/80 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
             {formatDate(displayEndDate)}
           </span>
         </div>
@@ -410,7 +433,7 @@ export function TaskRow({
 
       {/* Predecessors — desktop only */}
       {show("pred") && (
-        <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-500"}`}>
+        <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-white/10 text-white/60" : "border-slate-200 text-slate-500"}`}>
           <span className="break-words min-w-0">{node.predecessors || ""}</span>
         </div>
       )}
@@ -457,7 +480,7 @@ export function TaskRow({
                 e.stopPropagation();
                 onLogDelay?.(node);
               }}
-              className={`min-w-[32px] min-h-[28px] flex items-center justify-center rounded hover:bg-slate-200/50 ${isPhase ? "text-slate-500 hover:text-slate-300" : "text-slate-300 hover:text-slate-500"}`}
+              className={`min-w-[32px] min-h-[28px] flex items-center justify-center rounded ${isPhase ? "text-white/40 hover:text-white/70 hover:bg-white/10" : "text-slate-300 hover:text-slate-500 hover:bg-slate-200/50"}`}
               title="Log Delay"
             >
               <AlertTriangle className="h-3 w-3" />
@@ -468,7 +491,7 @@ export function TaskRow({
 
       {/* Assigned To — desktop only */}
       {show("assigned") && (
-        <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-slate-400" : "text-slate-500"}`}>
+        <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-white/60" : "text-slate-500"}`}>
           <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>
         </div>
       )}
