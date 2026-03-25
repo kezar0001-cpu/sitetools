@@ -86,7 +86,12 @@ interface ConflictDetectionDeps {
 
 /**
  * Detects when another user edits a field on the same task while the local
- * user has pending changes, and surfaces a resolution UI.
+ * user has pending changes, and surfaces conflict entries for resolution.
+ *
+ * Conflicts are surfaced passively via the returned `conflicts` array — the
+ * hook never controls panel visibility. The caller decides when and how to
+ * present the resolution UI so the user is never blocked from continuing to
+ * edit.
  *
  * Also flushes pending debounced saves when the user switches to a different
  * task, so no edits are lost.
