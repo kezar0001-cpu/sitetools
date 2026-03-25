@@ -59,6 +59,8 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
+  undoLabel?: string;
+  redoLabel?: string;
 
   // Expand/Collapse
   allExpanded: boolean;
@@ -441,6 +443,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
     canRedo,
     onUndo,
     onRedo,
+    undoLabel,
+    redoLabel,
     allExpanded,
     onToggleAll,
     selectedTask,
@@ -475,8 +479,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
 
   // Items shown in the mobile More... dropdown
   const moreMenuItems: MenuItem[] = [
-    { icon: Undo2, label: "Undo", onClick: onUndo, disabled: !canUndo },
-    { icon: Redo2, label: "Redo", onClick: onRedo, disabled: !canRedo },
+    { icon: Undo2, label: undoLabel ? `Undo: ${undoLabel}` : "Undo", onClick: onUndo, disabled: !canUndo },
+    { icon: Redo2, label: redoLabel ? `Redo: ${redoLabel}` : "Redo", onClick: onRedo, disabled: !canRedo },
     {
       icon: ChevronsUpDown,
       label: allExpanded ? "Collapse All" : "Expand All",
@@ -609,8 +613,8 @@ export function SitePlanToolbar(props: ToolbarProps) {
   return (
     <>
       <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-slate-200 bg-slate-50 overflow-x-auto">
-        <TBtn icon={Undo2} label="Undo" onClick={onUndo} disabled={!canUndo} />
-        <TBtn icon={Redo2} label="Redo" onClick={onRedo} disabled={!canRedo} />
+        <TBtn icon={Undo2} label={undoLabel ? `Undo: ${undoLabel}` : "Undo"} onClick={onUndo} disabled={!canUndo} />
+        <TBtn icon={Redo2} label={redoLabel ? `Redo: ${redoLabel}` : "Redo"} onClick={onRedo} disabled={!canRedo} />
         <Divider />
         <TBtn
           icon={ChevronsUpDown}
