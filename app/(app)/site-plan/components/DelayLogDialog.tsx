@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type {
@@ -80,7 +81,8 @@ export function DelayLogDialog({
   };
 
   return (
-    <>
+    <ComponentErrorBoundary>
+      <>
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/20 z-40"
@@ -260,6 +262,7 @@ export function DelayLogDialog({
           )}
         </div>
       </div>
-    </>
+      </>
+    </ComponentErrorBoundary>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "@/types/siteplan";
 import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import { StatusBadge } from "./StatusBadge";
+import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { STATUS_BAR_COLORS } from "@/lib/sitePlanColors";
 import { computeCriticalPath } from "@/lib/criticalPath";
 import {
@@ -535,6 +536,7 @@ export function GanttChart({
   };
 
   return (
+    <ComponentErrorBoundary>
     <div className="flex flex-col h-full bg-white">
       {/* Controls bar */}
       <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-200 bg-slate-50 flex-shrink-0 overflow-x-auto">
@@ -1261,5 +1263,6 @@ export function GanttChart({
       <style jsx>{`
       `}</style>
     </div>
+    </ComponentErrorBoundary>
   );
 }
