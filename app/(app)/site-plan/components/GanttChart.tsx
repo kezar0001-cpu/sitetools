@@ -10,7 +10,6 @@ import {
 import {
   Calendar,
   X,
-  AlertTriangle,
   Share2,
   GitBranch,
 } from "lucide-react";
@@ -23,6 +22,7 @@ import {
   buildTaskTree,
   flattenTree,
 } from "@/types/siteplan";
+import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import { StatusBadge } from "./StatusBadge";
 import { STATUS_BAR_COLORS } from "@/lib/sitePlanColors";
 import { computeCriticalPath } from "@/lib/criticalPath";
@@ -217,7 +217,6 @@ export function GanttChart({
   onTaskClick,
   onDoubleClick,
   onDateChange,
-  onLogDelay,
   canEdit = true,
 }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("week");
@@ -231,6 +230,11 @@ export function GanttChart({
     y: number;
     predName: string;
     succName: string;
+  } | null>(null);
+  const [hoverTooltip, setHoverTooltip] = useState<{
+    x: number;
+    y: number;
+    task: SitePlanTask;
   } | null>(null);
   const [expandedPhases] = useState<Set<string>>(new Set());
   const [allExpanded] = useState(true);
@@ -407,6 +411,11 @@ export function GanttChart({
     };
   }, [zoom]);
 
+  // useUpdateTask for resize-end drag (called directly without parent callback)
+  const updateTask = useUpdateTask();
+  const updateTaskRef = useRef(updateTask);
+  updateTaskRef.current = updateTask;
+
   // Drag state for interactive bar resizing
   const [dragState, setDragState] = useState<{
     task: SitePlanTask;
@@ -423,6 +432,7 @@ export function GanttChart({
       if (!canEdit || task.type === "phase" || task.type === "milestone") return;
       e.stopPropagation();
       e.preventDefault();
+      setHoverTooltip(null);
       setDragState({
         task,
         mode,
@@ -435,6 +445,22 @@ export function GanttChart({
     },
     [canEdit]
   );
+
+  // Bar hover handlers — show/update/hide the floating tooltip
+  const handleBarMouseEnter = useCallback(
+    (e: React.MouseEvent, task: SitePlanTask) => {
+      setHoverTooltip({ x: e.clientX, y: e.clientY, task });
+    },
+    []
+  );
+  const handleBarMouseMove = useCallback((e: React.MouseEvent) => {
+    setHoverTooltip((prev) =>
+      prev ? { ...prev, x: e.clientX, y: e.clientY } : null
+    );
+  }, []);
+  const handleBarMouseLeave = useCallback(() => {
+    setHoverTooltip(null);
+  }, []);
 
   useEffect(() => {
     if (!dragState) return;
@@ -474,7 +500,16 @@ export function GanttChart({
         const origEnd = fmt(dragState.origEndDate);
 
         if (newStart !== origStart || newEnd !== origEnd) {
-          onDateChange?.(dragState.task, newStart, newEnd);
+          if (dragState.mode === "resize-end") {
+            // Drag-handle resize: update end_date directly via mutation
+            updateTaskRef.current.mutate({
+              id: dragState.task.id,
+              projectId: dragState.task.project_id,
+              updates: { end_date: newEnd },
+            });
+          } else {
+            onDateChange?.(dragState.task, newStart, newEnd);
+          }
         }
       }
       setDragState(null);
@@ -488,9 +523,10 @@ export function GanttChart({
     };
   }, [dragState, totalTimelineWidth, totalDays, onDateChange]);
 
-  // Bar click handler
+  // Bar click handler — select bar for visual highlight and open TaskEditPanel immediately
   const handleBarClick = (task: SitePlanTask) => {
-    setSelectedBar(task);
+    setSelectedBar((prev) => (prev?.id === task.id ? null : task));
+    onTaskClick?.(task);
   };
 
   // Bar double-click handler
@@ -739,6 +775,13 @@ export function GanttChart({
               // Critical path
               const isCritical = showCriticalPath && criticalPathIds.has(node.id);
 
+              // Milestone geometry (symmetric diamond centered on start_date)
+              const mCx = barX;
+              const mCy = barY + barHeight / 2;
+              const mR = Math.min(barHeight / 2 - 1, 10);
+
+              const isSelected = selectedBar?.id === node.id;
+
               return (
                 <g
                   key={node.id}
@@ -747,35 +790,48 @@ export function GanttChart({
                   onClick={() => handleBarClick(taskData)}
                   onDoubleClick={() => handleBarDoubleClick(taskData)}
                 >
-                  {/* Milestone diamond — centered at the task date */}
+                  {/* Milestone — proper symmetric diamond centered on start_date */}
                   {isMilestone ? (
                     <>
                       <polygon
-                        points={`${barX + 10},${barY + barHeight / 2} ${barX + 1},${barY + 1} ${barX - 8},${barY + barHeight / 2} ${barX + 1},${barY + barHeight - 1}`}
+                        points={`${mCx},${mCy - mR} ${mCx + mR},${mCy} ${mCx},${mCy + mR} ${mCx - mR},${mCy}`}
                         fill="#7c3aed"
                         stroke="#5b21b6"
                         strokeWidth={1}
                         style={{ cursor: "pointer" }}
                         onMouseDown={(e) => e.stopPropagation()}
+                        onMouseEnter={(e) => handleBarMouseEnter(e, taskData)}
+                        onMouseMove={handleBarMouseMove}
+                        onMouseLeave={handleBarMouseLeave}
                       />
                       {/* Delay badge */}
                       {(delayCountMap.get(node.id) ?? 0) > 0 && (
                         <g>
                           <circle
-                            cx={barX + 18}
-                            cy={barY + barHeight / 2}
+                            cx={mCx + mR + 8}
+                            cy={mCy}
                             r={6}
                             fill="#ef4444"
                           />
                           <text
-                            x={barX + 18}
-                            y={barY + barHeight / 2 + 3}
+                            x={mCx + mR + 8}
+                            y={mCy + 3}
                             textAnchor="middle"
                             className="fill-white text-[8px] font-bold"
                           >
                             !
                           </text>
                         </g>
+                      )}
+                      {/* Selected ring */}
+                      {isSelected && (
+                        <polygon
+                          points={`${mCx},${mCy - mR - 3} ${mCx + mR + 3},${mCy} ${mCx},${mCy + mR + 3} ${mCx - mR - 3},${mCy}`}
+                          fill="none"
+                          stroke="#2563eb"
+                          strokeWidth={2}
+                          style={{ pointerEvents: "none" }}
+                        />
                       )}
                     </>
                   ) : /* Phase summary bar (diamond ends) */
@@ -788,16 +844,21 @@ export function GanttChart({
                         height={4}
                         fill="#334155"
                         rx={1}
+                        onMouseEnter={(e) => handleBarMouseEnter(e, taskData)}
+                        onMouseMove={handleBarMouseMove}
+                        onMouseLeave={handleBarMouseLeave}
                       />
                       {/* Start diamond */}
                       <polygon
                         points={`${barX},${barY + barHeight / 2} ${barX + 5},${barY + barHeight / 2 - 5} ${barX + 10},${barY + barHeight / 2} ${barX + 5},${barY + barHeight / 2 + 5}`}
                         fill="#334155"
+                        style={{ pointerEvents: "none" }}
                       />
                       {/* End diamond */}
                       <polygon
                         points={`${barEndX - 10},${barY + barHeight / 2} ${barEndX - 5},${barY + barHeight / 2 - 5} ${barEndX},${barY + barHeight / 2} ${barEndX - 5},${barY + barHeight / 2 + 5}`}
                         fill="#334155"
+                        style={{ pointerEvents: "none" }}
                       />
                     </>
                   ) : (
@@ -811,6 +872,9 @@ export function GanttChart({
                         fill={colors.bg}
                         rx={4}
                         onMouseDown={(e) => handleBarMouseDown(e, taskData, "move")}
+                        onMouseEnter={(e) => handleBarMouseEnter(e, taskData)}
+                        onMouseMove={handleBarMouseMove}
+                        onMouseLeave={handleBarMouseLeave}
                         style={canEdit ? { cursor: isDragging ? "grabbing" : "grab" } : undefined}
                       />
 
@@ -827,17 +891,31 @@ export function GanttChart({
                         />
                       )}
 
-                      {/* Resize handle on right edge */}
+                      {/* Resize handle on right edge — 8px wide grab zone with visible grip line */}
                       {canEdit && (
-                        <rect
-                          x={effectiveBarX + effectiveBarWidth - 6}
-                          y={barY}
-                          width={6}
-                          height={barHeight}
-                          fill="transparent"
-                          style={{ cursor: "ew-resize" }}
+                        <g
                           onMouseDown={(e) => handleBarMouseDown(e, taskData, "resize-end")}
-                        />
+                          style={{ cursor: "ew-resize" }}
+                        >
+                          <rect
+                            x={effectiveBarX + effectiveBarWidth - 8}
+                            y={barY}
+                            width={8}
+                            height={barHeight}
+                            fill="transparent"
+                          />
+                          {/* Visible grip indicator */}
+                          <line
+                            x1={effectiveBarX + effectiveBarWidth - 3}
+                            y1={barY + 3}
+                            x2={effectiveBarX + effectiveBarWidth - 3}
+                            y2={barY + barHeight - 3}
+                            stroke="rgba(0,0,0,0.25)"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            style={{ pointerEvents: "none" }}
+                          />
+                        </g>
                       )}
 
                       {/* Delay extension (hatched red) */}
@@ -907,6 +985,34 @@ export function GanttChart({
                       fill="#94a3b8"
                       rx={1}
                       opacity={0.5}
+                    />
+                  )}
+
+                  {/* Selected bar ring */}
+                  {isSelected && !isMilestone && !isPhase && (
+                    <rect
+                      x={effectiveBarX - 2}
+                      y={barY - 2}
+                      width={effectiveBarWidth + 4}
+                      height={barHeight + 4}
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      rx={5}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
+                  {isSelected && isPhase && (
+                    <rect
+                      x={barX - 2}
+                      y={barY - 2}
+                      width={barWidth + 4}
+                      height={barHeight + 4}
+                      fill="none"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      rx={3}
+                      style={{ pointerEvents: "none" }}
                     />
                   )}
 
@@ -1101,161 +1207,42 @@ export function GanttChart({
         </div>
       </div>
 
-      {/* Bottom sheet for selected bar (mobile) */}
-      {selectedBar && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/20 z-40 md:hidden"
-            onClick={() => setSelectedBar(null)}
-          />
-          <div className="fixed inset-x-0 bottom-0 z-50 md:hidden bg-white rounded-t-2xl shadow-xl max-h-[60vh] overflow-y-auto safe-area-pb">
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-slate-400 uppercase font-medium">
-                  {selectedBar.type}
-                </p>
-                <h3 className="text-sm font-bold text-slate-900 mt-0.5">
-                  {selectedBar.wbs_code} {selectedBar.name}
-                </h3>
-              </div>
-              <button
-                onClick={() => setSelectedBar(null)}
-                className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
-              >
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-
-            <div className="px-4 py-3 space-y-3">
-              {/* Status + Progress */}
-              <div className="flex items-center gap-3">
-                <StatusBadge status={selectedBar.status} />
-                <span className="text-sm font-semibold tabular-nums">
-                  {selectedBar.progress}%
-                </span>
-              </div>
-
-              {/* Dates */}
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400">Planned Start</span>
-                  <p className="font-medium text-slate-700">{selectedBar.start_date}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Planned End</span>
-                  <p className="font-medium text-slate-700">{selectedBar.end_date}</p>
-                </div>
-              </div>
-
-              {/* Delay info */}
-              {(delayCountMap.get(selectedBar.id) ?? 0) > 0 && (
-                <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-xs">
-                  <p className="font-medium text-red-700">
-                    {delayCountMap.get(selectedBar.id)} delay
-                    {(delayCountMap.get(selectedBar.id) ?? 0) !== 1 ? "s" : ""} logged
-                    {(delayDaysMap.get(selectedBar.id) ?? 0) > 0 &&
-                      ` (+${delayDaysMap.get(selectedBar.id)}d shift)`}
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  onClick={() => {
-                    setSelectedBar(null);
-                    onTaskClick?.(selectedBar);
-                  }}
-                  className="flex-1 px-3 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg min-h-[44px]"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedBar(null);
-                    onLogDelay?.(selectedBar);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg min-h-[44px]"
-                >
-                  <AlertTriangle className="h-4 w-4" />
-                  Log Delay
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Desktop: click bar shows tooltip/detail */}
-      {selectedBar && (
-        <div className="hidden md:block absolute top-16 right-4 z-30 w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-medium">
-                {selectedBar.type}
-              </p>
-              <h3 className="text-sm font-bold text-slate-900">
-                {selectedBar.wbs_code} {selectedBar.name}
-              </h3>
-            </div>
-            <button
-              onClick={() => setSelectedBar(null)}
-              className="p-1 rounded hover:bg-slate-100"
-            >
-              <X className="h-4 w-4 text-slate-400" />
-            </button>
-          </div>
-
+      {/* Hover tooltip — bar-level info card (both mobile & desktop) */}
+      {hoverTooltip && !dragState && (
+        <div
+          className="fixed z-[200] pointer-events-none bg-white border border-slate-200 rounded-xl shadow-xl p-3 text-xs min-w-[200px]"
+          style={{
+            left: hoverTooltip.x + 16,
+            top: hoverTooltip.y - 90,
+          }}
+        >
+          <p className="font-semibold text-slate-900 mb-1.5 leading-tight">
+            {hoverTooltip.task.wbs_code} {hoverTooltip.task.name}
+          </p>
           <div className="flex items-center gap-2 mb-2">
-            <StatusBadge status={selectedBar.status} />
-            <span className="text-xs font-semibold tabular-nums">
-              {selectedBar.progress}%
+            <StatusBadge status={hoverTooltip.task.status} />
+            <span className="font-semibold tabular-nums text-slate-700">
+              {hoverTooltip.task.progress}%
             </span>
           </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-            <div>
-              <span className="text-slate-400">Start</span>
-              <p className="font-medium">{selectedBar.start_date}</p>
-            </div>
-            <div>
-              <span className="text-slate-400">End</span>
-              <p className="font-medium">{selectedBar.end_date}</p>
-            </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-slate-500">
+            <span className="text-slate-400">Start</span>
+            <span className="font-medium text-slate-700 text-right">
+              {hoverTooltip.task.start_date}
+            </span>
+            <span className="text-slate-400">End</span>
+            <span className="font-medium text-slate-700 text-right">
+              {hoverTooltip.task.end_date}
+            </span>
           </div>
-
-          {(delayCountMap.get(selectedBar.id) ?? 0) > 0 && (
-            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs mb-3">
-              <p className="font-medium text-red-700">
-                {delayCountMap.get(selectedBar.id)} delay
-                {(delayCountMap.get(selectedBar.id) ?? 0) !== 1 ? "s" : ""}
-                {(delayDaysMap.get(selectedBar.id) ?? 0) > 0 &&
-                  ` — +${delayDaysMap.get(selectedBar.id)} day shift`}
-              </p>
+          {(delayCountMap.get(hoverTooltip.task.id) ?? 0) > 0 && (
+            <div className="mt-2 pt-2 border-t border-slate-100 text-red-600 font-medium">
+              {delayCountMap.get(hoverTooltip.task.id)} delay
+              {(delayCountMap.get(hoverTooltip.task.id) ?? 0) !== 1 ? "s" : ""}
+              {(delayDaysMap.get(hoverTooltip.task.id) ?? 0) > 0 &&
+                ` (+${delayDaysMap.get(hoverTooltip.task.id)}d)`}
             </div>
           )}
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setSelectedBar(null);
-                onTaskClick?.(selectedBar);
-              }}
-              className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded min-h-[32px]"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => {
-                setSelectedBar(null);
-                onLogDelay?.(selectedBar);
-              }}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded min-h-[32px]"
-            >
-              <AlertTriangle className="h-3.5 w-3.5" />
-              Log Delay
-            </button>
-          </div>
         </div>
       )}
 
