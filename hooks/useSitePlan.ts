@@ -22,6 +22,8 @@ export function useCompanyId() {
       if (!data) throw new Error("No organisation found");
       return data.company_id;
     },
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
@@ -65,6 +67,8 @@ export function useSitePlanProjects() {
       return (data ?? []) as ProjectWithStats[];
     },
     enabled: !!companyId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
@@ -82,5 +86,7 @@ export function useSitePlanProject(projectId: string) {
       return data;
     },
     enabled: !!projectId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }

@@ -121,6 +121,8 @@ export function useSitePlanTasks(projectId: string) {
       return tasks;
     },
     enabled: !!projectId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
@@ -137,6 +139,8 @@ export function useProgressLog(taskId: string | null) {
       return data ?? [];
     },
     enabled: !!taskId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
@@ -155,6 +159,8 @@ export function useTaskPredecessors(taskId: string | null) {
       return (data ?? []) as TaskPredecessorRow[];
     },
     enabled: !!taskId,
+    staleTime: 30_000,
+    gcTime: 300_000,
   });
 }
 
