@@ -167,6 +167,10 @@ export function useTaskPredecessors(taskId: string | null) {
 /**
  * Replaces all predecessor links for a task atomically:
  * deletes existing rows then inserts the new set.
+ *
+ * Before touching the database a DFS cycle check is run against the
+ * in-memory task graph.  If the proposed links would create a circular
+ * dependency the mutation aborts and shows a descriptive toast.
  */
 export function useSetTaskPredecessors() {
   const qc = useQueryClient();
@@ -175,7 +179,74 @@ export function useSetTaskPredecessors() {
     Error,
     { taskId: string; predecessorIds: string[]; projectId: string }
   >({
-    mutationFn: async ({ taskId, predecessorIds }) => {
+    mutationFn: async ({ taskId, predecessorIds, projectId }) => {
+      // ── Cycle detection ────────────────────────────────────────
+      const tasks = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId)) ?? [];
+
+      if (tasks.length > 0) {
+        const taskById = new Map<string, SitePlanTask>(tasks.map((t) => [t.id, t]));
+        const wbsToId = new Map<string, string>(tasks.map((t) => [t.wbs_code, t.id]));
+
+        // Build adjacency map: nodeId → predecessor IDs
+        // (same direction used by criticalPath.ts: edge points from task to its predecessors)
+        const adj = new Map<string, string[]>();
+        for (const t of tasks) {
+          const preds: string[] = [];
+          if (t.predecessors) {
+            for (const raw of t.predecessors.split(",")) {
+              const code = raw.trim().replace(/FS$/i, "");
+              const predId = wbsToId.get(code);
+              if (predId) preds.push(predId);
+            }
+          }
+          adj.set(t.id, preds);
+        }
+
+        // Apply the proposed new links for this task
+        adj.set(taskId, predecessorIds);
+
+        // DFS from taskId following predecessor edges.
+        // If we encounter a node already on the current path, a cycle exists.
+        const path: string[] = [];
+        const onPath = new Set<string>();
+
+        const dfs = (nodeId: string): string[] | null => {
+          if (onPath.has(nodeId)) {
+            // Return the cycle portion of the path
+            const cycleStart = path.indexOf(nodeId);
+            return [...path.slice(cycleStart), nodeId];
+          }
+
+          onPath.add(nodeId);
+          path.push(nodeId);
+
+          for (const predId of adj.get(nodeId) ?? []) {
+            const result = dfs(predId);
+            if (result) return result;
+          }
+
+          path.pop();
+          onPath.delete(nodeId);
+          return null;
+        };
+
+        const cycle = dfs(taskId);
+        if (cycle) {
+          const cycleNames = cycle.map((id) => {
+            const t = taskById.get(id);
+            return t ? t.name : id;
+          });
+          toast.error(
+            `Cannot save: this would create a circular dependency (${cycleNames.join(" → ")})`,
+            { duration: Infinity }
+          );
+          const err = new Error("Cyclic dependency detected");
+          err.name = "CyclicDependencyError";
+          throw err;
+        }
+      }
+      // ── End cycle detection ────────────────────────────────────
+
       // Delete existing links for this task
       const { error: delErr } = await supabase
         .from("siteplan_task_predecessors")
@@ -198,7 +269,9 @@ export function useSetTaskPredecessors() {
       qc.invalidateQueries({ queryKey: taskPredecessorsKey(taskId) });
       qc.invalidateQueries({ queryKey: tasksKey(projectId) });
     },
-    onError: () => {
+    onError: (err) => {
+      // Cycle errors already show their own toast; suppress the generic one.
+      if (err.name === "CyclicDependencyError") return;
       toast.error("Failed to save — please retry", { duration: Infinity });
     },
   });
