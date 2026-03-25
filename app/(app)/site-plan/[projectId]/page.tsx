@@ -306,6 +306,16 @@ function ProjectDetailInner() {
   // Mobile view mode: "timeline" shows MilestoneTimeline, anything else shows task list
   const mobileView = searchParams.get("view") === "timeline" ? "timeline" : "list";
 
+  // Desktop view mode (URL param): list | gantt | split (default: list)
+  const viewParam = searchParams.get("view");
+  const desktopView = (viewParam === "gantt" || viewParam === "split" ? viewParam : "list") as "list" | "gantt" | "split";
+  const handleViewChange = useCallback(
+    (v: "list" | "gantt" | "split") => {
+      updateSearchParams({ view: v === "list" ? null : v });
+    },
+    [updateSearchParams]
+  );
+
   // Derive filter from URL search params
   const filter = useMemo<TaskFilter>(() => {
     const filterParam = searchParams.get("filter");
@@ -387,6 +397,7 @@ function ProjectDetailInner() {
   const [editMode, setEditMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
+  const panesRef = useRef<HTMLDivElement>(null);
   const [leftPaneWidth, setLeftPaneWidth] = useState(45);
 
   // ─── Virtual list state ──────────────────────────────────────
@@ -683,12 +694,6 @@ function ProjectDetailInner() {
     }
   }, []);
 
-  // ─── View navigation ─────────────────────────────────────
-  // Gantt is now embedded — no route change needed for gantt view.
-  // This handler is kept for legacy compatibility (e.g., BottomNav) but is a no-op.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _handleViewChange = (_view: string) => {};
-
   // Gantt date drag handler
   const handleGanttDateChange = useCallback(
     (task: SitePlanTask, start_date: string, end_date: string) => {
@@ -926,8 +931,8 @@ function ProjectDetailInner() {
     
     // Create handlers that capture the document's mouse events
     const handleMouseMove = (mouseEvent: MouseEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
+      if (!panesRef.current) return;
+      const rect = panesRef.current.getBoundingClientRect();
       const newWidthPercent = ((mouseEvent.clientX - rect.left) / rect.width) * 100;
       // Constrain between 20% and 80%
       setLeftPaneWidth(Math.min(Math.max(newWidthPercent, 20), 80));
@@ -957,12 +962,10 @@ function ProjectDetailInner() {
       `}</style>
       <div
         ref={containerRef}
-        className={`relative flex h-full bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
+        className={`relative flex h-full flex-col bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
       >
-        {/* Main content — left pane: task list (full width on mobile, dynamic 45% on desktop) */}
-        <div className={`flex-1 flex flex-col min-w-0 desktop-pane-split-left ${isResizing ? 'pointer-events-none select-none' : ''}`}>
         {/* Project header */}
-        <div className="px-4 py-2 border-b border-slate-200 bg-white">
+        <div className="px-4 py-2 border-b border-slate-200 bg-white shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push("/site-plan")}
@@ -1025,10 +1028,23 @@ function ProjectDetailInner() {
           onToggleEditMode={handleToggleEditMode}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
+          view={desktopView}
+          onViewChange={handleViewChange}
         />
 
-        {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
-        <div className="flex-1 flex flex-col min-h-0">
+        {/* Panes area: horizontal layout for task list and/or Gantt */}
+        <div
+          ref={panesRef}
+          className={`relative flex flex-1 min-h-0 ${isResizing ? "cursor-col-resize" : ""}`}
+        >
+          {/* Left pane: task list (hidden on desktop in gantt-only view) */}
+          <div className={`flex flex-col min-w-0 ${
+            desktopView === "gantt" ? "md:hidden" : ""
+          } ${
+            desktopView === "split" ? "desktop-pane-split-left" : "flex-1"
+          } ${isResizing ? "pointer-events-none select-none" : ""}`}>
+          {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
+          <div className="flex-1 flex flex-col min-h-0">
           {isLoading ? (
             <div className="flex-1 overflow-auto pb-20 md:pb-4">
               <TaskListSkeleton />
@@ -1228,52 +1244,70 @@ function ProjectDetailInner() {
               )}
             </DragDropContext>
           )}
-        </div>
-      </div>
+          </div>
+          </div>
 
-      {/* Splitter (desktop only) */}
-      <div
-        className="hidden md:block w-1 hover:w-1.5 bg-slate-200 hover:bg-blue-400 cursor-col-resize active:bg-blue-500 transition-colors z-[60] shrink-0"
-        onMouseDown={handleDragResizer}
-        title="Drag to resize panes"
-      />
-
-      {/* Right panel — Gantt chart (desktop, always visible) or task edit panel */}
-      <div className={`hidden md:flex flex-col border-l border-slate-200 desktop-pane-split-right ${isResizing ? 'pointer-events-none select-none' : ''}`} style={{ minWidth: 0 }}>
-        {/* Gantt chart — fills the right pane */}
-        <div className="flex-1 overflow-hidden relative">
-          {!isLoading && tasks && tasks.length > 0 ? (
-            <GanttChart
-              tasks={tasks}
-              baselines={baselines?.[0]?.snapshot}
-              delayLogs={delayLogs}
-              onTaskClick={handleGanttTaskClick}
-              onDoubleClick={handleGanttTaskClick}
-              onDateChange={handleGanttDateChange}
-              onLogDelay={(t) => setDelayTask(t as SitePlanTaskNode)}
-              canEdit={!editMode}
+          {/* Splitter (split view, desktop only) */}
+          {desktopView === "split" && (
+            <div
+              className="hidden md:block w-1 hover:w-1.5 bg-slate-200 hover:bg-blue-400 cursor-col-resize active:bg-blue-500 transition-colors z-[60] shrink-0"
+              onMouseDown={handleDragResizer}
+              title="Drag to resize panes"
             />
-          ) : (
-            <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-              {isLoading ? "Loading..." : "Add tasks to see the Gantt chart."}
+          )}
+
+          {/* Right pane: Gantt chart (gantt or split view, desktop only) */}
+          {desktopView !== "list" && (
+            <div
+              className={`hidden md:flex flex-col ${
+                desktopView === "split"
+                  ? "border-l border-slate-200 desktop-pane-split-right"
+                  : "flex-1"
+              } ${isResizing ? "pointer-events-none select-none" : ""}`}
+              style={{ minWidth: 0 }}
+            >
+              <div className="flex-1 overflow-hidden relative">
+                {!isLoading && tasks && tasks.length > 0 ? (
+                  <GanttChart
+                    tasks={tasks}
+                    baselines={baselines?.[0]?.snapshot}
+                    delayLogs={delayLogs}
+                    onTaskClick={handleGanttTaskClick}
+                    onDoubleClick={handleGanttTaskClick}
+                    onDateChange={handleGanttDateChange}
+                    onLogDelay={(t) => setDelayTask(t as SitePlanTaskNode)}
+                    canEdit={!editMode}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                    {isLoading ? "Loading..." : "Add tasks to see the Gantt chart."}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Task edit panel (desktop, non-edit mode) — overlays right side */}
+          {selectedTask && !editMode && (
+            <div
+              className="hidden md:block absolute right-0 top-0 bottom-0 z-20"
+              style={
+                desktopView === "split"
+                  ? { width: `${100 - leftPaneWidth}%` }
+                  : { width: "min(400px, 40vw)" }
+              }
+            >
+              <TaskEditPanel
+                task={selectedTask}
+                onClose={() => setSelectedTask(null)}
+                hasChildren={hasChildrenForSelected}
+                onAddSubtask={() =>
+                  openCreateSheet("subtask", selectedTask.id, selectedTask.children.length)
+                }
+              />
             </div>
           )}
         </div>
-
-        {/* Task edit panel slides over Gantt when a task is selected (non-edit mode) */}
-        {selectedTask && !editMode && (
-          <div className="absolute right-0 top-0 bottom-0 z-20" style={{ width: `${100 - leftPaneWidth}%` }}>
-            <TaskEditPanel
-              task={selectedTask}
-              onClose={() => setSelectedTask(null)}
-              hasChildren={hasChildrenForSelected}
-              onAddSubtask={() =>
-                openCreateSheet("subtask", selectedTask.id, selectedTask.children.length)
-              }
-            />
-          </div>
-        )}
-      </div>
 
       {/* Mobile task edit panel (non-edit mode only) */}
       {selectedTask && !editMode && (
