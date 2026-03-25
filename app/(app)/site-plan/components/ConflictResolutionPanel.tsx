@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { User, Clock, GitMerge, RefreshCw, Calendar, BarChart2 } from "lucide-react";
+import { User, Clock, GitMerge, Calendar, BarChart2 } from "lucide-react";
 import type { ConflictEntry, ConflictField } from "@/hooks/useConflictDetection";
 import {
   CONFLICT_FIELD_LABELS,
@@ -460,13 +460,7 @@ export function ConflictResolutionPanel({
   if (conflicts.length === 0) return null;
 
   return (
-    <div className="mx-4 mt-3 space-y-2 shrink-0">
-      <div className="flex items-center gap-2 text-xs font-semibold text-amber-800">
-        <RefreshCw className="h-3.5 w-3.5 shrink-0" />
-        {conflicts.length === 1
-          ? "1 field edited remotely while you were typing"
-          : `${conflicts.length} fields edited remotely while you were typing`}
-      </div>
+    <div className="mx-4 mt-3 mb-3 space-y-2 shrink-0">
       {conflicts.map((conflict) => (
         <ConflictCard
           key={conflict.field}

@@ -8,6 +8,7 @@ import {
   Check,
   Loader2,
   AlertTriangle,
+  ChevronDown,
 } from "lucide-react";
 import type { SitePlanTask, SitePlanTaskNode, UpdateTaskPayload } from "@/types/siteplan";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
@@ -21,7 +22,7 @@ import {
 import { useDelayLogs } from "@/hooks/useSitePlanDelays";
 import { useCompanyId } from "@/hooks/useSitePlan";
 import { useCompanyMembers } from "@/hooks/useCompanyMembers";
-import { useConflictDetection } from "@/hooks/useConflictDetection";
+import { useConflictDetection, CONFLICT_FIELD_LABELS } from "@/hooks/useConflictDetection";
 import { ConflictResolutionPanel } from "./ConflictResolutionPanel";
 import { StatusBadge } from "./StatusBadge";
 import { TaskEditorTabs } from "./TaskEditorTabs";
@@ -64,6 +65,7 @@ export function TaskEditPanel({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [savedField, setSavedField] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
+  const [conflictPanelOpen, setConflictPanelOpen] = useState(false);
 
   const updateTask = useUpdateTask();
   const updateProgress = useUpdateProgress();
@@ -144,6 +146,23 @@ export function TaskEditPanel({
       updateTask,
       formRef,
     });
+
+  // Close conflict panel automatically once all conflicts are resolved
+  useEffect(() => {
+    if (conflicts.length === 0) setConflictPanelOpen(false);
+  }, [conflicts.length]);
+
+  // Summarise the pending conflicts for the banner label
+  const conflictBannerText = useMemo(() => {
+    if (conflicts.length === 0) return "";
+    const latest = conflicts[conflicts.length - 1];
+    const member = members?.find((m) => m.id === latest.changedBy);
+    const name = member?.name ?? "Someone";
+    if (conflicts.length === 1) {
+      return `${name} updated ${CONFLICT_FIELD_LABELS[latest.field]} while you were editing`;
+    }
+    return `${name} updated ${conflicts.length} fields while you were editing`;
+  }, [conflicts, members]);
 
   // ─── Reset UI on task switch ─────────────────────────────────
 
@@ -242,15 +261,34 @@ export function TaskEditPanel({
           </button>
         </div>
 
-        {/* Conflict resolution */}
-        <ConflictResolutionPanel
-          conflicts={conflicts}
-          form={form}
-          members={members}
-          onKeepLocal={handleKeepLocal}
-          onUseRemote={handleUseRemote}
-          onApplyMerge={handleApplyMerge}
-        />
+        {/* Conflict banner — non-blocking; panel slides down on demand */}
+        {conflicts.length > 0 && (
+          <div className="shrink-0">
+            <button
+              onClick={() => setConflictPanelOpen((v) => !v)}
+              className="w-full px-4 py-2.5 bg-amber-400 hover:bg-amber-500 active:bg-amber-600 text-amber-900 text-xs font-medium text-left flex items-center justify-between gap-2"
+            >
+              <span>{conflictBannerText} — Tap to resolve</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
+                  conflictPanelOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+            {conflictPanelOpen && (
+              <div className="border-b border-amber-200 animate-in slide-in-from-top-1 duration-200">
+                <ConflictResolutionPanel
+                  conflicts={conflicts}
+                  form={form}
+                  members={members}
+                  onKeepLocal={handleKeepLocal}
+                  onUseRemote={handleUseRemote}
+                  onApplyMerge={handleApplyMerge}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tabbed editor */}
         <div className="flex-1 min-h-0 flex flex-col">
