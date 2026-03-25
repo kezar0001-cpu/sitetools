@@ -217,7 +217,6 @@ export function GanttChart({
   onTaskClick,
   onDoubleClick,
   onDateChange,
-  onLogDelay: _onLogDelay,
   canEdit = true,
 }: GanttChartProps) {
   const [zoom, setZoom] = useState<ZoomLevel>("week");
