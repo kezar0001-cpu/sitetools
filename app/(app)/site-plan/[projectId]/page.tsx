@@ -45,10 +45,35 @@ interface UndoEntry {
   after: Partial<SitePlanTask>;
 }
 
+function describeEntry(entry: UndoEntry): string {
+  const keys = Object.keys(entry.before) as (keyof SitePlanTask)[];
+  if (keys.includes("name") && entry.before.name !== undefined) {
+    return `changed name of '${entry.before.name}'`;
+  }
+  if (keys.some((k) => k === "parent_id" || k === "type")) {
+    return "changed indent level";
+  }
+  if (keys.includes("status")) {
+    return "changed status";
+  }
+  if (keys.includes("start_date") || keys.includes("end_date")) {
+    return "changed dates";
+  }
+  if (keys.includes("progress")) {
+    return "changed progress";
+  }
+  const readableKey = keys[0]?.replace(/_/g, " ") ?? "field";
+  return `changed ${readableKey}`;
+}
+
 function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
   const undoStack = useRef<UndoEntry[]>([]);
   const redoStack = useRef<UndoEntry[]>([]);
   const [revision, setRevision] = useState(0);
+
+  // NOTE: The stacks are intentionally NOT cleared on task selection changes.
+  // UndoEntry includes taskId/projectId so mutations always target the correct task
+  // regardless of which task is currently selected.
 
   const pushUndo = useCallback(
     (entry: UndoEntry) => {
@@ -83,6 +108,9 @@ function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
     setRevision((r) => r + 1);
   }, [updateTask]);
 
+  const undoTop = undoStack.current[undoStack.current.length - 1];
+  const redoTop = redoStack.current[redoStack.current.length - 1];
+
   return {
     pushUndo,
     undo,
@@ -90,6 +118,8 @@ function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
     canUndo: undoStack.current.length > 0,
     canRedo: redoStack.current.length > 0,
     revision,
+    undoLabel: undoTop ? describeEntry(undoTop) : undefined,
+    redoLabel: redoTop ? describeEntry(redoTop) : undefined,
   };
 }
 
@@ -243,7 +273,7 @@ function ProjectDetailInner() {
   const { data: baselines } = useSitePlanBaselines(projectId);
 
   const { data: delayLogs } = useProjectDelayLogs(projectId);
-  const { pushUndo, undo, redo, canUndo, canRedo } = useUndoRedo(updateTask);
+  const { pushUndo, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useUndoRedo(updateTask);
 
   // Compute delay count per task
   const delayCountMap = useMemo(() => {
@@ -974,6 +1004,8 @@ function ProjectDetailInner() {
           canRedo={canRedo}
           onUndo={undo}
           onRedo={redo}
+          undoLabel={undoLabel}
+          redoLabel={redoLabel}
           allExpanded={allExpanded}
           onToggleAll={toggleAll}
           selectedTask={selectedTask}
