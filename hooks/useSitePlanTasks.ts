@@ -51,8 +51,23 @@ export function useSitePlanTasks(projectId: string) {
           table: "siteplan_tasks",
           filter: `project_id=eq.${projectId}`,
         },
-        () => {
-          qc.invalidateQueries({ queryKey: tasksKey(projectId) });
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload;
+          qc.setQueryData<SitePlanTask[]>(tasksKey(projectId), (prev) => {
+            if (!prev) return prev;
+            if (eventType === "INSERT") {
+              return [...prev, newRow as SitePlanTask];
+            }
+            if (eventType === "UPDATE") {
+              return prev.map((t) =>
+                t.id === (newRow as SitePlanTask).id ? (newRow as SitePlanTask) : t
+              );
+            }
+            if (eventType === "DELETE") {
+              return prev.filter((t) => t.id !== (oldRow as { id: string }).id);
+            }
+            return prev;
+          });
         }
       )
       .subscribe();
