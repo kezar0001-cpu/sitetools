@@ -108,14 +108,25 @@ export const HEALTH_BADGE_STYLES: Record<
   delayed: { cls: "bg-red-100 text-red-700", label: "Delayed" },
 };
 
-// ─── Phase accent border colors ───────────────────────────────
+// ─── Phase row colors ─────────────────────────────────────────
 // Applied cyclically to phase rows in the task list.
+// PHASE_BG_COLORS: full-row background band (Tailwind bg class).
+// PHASE_ACCENT_COLORS: stronger left-border accent to complement the bg.
+
+export const PHASE_BG_COLORS = [
+  "bg-indigo-600",
+  "bg-violet-600",
+  "bg-emerald-700",
+  "bg-amber-600",
+  "bg-rose-600",
+  "bg-sky-600",
+];
 
 export const PHASE_ACCENT_COLORS = [
-  "border-l-indigo-500",
-  "border-l-violet-500",
-  "border-l-emerald-500",
-  "border-l-amber-500",
-  "border-l-rose-500",
-  "border-l-sky-500",
+  "border-l-indigo-300",
+  "border-l-violet-300",
+  "border-l-emerald-300",
+  "border-l-amber-300",
+  "border-l-rose-300",
+  "border-l-sky-300",
 ];
