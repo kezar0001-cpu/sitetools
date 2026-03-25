@@ -252,17 +252,13 @@ export function useUpdateTask() {
       projectId: string;
       updates: UpdateTaskPayload;
     }) => {
-      // Auto-compute status based on progress
+      // Auto-compute status based on progress (read from cache, no extra DB call)
       if (updates.progress !== undefined) {
-        const { data: existing } = await supabase
-          .from("siteplan_tasks")
-          .select("end_date, status")
-          .eq("id", id)
-          .single();
-        if (existing && existing.status !== "on_hold") {
+        const cached = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId))?.find(t => t.id === id);
+        if (cached && cached.status !== "on_hold") {
           updates.status = computeTaskStatus(
             updates.progress,
-            updates.end_date ?? existing.end_date
+            updates.end_date ?? cached.end_date
           );
         }
       }
