@@ -3,13 +3,18 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
-import type { TaskType } from "@/types/siteplan";
+import type { SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { useCreateTask } from "@/hooks/useSitePlanTasks";
+
+function toDateString(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 interface CreateTaskSheetProps {
   projectId: string;
   type: TaskType;
   parentId?: string | null;
+  parentNode?: SitePlanTaskNode | null;
   sortOrder?: number;
   onClose: () => void;
 }
@@ -18,29 +23,34 @@ export function CreateTaskSheet({
   projectId,
   type,
   parentId,
+  parentNode,
   sortOrder,
   onClose,
 }: CreateTaskSheetProps) {
   const dialogRef = useFocusTrap<HTMLDivElement>(onClose);
   const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(parentNode?.start_date ?? "");
+  const [endDate, setEndDate] = useState(parentNode?.end_date ?? "");
   const [responsible, setResponsible] = useState("");
   const create = useCreateTask();
 
   const typeLabel = type === "phase" ? "Phase" : type === "task" ? "Task" : "Subtask";
+  const defaultDays = type === "phase" ? 30 : 7;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !startDate || !endDate) return;
+    if (!name.trim()) return;
+    const today = new Date();
+    const defaultEnd = new Date(today);
+    defaultEnd.setDate(today.getDate() + defaultDays);
     create.mutate(
       {
         project_id: projectId,
         parent_id: parentId ?? undefined,
         name: name.trim(),
         type,
-        start_date: startDate,
-        end_date: endDate,
+        start_date: startDate || toDateString(today),
+        end_date: endDate || toDateString(defaultEnd),
         responsible: responsible.trim() || undefined,
         sort_order: sortOrder,
       },
@@ -94,27 +104,31 @@ export function CreateTaskSheet({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  Start Date *
+                  Start Date
                 </label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  required
                   className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
                 />
+                {!startDate && (
+                  <p className="text-xs text-slate-400 mt-1">Defaults to today</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
-                  End Date *
+                  End Date
                 </label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  required
                   className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]"
                 />
+                {!endDate && (
+                  <p className="text-xs text-slate-400 mt-1">Defaults to +{defaultDays} days</p>
+                )}
               </div>
             </div>
             <div>
@@ -134,7 +148,7 @@ export function CreateTaskSheet({
           <div className="px-4 py-3 border-t border-slate-100">
             <button
               type="submit"
-              disabled={create.isPending || !name.trim() || !startDate || !endDate}
+              disabled={create.isPending || !name.trim()}
               className="w-full py-3 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg min-h-[44px]"
             >
               {create.isPending ? "Creating..." : `Create ${typeLabel}`}
