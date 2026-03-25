@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, AlertCircle, Check, FileSpreadsheet } from "lucide-react";
 import type { ImportedRow, TaskType } from "@/types/siteplan";
 import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
@@ -330,6 +331,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
   }
 
   return (
+    <ComponentErrorBoundary>
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-900">
@@ -449,5 +451,6 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
         </>
       )}
     </div>
+    </ComponentErrorBoundary>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, Bookmark, Trash2, GitCompare, RotateCcw, ArrowLeft, Plus, Minus, CalendarDays, TrendingUp } from "lucide-react";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { SitePlanTask } from "@/types/siteplan";
@@ -348,7 +349,8 @@ export function BaselineDialog({
 
   // ── List view (default) ───────────────────────────────────────────────────
   return (
-    <>
+    <ComponentErrorBoundary>
+      <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
       <div
         ref={dialogRef}
@@ -443,6 +445,7 @@ export function BaselineDialog({
           )}
         </div>
       </div>
-    </>
+      </>
+    </ComponentErrorBoundary>
   );
 }

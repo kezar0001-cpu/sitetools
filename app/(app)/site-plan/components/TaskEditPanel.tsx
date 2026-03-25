@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { useDebounceAsync } from "@/hooks/useDebounceAsync";
 import {
   X,
@@ -224,7 +225,8 @@ export function TaskEditPanel({
   };
 
   return (
-    <>
+    <ComponentErrorBoundary>
+      <>
       {/* Backdrop for mobile */}
       <div
         className="fixed inset-0 bg-black/20 z-40 md:hidden"
@@ -351,6 +353,7 @@ export function TaskEditPanel({
           )}
         </div>
       </div>
-    </>
+      </>
+    </ComponentErrorBoundary>
   );
 }
