@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { sitePlanKeys } from "@/lib/queryKeys";
 import type { SitePlanTask } from "@/types/siteplan";
+import { BASELINE_SCHEMA_VERSION } from "@/types/siteplan";
 
 // ─── Diff helpers ────────────────────────────────────────────────────────────
 
@@ -56,8 +57,48 @@ export interface Baseline {
   project_id: string;
   name: string;
   snapshot: SitePlanTask[];
+  schema_version: number;
   created_by: string;
   created_at: string;
+}
+
+/**
+ * Migrates a baseline snapshot from an older schema version to the current one
+ * by filling in default values for any fields that were added after the snapshot
+ * was saved.
+ */
+export function migrateBaselineSnapshot(
+  snapshot: unknown[],
+  fromVersion: number
+): SitePlanTask[] {
+  if (fromVersion >= BASELINE_SCHEMA_VERSION) {
+    return snapshot as SitePlanTask[];
+  }
+  // v0 → v1: backfill fields that may be absent in pre-versioning snapshots
+  return (snapshot as Partial<SitePlanTask>[]).map((t) => ({
+    id: t.id ?? "",
+    project_id: t.project_id ?? "",
+    parent_id: t.parent_id ?? null,
+    wbs_code: t.wbs_code ?? "",
+    name: t.name ?? "",
+    type: t.type ?? "task",
+    status: t.status ?? "not_started",
+    start_date: t.start_date ?? "",
+    end_date: t.end_date ?? "",
+    actual_start: t.actual_start ?? null,
+    actual_end: t.actual_end ?? null,
+    progress: t.progress ?? 0,
+    duration_days: t.duration_days ?? 0,
+    predecessors: t.predecessors ?? null,
+    responsible: t.responsible ?? null,
+    assigned_to: t.assigned_to ?? null,
+    comments: t.comments ?? null,
+    notes: t.notes ?? null,
+    sort_order: t.sort_order ?? 0,
+    created_at: t.created_at ?? new Date().toISOString(),
+    updated_at: t.updated_at ?? new Date().toISOString(),
+    updated_by: t.updated_by ?? null,
+  }));
 }
 
 const baselinesKey = sitePlanKeys.baselines;
@@ -102,6 +143,7 @@ export function useSaveBaseline() {
           project_id: projectId,
           name,
           snapshot: tasks,
+          schema_version: BASELINE_SCHEMA_VERSION,
           created_by: user!.id,
         })
         .select()
@@ -129,14 +171,27 @@ export function useRestoreBaseline() {
     mutationFn: async ({
       projectId,
       snapshot,
+      schemaVersion,
       currentTasks,
       mode,
     }: {
       projectId: string;
       snapshot: SitePlanTask[];
+      schemaVersion: number;
       currentTasks: SitePlanTask[];
       mode: RestoreMode;
     }) => {
+      if (schemaVersion !== BASELINE_SCHEMA_VERSION) {
+        toast.warning(
+          `This baseline was saved with schema v${schemaVersion} (current: v${BASELINE_SCHEMA_VERSION}). ` +
+            "Missing fields have been filled with defaults.",
+          { duration: 6000 }
+        );
+      }
+
+      // Migrate snapshot to current schema before using it
+      const migratedSnapshot = migrateBaselineSnapshot(snapshot, schemaVersion);
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -155,13 +210,14 @@ export function useRestoreBaseline() {
           project_id: projectId,
           name: backupName,
           snapshot: currentTasks,
+          schema_version: BASELINE_SCHEMA_VERSION,
           created_by: user!.id,
         });
       if (backupError) throw backupError;
 
       // 2. Build updates — only tasks present in both snapshot and current
       const currentIds = new Set(currentTasks.map((t) => t.id));
-      const updates = snapshot
+      const updates = migratedSnapshot
         .filter((t) => currentIds.has(t.id))
         .map((t) => {
           if (mode === "dates_only") {

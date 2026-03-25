@@ -5,6 +5,9 @@ import type { Project } from "@/lib/workspace/types";
 
 export type { Project };
 
+/** Increment this when the shape of a baseline snapshot changes. */
+export const BASELINE_SCHEMA_VERSION = 1;
+
 export type TaskType = "phase" | "task" | "subtask" | "milestone";
 
 export type TaskStatus =

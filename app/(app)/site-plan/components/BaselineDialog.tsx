@@ -77,6 +77,7 @@ export function BaselineDialog({
       {
         projectId,
         snapshot: selected.snapshot as unknown as SitePlanTask[],
+        schemaVersion: selected.schema_version,
         currentTasks: tasks,
         mode: restoreMode,
       },
