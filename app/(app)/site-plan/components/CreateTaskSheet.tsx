@@ -32,6 +32,7 @@ export function CreateTaskSheet({
   const [startDate, setStartDate] = useState(parentNode?.start_date ?? "");
   const [endDate, setEndDate] = useState(parentNode?.end_date ?? "");
   const [responsible, setResponsible] = useState("");
+  const [dateError, setDateError] = useState<string | null>(null);
   const create = useCreateTask();
 
   const typeLabel = type === "phase" ? "Phase" : type === "task" ? "Task" : "Subtask";
@@ -43,14 +44,21 @@ export function CreateTaskSheet({
     const today = new Date();
     const defaultEnd = new Date(today);
     defaultEnd.setDate(today.getDate() + defaultDays);
+    const effectiveStart = startDate || toDateString(today);
+    const effectiveEnd = endDate || toDateString(defaultEnd);
+    if (effectiveEnd < effectiveStart) {
+      setDateError("End date must be on or after start date.");
+      return;
+    }
+    setDateError(null);
     create.mutate(
       {
         project_id: projectId,
         parent_id: parentId ?? undefined,
         name: name.trim(),
         type,
-        start_date: startDate || toDateString(today),
-        end_date: endDate || toDateString(defaultEnd),
+        start_date: effectiveStart,
+        end_date: effectiveEnd,
         responsible: responsible.trim() || undefined,
         sort_order: sortOrder,
       },
@@ -131,6 +139,9 @@ export function CreateTaskSheet({
                 )}
               </div>
             </div>
+            {dateError && (
+              <p className="text-xs text-red-600">{dateError}</p>
+            )}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">
                 Responsible
