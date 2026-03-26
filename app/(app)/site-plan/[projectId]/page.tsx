@@ -431,10 +431,11 @@ function ProjectDetailInner() {
     type: TaskType;
     parentId: string | null;
     sortOrder: number;
+    parentNode?: SitePlanTaskNode | null;
   } | null>(null);
 
-  const openCreateSheet = useCallback((type: TaskType, parentId: string | null, sortOrder: number) => {
-    setCreateSheetState({ type, parentId, sortOrder });
+  const openCreateSheet = useCallback((type: TaskType, parentId: string | null, sortOrder: number, parentNode?: SitePlanTaskNode | null) => {
+    setCreateSheetState({ type, parentId, sortOrder, parentNode });
   }, []);
 
   // Resolve selected task: prefer URL param, fall back to local state
@@ -513,9 +514,10 @@ function ProjectDetailInner() {
       ? visibleRows.findIndex((r) => r.id === selectedTask.id)
       : -1;
     const sortOrder = selectedIdx >= 0 ? selectedIdx + 1 : tasks?.length ?? 0;
-    openCreateSheet(type, parentId, sortOrder);
+    const parentNode = parentId ? flatTasks.find((t) => t.id === parentId) ?? null : null;
+    openCreateSheet(type, parentId, sortOrder, parentNode);
     setSelectedTask(null);
-  }, [selectedTask, tasks, visibleRows, setSelectedTask, openCreateSheet]);
+  }, [selectedTask, tasks, visibleRows, flatTasks, setSelectedTask, openCreateSheet]);
 
   /** Row "+" → "Add task below": insert sibling with same type & parent, after the row's subtree */
   const handleRowAddBelow = useCallback((node: SitePlanTaskNode) => {
@@ -529,13 +531,14 @@ function ProjectDetailInner() {
       if (row.type === "phase" && node.type !== "phase") break;
       lastIdx = i;
     }
-    openCreateSheet(node.type, node.parent_id, lastIdx + 1);
-  }, [visibleRows, openCreateSheet]);
+    const parentNode = node.parent_id ? flatTasks.find((t) => t.id === node.parent_id) ?? null : null;
+    openCreateSheet(node.type, node.parent_id, lastIdx + 1, parentNode);
+  }, [visibleRows, flatTasks, openCreateSheet]);
 
   /** Row "+" → "Add subtask": insert first/next child under this node */
   const handleRowAddSubtask = useCallback((node: SitePlanTaskNode) => {
     const childType: TaskType = node.type === "phase" ? "task" : "subtask";
-    openCreateSheet(childType, node.id, node.children.length);
+    openCreateSheet(childType, node.id, node.children.length, node);
   }, [openCreateSheet]);
 
   const handleExportCsv = useCallback(() => {
@@ -1302,7 +1305,7 @@ function ProjectDetailInner() {
                 onClose={() => setSelectedTask(null)}
                 hasChildren={hasChildrenForSelected}
                 onAddSubtask={() =>
-                  openCreateSheet("subtask", selectedTask.id, selectedTask.children.length)
+                  openCreateSheet("subtask", selectedTask.id, selectedTask.children.length, selectedTask)
                 }
               />
             </div>
@@ -1330,6 +1333,7 @@ function ProjectDetailInner() {
             projectId={projectId}
             type={createSheetState.type}
             parentId={createSheetState.parentId}
+            parentNode={createSheetState.parentNode}
             sortOrder={createSheetState.sortOrder}
             onClose={() => setCreateSheetState(null)}
           />
