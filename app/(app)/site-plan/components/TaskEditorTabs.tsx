@@ -26,6 +26,7 @@ interface TaskEditorTabsProps {
   progressNote: string;
   onProgressNoteChange: (v: string) => void;
   onAddSubtask?: () => void;
+  dateError?: string | null;
 }
 
 /** CSS ring applied to a field that was just saved (green flash). */
@@ -112,7 +113,8 @@ function DetailsTab({
   savedField,
   members,
   onAddSubtask,
-}: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "savedField" | "members" | "onAddSubtask">) {
+  dateError,
+}: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "savedField" | "members" | "onAddSubtask" | "dateError">) {
   return (
     <div className="space-y-5">
       {/* Name */}
@@ -177,6 +179,10 @@ function DetailsTab({
           />
         </div>
       </div>
+
+      {dateError && (
+        <p className="text-xs text-red-600">{dateError}</p>
+      )}
 
       {/* Responsible */}
       <div>
@@ -454,6 +460,7 @@ export function TaskEditorTabs({
   progressNote,
   onProgressNoteChange,
   onAddSubtask,
+  dateError,
 }: TaskEditorTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("details");
 
@@ -486,6 +493,7 @@ export function TaskEditorTabs({
             savedField={savedField}
             members={members}
             onAddSubtask={onAddSubtask}
+            dateError={dateError}
           />
         )}
         {activeTab === "progress_status" && (

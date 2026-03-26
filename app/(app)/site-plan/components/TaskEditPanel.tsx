@@ -67,6 +67,7 @@ export function TaskEditPanel({
   const [savedField, setSavedField] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
   const [conflictPanelOpen, setConflictPanelOpen] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const updateTask = useUpdateTask();
   const updateProgress = useUpdateProgress();
@@ -221,6 +222,17 @@ export function TaskEditPanel({
     val: UpdateTaskPayload[K]
   ) => {
     setForm((f) => ({ ...f, [key]: val }));
+
+    if (key === "start_date" || key === "end_date") {
+      const newStart = key === "start_date" ? (val as string) : form.start_date;
+      const newEnd = key === "end_date" ? (val as string) : form.end_date;
+      if (newStart && newEnd && newEnd < newStart) {
+        setDateError("End date must be on or after start date.");
+        return;
+      }
+      setDateError(null);
+    }
+
     saveField(key, val);
   };
 
@@ -305,6 +317,7 @@ export function TaskEditPanel({
             progressNote={progressNote}
             onProgressNoteChange={setProgressNote}
             onAddSubtask={onAddSubtask}
+            dateError={dateError}
           />
         </div>
 
