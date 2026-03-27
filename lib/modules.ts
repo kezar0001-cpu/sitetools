@@ -74,7 +74,7 @@ export const MODULES: BuildstateModule[] = [
         icon: "list-checks",
         status: "live",
         visibility: "primary",
-        href: "/dashboard/itp-builder",
+        href: "/site-itp",
         color: "violet",
     },
     {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { supabase } from "@/lib/supabase";
@@ -568,10 +569,15 @@ function groupSessions(
 }
 
 // ---------------------------------------------------------------------------
-// Main Page
+// Main Page (inner — needs Suspense for useSearchParams)
 // ---------------------------------------------------------------------------
 
-export default function ITPBuilderPage() {
+function ITPBuilderPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // ?project=<uuid> filters builder to a specific project; "unassigned" shows unlinked ITPs
+  const projectFilter = searchParams.get("project") ?? "";
+
   const { loading, summary } = useWorkspace({
     requireAuth: true,
     requireCompany: true,
@@ -581,7 +587,10 @@ export default function ITPBuilderPage() {
   // ── New ITP form state
   const [taskDescription, setTaskDescription] = useState("");
   const [creationMode, setCreationMode] = useState<CreationMode>("ai");
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  // Pre-set from URL; locked when a filter is active
+  const [selectedProjectId, setSelectedProjectId] = useState(
+    projectFilter && projectFilter !== "unassigned" ? projectFilter : ""
+  );
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [showInput, setShowInput] = useState(true);
 
@@ -601,6 +610,8 @@ export default function ITPBuilderPage() {
   const [activeItems, setActiveItems] = useState<ITPItem[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
   const [showSessionQR, setShowSessionQR] = useState(false);
+  const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
+  const [deletingSession, setDeletingSession] = useState(false);
 
   // ── Project / site options
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -666,12 +677,21 @@ export default function ITPBuilderPage() {
   async function loadSessions(companyId: string) {
     setSessionsLoading(true);
     try {
-      const { data: sessionRows, error: sessionError } = await supabase
+      let query = supabase
         .from("itp_sessions")
         .select("id, company_id, task_description, created_at, status, project_id, site_id")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50);
+
+      // Apply project filter from URL param
+      if (projectFilter === "unassigned") {
+        query = query.is("project_id", null);
+      } else if (projectFilter) {
+        query = query.eq("project_id", projectFilter);
+      }
+
+      const { data: sessionRows, error: sessionError } = await query;
 
       if (sessionError) throw sessionError;
 
@@ -870,9 +890,38 @@ export default function ITPBuilderPage() {
     setActiveItems([]);
     setShowAddItem(false);
     setShowSessionQR(false);
+    setConfirmDeleteSession(false);
     setImportFile(null);
     setImportResult(null);
     setTimeout(() => inputCardRef.current?.scrollIntoView({ behavior: "smooth" }), 10);
+  }
+
+  async function handleDeleteSession() {
+    if (!activeSession) return;
+    setDeletingSession(true);
+    try {
+      const { error } = await supabase
+        .from("itp_sessions")
+        .delete()
+        .eq("id", activeSession.id);
+      if (error) throw error;
+
+      // Remove from session list
+      setSessions((prev) => prev.filter((s) => s.id !== activeSession.id));
+      toast.success("ITP deleted.");
+
+      // Clear active view
+      setActiveSession(null);
+      setActiveItems([]);
+      setConfirmDeleteSession(false);
+      setShowInput(true);
+      setShowAddItem(false);
+      setShowSessionQR(false);
+    } catch {
+      toast.error("Failed to delete ITP.");
+    } finally {
+      setDeletingSession(false);
+    }
   }
 
   function handleLoadSession(session: ITPSession) {
@@ -934,13 +983,34 @@ export default function ITPBuilderPage() {
     ? allSites.find((s) => s.id === activeSession.site_id)?.name
     : null;
 
+  // Determine project name for the filter breadcrumb
+  const filterProjectName = projectFilter && projectFilter !== "unassigned"
+    ? (projects.find((p) => p.id === projectFilter)?.name ?? "Project")
+    : projectFilter === "unassigned"
+    ? "Unassigned ITPs"
+    : null;
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
+          {/* Back to dashboard breadcrumb when arriving from project dashboard */}
+          {projectFilter && (
+            <button
+              onClick={() => router.push("/site-itp")}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-violet-600 mb-1 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              All projects
+            </button>
+          )}
           <h1 className="text-2xl font-black text-slate-900">SiteITP</h1>
-          <p className="mt-0.5 text-sm text-slate-500">Inspection &amp; Test Plans</p>
+          <p className="mt-0.5 text-sm text-slate-500">
+            {filterProjectName ? filterProjectName : "Inspection \u0026 Test Plans"}
+          </p>
         </div>
         <button
           onClick={handleNewITP}
@@ -963,18 +1033,25 @@ export default function ITPBuilderPage() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5">
                   Project <span className="font-normal">(optional)</span>
                 </label>
-                <select
-                  value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2 text-sm outline-none bg-white transition-colors"
-                >
-                  <option value="">— None —</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                {/* Lock the project selector when arriving from the dashboard with a project filter */}
+                {projectFilter && projectFilter !== "unassigned" ? (
+                  <div className="w-full border-2 border-slate-100 bg-slate-50 rounded-xl px-3 py-2 text-sm text-slate-600 truncate">
+                    {filterProjectName}
+                  </div>
+                ) : (
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2 text-sm outline-none bg-white transition-colors"
+                  >
+                    <option value="">— None —</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1.5">
@@ -1174,6 +1251,33 @@ export default function ITPBuilderPage() {
               >
                 {showSessionQR ? "Hide QR" : "QR Code"}
               </button>
+              {/* Delete ITP session */}
+              {!confirmDeleteSession ? (
+                <button
+                  onClick={() => setConfirmDeleteSession(true)}
+                  className="text-xs text-red-400 hover:text-red-600 transition-colors px-1"
+                  title="Delete this ITP"
+                >
+                  Delete
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500">Delete ITP?</span>
+                  <button
+                    onClick={handleDeleteSession}
+                    disabled={deletingSession}
+                    className="text-xs font-bold text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    {deletingSession ? "…" : "Yes"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeleteSession(false)}
+                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    No
+                  </button>
+                </span>
+              )}
             </div>
           </div>
 
@@ -1318,5 +1422,23 @@ export default function ITPBuilderPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Export — Suspense wrapper required for useSearchParams
+// ---------------------------------------------------------------------------
+
+export default function ITPBuilderPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 flex items-center justify-center">
+          <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
+        </div>
+      }
+    >
+      <ITPBuilderPageInner />
+    </Suspense>
   );
 }
