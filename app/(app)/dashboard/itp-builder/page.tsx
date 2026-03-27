@@ -101,14 +101,18 @@ function SkeletonRow() {
 
 interface ChecklistItemCardProps {
   item: ITPItem;
-  baseUrl: string;
   onDelete?: (id: string) => void;
+  onEdit?: (updated: ITPItem) => void;
 }
 
-function ChecklistItemCard({ item, baseUrl, onDelete }: ChecklistItemCardProps) {
-  const [showQR, setShowQR] = useState(false);
+function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
   const [expanded, setExpanded] = useState(item.status !== "signed");
   const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editType, setEditType] = useState<ItemType>(item.type);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editDescription, setEditDescription] = useState(item.description ?? "");
+  const [saving, setSaving] = useState(false);
 
   const isSigned = item.status === "signed";
   const isHold = item.type === "hold";
@@ -117,8 +121,6 @@ function ChecklistItemCard({ item, baseUrl, onDelete }: ChecklistItemCardProps) 
   const typeBadge = isHold
     ? "bg-red-100 text-red-700"
     : "bg-amber-100 text-amber-700";
-
-  const qrUrl = `${baseUrl}/itp-sign/${item.slug}`;
 
   async function handleDelete() {
     if (!onDelete) return;
@@ -130,6 +132,39 @@ function ChecklistItemCard({ item, baseUrl, onDelete }: ChecklistItemCardProps) 
       return;
     }
     onDelete(item.id);
+  }
+
+  async function handleSave() {
+    const trimmedTitle = editTitle.trim();
+    if (!trimmedTitle) return;
+    setSaving(true);
+    const { data: updated, error } = await supabase
+      .from("itp_items")
+      .update({
+        type: editType,
+        title: trimmedTitle,
+        description: editDescription.trim(),
+      })
+      .eq("id", item.id)
+      .select(
+        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
+      )
+      .single();
+    if (error || !updated) {
+      toast.error("Failed to save changes.");
+      setSaving(false);
+      return;
+    }
+    onEdit?.(updated as ITPItem);
+    setIsEditing(false);
+    setSaving(false);
+  }
+
+  function handleCancelEdit() {
+    setEditType(item.type);
+    setEditTitle(item.title);
+    setEditDescription(item.description ?? "");
+    setIsEditing(false);
   }
 
   // Collapsed one-liner for signed cards
@@ -149,6 +184,72 @@ function ChecklistItemCard({ item, baseUrl, onDelete }: ChecklistItemCardProps) 
           Signed ✓
         </span>
       </button>
+    );
+  }
+
+  // Inline edit form
+  if (isEditing) {
+    const editBorder = editType === "hold" ? "border-l-red-500" : "border-l-amber-400";
+    return (
+      <div className={`bg-white border border-slate-200 border-l-4 ${editBorder} rounded-2xl p-4 shadow-sm`}>
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
+          Edit Inspection Point
+        </p>
+        <div className="flex gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setEditType("witness")}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+              editType === "witness"
+                ? "bg-amber-100 border-amber-300 text-amber-700"
+                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+            }`}
+          >
+            WITNESS
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditType("hold")}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+              editType === "hold"
+                ? "bg-red-100 border-red-300 text-red-700"
+                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+            }`}
+          >
+            HOLD
+          </button>
+        </div>
+        <input
+          value={editTitle}
+          onChange={(e) => setEditTitle(e.target.value)}
+          placeholder="Title"
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
+        />
+        <textarea
+          value={editDescription}
+          onChange={(e) => setEditDescription(e.target.value)}
+          placeholder="Acceptance criterion (optional)"
+          rows={2}
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-3 bg-white transition-colors"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving || !editTitle.trim()}
+            className="flex-1 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-900 font-bold rounded-2xl py-2.5 text-sm active:scale-95 transition-transform"
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            onClick={handleCancelEdit}
+            className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl text-sm hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -201,18 +302,20 @@ function ChecklistItemCard({ item, baseUrl, onDelete }: ChecklistItemCardProps) 
 
         {/* Right-side actions */}
         <div className="flex flex-col items-end gap-2 shrink-0">
-          <button
-            onClick={() => setShowQR((v) => !v)}
-            className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
-          >
-            {showQR ? "Hide QR" : "Show QR"}
-          </button>
           {isSigned && (
             <button
               onClick={() => setExpanded(false)}
               className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
             >
               Collapse
+            </button>
+          )}
+          {!isSigned && onEdit && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
+            >
+              Edit
             </button>
           )}
           {!isSigned && onDelete && (
@@ -226,14 +329,6 @@ function ChecklistItemCard({ item, baseUrl, onDelete }: ChecklistItemCardProps) 
           )}
         </div>
       </div>
-
-      {/* QR Code */}
-      {showQR && (
-        <div className="mt-4 flex flex-col items-center gap-2 pt-4 border-t border-slate-100">
-          <QRCodeSVG value={qrUrl} size={220} level="H" />
-          <p className="text-xs text-slate-400 break-all text-center max-w-xs">{qrUrl}</p>
-        </div>
-      )}
     </div>
   );
 }
@@ -496,6 +591,7 @@ export default function ITPBuilderPage() {
   const [activeSession, setActiveSession] = useState<ITPSession | null>(null);
   const [activeItems, setActiveItems] = useState<ITPItem[]>([]);
   const [showAddItem, setShowAddItem] = useState(false);
+  const [showSessionQR, setShowSessionQR] = useState(false);
 
   // ── Project / site options
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -653,6 +749,7 @@ export default function ITPBuilderPage() {
       setActiveItems(data.items);
       setShowInput(false);
       setShowAddItem(true);
+      setShowSessionQR(false);
       setTaskDescription("");
 
       if (activeCompanyId) loadSessions(activeCompanyId);
@@ -701,6 +798,7 @@ export default function ITPBuilderPage() {
     setActiveSession(null);
     setActiveItems([]);
     setShowAddItem(false);
+    setShowSessionQR(false);
     setTimeout(() => inputCardRef.current?.scrollIntoView({ behavior: "smooth" }), 10);
   }
 
@@ -709,6 +807,7 @@ export default function ITPBuilderPage() {
     setActiveItems(session.items ?? []);
     setShowInput(false);
     setShowAddItem(false);
+    setShowSessionQR(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -718,12 +817,24 @@ export default function ITPBuilderPage() {
 
   function handleItemDeleted(itemId: string) {
     setActiveItems((prev) => prev.filter((i) => i.id !== itemId));
-    // Also update sessions list
     if (activeSession) {
       setSessions((prev) =>
         prev.map((s) =>
           s.id === activeSession.id
             ? { ...s, items: (s.items ?? []).filter((i) => i.id !== itemId) }
+            : s
+        )
+      );
+    }
+  }
+
+  function handleItemEdited(updated: ITPItem) {
+    setActiveItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+    if (activeSession) {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id
+            ? { ...s, items: (s.items ?? []).map((i) => (i.id === updated.id ? updated : i)) }
             : s
         )
       );
@@ -906,10 +1017,35 @@ export default function ITPBuilderPage() {
                 </p>
               )}
             </div>
-            <span className="text-xs text-slate-400 shrink-0">
-              {signedCount}/{activeItems.length} signed
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-slate-400">
+                {signedCount}/{activeItems.length} signed
+              </span>
+              <button
+                onClick={() => setShowSessionQR((v) => !v)}
+                className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
+              >
+                {showSessionQR ? "Hide QR" : "QR Code"}
+              </button>
+            </div>
           </div>
+
+          {/* Session QR — one QR for the entire ITP */}
+          {showSessionQR && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col items-center gap-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Scan to sign off all items
+              </p>
+              <QRCodeSVG
+                value={`${baseUrl}/itp-sign/session/${activeSession.id}`}
+                size={220}
+                level="H"
+              />
+              <p className="text-xs text-slate-400 break-all text-center max-w-xs">
+                {`${baseUrl}/itp-sign/session/${activeSession.id}`}
+              </p>
+            </div>
+          )}
 
           {/* Items */}
           {activeItems.length === 0 && !showAddItem && (
@@ -928,8 +1064,8 @@ export default function ITPBuilderPage() {
             <ChecklistItemCard
               key={item.id}
               item={item}
-              baseUrl={baseUrl}
               onDelete={handleItemDeleted}
+              onEdit={handleItemEdited}
             />
           ))}
 
