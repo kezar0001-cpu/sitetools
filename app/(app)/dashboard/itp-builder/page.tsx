@@ -1141,7 +1141,7 @@ function ITPBuilderPageInner() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.docx,.xlsx,.xls,.txt,.csv"
+                accept=".pdf,.doc,.docx,.xlsx,.xls,.txt,.csv"
                 onChange={(e) => {
                   const f = e.target.files?.[0] ?? null;
                   setImportFile(f);
