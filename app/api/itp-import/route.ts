@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import * as mammoth from "mammoth";
 import * as XLSX from "xlsx";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse");
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // allow up to 2 min for large document AI processing
@@ -33,6 +35,11 @@ interface GeneratedItp {
 // ---------------------------------------------------------------------------
 // Text extraction helpers
 // ---------------------------------------------------------------------------
+
+async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  const data = await pdfParse(buffer);
+  return data.text;
+}
 
 async function extractTextFromDocx(buffer: Buffer): Promise<string> {
   const result = await mammoth.extractRawText({ buffer });
@@ -102,6 +109,8 @@ function validateItps(raw: unknown): GeneratedItp[] | null {
 const SUPPORTED_TYPES: Record<string, string> = {
   "application/pdf": "pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/msword": "docx",
+  "application/octet-stream": "auto", // fallback to extension detection
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
   "application/vnd.ms-excel": "xls",
   "text/plain": "txt",
@@ -154,6 +163,7 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop()?.toLowerCase();
     const extMap: Record<string, string> = {
       pdf: "pdf",
+      doc: "docx",
       docx: "docx",
       xlsx: "xlsx",
       xls: "xls",
@@ -193,16 +203,15 @@ export async function POST(req: NextRequest) {
 
   // Determine effective file type
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  const effectiveType = fileType ?? ext;
+  const effectiveType = (fileType && fileType !== "auto") ? fileType : ext;
 
-  // Extract text or prepare for Claude's native PDF support
+  // Extract text from all document types
   let documentText = "";
-  let isPdf = false;
 
   try {
     switch (effectiveType) {
       case "pdf":
-        isPdf = true;
+        documentText = await extractTextFromPdf(buffer);
         break;
       case "docx":
         documentText = await extractTextFromDocx(buffer);
@@ -280,39 +289,38 @@ Example output format:
   }
 ]`;
 
+  if (!documentText.trim()) {
+    return NextResponse.json(
+      { error: "Could not extract any text from this document. The file may be empty, scanned images, or corrupted." },
+      { status: 422 }
+    );
+  }
+
   const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.
 
 Document filename: ${file.name}
 
-${isPdf ? "[Document attached as PDF below]" : `Document content:\n\n${documentText}`}`;
+Document content:
+
+${documentText}`;
 
   // Call Claude
   let itps: GeneratedItp[];
   try {
-    // Build messages content
-    const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [];
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90_000);
 
-    if (isPdf) {
-      // Send PDF natively to Claude
-      content.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: buffer.toString("base64"),
-        },
-      });
-      content.push({ type: "text", text: userPrompt });
-    } else {
-      content.push({ type: "text", text: userPrompt });
-    }
+    const message = await anthropic.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      },
+      { signal: controller.signal }
+    );
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
-      system: systemPrompt,
-      messages: [{ role: "user", content }],
-    });
+    clearTimeout(timeoutId);
 
     const textBlock = message.content.find((b) => b.type === "text");
     const responseText =
@@ -343,6 +351,24 @@ ${isPdf ? "[Document attached as PDF below]" : `Document content:\n\n${documentT
     itps = validated;
   } catch (err) {
     console.error("Claude import error:", err);
+    if (err instanceof Anthropic.AuthenticationError) {
+      return NextResponse.json(
+        { error: "AI service configuration error. Please contact support." },
+        { status: 500 }
+      );
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      return NextResponse.json(
+        { error: "AI service is busy. Please wait a moment and try again." },
+        { status: 429 }
+      );
+    }
+    if (err instanceof Error && err.name === "AbortError") {
+      return NextResponse.json(
+        { error: "Document processing timed out. Try a smaller document." },
+        { status: 504 }
+      );
+    }
     return NextResponse.json(
       { error: "AI processing failed. Please try again." },
       { status: 500 }
