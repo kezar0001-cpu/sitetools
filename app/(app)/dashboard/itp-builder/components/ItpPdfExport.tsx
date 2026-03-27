@@ -1,0 +1,180 @@
+"use client";
+
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type PointType = "HOLD" | "WITNESS";
+type ItemStatus = "pending" | "signed";
+
+export interface ItpItem {
+  id: string;
+  session_id: string;
+  title: string;
+  description: string;
+  point_type: PointType;
+  status: ItemStatus;
+  signed_by_name: string | null;
+  signed_off_at: string | null;
+  gps_lat: number | null;
+  gps_lng: number | null;
+  slug: string;
+}
+
+export interface ItpSession {
+  id: string;
+  company_id: string;
+  task_description: string;
+  created_at: string;
+  slug: string;
+  status: string;
+  company_name?: string | null;
+}
+
+interface Props {
+  session: ItpSession & { items: ItpItem[] };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatAU(iso: string): string {
+  return new Date(iso).toLocaleString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export default function ItpPdfExport({ session }: Props) {
+  if (session.status !== "complete") return null;
+
+  function handleExport() {
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const { items } = session;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const generatedAt = formatAU(new Date().toISOString());
+    const companyName = session.company_name ?? "";
+
+    // ── Header ──────────────────────────────────────────────────────────────
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("INSPECTION & TEST PLAN", 14, 18);
+
+    // ── Sub-header ──────────────────────────────────────────────────────────
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(session.task_description, 14, 27);
+    doc.text(`Generated: ${generatedAt}`, 14, 33);
+    if (companyName) {
+      doc.text(companyName, 14, 39);
+    }
+    doc.setTextColor(0);
+
+    const startY = companyName ? 45 : 40;
+
+    // ── Table body data ──────────────────────────────────────────────────────
+    const bodyRows = items.map((item, i) => {
+      const isSigned = item.status === "signed";
+      return [
+        String(i + 1),
+        item.point_type,
+        item.title,
+        isSigned ? "Signed" : "— Pending —",
+        isSigned && item.signed_by_name ? item.signed_by_name : "",
+        isSigned && item.signed_off_at ? formatAU(item.signed_off_at) : "",
+        isSigned && item.gps_lat != null && item.gps_lng != null
+          ? `${item.gps_lat.toFixed(5)}, ${item.gps_lng.toFixed(5)}`
+          : "",
+      ];
+    });
+
+    // ── autoTable ────────────────────────────────────────────────────────────
+    autoTable(doc, {
+      head: [["#", "Type", "Title", "Status", "Signed By", "Date/Time", "GPS"]],
+      body: bodyRows,
+      startY,
+      styles: {
+        fontSize: 7.5,
+        cellPadding: 2.5,
+        overflow: "linebreak",
+      },
+      headStyles: {
+        fillColor: [251, 191, 36],
+        textColor: [113, 63, 18],
+        fontStyle: "bold",
+        halign: "center",
+        fontSize: 8,
+      },
+      columnStyles: {
+        0: { cellWidth: 8, halign: "center" },
+        1: { cellWidth: 16, halign: "center" },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 18, halign: "center" },
+        4: { cellWidth: 30 },
+        5: { cellWidth: 38 },
+        6: { cellWidth: "auto" },
+      },
+      margin: { left: 14, right: 14 },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      didParseCell: (data: any) => {
+        if (data.section !== "body") return;
+        const item = items[data.row.index];
+        if (!item) return;
+
+        // Row background by point type
+        if (item.point_type === "HOLD") {
+          data.cell.styles.fillColor = [254, 242, 242]; // #fef2f2
+        } else {
+          data.cell.styles.fillColor = [255, 251, 235]; // #fffbeb
+        }
+
+        // Pending status cell: italic grey
+        if (data.column.index === 3 && item.status === "pending") {
+          data.cell.styles.textColor = [156, 163, 175];
+          data.cell.styles.fontStyle = "italic";
+        }
+      },
+    });
+
+    // ── Footer on every page ─────────────────────────────────────────────────
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFontSize(7.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(160);
+      doc.text("Generated by SiteITP · Buildstate", 14, pageHeight - 8);
+      doc.text(`Page ${p} of ${totalPages}`, pageWidth - 14, pageHeight - 8, {
+        align: "right",
+      });
+      doc.setTextColor(0);
+    }
+
+    // ── Save ─────────────────────────────────────────────────────────────────
+    const slug = session.slug || session.id.slice(0, 8);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    doc.save(`itp-${slug}-${dateStr}.pdf`);
+  }
+
+  return (
+    <button
+      onClick={handleExport}
+      className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl px-4 py-2.5 text-sm active:scale-95 transition-transform"
+    >
+      Export PDF
+    </button>
+  );
+}
