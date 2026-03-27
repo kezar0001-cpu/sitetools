@@ -67,10 +67,10 @@ export const MODULES: BuildstateModule[] = [
     },
     {
         id: "itp-builder",
-        name: "ITP Builder",
-        tagline: "AI-generated hold & witness point checklists",
+        name: "SiteITP",
+        tagline: "Hold & witness point checklists — AI-generated or built manually",
         description:
-            "Type a task, get an instant ITP checklist. Council PM scans the QR, signs on their phone — no app, no account.",
+            "Create ITP checklists your way: let AI generate items from a task description, or build them manually with custom hold and witness points. Assign to a project and site, then share QR codes for sign-off — no app, no account required.",
         icon: "list-checks",
         status: "live",
         visibility: "primary",

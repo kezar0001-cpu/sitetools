@@ -4,34 +4,38 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 // ---------------------------------------------------------------------------
-// Types
+// Types (match DB column names)
 // ---------------------------------------------------------------------------
 
-type PointType = "HOLD" | "WITNESS";
-type ItemStatus = "pending" | "signed";
+type ItemType = "hold" | "witness";
+type ItemStatus = "pending" | "signed" | "waived";
 
 export interface ItpItem {
   id: string;
   session_id: string;
+  type: ItemType;
   title: string;
   description: string;
-  point_type: PointType;
-  status: ItemStatus;
-  signed_by_name: string | null;
-  signed_off_at: string | null;
-  gps_lat: number | null;
-  gps_lng: number | null;
+  sort_order: number;
   slug: string;
+  status: ItemStatus;
+  signed_off_at: string | null;
+  signed_off_by_name: string | null;
+  sign_off_lat: number | null;
+  sign_off_lng: number | null;
 }
 
 export interface ItpSession {
   id: string;
   company_id: string;
+  project_id: string | null;
+  site_id: string | null;
   task_description: string;
   created_at: string;
-  slug: string;
   status: string;
   company_name?: string | null;
+  project_name?: string | null;
+  site_name?: string | null;
 }
 
 interface Props {
@@ -66,6 +70,9 @@ export default function ItpPdfExport({ session }: Props) {
     const pageHeight = doc.internal.pageSize.getHeight();
     const generatedAt = formatAU(new Date().toISOString());
     const companyName = session.company_name ?? "";
+    const projectSite = [session.project_name, session.site_name]
+      .filter(Boolean)
+      .join(" › ");
 
     // ── Header ──────────────────────────────────────────────────────────────
     doc.setFontSize(18);
@@ -78,25 +85,32 @@ export default function ItpPdfExport({ session }: Props) {
     doc.setTextColor(100);
     doc.text(session.task_description, 14, 27);
     doc.text(`Generated: ${generatedAt}`, 14, 33);
+
+    let nextY = 33;
     if (companyName) {
-      doc.text(companyName, 14, 39);
+      nextY += 6;
+      doc.text(companyName, 14, nextY);
+    }
+    if (projectSite) {
+      nextY += 6;
+      doc.text(projectSite, 14, nextY);
     }
     doc.setTextColor(0);
 
-    const startY = companyName ? 45 : 40;
+    const startY = nextY + 7;
 
     // ── Table body data ──────────────────────────────────────────────────────
     const bodyRows = items.map((item, i) => {
       const isSigned = item.status === "signed";
       return [
         String(i + 1),
-        item.point_type,
+        item.type.toUpperCase(),
         item.title,
         isSigned ? "Signed" : "— Pending —",
-        isSigned && item.signed_by_name ? item.signed_by_name : "",
+        isSigned && item.signed_off_by_name ? item.signed_off_by_name : "",
         isSigned && item.signed_off_at ? formatAU(item.signed_off_at) : "",
-        isSigned && item.gps_lat != null && item.gps_lng != null
-          ? `${item.gps_lat.toFixed(5)}, ${item.gps_lng.toFixed(5)}`
+        isSigned && item.sign_off_lat != null && item.sign_off_lng != null
+          ? `${item.sign_off_lat.toFixed(5)}, ${item.sign_off_lng.toFixed(5)}`
           : "",
       ];
     });
@@ -135,7 +149,7 @@ export default function ItpPdfExport({ session }: Props) {
         if (!item) return;
 
         // Row background by point type
-        if (item.point_type === "HOLD") {
+        if (item.type === "hold") {
           data.cell.styles.fillColor = [254, 242, 242]; // #fef2f2
         } else {
           data.cell.styles.fillColor = [255, 251, 235]; // #fffbeb
@@ -164,9 +178,8 @@ export default function ItpPdfExport({ session }: Props) {
     }
 
     // ── Save ─────────────────────────────────────────────────────────────────
-    const slug = session.slug || session.id.slice(0, 8);
     const dateStr = new Date().toISOString().slice(0, 10);
-    doc.save(`itp-${slug}-${dateStr}.pdf`);
+    doc.save(`itp-${session.id.slice(0, 8)}-${dateStr}.pdf`);
   }
 
   return (

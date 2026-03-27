@@ -86,13 +86,18 @@ export async function POST(req: NextRequest) {
   }
 
   // Parse body
-  let body: { task_description?: string; company_id?: string };
+  let body: {
+    task_description?: string;
+    company_id?: string;
+    project_id?: string;
+    site_id?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
-  const { task_description, company_id } = body;
+  const { task_description, company_id, project_id, site_id } = body;
   if (!task_description || !company_id) {
     return NextResponse.json(
       { error: "task_description and company_id are required." },
@@ -176,8 +181,14 @@ Return ONLY valid JSON array, no markdown, no explanation.`,
   // Insert a new itp_sessions record
   const { data: session, error: sessionErr } = await supabaseAdmin
     .from("itp_sessions")
-    .insert({ company_id, task_description })
-    .select("id")
+    .insert({
+      company_id,
+      task_description,
+      project_id: project_id ?? null,
+      site_id: site_id ?? null,
+      created_by_user_id: user.id,
+    })
+    .select("id, company_id, task_description, created_at, project_id, site_id, status")
     .single();
 
   if (sessionErr || !session) {
@@ -200,7 +211,9 @@ Return ONLY valid JSON array, no markdown, no explanation.`,
   const { data: inserted, error: insertErr } = await supabaseAdmin
     .from("itp_items")
     .insert(rows)
-    .select("id, slug, type, title, description, sort_order");
+    .select(
+      "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
+    );
 
   if (insertErr || !inserted) {
     return NextResponse.json(
@@ -209,5 +222,5 @@ Return ONLY valid JSON array, no markdown, no explanation.`,
     );
   }
 
-  return NextResponse.json({ session_id: session.id, items: inserted });
+  return NextResponse.json({ session, items: inserted });
 }
