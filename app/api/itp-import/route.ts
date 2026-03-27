@@ -3,8 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import * as mammoth from "mammoth";
 import * as XLSX from "xlsx";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // allow up to 2 min for large document AI processing
@@ -37,6 +35,9 @@ interface GeneratedItp {
 // ---------------------------------------------------------------------------
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  // Dynamic import to avoid pdf-parse's known issue of loading a test file at require-time
+  // which crashes in serverless environments (Vercel)
+  const pdfParse = (await import("pdf-parse")).default;
   const data = await pdfParse(buffer);
   return data.text;
 }
