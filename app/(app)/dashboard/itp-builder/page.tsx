@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 type ItemType = "hold" | "witness";
 type ItemStatus = "pending" | "signed" | "waived";
-type CreationMode = "ai" | "manual";
+type CreationMode = "ai" | "manual" | "import";
 
 interface ITPItem {
   id: string;
@@ -585,6 +585,15 @@ export default function ITPBuilderPage() {
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [showInput, setShowInput] = useState(true);
 
+  // ── Import state
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    imported: number;
+    total_items: number;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // ── Active session state
   const [generating, setGenerating] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -793,12 +802,76 @@ export default function ITPBuilderPage() {
     }
   }
 
+  async function handleImport() {
+    if (!importFile || !activeCompanyId) return;
+
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+
+      const formData = new FormData();
+      formData.append("file", importFile);
+      formData.append("company_id", activeCompanyId);
+      if (selectedProjectId) formData.append("project_id", selectedProjectId);
+      if (selectedSiteId) formData.append("site_id", selectedSiteId);
+
+      const res = await fetch("/api/itp-import", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(
+          (body as { error?: string }).error ?? `Request failed (${res.status})`
+        );
+      }
+
+      const data = (await res.json()) as {
+        imported: number;
+        total_items: number;
+        sessions: Array<{ session: ITPSession; items: ITPItem[] }>;
+      };
+
+      setImportResult({ imported: data.imported, total_items: data.total_items });
+      setImportFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      // Load the first imported session as active
+      if (data.sessions.length > 0) {
+        const first = data.sessions[0];
+        setActiveSession(first.session);
+        setActiveItems(first.items);
+        setShowInput(false);
+        setShowAddItem(true);
+      }
+
+      toast.success(
+        `Imported ${data.imported} ITP${data.imported !== 1 ? "s" : ""} with ${data.total_items} checks`
+      );
+
+      if (activeCompanyId) loadSessions(activeCompanyId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import document.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   function handleNewITP() {
     setShowInput(true);
     setActiveSession(null);
     setActiveItems([]);
     setShowAddItem(false);
     setShowSessionQR(false);
+    setImportFile(null);
+    setImportResult(null);
     setTimeout(() => inputCardRef.current?.scrollIntoView({ behavior: "smooth" }), 10);
   }
 
@@ -924,56 +997,125 @@ export default function ITPBuilderPage() {
             </div>
           )}
 
-          {/* Task description */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Task description
-            </label>
-            <textarea
-              ref={textareaRef}
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              placeholder="e.g. Laying pavers on median island"
-              rows={3}
-              disabled={generating || creating}
-              style={{ fontSize: "16px" }}
-              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-3 resize-none outline-none disabled:opacity-60 placeholder:text-slate-400 transition-colors"
-            />
-          </div>
+          {/* Task description (hidden in import mode) */}
+          {creationMode !== "import" && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                Task description
+              </label>
+              <textarea
+                ref={textareaRef}
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="e.g. Laying pavers on median island"
+                rows={3}
+                disabled={generating || creating}
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-3 resize-none outline-none disabled:opacity-60 placeholder:text-slate-400 transition-colors"
+              />
+            </div>
+          )}
 
           {/* Creation mode toggle */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
               How do you want to build this ITP?
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setCreationMode("ai")}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${
                   creationMode === "ai"
                     ? "bg-violet-100 border-violet-300 text-violet-700"
                     : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                 }`}
               >
-                ✦ Generate with AI
+                ✦ AI Generate
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreationMode("import")}
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${
+                  creationMode === "import"
+                    ? "bg-blue-100 border-blue-300 text-blue-700"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                Import Doc
               </button>
               <button
                 type="button"
                 onClick={() => setCreationMode("manual")}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${
                   creationMode === "manual"
                     ? "bg-slate-800 border-slate-700 text-white"
                     : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                 }`}
               >
-                ✎ Manual entry
+                ✎ Manual
               </button>
             </div>
           </div>
 
-          {/* Action button */}
-          {creationMode === "ai" ? (
+          {/* Action area */}
+          {creationMode === "import" ? (
+            <div className="space-y-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.xlsx,.xls,.txt,.csv"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setImportFile(f);
+                  setImportResult(null);
+                }}
+                className="hidden"
+                id="itp-file-input"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="w-full border-2 border-dashed border-blue-300 hover:border-blue-400 bg-blue-50 rounded-2xl py-6 text-center transition-colors disabled:opacity-50"
+              >
+                {importFile ? (
+                  <div>
+                    <p className="text-sm font-semibold text-blue-700 truncate px-4">
+                      {importFile.name}
+                    </p>
+                    <p className="text-xs text-blue-500 mt-1">
+                      {(importFile.size / 1024).toFixed(0)} KB — tap to change
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-semibold text-blue-600">
+                      Tap to upload document
+                    </p>
+                    <p className="text-xs text-blue-400 mt-1">
+                      PDF, DOCX, Excel, or TXT (max 10 MB)
+                    </p>
+                  </div>
+                )}
+              </button>
+
+              {importResult && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
+                  Imported {importResult.imported} ITP{importResult.imported !== 1 ? "s" : ""} with{" "}
+                  {importResult.total_items} checks
+                </div>
+              )}
+
+              <button
+                onClick={handleImport}
+                disabled={importing || !importFile}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-2xl py-4 text-base active:scale-95 transition-transform"
+              >
+                {importing ? "Analysing document…" : "Import & Generate ITPs"}
+              </button>
+            </div>
+          ) : creationMode === "ai" ? (
             <button
               onClick={handleGenerate}
               disabled={generating || creating || !taskDescription.trim()}
@@ -993,9 +1135,14 @@ export default function ITPBuilderPage() {
         </div>
       )}
 
-      {/* ── AI Generation Skeleton ─────────────────────────────────────── */}
-      {generating && (
+      {/* ── AI Generation / Import Skeleton ──────────────────────────── */}
+      {(generating || importing) && (
         <div className="space-y-3">
+          {importing && (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-sm text-blue-700 text-center">
+              Reading document and generating ITPs — this may take a moment…
+            </div>
+          )}
           {Array.from({ length: 6 }).map((_, i) => (
             <SkeletonRow key={i} />
           ))}
@@ -1003,7 +1150,7 @@ export default function ITPBuilderPage() {
       )}
 
       {/* ── Active Session ─────────────────────────────────────────────── */}
-      {!generating && activeSession && (
+      {!generating && !importing && activeSession && (
         <div className="space-y-3">
           {/* Session header */}
           <div className="flex items-start justify-between gap-2">

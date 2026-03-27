@@ -21,6 +21,7 @@
     "jspdf-autotable": "^5.0.7",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.577.0",
+    "mammoth": "^1.12.0",
     "next": "14.2.35",
     "qrcode.react": "^4.2.0",
     "react": "^18",
