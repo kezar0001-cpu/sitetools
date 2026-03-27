@@ -35,13 +35,11 @@ interface GeneratedItp {
 // ---------------------------------------------------------------------------
 
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  // Use pdf-parse/lib/pdf-parse.js directly to avoid the known issue where
-  // the main entry point tries to load a test PDF file at require-time,
-  // which crashes in serverless environments (Vercel)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse = require("pdf-parse/lib/pdf-parse.js");
-  const data = await pdfParse(buffer);
-  return data.text;
+  const { PDFParse } = await import("pdf-parse");
+  const pdf = new PDFParse({ data: buffer });
+  const result = await pdf.getText();
+  await pdf.destroy();
+  return result.text;
 }
 
 async function extractTextFromDocx(buffer: Buffer): Promise<string> {
