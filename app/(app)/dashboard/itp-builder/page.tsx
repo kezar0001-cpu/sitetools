@@ -126,8 +126,12 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
   async function handleDelete() {
     if (!onDelete) return;
     setDeleting(true);
-    const { error } = await supabase.from("itp_items").delete().eq("id", item.id);
-    if (error) {
+    const { data: deleted, error } = await supabase
+      .from("itp_items")
+      .delete()
+      .eq("id", item.id)
+      .select("id");
+    if (error || !deleted || deleted.length === 0) {
       toast.error("Failed to delete item.");
       setDeleting(false);
       return;
@@ -900,11 +904,13 @@ function ITPBuilderPageInner() {
     if (!activeSession) return;
     setDeletingSession(true);
     try {
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from("itp_sessions")
         .delete()
-        .eq("id", activeSession.id);
+        .eq("id", activeSession.id)
+        .select("id");
       if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Delete blocked by database policy");
 
       // Remove from session list
       setSessions((prev) => prev.filter((s) => s.id !== activeSession.id));
