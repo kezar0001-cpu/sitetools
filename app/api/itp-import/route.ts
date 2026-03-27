@@ -3,8 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import * as mammoth from "mammoth";
 import * as XLSX from "xlsx";
+// Use the internal path to avoid pdf-parse's test-file loading side-effect,
+// which can throw in Next.js App Router / serverless environments.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+const pdfParse = require("pdf-parse/lib/pdf-parse.js");
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // allow up to 2 min for large document AI processing
@@ -66,14 +68,6 @@ function extractTextFromTxt(buffer: Buffer): string {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
-}
 
 function validateItps(raw: unknown): GeneratedItp[] | null {
   if (!Array.isArray(raw) || raw.length < 1) return null;
@@ -402,10 +396,11 @@ ${documentText}`;
       continue;
     }
 
-    // Insert items
+    // Insert items.
+    // Slug is omitted — the DB column default generates a random unique value
+    // to avoid collisions when multiple sessions share identical item titles.
     const rows = itp.items.map((item, idx) => ({
       session_id: session.id,
-      slug: slugify(item.title) + "-" + (idx + 1),
       type: item.type,
       title: item.title,
       description: item.description,
