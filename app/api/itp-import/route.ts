@@ -3,10 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import * as mammoth from "mammoth";
 import * as XLSX from "xlsx";
-// Use the internal path to avoid pdf-parse's test-file loading side-effect,
-// which can throw in Next.js App Router / serverless environments.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse/lib/pdf-parse.js");
+const pdfParse = require("pdf-parse");
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // allow up to 2 min for large document AI processing
