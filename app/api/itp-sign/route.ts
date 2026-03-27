@@ -1,0 +1,110 @@
+import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+
+// In-memory rate limiter: slug → { count, windowStart }
+const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function checkRateLimit(slug: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(slug);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(slug, { count: 1, windowStart: now });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= RATE_LIMIT_MAX;
+}
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
+
+export async function POST(req: NextRequest) {
+  let body: { slug?: string; name?: string; signature?: string; lat?: number; lng?: number };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  const { slug, name, signature, lat, lng } = body;
+
+  // Validate inputs
+  if (!slug) {
+    return NextResponse.json({ error: 'slug is required' }, { status: 400 });
+  }
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  if (!trimmedName) {
+    return NextResponse.json({ error: 'name is required' }, { status: 400 });
+  }
+  if (!signature || typeof signature !== 'string') {
+    return NextResponse.json({ error: 'signature is required' }, { status: 400 });
+  }
+
+  // Rate limit
+  if (!checkRateLimit(slug)) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  // Look up the item
+  const { data: item, error: fetchError } = await supabase
+    .from('itp_items')
+    .select('id, session_id, title, type, status')
+    .eq('slug', slug)
+    .single();
+
+  if (fetchError || !item) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  if (item.status !== 'pending') {
+    return NextResponse.json({ error: 'Already signed' }, { status: 409 });
+  }
+
+  // Build the update payload
+  const updatePayload: Record<string, unknown> = {
+    status: 'signed',
+    signed_off_at: new Date().toISOString(),
+    signed_off_by_name: trimmedName,
+    signature,
+  };
+  if (typeof lat === 'number') updatePayload.sign_off_lat = lat;
+  if (typeof lng === 'number') updatePayload.sign_off_lng = lng;
+
+  const { data: updatedItem, error: updateError } = await supabase
+    .from('itp_items')
+    .update(updatePayload)
+    .eq('slug', slug)
+    .eq('status', 'pending')
+    .select('id, title, type, signed_off_at, signed_off_by_name')
+    .single();
+
+  if (updateError || !updatedItem) {
+    // Concurrent sign-off race — treat as already signed
+    return NextResponse.json({ error: 'Already signed' }, { status: 409 });
+  }
+
+  // Check if all hold-type items in the session are now signed
+  const { data: holdItems, error: holdError } = await supabase
+    .from('itp_items')
+    .select('status')
+    .eq('session_id', item.session_id)
+    .eq('type', 'hold');
+
+  if (!holdError && holdItems && holdItems.every((h) => h.status === 'signed')) {
+    await supabase
+      .from('itp_sessions')
+      .update({ status: 'complete' })
+      .eq('id', item.session_id);
+  }
+
+  return NextResponse.json({ success: true, item: updatedItem }, { status: 200 });
+}
