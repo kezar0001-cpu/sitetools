@@ -145,7 +145,6 @@ function SiteITPDashboardInner() {
     setIsLoading(true);
     try {
       const projects = await fetchCompanyProjects(companyId);
-      const projectMap = new Map(projects.map((p) => [p.id, p.name]));
 
       // Fetch all sessions (lightweight — just id + project_id)
       const { data: sessions } = await supabase
