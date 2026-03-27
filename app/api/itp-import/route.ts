@@ -13,8 +13,6 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -33,14 +31,6 @@ interface GeneratedItp {
 // ---------------------------------------------------------------------------
 // Text extraction helpers
 // ---------------------------------------------------------------------------
-
-async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
-  const pdf = new PDFParse({ data: buffer });
-  const result = await pdf.getText();
-  await pdf.destroy();
-  return result.text;
-}
 
 async function extractTextFromDocx(buffer: Buffer): Promise<string> {
   const result = await mammoth.extractRawText({ buffer });
@@ -123,6 +113,17 @@ const SUPPORTED_TYPES: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
+  // Check API key before doing anything else
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY is not set");
+    return NextResponse.json(
+      { error: "AI service is not configured. Please set the ANTHROPIC_API_KEY environment variable." },
+      { status: 500 }
+    );
+  }
+
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
   // Authenticate
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -206,13 +207,14 @@ export async function POST(req: NextRequest) {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const effectiveType = (fileType && fileType !== "auto") ? fileType : ext;
 
-  // Extract text from all document types
+  // Extract text or prepare for Claude's native PDF support
   let documentText = "";
+  let isPdf = false;
 
   try {
     switch (effectiveType) {
       case "pdf":
-        documentText = await extractTextFromPdf(buffer);
+        isPdf = true;
         break;
       case "docx":
         documentText = await extractTextFromDocx(buffer);
@@ -231,7 +233,8 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
     }
-  } catch {
+  } catch (extractErr) {
+    console.error("File extraction error:", extractErr);
     return NextResponse.json(
       { error: "Failed to read file content." },
       { status: 500 }
@@ -241,6 +244,14 @@ export async function POST(req: NextRequest) {
   // Truncate text to avoid excessive token usage (max ~80K chars)
   if (documentText.length > 80_000) {
     documentText = documentText.slice(0, 80_000) + "\n\n[Document truncated]";
+  }
+
+  // For non-PDF files, ensure we got some text
+  if (!isPdf && !documentText.trim()) {
+    return NextResponse.json(
+      { error: "Could not extract any text from this document. The file may be empty, scanned images, or corrupted." },
+      { status: 422 }
+    );
   }
 
   // Build the Claude prompt
@@ -290,20 +301,11 @@ Example output format:
   }
 ]`;
 
-  if (!documentText.trim()) {
-    return NextResponse.json(
-      { error: "Could not extract any text from this document. The file may be empty, scanned images, or corrupted." },
-      { status: 422 }
-    );
-  }
-
   const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.
 
 Document filename: ${file.name}
 
-Document content:
-
-${documentText}`;
+${isPdf ? "[Document attached as PDF below]" : `Document content:\n\n${documentText}`}`;
 
   // Call Claude
   let itps: GeneratedItp[];
@@ -311,12 +313,31 @@ ${documentText}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90_000);
 
+    // Build messages content
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const content: any[] = [];
+
+    if (isPdf) {
+      // Send PDF natively to Claude for best extraction quality
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: buffer.toString("base64"),
+        },
+      });
+      content.push({ type: "text", text: userPrompt });
+    } else {
+      content.push({ type: "text", text: userPrompt });
+    }
+
     const message = await anthropic.messages.create(
       {
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 8192,
         system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+        messages: [{ role: "user", content }],
       },
       { signal: controller.signal }
     );
@@ -352,9 +373,10 @@ ${documentText}`;
     itps = validated;
   } catch (err) {
     console.error("Claude import error:", err);
+
     if (err instanceof Anthropic.AuthenticationError) {
       return NextResponse.json(
-        { error: "AI service configuration error. Please contact support." },
+        { error: "AI service authentication failed. Check your ANTHROPIC_API_KEY." },
         { status: 500 }
       );
     }
@@ -364,14 +386,22 @@ ${documentText}`;
         { status: 429 }
       );
     }
+    if (err instanceof Anthropic.NotFoundError) {
+      return NextResponse.json(
+        { error: "AI model not available. Please contact support." },
+        { status: 500 }
+      );
+    }
     if (err instanceof Error && err.name === "AbortError") {
       return NextResponse.json(
         { error: "Document processing timed out. Try a smaller document." },
         { status: 504 }
       );
     }
+
+    const errMsg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "AI processing failed. Please try again." },
+      { error: `AI processing failed: ${errMsg}` },
       { status: 500 }
     );
   }
