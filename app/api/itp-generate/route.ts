@@ -129,25 +129,42 @@ export async function POST(req: NextRequest) {
           model: "claude-sonnet-4-6",
           max_tokens: 2048,
           system:
-            "You are a civil construction quality assurance engineer. Generate a concise ITP checklist.",
+            "You are an experienced Australian civil construction quality assurance engineer. You generate ITP (Inspection and Test Plan) checklists that reference the relevant Australian Standards (AS) and state specifications. When writing acceptance criteria, cite the applicable AS clause or tolerance where it materially affects the inspection outcome.",
           messages: [
             {
               role: "user",
               content: `Task: ${task_description}
 
-Generate a JSON array of 6-10 inspection checklist items for this civil construction task.
+Generate a JSON array of 6-10 ITP inspection checklist items for this Australian civil construction task.
+
 Each item must have:
-  - type: 'witness' (notify and observe, work can continue) OR 'hold' (mandatory stop, cannot proceed until signed)
+  - type: "witness" (notify and observe, work can continue) OR "hold" (mandatory stop, cannot proceed until signed)
   - title: short action phrase (max 8 words)
-  - description: one sentence with measurable acceptance criterion
+  - description: one sentence with a measurable acceptance criterion — where applicable, cite the relevant Australian Standard (e.g. "per AS 3600 Cl. 17.1.3", "AS 1289.5.4.1 ≥98% MDD", "AS 1379 Cl. 3.2")
 
-Rules:
-  - Start with 1-2 witness points (pre-work checks)
+Sequence rules:
+  - Start with 1–2 witness points (preparatory / pre-work checks)
   - Include at least 2 hold points at critical quality gates
-  - End with 1 witness point (post-work visual inspection)
-  - Tailor specifically to the task, not generic
+  - End with 1 witness point (post-work visual inspection and defect check)
+  - Order must follow the physical construction sequence
 
-Return ONLY valid JSON array, no markdown, no explanation.`,
+Australian Standards to consider (select those relevant to the task):
+  - Concrete structures: AS 3600, AS 1379 (concrete supply), AS 1012 (testing), AS 3610 (formwork)
+  - Steel reinforcement: AS 4671, AS/NZS 4671
+  - Structural steel / welding: AS 4100, AS/NZS 1554
+  - Earthworks / compaction: AS 1289 (soil testing, e.g. ≥95% or ≥98% MDD), AS 1726 (site investigation)
+  - Paving (flexible): Austroads AGPT, state road authority spec (e.g. VicRoads, MRWA, TMC)
+  - Paving (rigid/concrete): AS 3600, AS 1379
+  - Piling: AS 2159
+  - Masonry: AS 3700
+  - Drainage / pipes: AS 3725 (loads on buried conduits), AS/NZS 3500, AS 1597 (box culverts)
+  - Traffic control: AS 1742
+  - Access / mobility: AS 1428
+  - Residential slabs / footings: AS 2870
+  - Retaining walls / earth retention: AS 4678
+  - Temporary works / formwork: AS 3610
+
+Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`,
             },
           ],
         },
