@@ -1,0 +1,416 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import * as mammoth from "mammoth";
+import * as XLSX from "xlsx";
+
+export const runtime = "nodejs";
+export const maxDuration = 120; // allow up to 2 min for large document AI processing
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ItpItem {
+  type: "witness" | "hold";
+  title: string;
+  description: string;
+}
+
+interface GeneratedItp {
+  task_description: string;
+  items: ItpItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Text extraction helpers
+// ---------------------------------------------------------------------------
+
+async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value;
+}
+
+function extractTextFromExcel(buffer: Buffer): string {
+  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const parts: string[] = [];
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    parts.push(`--- Sheet: ${sheetName} ---`);
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    parts.push(csv);
+  }
+  return parts.join("\n\n");
+}
+
+function extractTextFromTxt(buffer: Buffer): string {
+  return buffer.toString("utf-8");
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 60);
+}
+
+function validateItps(raw: unknown): GeneratedItp[] | null {
+  if (!Array.isArray(raw) || raw.length < 1) return null;
+  for (const itp of raw) {
+    if (
+      typeof itp !== "object" ||
+      itp === null ||
+      typeof itp.task_description !== "string" ||
+      !Array.isArray(itp.items) ||
+      itp.items.length < 1
+    ) {
+      return null;
+    }
+    for (const item of itp.items) {
+      if (
+        typeof item !== "object" ||
+        item === null ||
+        !["witness", "hold"].includes(item.type) ||
+        typeof item.title !== "string" ||
+        typeof item.description !== "string"
+      ) {
+        return null;
+      }
+    }
+  }
+  return raw as GeneratedItp[];
+}
+
+// ---------------------------------------------------------------------------
+// Supported MIME types
+// ---------------------------------------------------------------------------
+
+const SUPPORTED_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-excel": "xls",
+  "text/plain": "txt",
+  "text/csv": "csv",
+};
+
+// ---------------------------------------------------------------------------
+// POST handler
+// ---------------------------------------------------------------------------
+
+export async function POST(req: NextRequest) {
+  // Authenticate
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+  const token = authHeader.slice(7);
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabaseAdmin.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+  }
+
+  // Parse multipart form data
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "Invalid form data." }, { status: 400 });
+  }
+
+  const file = formData.get("file") as File | null;
+  const companyId = formData.get("company_id") as string | null;
+  const projectId = (formData.get("project_id") as string) || null;
+  const siteId = (formData.get("site_id") as string) || null;
+
+  if (!file || !companyId) {
+    return NextResponse.json(
+      { error: "file and company_id are required." },
+      { status: 400 }
+    );
+  }
+
+  // Validate file type
+  const fileType = SUPPORTED_TYPES[file.type];
+  if (!fileType) {
+    // Also check by extension as a fallback
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const extMap: Record<string, string> = {
+      pdf: "pdf",
+      docx: "docx",
+      xlsx: "xlsx",
+      xls: "xls",
+      txt: "txt",
+      csv: "csv",
+    };
+    if (!ext || !extMap[ext]) {
+      return NextResponse.json(
+        { error: "Unsupported file type. Upload PDF, DOCX, XLSX, or TXT files." },
+        { status: 400 }
+      );
+    }
+  }
+
+  // File size limit: 10 MB
+  if (file.size > 10 * 1024 * 1024) {
+    return NextResponse.json(
+      { error: "File too large. Maximum size is 10 MB." },
+      { status: 400 }
+    );
+  }
+
+  // Verify company membership
+  const { data: membership, error: memErr } = await supabaseAdmin
+    .from("org_members")
+    .select("role")
+    .eq("org_id", companyId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (memErr || !membership) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+  }
+
+  // Read file buffer
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  // Determine effective file type
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const effectiveType = fileType ?? ext;
+
+  // Extract text or prepare for Claude's native PDF support
+  let documentText = "";
+  let isPdf = false;
+
+  try {
+    switch (effectiveType) {
+      case "pdf":
+        isPdf = true;
+        break;
+      case "docx":
+        documentText = await extractTextFromDocx(buffer);
+        break;
+      case "xlsx":
+      case "xls":
+      case "csv":
+        documentText = extractTextFromExcel(buffer);
+        break;
+      case "txt":
+        documentText = extractTextFromTxt(buffer);
+        break;
+      default:
+        return NextResponse.json(
+          { error: "Could not process file." },
+          { status: 400 }
+        );
+    }
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to read file content." },
+      { status: 500 }
+    );
+  }
+
+  // Truncate text to avoid excessive token usage (max ~80K chars)
+  if (documentText.length > 80_000) {
+    documentText = documentText.slice(0, 80_000) + "\n\n[Document truncated]";
+  }
+
+  // Build the Claude prompt
+  const systemPrompt = `You are an experienced Australian civil construction quality assurance engineer. You read specification documents, engineering drawings callouts, project scopes, and other construction documents, then generate ITP (Inspection & Test Plan) checklists.
+
+Your job:
+1. Analyse the uploaded document
+2. Identify EVERY distinct construction activity/task that warrants its own ITP
+3. For each activity, generate a focused ITP with 6-10 inspection checklist items
+
+Each ITP must have:
+- task_description: a short (max 12 words) plain-English name for the activity
+- items: an array of inspection points
+
+Each item must have:
+- type: "witness" (notify and observe, work can continue) OR "hold" (mandatory stop, cannot proceed until signed)
+- title: short action phrase (max 8 words)
+- description: one sentence with a measurable acceptance criterion — cite the relevant Australian Standard where applicable (e.g. "per AS 3600 Cl. 17.1.3", "AS 1289.5.4.1 >= 98% MDD")
+
+Sequence rules for each ITP:
+- Start with 1-2 witness points (preparatory / pre-work checks)
+- Include at least 2 hold points at critical quality gates
+- End with 1 witness point (post-work visual inspection)
+- Order must follow the physical construction sequence
+
+Australian Standards to consider (select those relevant):
+- Concrete: AS 3600, AS 1379, AS 1012, AS 3610
+- Steel reinforcement: AS 4671, AS/NZS 4671
+- Structural steel / welding: AS 4100, AS/NZS 1554
+- Earthworks / compaction: AS 1289, AS 1726
+- Paving: Austroads AGPT, state road authority specs
+- Piling: AS 2159
+- Drainage / pipes: AS 3725, AS/NZS 3500, AS 1597
+- Residential slabs: AS 2870
+- Retaining walls: AS 4678
+
+Return ONLY a valid JSON array of ITP objects. No markdown, no explanation, no code fences.
+
+Example output format:
+[
+  {
+    "task_description": "Strip footings concrete pour",
+    "items": [
+      { "type": "witness", "title": "Pre-pour formwork check", "description": "Verify formwork dimensions and bracing per AS 3610 Cl. 3.4." },
+      { "type": "hold", "title": "Rebar placement hold", "description": "Confirm reinforcement cover, spacing and lap lengths per AS 3600 Cl. 17.1.3." }
+    ]
+  }
+]`;
+
+  const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.
+
+Document filename: ${file.name}
+
+${isPdf ? "[Document attached as PDF below]" : `Document content:\n\n${documentText}`}`;
+
+  // Call Claude
+  let itps: GeneratedItp[];
+  try {
+    // Build messages content
+    const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [];
+
+    if (isPdf) {
+      // Send PDF natively to Claude
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: buffer.toString("base64"),
+        },
+      });
+      content.push({ type: "text", text: userPrompt });
+    } else {
+      content.push({ type: "text", text: userPrompt });
+    }
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [{ role: "user", content }],
+    });
+
+    const textBlock = message.content.find((b) => b.type === "text");
+    const responseText =
+      textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      // Try to extract JSON from the response if Claude wrapped it
+      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          parsed = null;
+        }
+      }
+    }
+
+    const validated = parsed !== null ? validateItps(parsed) : null;
+    if (!validated || validated.length === 0) {
+      return NextResponse.json(
+        { error: "Could not extract ITPs from this document. Try a more detailed specification." },
+        { status: 422 }
+      );
+    }
+    itps = validated;
+  } catch (err) {
+    console.error("Claude import error:", err);
+    return NextResponse.json(
+      { error: "AI processing failed. Please try again." },
+      { status: 500 }
+    );
+  }
+
+  // Create ITP sessions and items in the database
+  const createdSessions: Array<{
+    session: Record<string, unknown>;
+    items: Record<string, unknown>[];
+  }> = [];
+
+  for (const itp of itps) {
+    // Insert session
+    const { data: session, error: sessionErr } = await supabaseAdmin
+      .from("itp_sessions")
+      .insert({
+        company_id: companyId,
+        task_description: itp.task_description,
+        project_id: projectId,
+        site_id: siteId,
+        created_by_user_id: user.id,
+      })
+      .select(
+        "id, company_id, task_description, created_at, project_id, site_id, status"
+      )
+      .single();
+
+    if (sessionErr || !session) {
+      console.error("Session insert error:", sessionErr);
+      continue;
+    }
+
+    // Insert items
+    const rows = itp.items.map((item, idx) => ({
+      session_id: session.id,
+      slug: slugify(item.title) + "-" + (idx + 1),
+      type: item.type,
+      title: item.title,
+      description: item.description,
+      sort_order: idx + 1,
+    }));
+
+    const { data: inserted, error: insertErr } = await supabaseAdmin
+      .from("itp_items")
+      .insert(rows)
+      .select(
+        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
+      );
+
+    if (insertErr || !inserted) {
+      console.error("Items insert error:", insertErr);
+      continue;
+    }
+
+    createdSessions.push({ session, items: inserted });
+  }
+
+  if (createdSessions.length === 0) {
+    return NextResponse.json(
+      { error: "Failed to save generated ITPs." },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    imported: createdSessions.length,
+    total_items: createdSessions.reduce((sum, s) => sum + s.items.length, 0),
+    sessions: createdSessions,
+  });
+}
