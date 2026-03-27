@@ -67,14 +67,6 @@ function extractTextFromTxt(buffer: Buffer): string {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
-}
-
 function validateItps(raw: unknown): GeneratedItp[] | null {
   if (!Array.isArray(raw) || raw.length < 1) return null;
   for (const itp of raw) {
@@ -402,10 +394,11 @@ ${documentText}`;
       continue;
     }
 
-    // Insert items
+    // Insert items.
+    // Slug is omitted — the DB column default generates a random unique value
+    // to avoid collisions when multiple sessions share identical item titles.
     const rows = itp.items.map((item, idx) => ({
       session_id: session.id,
-      slug: slugify(item.title) + "-" + (idx + 1),
       type: item.type,
       title: item.title,
       description: item.description,

@@ -16,14 +16,6 @@ interface ItpItem {
   description: string;
 }
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60);
-}
-
 function fallbackItems(): ItpItem[] {
   return [
     {
@@ -215,10 +207,12 @@ Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`,
     );
   }
 
-  // Insert items linked to the session
+  // Insert items linked to the session.
+  // Slug is omitted here — the DB column default generates a random unique value,
+  // which avoids collisions when multiple sessions share the same item titles
+  // (e.g. the fallback items that are reused across many sessions).
   const rows = items.map((item, idx) => ({
     session_id: session.id,
-    slug: slugify(item.title) + "-" + (idx + 1),
     type: item.type,
     title: item.title,
     description: item.description,
