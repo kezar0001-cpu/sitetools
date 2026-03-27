@@ -108,11 +108,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 
-  // Call Claude with a 10-second timeout
+  // Call Claude with a 30-second timeout
   let items: ItpItem[];
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
     let responseText = "";
     try {
@@ -121,35 +121,37 @@ export async function POST(req: NextRequest) {
           model: "claude-sonnet-4-6",
           max_tokens: 2048,
           system:
-            "You are an experienced Australian civil construction quality assurance engineer. You generate ITP (Inspection and Test Plan) checklists that reference the relevant Australian Standards (AS) and state specifications. When writing acceptance criteria, cite the applicable AS clause or tolerance where it materially affects the inspection outcome.",
+            "You are an experienced Australian civil construction quality assurance engineer writing ITPs for real projects. Your ITPs must be specific to the exact task described — not generic templates. Each checklist item must reflect the actual materials, equipment, tolerances, and construction sequence that apply to THIS task. Never recycle boilerplate items that could apply to any task.",
           messages: [
             {
               role: "user",
               content: `Task: ${task_description}
 
-Generate a JSON array of 6-10 ITP inspection checklist items for this Australian civil construction task.
+Think carefully about what this specific construction activity involves: the materials used, the equipment, the physical steps in order, the failure modes, and the quality checkpoints that matter most for THIS task.
+
+Generate a JSON array of 6-10 ITP inspection checklist items tailored specifically to this task.
 
 Each item must have:
   - type: "witness" (notify and observe, work can continue) OR "hold" (mandatory stop, cannot proceed until signed)
-  - title: short action phrase (max 8 words)
-  - description: one sentence with a measurable acceptance criterion — where applicable, cite the relevant Australian Standard (e.g. "per AS 3600 Cl. 17.1.3", "AS 1289.5.4.1 ≥98% MDD", "AS 1379 Cl. 3.2")
+  - title: short action phrase specific to this task (max 8 words) — must name the actual activity/material/element being inspected
+  - description: one sentence with a measurable acceptance criterion specific to this task — cite the relevant Australian Standard clause or tolerance where it materially affects the outcome (e.g. "per AS 3600 Cl. 17.1.3", "AS 1289.5.4.1 ≥98% MDD", "AS 1379 Cl. 3.2")
 
-Sequence rules:
-  - Start with 1–2 witness points (preparatory / pre-work checks)
-  - Include at least 2 hold points at critical quality gates
-  - End with 1 witness point (post-work visual inspection and defect check)
-  - Order must follow the physical construction sequence
+Rules:
+  - Items must follow the physical construction sequence for THIS task
+  - Hold points must be at the critical quality gates specific to this activity (not just generic "dimensions hold")
+  - Witness points should cover the preparatory checks and post-work inspections relevant to this task
+  - Do NOT include generic items that would apply to any construction task — every item must be traceable to something specific about the task description
 
-Australian Standards to consider (select those relevant to the task):
+Australian Standards to draw from (select only those relevant):
   - Concrete structures: AS 3600, AS 1379 (concrete supply), AS 1012 (testing), AS 3610 (formwork)
   - Steel reinforcement: AS 4671, AS/NZS 4671
   - Structural steel / welding: AS 4100, AS/NZS 1554
-  - Earthworks / compaction: AS 1289 (soil testing, e.g. ≥95% or ≥98% MDD), AS 1726 (site investigation)
-  - Paving (flexible): Austroads AGPT, state road authority spec (e.g. VicRoads, MRWA, TMC)
+  - Earthworks / compaction: AS 1289 (soil testing, ≥95% or ≥98% MDD), AS 1726 (site investigation)
+  - Paving (flexible): Austroads AGPT, state road authority spec (VicRoads, MRWA, TMC)
   - Paving (rigid/concrete): AS 3600, AS 1379
   - Piling: AS 2159
   - Masonry: AS 3700
-  - Drainage / pipes: AS 3725 (loads on buried conduits), AS/NZS 3500, AS 1597 (box culverts)
+  - Drainage / pipes: AS 3725, AS/NZS 3500, AS 1597 (box culverts)
   - Traffic control: AS 1742
   - Access / mobility: AS 1428
   - Residential slabs / footings: AS 2870

@@ -1104,7 +1104,7 @@ function ITPBuilderPageInner() {
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
               How do you want to build this ITP?
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setCreationMode("ai")}
@@ -1115,17 +1115,6 @@ function ITPBuilderPageInner() {
                 }`}
               >
                 ✦ AI Generate
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreationMode("import")}
-                className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${
-                  creationMode === "import"
-                    ? "bg-blue-100 border-blue-300 text-blue-700"
-                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                }`}
-              >
-                Import Doc
               </button>
               <button
                 type="button"
