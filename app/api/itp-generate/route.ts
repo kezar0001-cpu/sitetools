@@ -8,7 +8,20 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+async function getAnthropicApiKey(): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin
+      .schema("vault")
+      .from("decrypted_secrets")
+      .select("decrypted_secret")
+      .eq("name", "ANTHROPIC_API_KEY")
+      .single();
+    if (data?.decrypted_secret) return data.decrypted_secret;
+  } catch {
+    // fall through to env var
+  }
+  return process.env.ANTHROPIC_API_KEY ?? "";
+}
 
 interface ItpItem {
   type: "witness" | "hold";
@@ -117,6 +130,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Call Claude with a 10-second timeout
+  const apiKey = await getAnthropicApiKey();
+  const anthropic = new Anthropic({ apiKey });
   let items: ItpItem[];
   try {
     const controller = new AbortController();
