@@ -72,8 +72,8 @@ export const MODULES: BuildstateModule[] = [
         description:
             "Create, manage, and track inspection and test plans across your projects. Assign hold/witness points and capture sign-offs digitally.",
         icon: "list-checks",
-        status: "coming-soon",
-        visibility: "roadmap",
+        status: "live",
+        visibility: "primary",
         href: "/dashboard/itp-builder",
         color: "violet",
     },
