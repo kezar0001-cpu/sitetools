@@ -477,24 +477,21 @@ export default function CreateItpModal({
 
   const isBusy = generating || creating || importing || previewing;
 
-  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
-    if (isBusy) return;
-    const rect = (e.target as HTMLDialogElement).getBoundingClientRect();
-    const clickedOutside =
-      e.clientX < rect.left ||
-      e.clientX > rect.right ||
-      e.clientY < rect.top ||
-      e.clientY > rect.bottom;
-    if (clickedOutside) handleClose();
-  }
-
   return (
     <dialog
       ref={dialogRef}
       onClose={handleClose}
-      onClick={handleBackdropClick}
-      className="backdrop:bg-black/40 bg-white rounded-2xl shadow-xl p-0 w-full max-w-lg border-0 mx-4"
+      className="fixed inset-0 m-0 p-0 w-screen h-screen max-w-none max-h-none bg-transparent border-0"
     >
+      {/* Backdrop — real DOM element so iOS tap-to-dismiss works */}
+      <div
+        className="w-full h-full flex items-center justify-center bg-black/40 px-4"
+        onClick={handleClose}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-xl w-full max-w-lg"
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        >
       {/* Modal header — sticky so close button is always reachable */}
       <div className="sticky top-0 z-10 flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 bg-white rounded-t-2xl">
         <h2 className="text-base font-bold text-slate-900">New ITP</h2>
@@ -917,6 +914,8 @@ export default function CreateItpModal({
           )}
         </div>
       )}
+        </div>
+      </div>
     </dialog>
   );
 }
