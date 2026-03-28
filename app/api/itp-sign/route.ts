@@ -159,6 +159,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Already signed' }, { status: 409 });
   }
 
+  // Audit log
+  await supabase.from('itp_audit_log').insert({
+    session_id: item.session_id,
+    item_id: item.id,
+    action: isWaiver ? 'waive' : 'sign',
+    performed_by_user_id: null, // public sign-off — no authenticated user
+    old_values: { status: 'pending' },
+    new_values: isWaiver
+      ? { status: 'waived', waive_reason: typeof waive_reason === 'string' ? waive_reason.trim() : '' }
+      : { status: 'signed', signed_off_by_name: trimmedName },
+  });
+
   // Check if all hold-type items in the session are now signed or waived
   const { data: holdItems, error: holdError } = await supabase
     .from('itp_items')
@@ -171,6 +183,15 @@ export async function POST(req: NextRequest) {
       .from('itp_sessions')
       .update({ status: 'complete' })
       .eq('id', item.session_id);
+
+    // Audit log: session auto-completed
+    await supabase.from('itp_audit_log').insert({
+      session_id: item.session_id,
+      item_id: null,
+      action: 'archive',
+      performed_by_user_id: null,
+      new_values: { status: 'complete', reason: 'all_hold_points_signed' },
+    });
   }
 
   return NextResponse.json({ success: true, item: updatedItem }, { status: 200 });

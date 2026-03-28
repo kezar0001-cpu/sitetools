@@ -3,11 +3,13 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
 import { toast } from "sonner";
 import ItpPdfExport from "./components/ItpPdfExport";
+import ItpQrSheet from "./components/ItpQrSheet";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,7 +17,8 @@ import ItpPdfExport from "./components/ItpPdfExport";
 
 type ItemType = "hold" | "witness";
 type ItemStatus = "pending" | "signed" | "waived";
-type CreationMode = "ai" | "manual" | "import";
+type CreationMode = "ai" | "manual" | "import" | "template";
+type ImportStep = "upload" | "preview" | "saving";
 
 interface ITPItem {
   id: string;
@@ -47,6 +50,37 @@ interface ITPSession {
 interface ProjectOption {
   id: string;
   name: string;
+}
+
+interface ITPTemplate {
+  id: string;
+  company_id: string;
+  name: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  items: Array<{ type: "witness" | "hold"; title: string; description: string }>;
+}
+
+interface AuditLogEntry {
+  id: string;
+  session_id: string;
+  item_id: string | null;
+  action: "create" | "update" | "delete" | "sign" | "waive" | "archive";
+  performed_by_user_id: string | null;
+  performed_at: string;
+  old_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown> | null;
+}
+
+interface DraftItpItem {
+  type: "witness" | "hold";
+  title: string;
+  description: string;
+}
+
+interface DraftItp {
+  task_description: string;
+  items: DraftItpItem[];
 }
 
 interface SiteOption {
@@ -181,9 +215,11 @@ interface ChecklistItemCardProps {
   item: ITPItem;
   onDelete?: (id: string) => void;
   onEdit?: (updated: ITPItem) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dragHandleProps?: any;
 }
 
-function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
+function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: ChecklistItemCardProps) {
   const [expanded, setExpanded] = useState(item.status !== "signed" && item.status !== "waived");
   const [deleting, setDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -373,6 +409,20 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
   return (
     <div className={`bg-white border border-slate-200 border-l-4 ${borderColor} rounded-2xl p-4 shadow-sm`}>
       <div className="flex items-start justify-between gap-3">
+        {/* Drag handle — only for pending items */}
+        {isPending && dragHandleProps && (
+          <div
+            {...dragHandleProps}
+            className="mt-1 shrink-0 cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 transition-colors select-none"
+            title="Drag to reorder"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <circle cx="9" cy="5" r="1.5" /><circle cx="15" cy="5" r="1.5" />
+              <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+              <circle cx="9" cy="19" r="1.5" /><circle cx="15" cy="19" r="1.5" />
+            </svg>
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           {/* Badges row */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -808,6 +858,22 @@ function ITPBuilderPageInner() {
     total_items: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Multi-step import preview
+  const [importStep, setImportStep] = useState<ImportStep>("upload");
+  const [draftSessions, setDraftSessions] = useState<DraftItp[]>([]);
+  const [previewing, setPreviewing] = useState(false);
+
+  // ── Template state
+  const [templates, setTemplates] = useState<ITPTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+
+  // ── Audit trail state
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // ── Active session state
   const [generating, setGenerating] = useState(false);
@@ -841,11 +907,12 @@ function ITPBuilderPageInner() {
     ? allSites.filter((s) => s.project_id === selectedProjectId)
     : allSites;
 
-  // Load reference data and sessions on mount / company change
+  // Load reference data, sessions, and templates on mount / company change
   useEffect(() => {
     if (!activeCompanyId) return;
     loadReferenceData(activeCompanyId);
     loadSessions(activeCompanyId);
+    loadTemplates(activeCompanyId);
   }, [activeCompanyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear site selection when project changes
@@ -909,6 +976,26 @@ function ITPBuilderPageInner() {
       return () => clearTimeout(timer);
     }
   }, [showInput]);
+
+  async function loadTemplates(companyId: string) {
+    setTemplatesLoading(true);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/itp-templates?company_id=${companyId}`, {
+        headers: { Authorization: `Bearer ${authSession?.access_token ?? ""}` },
+      });
+      if (res.ok) {
+        const data = await res.json() as { templates: ITPTemplate[] };
+        setTemplates(data.templates ?? []);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }
 
   async function loadReferenceData(companyId: string) {
     try {
@@ -1081,82 +1168,19 @@ function ITPBuilderPageInner() {
     }
   }
 
-  async function handleImport() {
-    if (!importFile || !activeCompanyId) return;
-
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const {
-        data: { session: authSession },
-      } = await supabase.auth.getSession();
-
-      const formData = new FormData();
-      formData.append("file", importFile);
-      formData.append("company_id", activeCompanyId);
-      if (selectedProjectId) formData.append("project_id", selectedProjectId);
-      if (selectedSiteId) formData.append("site_id", selectedSiteId);
-
-      const res = await fetch("/api/itp-import", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
-        },
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(
-          (body as { error?: string }).error ?? `Request failed (${res.status})`
-        );
-      }
-
-      const data = (await res.json()) as {
-        imported: number;
-        total_items: number;
-        sessions: Array<{ session: ITPSession; items: ITPItem[] }>;
-      };
-
-      setImportResult({ imported: data.imported, total_items: data.total_items });
-      setImportFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-
-      // Load the first imported session as active
-      if (data.sessions.length > 0) {
-        const first = data.sessions[0];
-        setActiveSession(first.session);
-        setActiveItems(first.items);
-        setShowInput(false);
-        setShowAddItem(true);
-      }
-
-      toast.success(
-        `Imported ${data.imported} ITP${data.imported !== 1 ? "s" : ""} with ${data.total_items} checks`
-      );
-
-      // Prepend all imported sessions to the list instead of re-fetching
-      const importedSessions = data.sessions.map((s) => ({
-        ...s.session,
-        items: s.items,
-      }));
-      setSessions((prev) => [...importedSessions, ...prev]);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to import document.");
-    } finally {
-      setImporting(false);
-    }
-  }
-
   function handleNewITP() {
     setShowInput(true);
     setActiveSession(null);
     setActiveItems([]);
     setShowAddItem(false);
     setShowSessionQR(false);
+    setShowAuditTrail(false);
     setConfirmDeleteSession(false);
     setImportFile(null);
     setImportResult(null);
+    setImportStep("upload");
+    setDraftSessions([]);
+    setShowSaveTemplate(false);
     setTimeout(() => inputCardRef.current?.scrollIntoView({ behavior: "smooth" }), 10);
   }
 
@@ -1257,6 +1281,257 @@ function ITPBuilderPageInner() {
             : s
         )
       );
+    }
+  }
+
+  // ── Drag-and-drop reorder ─────────────────────────────────────────────────
+
+  async function handleDragEnd(result: DropResult) {
+    if (!result.destination || !activeSession) return;
+    if (result.source.index === result.destination.index) return;
+
+    const sorted = [...activeItems].sort((a, b) => a.sort_order - b.sort_order);
+    const reordered = Array.from(sorted);
+    const [removed] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, removed);
+
+    const updates = reordered.map((item, idx) => ({ ...item, sort_order: idx + 1 }));
+
+    // Optimistic update
+    setActiveItems(updates);
+    setSessions((prev) =>
+      prev.map((s) => (s.id === activeSession.id ? { ...s, items: updates } : s))
+    );
+
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/itp-sessions/${activeSession.id}/reorder`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
+        },
+        body: JSON.stringify(updates.map((i) => ({ id: i.id, sort_order: i.sort_order }))),
+      });
+      if (!res.ok) {
+        toast.error("Failed to save new order.");
+      }
+    } catch {
+      toast.error("Failed to save new order.");
+    }
+  }
+
+  // ── Template handlers ─────────────────────────────────────────────────────
+
+  async function handleUseTemplate(template: ITPTemplate) {
+    if (!activeCompanyId) return;
+    setCreating(true);
+    try {
+      // Create a new session
+      const { data: session, error: sessionErr } = await supabase
+        .from("itp_sessions")
+        .insert({
+          company_id: activeCompanyId,
+          task_description: template.name,
+          project_id: selectedProjectId || null,
+          site_id: selectedSiteId || null,
+        })
+        .select("id, company_id, task_description, created_at, project_id, site_id, status")
+        .single();
+      if (sessionErr || !session) throw sessionErr ?? new Error("Failed to create session");
+
+      // Insert items from template
+      const rows = template.items.map((item, idx) => ({
+        session_id: session.id,
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        sort_order: idx + 1,
+      }));
+      const { data: items, error: itemsErr } = await supabase
+        .from("itp_items")
+        .insert(rows)
+        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng");
+      if (itemsErr) throw itemsErr;
+
+      const newSession = session as ITPSession;
+      const newItems = (items ?? []) as ITPItem[];
+      setActiveSession(newSession);
+      setActiveItems(newItems);
+      setShowInput(false);
+      setShowAddItem(false);
+      setSessions((prev) => [{ ...newSession, items: newItems }, ...prev]);
+      toast.success(`ITP created from template "${template.name}"`);
+    } catch {
+      toast.error("Failed to create ITP from template.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleSaveTemplate() {
+    if (!activeSession || !activeCompanyId || !templateName.trim()) return;
+    setSavingTemplate(true);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/itp-templates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          company_id: activeCompanyId,
+          name: templateName.trim(),
+          session_id: activeSession.id,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Failed to save");
+      }
+      const data = await res.json() as { template: ITPTemplate };
+      setTemplates((prev) => [data.template, ...prev]);
+      setShowSaveTemplate(false);
+      setTemplateName("");
+      toast.success("Template saved.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save template.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function handleDeleteTemplate(templateId: string) {
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/itp-templates/${templateId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authSession?.access_token ?? ""}` },
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+      toast.success("Template deleted.");
+    } catch {
+      toast.error("Failed to delete template.");
+    }
+  }
+
+  // ── Audit trail ───────────────────────────────────────────────────────────
+
+  async function loadAuditLog(sessionId: string) {
+    setAuditLoading(true);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const res = await fetch(`/api/itp-audit-log/${sessionId}`, {
+        headers: { Authorization: `Bearer ${authSession?.access_token ?? ""}` },
+      });
+      if (res.ok) {
+        const data = await res.json() as { logs: AuditLogEntry[] };
+        setAuditLogs(data.logs ?? []);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
+  // ── Import preview ────────────────────────────────────────────────────────
+
+  async function handleImportPreview() {
+    if (!importFile || !activeCompanyId) return;
+    setPreviewing(true);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const formData = new FormData();
+      formData.append("file", importFile);
+      formData.append("company_id", activeCompanyId);
+      if (selectedProjectId) formData.append("project_id", selectedProjectId);
+      if (selectedSiteId) formData.append("site_id", selectedSiteId);
+
+      const res = await fetch("/api/itp-import/preview", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authSession?.access_token ?? ""}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+      }
+      const data = await res.json() as { sessions: DraftItp[] };
+      setDraftSessions(data.sessions);
+      setImportStep("preview");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to analyse document.");
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  async function handleImportConfirm() {
+    if (!activeCompanyId || draftSessions.length === 0) return;
+    setImportStep("saving");
+    setImporting(true);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const res = await fetch("/api/itp-import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          company_id: activeCompanyId,
+          project_id: selectedProjectId || undefined,
+          site_id: selectedSiteId || undefined,
+          sessions: draftSessions,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+      }
+      const data = await res.json() as {
+        imported: number;
+        total_items: number;
+        sessions: Array<{ session: ITPSession; items: ITPItem[] }>;
+      };
+      setImportResult({ imported: data.imported, total_items: data.total_items });
+      setImportFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setDraftSessions([]);
+      setImportStep("upload");
+
+      if (data.sessions.length > 0) {
+        const first = data.sessions[0];
+        setActiveSession(first.session);
+        setActiveItems(first.items);
+        setShowInput(false);
+        setShowAddItem(true);
+      }
+      toast.success(
+        `Imported ${data.imported} ITP${data.imported !== 1 ? "s" : ""} with ${data.total_items} checks`
+      );
+      const importedSessions = data.sessions.map((s) => ({ ...s.session, items: s.items }));
+      setSessions((prev) => [...importedSessions, ...prev]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save ITPs.");
+      setImportStep("preview");
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -1399,11 +1674,33 @@ function ITPBuilderPageInner() {
               >
                 ✎ Manual
               </button>
+              <button
+                type="button"
+                onClick={() => setCreationMode("template")}
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${
+                  creationMode === "template"
+                    ? "bg-amber-100 border-amber-300 text-amber-700"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                ⊟ Use Template
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCreationMode("import"); setImportStep("upload"); }}
+                className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${
+                  creationMode === "import"
+                    ? "bg-blue-100 border-blue-300 text-blue-700"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                ↑ Import Doc
+              </button>
             </div>
           </div>
 
-          {/* Task description (hidden in import mode) */}
-          {creationMode !== "import" && (
+          {/* Task description (hidden in import and template mode) */}
+          {creationMode !== "import" && creationMode !== "template" && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5">
                 Task description
@@ -1424,59 +1721,98 @@ function ITPBuilderPageInner() {
           {/* Action area */}
           {creationMode === "import" ? (
             <div className="space-y-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.xlsx,.xls,.txt,.csv"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  setImportFile(f);
-                  setImportResult(null);
-                }}
-                className="hidden"
-                id="itp-file-input"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={importing}
-                className="w-full border-2 border-dashed border-blue-300 hover:border-blue-400 bg-blue-50 rounded-2xl py-6 text-center transition-colors disabled:opacity-50"
-              >
-                {importFile ? (
-                  <div>
-                    <p className="text-sm font-semibold text-blue-700 truncate px-4">
-                      {importFile.name}
-                    </p>
-                    <p className="text-xs text-blue-500 mt-1">
-                      {(importFile.size / 1024).toFixed(0)} KB — tap to change
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm font-semibold text-blue-600">
-                      Tap to upload document
-                    </p>
-                    <p className="text-xs text-blue-400 mt-1">
-                      PDF, DOCX, Excel, or TXT (max 10 MB)
-                    </p>
-                  </div>
-                )}
-              </button>
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <span className={importStep === "upload" ? "text-blue-600" : "text-slate-400"}>
+                  1 Upload
+                </span>
+                <span className="text-slate-300">›</span>
+                <span className={importStep === "preview" ? "text-blue-600" : "text-slate-400"}>
+                  2 AI Preview
+                </span>
+                <span className="text-slate-300">›</span>
+                <span className={importStep === "saving" ? "text-blue-600" : "text-slate-400"}>
+                  3 Confirm
+                </span>
+              </div>
 
-              {importResult && (
-                <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700">
-                  Imported {importResult.imported} ITP{importResult.imported !== 1 ? "s" : ""} with{" "}
-                  {importResult.total_items} checks
+              {importStep === "upload" && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xlsx,.xls,.txt,.csv"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      setImportFile(f);
+                      setImportResult(null);
+                    }}
+                    className="hidden"
+                    id="itp-file-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={previewing}
+                    className="w-full border-2 border-dashed border-blue-300 hover:border-blue-400 bg-blue-50 rounded-2xl py-6 text-center transition-colors disabled:opacity-50"
+                  >
+                    {importFile ? (
+                      <div>
+                        <p className="text-sm font-semibold text-blue-700 truncate px-4">{importFile.name}</p>
+                        <p className="text-xs text-blue-500 mt-1">{(importFile.size / 1024).toFixed(0)} KB — tap to change</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm font-semibold text-blue-600">Tap to upload document</p>
+                        <p className="text-xs text-blue-400 mt-1">PDF, DOCX, Excel, or TXT (max 10 MB)</p>
+                      </div>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleImportPreview}
+                    disabled={previewing || !importFile}
+                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-2xl py-4 text-base active:scale-95 transition-transform"
+                  >
+                    {previewing ? "Analysing document…" : "Preview ITPs →"}
+                  </button>
+                </>
+              )}
+            </div>
+          ) : creationMode === "template" ? (
+            <div className="space-y-3">
+              {templatesLoading ? (
+                <div className="text-center py-6 text-sm text-slate-400">Loading templates…</div>
+              ) : templates.length === 0 ? (
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center space-y-1">
+                  <p className="text-sm font-semibold text-slate-600">No templates yet</p>
+                  <p className="text-xs text-slate-400">Open an ITP session and save it as a template.</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {templates.map((t) => (
+                    <div key={t.id} className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{t.name}</p>
+                        <p className="text-xs text-slate-400">{t.items.length} item{t.items.length !== 1 ? "s" : ""}</p>
+                      </div>
+                      <button
+                        onClick={() => handleUseTemplate(t)}
+                        disabled={creating}
+                        className="text-xs font-bold bg-amber-400 hover:bg-amber-500 text-amber-900 rounded-lg px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+                      >
+                        Use
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTemplate(t.id)}
+                        className="text-xs text-red-400 hover:text-red-600 transition-colors px-1"
+                        title="Delete template"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
-
-              <button
-                onClick={handleImport}
-                disabled={importing || !importFile}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-2xl py-4 text-base active:scale-95 transition-transform"
-              >
-                {importing ? "Analysing document…" : "Import & Generate ITPs"}
-              </button>
             </div>
           ) : creationMode === "ai" ? (
             <button
@@ -1499,9 +1835,9 @@ function ITPBuilderPageInner() {
       )}
 
       {/* ── AI Generation / Import Skeleton ──────────────────────────── */}
-      {(generating || importing) && (
+      {(generating || previewing) && (
         <div className="space-y-3">
-          {importing && (
+          {previewing && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-sm text-blue-700 text-center">
               Reading document and generating ITPs — this may take a moment…
             </div>
@@ -1592,6 +1928,30 @@ function ITPBuilderPageInner() {
               >
                 {showSessionQR ? "Hide QR" : "QR Code"}
               </button>
+              {/* Print Sign-Off Sheet */}
+              <ItpQrSheet session={activeSession} items={activeItems} />
+              {/* Save as template */}
+              <button
+                onClick={() => setShowSaveTemplate((v) => !v)}
+                className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
+              >
+                Save as Template
+              </button>
+              {/* Audit Trail */}
+              <button
+                onClick={() => {
+                  const next = !showAuditTrail;
+                  setShowAuditTrail(next);
+                  if (next) loadAuditLog(activeSession.id);
+                }}
+                className={`text-xs font-semibold border rounded-xl px-3 py-1.5 active:scale-95 transition-all ${
+                  showAuditTrail
+                    ? "bg-slate-800 border-slate-700 text-white"
+                    : "text-slate-600 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                Audit Trail
+              </button>
               {/* Delete ITP session */}
               <button
                 onClick={() => setConfirmDeleteSession(true)}
@@ -1620,6 +1980,84 @@ function ITPBuilderPageInner() {
             </div>
           )}
 
+          {/* Save as Template panel */}
+          {showSaveTemplate && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-3">
+              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">
+                Save as Template
+              </p>
+              <input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Template name (e.g. Concrete Footing Pour)"
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-amber-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={savingTemplate || !templateName.trim()}
+                  className="flex-1 bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-900 font-bold rounded-xl py-2.5 text-sm active:scale-95 transition-transform"
+                >
+                  {savingTemplate ? "Saving…" : "Save Template"}
+                </button>
+                <button
+                  onClick={() => { setShowSaveTemplate(false); setTemplateName(""); }}
+                  className="px-4 bg-white border border-amber-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Audit Trail panel */}
+          {showAuditTrail && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                Audit Trail
+              </p>
+              {auditLoading ? (
+                <div className="text-center py-4 text-sm text-slate-400">Loading…</div>
+              ) : auditLogs.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-2">No audit records yet.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {auditLogs.map((log) => (
+                    <div key={log.id} className="bg-white border border-slate-100 rounded-xl px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`font-bold uppercase px-1.5 py-0.5 rounded-full text-[10px] ${
+                          log.action === "sign" ? "bg-green-100 text-green-700" :
+                          log.action === "waive" ? "bg-slate-100 text-slate-600" :
+                          log.action === "create" ? "bg-violet-100 text-violet-700" :
+                          log.action === "delete" ? "bg-red-100 text-red-700" :
+                          log.action === "archive" ? "bg-blue-100 text-blue-700" :
+                          "bg-amber-100 text-amber-700"
+                        }`}>
+                          {log.action}
+                        </span>
+                        <span className="text-slate-400 shrink-0">
+                          {new Date(log.performed_at).toLocaleString("en-AU", {
+                            day: "2-digit", month: "short", hour: "numeric", minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {log.new_values && (
+                        <p className="text-slate-500 mt-1 truncate">
+                          {Object.entries(log.new_values)
+                            .filter(([k]) => !k.includes("_id"))
+                            .map(([k, v]) => `${k}: ${String(v)}`)
+                            .join(" · ")
+                            .slice(0, 100)}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Items */}
           {activeItems.length === 0 && !showAddItem && (
             <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center">
@@ -1633,14 +2071,43 @@ function ITPBuilderPageInner() {
             </div>
           )}
 
-          {activeItems.map((item) => (
-            <ChecklistItemCard
-              key={item.id}
-              item={item}
-              onDelete={handleItemDeleted}
-              onEdit={handleItemEdited}
-            />
-          ))}
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="itp-items">
+              {(droppableProvided) => (
+                <div
+                  ref={droppableProvided.innerRef}
+                  {...droppableProvided.droppableProps}
+                  className="space-y-3"
+                >
+                  {[...activeItems]
+                    .sort((a, b) => a.sort_order - b.sort_order)
+                    .map((item, index) => (
+                      <Draggable
+                        key={item.id}
+                        draggableId={item.id}
+                        index={index}
+                        isDragDisabled={item.status !== "pending"}
+                      >
+                        {(draggableProvided) => (
+                          <div
+                            ref={draggableProvided.innerRef}
+                            {...draggableProvided.draggableProps}
+                          >
+                            <ChecklistItemCard
+                              item={item}
+                              dragHandleProps={draggableProvided.dragHandleProps}
+                              onDelete={handleItemDeleted}
+                              onEdit={handleItemEdited}
+                            />
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                  {droppableProvided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
 
           {/* Add item section */}
           {showAddItem ? (
@@ -1671,6 +2138,129 @@ function ITPBuilderPageInner() {
           onConfirm={handleDeleteSession}
           onCancel={() => setConfirmDeleteSession(false)}
         />
+      )}
+
+      {/* ── Import Preview Modal (Step 2 & 3) ──────────────────────────── */}
+      {creationMode === "import" && importStep === "preview" && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-4 overflow-hidden">
+            {/* Modal header */}
+            <div className="bg-blue-600 px-5 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-white">AI Preview — Review before saving</h2>
+                <p className="text-xs text-blue-200 mt-0.5">
+                  {draftSessions.length} ITP{draftSessions.length !== 1 ? "s" : ""} generated · Edit as needed
+                </p>
+              </div>
+              <button
+                onClick={() => { setImportStep("upload"); setDraftSessions([]); }}
+                className="text-blue-200 hover:text-white transition-colors text-lg font-bold leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Draft sessions list */}
+            <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              {draftSessions.map((draft, si) => (
+                <div key={si} className="border border-slate-200 rounded-2xl overflow-hidden">
+                  {/* Session title */}
+                  <div className="bg-slate-50 px-4 py-2.5 flex items-center justify-between gap-2">
+                    <input
+                      value={draft.task_description}
+                      onChange={(e) => {
+                        const updated = [...draftSessions];
+                        updated[si] = { ...updated[si], task_description: e.target.value };
+                        setDraftSessions(updated);
+                      }}
+                      className="flex-1 text-sm font-semibold text-slate-800 bg-transparent outline-none border-b border-transparent focus:border-slate-300 transition-colors"
+                      style={{ fontSize: "14px" }}
+                    />
+                    <button
+                      onClick={() => setDraftSessions((prev) => prev.filter((_, i) => i !== si))}
+                      className="text-xs text-red-400 hover:text-red-600 shrink-0 transition-colors"
+                    >
+                      Remove ITP
+                    </button>
+                  </div>
+                  {/* Items */}
+                  <div className="divide-y divide-slate-100">
+                    {draft.items.map((item, ii) => (
+                      <div key={ii} className="px-4 py-2.5 flex items-start gap-3">
+                        <select
+                          value={item.type}
+                          onChange={(e) => {
+                            const updated = [...draftSessions];
+                            updated[si].items[ii] = { ...item, type: e.target.value as "witness" | "hold" };
+                            setDraftSessions(updated);
+                          }}
+                          className={`text-xs font-bold rounded-full px-2 py-0.5 border-0 outline-none cursor-pointer shrink-0 ${
+                            item.type === "hold"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          <option value="witness">WITNESS</option>
+                          <option value="hold">HOLD</option>
+                        </select>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <input
+                            value={item.title}
+                            onChange={(e) => {
+                              const updated = [...draftSessions];
+                              updated[si].items[ii] = { ...item, title: e.target.value };
+                              setDraftSessions(updated);
+                            }}
+                            className="w-full text-sm font-semibold text-slate-800 outline-none border-b border-transparent focus:border-slate-300 bg-transparent transition-colors"
+                            style={{ fontSize: "14px" }}
+                          />
+                          <input
+                            value={item.description}
+                            onChange={(e) => {
+                              const updated = [...draftSessions];
+                              updated[si].items[ii] = { ...item, description: e.target.value };
+                              setDraftSessions(updated);
+                            }}
+                            className="w-full text-xs text-slate-500 outline-none border-b border-transparent focus:border-slate-300 bg-transparent transition-colors"
+                            style={{ fontSize: "13px" }}
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const updated = [...draftSessions];
+                            updated[si].items = updated[si].items.filter((_, i) => i !== ii);
+                            setDraftSessions(updated);
+                          }}
+                          className="text-xs text-red-300 hover:text-red-500 shrink-0 transition-colors"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal footer */}
+            <div className="border-t border-slate-100 p-4 flex gap-2">
+              <button
+                onClick={handleImportConfirm}
+                disabled={importing || draftSessions.length === 0}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
+              >
+                {importing ? "Saving…" : `Save ${draftSessions.length} ITP${draftSessions.length !== 1 ? "s" : ""}`}
+              </button>
+              <button
+                onClick={() => { setImportStep("upload"); setDraftSessions([]); }}
+                disabled={importing}
+                className="px-5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-2xl text-sm hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Session File Tree ─────────────────────────────────────────── */}
