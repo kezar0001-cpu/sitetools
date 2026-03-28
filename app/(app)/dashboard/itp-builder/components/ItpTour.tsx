@@ -28,10 +28,10 @@ export default function ItpTour({
 
     // Wait for modal animation to complete before driving
     setTimeout(() => {
-      // eslint-disable-next-line prefer-const
-      let driverObj: ReturnType<typeof driver>;
+      // Use a wrapper so callbacks can reference the driver instance via closure
+      const ref: { d: ReturnType<typeof driver> | null } = { d: null };
 
-      driverObj = driver({
+      ref.d = driver({
         showProgress: true,
         animate: true,
         overlayOpacity: 0.6,
@@ -46,7 +46,7 @@ export default function ItpTour({
                 "Start by describing an inspection task or uploading a document.",
               onNextClick: () => {
                 onRequestCloseModal();
-                driverObj.moveNext();
+                ref.d?.moveNext();
               },
             },
           },
@@ -76,11 +76,11 @@ export default function ItpTour({
         onDestroyStarted: () => {
           onRequestCloseModal();
           localStorage.setItem(DISMISSED_KEY, "1");
-          driverObj.destroy();
+          ref.d?.destroy();
         },
       });
 
-      driverObj.drive();
+      ref.d.drive();
     }, 350);
   }
 
