@@ -77,6 +77,10 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
 
   const borderColor = isHold ? "border-l-red-500" : "border-l-amber-400";
   const typeBadge = isHold ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700";
+  const cardBg = isHold ? "bg-red-50" : "bg-amber-50";
+  const typeTooltip = isHold
+    ? "Hold: Work must stop until this item is signed off"
+    : "Witness: Inspector must be notified; work may continue.";
 
   async function handleDelete() {
     if (!onDelete) return;
@@ -152,10 +156,15 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
     return (
       <button
         onClick={() => setExpanded(true)}
-        className={`w-full text-left bg-white border border-slate-200 border-l-4 ${borderColor} rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3 active:scale-95 transition-transform`}
+        className={`w-full text-left ${cardBg} border border-slate-200 border-l-4 ${borderColor} rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3 active:scale-95 transition-transform`}
       >
-        <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${typeBadge}`}>
-          {item.type}
+        <span className="relative group inline-flex shrink-0 cursor-help">
+          <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${typeBadge}`}>
+            {isHold ? "HOLD" : "WITNESS"}
+          </span>
+          <span className="pointer-events-none absolute left-0 top-full mt-1.5 z-20 hidden group-hover:block w-56 rounded-lg bg-slate-800 text-white text-xs leading-relaxed px-3 py-2 shadow-xl whitespace-normal">
+            {typeTooltip}
+          </span>
         </span>
         <span className="flex-1 text-sm font-semibold text-slate-700 truncate">{item.title}</span>
         {isWaived ? (
@@ -234,7 +243,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
   }
 
   return (
-    <div className={`bg-white border border-slate-200 border-l-4 ${borderColor} rounded-2xl p-4 shadow-sm`}>
+    <div className={`${cardBg} border border-slate-200 border-l-4 ${borderColor} rounded-2xl p-4 shadow-sm`}>
       <div className="flex items-start justify-between gap-3">
         {/* Drag handle — only for pending items */}
         {isPending && dragHandleProps && (
@@ -253,8 +262,13 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
         <div className="flex-1 min-w-0">
           {/* Badges row */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${typeBadge}`}>
-              {item.type}
+            <span className="relative group inline-flex cursor-help">
+              <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${typeBadge}`}>
+                {isHold ? "HOLD" : "WITNESS"}
+              </span>
+              <span className="pointer-events-none absolute left-0 top-full mt-1.5 z-20 hidden group-hover:block w-56 rounded-lg bg-slate-800 text-white text-xs leading-relaxed px-3 py-2 shadow-xl whitespace-normal">
+                {typeTooltip}
+              </span>
             </span>
             {isSigned ? (
               <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
