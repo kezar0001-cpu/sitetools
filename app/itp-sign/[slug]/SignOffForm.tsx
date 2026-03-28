@@ -36,12 +36,16 @@ export default function SignOffForm({
   const [alreadySigned, setAlreadySigned] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sigPadRef = useRef<SignatureCanvas>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = useState(340);
+  const canvasWidthRef = useRef(340);
   const [waiveOpen, setWaiveOpen] = useState(false);
   const [waiveReason, setWaiveReason] = useState("");
   const [waiving, setWaiving] = useState(false);
   const [waiveError, setWaiveError] = useState<string | null>(null);
   const [waived, setWaived] = useState(false);
 
+  // GPS auto-capture on mount
   useEffect(() => {
     if (!navigator.geolocation) {
       setGpsStatus("unavailable");
@@ -55,6 +59,22 @@ export default function SignOffForm({
       () => setGpsStatus("unavailable"),
       { timeout: 10_000, enableHighAccuracy: false }
     );
+  }, []);
+
+  // Resize canvas to container width on orientation change
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.floor(entries[0].contentRect.width);
+      if (w > 0 && w !== canvasWidthRef.current) {
+        canvasWidthRef.current = w;
+        setCanvasWidth(w);
+        setHasDrawn(false);
+      }
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
   }, []);
 
   function clearSignature() {
@@ -183,7 +203,7 @@ export default function SignOffForm({
     );
   }
 
-  // ── Success ────────────────────────────────────────────────────────────────
+  // ── Success — full-screen green confirmation ───────────────────────────────
   if (success) {
     const formattedTime = new Date(success.signedAt).toLocaleString("en-AU", {
       day: "numeric",
@@ -194,10 +214,16 @@ export default function SignOffForm({
     });
 
     return (
-      <div className="text-center space-y-6 py-4">
-        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+      <div
+        className="fixed inset-0 bg-emerald-500 flex flex-col items-center justify-center text-white px-6 z-50"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-6">
           <svg
-            className="h-10 w-10 text-emerald-600"
+            className="h-14 w-14 text-white"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -206,31 +232,32 @@ export default function SignOffForm({
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-slate-900">Signed off successfully</h2>
-        <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-5 text-left space-y-3">
+        <h2 className="text-3xl font-black text-center mb-2">Signed off!</h2>
+        <p className="text-emerald-100 text-center text-lg font-semibold mb-6">{title}</p>
+        <div className="bg-white/15 rounded-2xl p-5 w-full max-w-xs space-y-3 text-left">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            <p className="text-xs font-semibold text-emerald-200 uppercase tracking-wide">
               Signed by
             </p>
-            <p className="font-bold text-slate-800">{success.name}</p>
+            <p className="font-bold">{success.name}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+            <p className="text-xs font-semibold text-emerald-200 uppercase tracking-wide">
               Date &amp; Time
             </p>
-            <p className="text-slate-700">{formattedTime}</p>
+            <p className="text-emerald-50">{formattedTime}</p>
           </div>
           {success.lat != null && success.lng != null && (
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+              <p className="text-xs font-semibold text-emerald-200 uppercase tracking-wide">
                 Location
               </p>
-              <p className="text-slate-700 text-sm font-mono">
+              <p className="text-emerald-50 text-sm font-mono">
                 <a
                   href={`https://maps.google.com/?q=${success.lat},${success.lng}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-violet-600 transition-colors"
+                  className="underline underline-offset-2 hover:text-white transition-colors"
                 >
                   {success.lat.toFixed(5)}, {success.lng.toFixed(5)}
                 </a>
@@ -238,7 +265,7 @@ export default function SignOffForm({
             </div>
           )}
         </div>
-        <p className="text-slate-400 text-sm">You can close this page</p>
+        <p className="mt-8 text-emerald-200 text-sm">You can close this page</p>
       </div>
     );
   }
@@ -248,10 +275,9 @@ export default function SignOffForm({
   const canSubmit = name.trim().length > 0 && hasDrawn && !submitting;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-28">
       {/* Header */}
       <div className="space-y-3">
-        {/* Type badge */}
         {isHold ? (
           <span className="inline-flex items-center gap-2 bg-red-100 text-red-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-red-200">
             🔴 HOLD POINT
@@ -262,14 +288,12 @@ export default function SignOffForm({
           </span>
         )}
 
-        {/* Task context */}
         {taskDescription && (
           <p className="text-sm italic text-slate-500">Task: {taskDescription}</p>
         )}
 
         <hr className="border-slate-200" />
 
-        {/* Item details */}
         <h1 className="text-xl font-bold text-slate-900">{title}</h1>
         {description && <p className="text-base text-slate-600">{description}</p>}
       </div>
@@ -285,6 +309,8 @@ export default function SignOffForm({
             onChange={(e) => setName(e.target.value)}
             required
             placeholder="Full name"
+            autoCapitalize="words"
+            autoComplete="name"
             style={{ fontSize: "16px" }}
             className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-amber-400 transition-colors bg-white"
           />
@@ -293,13 +319,13 @@ export default function SignOffForm({
         {/* Signature canvas */}
         <div className="space-y-1.5">
           <label className="block text-sm font-semibold text-slate-700">Sign below</label>
-          <div className="rounded-2xl border-2 border-slate-200 overflow-hidden">
+          <div ref={canvasContainerRef} className="rounded-2xl border-2 border-slate-200 overflow-hidden">
             <SignatureCanvas
               ref={sigPadRef}
               canvasProps={{
-                width: 340,
+                width: canvasWidth,
                 height: 180,
-                style: { width: "100%", height: "180px" },
+                style: { width: "100%", height: "180px", display: "block" },
               }}
               backgroundColor="#f8fafc"
               onBegin={() => setHasDrawn(true)}
@@ -320,7 +346,7 @@ export default function SignOffForm({
             gpsStatus === "unavailable" ? "text-slate-400" : "text-slate-500"
           }`}
         >
-          {gpsStatus === "capturing" && "📍 Capturing location..."}
+          {gpsStatus === "capturing" && "📍 Acquiring GPS location..."}
           {gpsStatus === "captured" && "📍 Location captured"}
           {gpsStatus === "unavailable" && "📍 Location unavailable"}
         </p>
@@ -331,15 +357,6 @@ export default function SignOffForm({
             {error}
           </div>
         )}
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="w-full bg-amber-400 hover:bg-amber-500 disabled:bg-slate-200 disabled:text-slate-400 text-amber-950 font-black text-lg py-4 rounded-2xl transition-all active:scale-95 disabled:active:scale-100"
-        >
-          {submitting ? "Signing off…" : "✓ Sign Off"}
-        </button>
 
         {/* Waive this point (witness only) */}
         {!isHold && (
@@ -379,7 +396,11 @@ export default function SignOffForm({
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setWaiveOpen(false); setWaiveReason(""); setWaiveError(null); }}
+                    onClick={() => {
+                      setWaiveOpen(false);
+                      setWaiveReason("");
+                      setWaiveError(null);
+                    }}
                     className="px-4 py-3 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl text-sm hover:bg-slate-50 transition-colors"
                   >
                     Cancel
@@ -389,6 +410,20 @@ export default function SignOffForm({
             )}
           </div>
         )}
+      </div>
+
+      {/* Sticky submit button */}
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-100 px-4 pt-3"
+        style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+      >
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="w-full bg-amber-400 hover:bg-amber-500 disabled:bg-slate-200 disabled:text-slate-400 text-amber-950 font-black text-lg py-4 rounded-2xl transition-all active:scale-95 disabled:active:scale-100"
+        >
+          {submitting ? "Signing off…" : "✓ Sign Off"}
+        </button>
       </div>
     </form>
   );

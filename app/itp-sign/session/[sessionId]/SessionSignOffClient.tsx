@@ -53,6 +53,24 @@ function ItemSignOffForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sigPadRef = useRef<SignatureCanvas>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = useState(340);
+  const canvasWidthRef = useRef(340);
+
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.floor(entries[0].contentRect.width);
+      if (w > 0 && w !== canvasWidthRef.current) {
+        canvasWidthRef.current = w;
+        setCanvasWidth(w);
+        setHasDrawn(false);
+      }
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
 
   function clearSignature() {
     sigPadRef.current?.clear();
@@ -147,6 +165,8 @@ function ItemSignOffForm({
           onChange={(e) => setName(e.target.value)}
           required
           placeholder="Full name"
+          autoCapitalize="words"
+          autoComplete="name"
           style={{ fontSize: "16px" }}
           className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-amber-400 transition-colors bg-white"
         />
@@ -157,13 +177,13 @@ function ItemSignOffForm({
         <label className="block text-sm font-semibold text-slate-700">
           Sign below
         </label>
-        <div className="rounded-2xl border-2 border-slate-200 overflow-hidden">
+        <div ref={canvasContainerRef} className="rounded-2xl border-2 border-slate-200 overflow-hidden">
           <SignatureCanvas
             ref={sigPadRef}
             canvasProps={{
-              width: 340,
+              width: canvasWidth,
               height: 160,
-              style: { width: "100%", height: "160px" },
+              style: { width: "100%", height: "160px", display: "block" },
             }}
             backgroundColor="#f8fafc"
             onBegin={() => setHasDrawn(true)}
@@ -277,7 +297,7 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
 
         {/* GPS status */}
         <p className="mt-2 text-xs text-slate-400">
-          {gpsStatus === "capturing" && "📍 Capturing location…"}
+          {gpsStatus === "capturing" && "📍 Acquiring GPS location…"}
           {gpsStatus === "captured" && "📍 Location ready"}
           {gpsStatus === "unavailable" && "📍 Location unavailable"}
         </p>
