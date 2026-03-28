@@ -62,6 +62,11 @@ function validateItems(raw: unknown): ItpItem[] | null {
   return raw as ItpItem[];
 }
 
+// SSE helper: send a named event
+function sseEvent(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
 export async function POST(req: NextRequest) {
   // Authenticate via Bearer token
   const authHeader = req.headers.get("authorization");
@@ -108,24 +113,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 
-  // Call Claude with a 30-second timeout
-  let items: ItpItem[];
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  // Set up SSE stream
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      function send(event: string, data: unknown) {
+        controller.enqueue(encoder.encode(sseEvent(event, data)));
+      }
 
-    let responseText = "";
-    try {
-      const message = await anthropic.messages.create(
-        {
-          model: "claude-sonnet-4-6",
-          max_tokens: 2048,
-          system:
-            "You are an experienced Australian civil construction quality assurance engineer writing ITPs for real projects. Your ITPs must be specific to the exact task described — not generic templates. Each checklist item must reflect the actual materials, equipment, tolerances, and construction sequence that apply to THIS task. Never recycle boilerplate items that could apply to any task.",
-          messages: [
+      // Step 1: Analyzing task
+      send("status", { step: "analyzing", message: "Analyzing task…" });
+
+      let items: ItpItem[];
+      let usedFallback = false;
+
+      try {
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 30_000);
+
+        let responseText = "";
+        try {
+          // Step 2: Generating checklist via streaming
+          send("status", { step: "generating", message: "Generating checklist…" });
+
+          const streamResponse = anthropic.messages.stream(
             {
-              role: "user",
-              content: `Task: ${task_description}
+              model: "claude-sonnet-4-6",
+              max_tokens: 2048,
+              system:
+                "You are an experienced Australian civil construction quality assurance engineer writing ITPs for real projects. Your ITPs must be specific to the exact task described — not generic templates. Each checklist item must reflect the actual materials, equipment, tolerances, and construction sequence that apply to THIS task. Never recycle boilerplate items that could apply to any task.",
+              messages: [
+                {
+                  role: "user",
+                  content: `Task: ${task_description}
 
 Think carefully about what this specific construction activity involves: the materials used, the equipment, the physical steps in order, the failure modes, and the quality checkpoints that matter most for THIS task.
 
@@ -159,94 +179,119 @@ Australian Standards to draw from (select only those relevant):
   - Temporary works / formwork: AS 3610
 
 Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`,
+                },
+              ],
             },
-          ],
+            { signal: abortController.signal }
+          );
+
+          // Stream text chunks to the client
+          for await (const event of streamResponse) {
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+              responseText += event.delta.text;
+              send("chunk", { text: event.delta.text });
+            }
+          }
+
+          clearTimeout(timeoutId);
+        } catch {
+          clearTimeout(timeoutId);
+          throw new Error("Claude request failed");
+        }
+
+        // Parse and validate the JSON response
+        responseText = responseText.trim();
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          parsed = null;
+        }
+
+        const validated = parsed !== null ? validateItems(parsed) : null;
+        if (validated) {
+          items = validated;
+        } else {
+          items = fallbackItems();
+          usedFallback = true;
+        }
+      } catch {
+        items = fallbackItems();
+        usedFallback = true;
+      }
+
+      // Step 3: Saving items
+      send("status", { step: "saving", message: "Saving items…" });
+
+      // Insert a new itp_sessions record
+      const { data: session, error: sessionErr } = await supabaseAdmin
+        .from("itp_sessions")
+        .insert({
+          company_id,
+          task_description,
+          project_id: project_id ?? null,
+          site_id: site_id ?? null,
+          created_by_user_id: user.id,
+        })
+        .select("id, company_id, task_description, created_at, project_id, site_id, status")
+        .single();
+
+      if (sessionErr || !session) {
+        send("error", { error: "Failed to create ITP session." });
+        controller.close();
+        return;
+      }
+
+      const rows = items.map((item, idx) => ({
+        session_id: session.id,
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        sort_order: idx + 1,
+      }));
+
+      const { data: inserted, error: insertErr } = await supabaseAdmin
+        .from("itp_items")
+        .insert(rows)
+        .select(
+          "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
+        );
+
+      if (insertErr || !inserted) {
+        send("error", { error: "Failed to save ITP items." });
+        controller.close();
+        return;
+      }
+
+      // Audit log: session created via AI generate
+      await supabaseAdmin.from("itp_audit_log").insert({
+        session_id: session.id,
+        item_id: null,
+        action: "create",
+        performed_by_user_id: user.id,
+        new_values: {
+          task_description,
+          source: "ai_generate",
+          items_count: inserted.length,
         },
-        { signal: controller.signal }
-      );
+      });
 
-      clearTimeout(timeoutId);
+      // Send final result
+      send("done", {
+        session,
+        items: inserted,
+        meta: { usedFallback },
+      });
 
-      const textBlock = message.content.find((b) => b.type === "text");
-      responseText = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
-    } catch {
-      clearTimeout(timeoutId);
-      throw new Error("Claude request failed");
-    }
-
-    // Parse and validate the JSON response
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(responseText);
-    } catch {
-      parsed = null;
-    }
-
-    const validated = parsed !== null ? validateItems(parsed) : null;
-    items = validated ?? fallbackItems();
-  } catch {
-    // On any error (timeout, network, etc.) use fallback items — never return 500
-    items = fallbackItems();
-  }
-
-  // Insert a new itp_sessions record
-  const { data: session, error: sessionErr } = await supabaseAdmin
-    .from("itp_sessions")
-    .insert({
-      company_id,
-      task_description,
-      project_id: project_id ?? null,
-      site_id: site_id ?? null,
-      created_by_user_id: user.id,
-    })
-    .select("id, company_id, task_description, created_at, project_id, site_id, status")
-    .single();
-
-  if (sessionErr || !session) {
-    return NextResponse.json(
-      { error: "Failed to create ITP session." },
-      { status: 500 }
-    );
-  }
-
-  // Insert items linked to the session.
-  // Slug is omitted here — the DB column default generates a random unique value,
-  // which avoids collisions when multiple sessions share the same item titles
-  // (e.g. the fallback items that are reused across many sessions).
-  const rows = items.map((item, idx) => ({
-    session_id: session.id,
-    type: item.type,
-    title: item.title,
-    description: item.description,
-    sort_order: idx + 1,
-  }));
-
-  const { data: inserted, error: insertErr } = await supabaseAdmin
-    .from("itp_items")
-    .insert(rows)
-    .select(
-      "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
-    );
-
-  if (insertErr || !inserted) {
-    return NextResponse.json(
-      { error: "Failed to save ITP items." },
-      { status: 500 }
-    );
-  }
-
-  // Audit log: session created via AI generate
-  await supabaseAdmin.from("itp_audit_log").insert({
-    session_id: session.id,
-    item_id: null,
-    action: "create",
-    performed_by_user_id: user.id,
-    new_values: {
-      task_description,
-      source: "ai_generate",
-      items_count: inserted.length,
+      controller.close();
     },
   });
 
-  return NextResponse.json({ session, items: inserted });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }

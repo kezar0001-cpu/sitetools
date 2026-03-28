@@ -833,6 +833,16 @@ function ITPBuilderPageInner() {
   const searchParams = useSearchParams();
   // ?project=<uuid> filters builder to a specific project; "unassigned" shows unlinked ITPs
   const projectFilter = searchParams.get("project") ?? "";
+  // Filter/search state from URL params
+  const initialSearch = searchParams.get("q") ?? "";
+  const initialStatusFilter = searchParams.get("status") ?? "all";
+  const initialSort = searchParams.get("sort") ?? "newest";
+  const initialShowArchived = searchParams.get("archived") === "1";
+
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
+  const [sortOrder, setSortOrder] = useState<string>(initialSort);
+  const [showArchived, setShowArchived] = useState(initialShowArchived);
 
   const { loading, summary } = useWorkspace({
     requireAuth: true,
@@ -858,6 +868,12 @@ function ITPBuilderPageInner() {
   const [importStep, setImportStep] = useState<ImportStep>("upload");
   const [draftSessions, setDraftSessions] = useState<DraftItp[]>([]);
   const [previewing, setPreviewing] = useState(false);
+  // Job-based import progress
+  const [importJobId, setImportJobId] = useState<string | null>(null);
+  const [importJobStep, setImportJobStep] = useState("");
+  const [importJobMessage, setImportJobMessage] = useState("");
+  const [importJobPercent, setImportJobPercent] = useState(0);
+  const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Template state
   const [templates, setTemplates] = useState<ITPTemplate[]>([]);
@@ -873,6 +889,7 @@ function ITPBuilderPageInner() {
 
   // ── Active session state
   const [generating, setGenerating] = useState(false);
+  const [generatingStatus, setGeneratingStatus] = useState("");
   const [creating, setCreating] = useState(false);
   const [activeSession, setActiveSession] = useState<ITPSession | null>(null);
   const [activeItems, setActiveItems] = useState<ITPItem[]>([]);
@@ -881,6 +898,7 @@ function ITPBuilderPageInner() {
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
   const [deletingSession, setDeletingSession] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [fallbackWarning, setFallbackWarning] = useState(false);
 
   // ── Project / site options
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -1085,6 +1103,8 @@ function ITPBuilderPageInner() {
     if (!task || !activeCompanyId) return;
 
     setGenerating(true);
+    setGeneratingStatus("Analyzing task…");
+    setFallbackWarning(false);
     try {
       const {
         data: { session: authSession },
@@ -1111,21 +1131,71 @@ function ITPBuilderPageInner() {
         );
       }
 
-      const data = (await res.json()) as { session: ITPSession; items: ITPItem[] };
+      // Consume SSE stream
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
 
-      setActiveSession(data.session);
-      setActiveItems(data.items);
-      setShowInput(false);
-      setShowAddItem(true);
-      setShowSessionQR(false);
-      setTaskDescription("");
+      const decoder = new TextDecoder();
+      let buffer = "";
 
-      // Prepend the new session to the list instead of re-fetching all sessions
-      setSessions((prev) => [{ ...data.session, items: data.items }, ...prev]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split("\n");
+        buffer = "";
+        let currentEvent = "";
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              if (currentEvent === "status") {
+                setGeneratingStatus(data.message);
+              } else if (currentEvent === "done") {
+                const result = data as {
+                  session: ITPSession;
+                  items: ITPItem[];
+                  meta: { usedFallback: boolean };
+                };
+                setActiveSession(result.session);
+                setActiveItems(result.items);
+                setShowInput(false);
+                setShowAddItem(true);
+                setShowSessionQR(false);
+                setTaskDescription("");
+                if (result.meta.usedFallback) {
+                  setFallbackWarning(true);
+                }
+                setSessions((prev) => [{ ...result.session, items: result.items }, ...prev]);
+              } else if (currentEvent === "error") {
+                throw new Error(data.error ?? "Generation failed");
+              }
+              // "chunk" events are streamed text — we don't render partial JSON
+            } catch (e) {
+              if (currentEvent === "error" || currentEvent === "done") throw e;
+            }
+            currentEvent = "";
+          } else if (line === "") {
+            // Event boundary — already handled
+          } else {
+            // Incomplete line, push back to buffer
+            buffer = lines.slice(i).join("\n");
+            break;
+          }
+        }
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate checklist.");
     } finally {
       setGenerating(false);
+      setGeneratingStatus("");
     }
   }
 
@@ -1529,6 +1599,130 @@ function ITPBuilderPageInner() {
     }
   }
 
+  // ── Job-based import (direct, with progress) ──────────────────────────────
+
+  function stopImportPoll() {
+    if (importPollRef.current) {
+      clearInterval(importPollRef.current);
+      importPollRef.current = null;
+    }
+  }
+
+  async function handleImportWithProgress() {
+    if (!importFile || !activeCompanyId) return;
+    setImporting(true);
+    setImportJobStep("uploading");
+    setImportJobMessage("Uploading…");
+    setImportJobPercent(5);
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      const accessToken = authSession?.access_token ?? "";
+
+      const fd = new FormData();
+      fd.append("file", importFile);
+      fd.append("company_id", activeCompanyId);
+      if (selectedProjectId) fd.append("project_id", selectedProjectId);
+      if (selectedSiteId) fd.append("site_id", selectedSiteId);
+
+      const startRes = await fetch("/api/itp-import/start", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: fd,
+      });
+      if (!startRes.ok) {
+        const body = await startRes.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Failed to start import");
+      }
+      const { jobId } = await startRes.json() as { jobId: string };
+      setImportJobId(jobId);
+
+      // Poll every 2 seconds
+      importPollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`/api/itp-import/status/${jobId}`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!statusRes.ok) return;
+          const status = await statusRes.json() as {
+            step: string;
+            message: string;
+            percent: number;
+            result?: {
+              imported: number;
+              total_items: number;
+              sessions: Array<{ session: ITPSession; items: ITPItem[] }>;
+            };
+            error?: string;
+          };
+
+          setImportJobStep(status.step);
+          setImportJobMessage(status.message);
+          setImportJobPercent(status.percent);
+
+          if (status.step === "done" && status.result) {
+            stopImportPoll();
+            setImporting(false);
+            setImportJobId(null);
+            setImportFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+
+            const data = status.result;
+            if (data.sessions.length > 0) {
+              const first = data.sessions[0];
+              setActiveSession(first.session);
+              setActiveItems(first.items);
+              setShowInput(false);
+              setShowAddItem(true);
+            }
+            toast.success(
+              `Imported ${data.imported} ITP${data.imported !== 1 ? "s" : ""} with ${data.total_items} checks`
+            );
+            const importedSessions = data.sessions.map((s) => ({ ...s.session, items: s.items }));
+            setSessions((prev) => [...importedSessions, ...prev]);
+          } else if (status.step === "error") {
+            stopImportPoll();
+            setImporting(false);
+            setImportJobId(null);
+            toast.error(status.message || "Import failed.");
+          } else if (status.step === "cancelled") {
+            stopImportPoll();
+            setImporting(false);
+            setImportJobId(null);
+            toast.info("Import cancelled.");
+          }
+        } catch {
+          // Poll error — retry on next interval
+        }
+      }, 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start import.");
+      setImporting(false);
+      setImportJobId(null);
+    }
+  }
+
+  async function handleCancelImport() {
+    if (!importJobId) return;
+    stopImportPoll();
+    try {
+      const {
+        data: { session: authSession },
+      } = await supabase.auth.getSession();
+      await fetch(`/api/itp-import/status/${importJobId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${authSession?.access_token ?? ""}` },
+      });
+    } catch { /* best effort */ }
+    setImporting(false);
+    setImportJobId(null);
+    setImportJobStep("");
+    setImportJobMessage("");
+    setImportJobPercent(0);
+    toast.info("Import cancelled.");
+  }
+
   // Loading guard
   if (loading || !summary) {
     return (
@@ -1539,7 +1733,52 @@ function ITPBuilderPageInner() {
   }
 
   const signedCount = activeItems.filter((i) => i.status === "signed").length;
-  const grouped = groupSessions(sessions, projects, allSites);
+
+  // ── Filter, search, and sort sessions ─────────────────────────────────────
+
+  // Sync filter state to URL params
+  function updateFilterParams(updates: Record<string, string>) {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(updates)) {
+      if (!v || v === "all" || v === "newest" || (k === "archived" && v === "0")) {
+        params.delete(k);
+      } else {
+        params.set(k, v);
+      }
+    }
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+  }
+
+  function getSessionStatus(s: ITPSession): string {
+    if (s.status === "archived") return "archived";
+    if (s.status === "complete") return "complete";
+    return "active";
+  }
+
+  const archivedCount = sessions.filter((s) => getSessionStatus(s) === "archived").length;
+
+  const filteredSessions = sessions.filter((s) => {
+    const status = getSessionStatus(s);
+    // Hide archived unless toggled
+    if (status === "archived" && !showArchived) return false;
+    // Status filter
+    if (statusFilter !== "all" && status !== statusFilter) return false;
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (!s.task_description.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const sortedSessions = [...filteredSessions].sort((a, b) => {
+    const dateA = new Date(a.created_at).getTime();
+    const dateB = new Date(b.created_at).getTime();
+    return sortOrder === "oldest" ? dateA - dateB : dateB - dateA;
+  });
+
+  const grouped = groupSessions(sortedSessions, projects, allSites);
 
   // Look up project/site name for active session header
   const activeProjectName = activeSession?.project_id
@@ -1763,10 +2002,17 @@ function ITPBuilderPageInner() {
                   </button>
                   <button
                     onClick={handleImportPreview}
-                    disabled={previewing || !importFile}
+                    disabled={previewing || importing || !importFile}
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-2xl py-4 text-base active:scale-95 transition-transform"
                   >
                     {previewing ? "Analysing document…" : "Preview ITPs →"}
+                  </button>
+                  <button
+                    onClick={handleImportWithProgress}
+                    disabled={previewing || importing || !importFile}
+                    className="w-full bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
+                  >
+                    Quick Import (skip preview)
                   </button>
                 </>
               )}
@@ -1830,12 +2076,61 @@ function ITPBuilderPageInner() {
       {/* ── AI Generation / Import Skeleton ──────────────────────────── */}
       {(generating || previewing) && (
         <div className="space-y-3">
-          {previewing && (
+          {generating && generatingStatus && (
+            <div className="bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+              <div className="h-4 w-4 rounded-full border-2 border-violet-300 border-t-violet-600 animate-spin shrink-0" />
+              <span className="text-sm font-semibold text-violet-700">{generatingStatus}</span>
+            </div>
+          )}
+          {previewing && !importing && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-sm text-blue-700 text-center">
               Reading document and generating ITPs — this may take a moment…
             </div>
           )}
-          {Array.from({ length: 6 }).map((_, i) => (
+          {importing && importJobId && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
+              {/* Progress stepper */}
+              <div className="flex items-center gap-1 text-xs font-semibold">
+                {[
+                  { key: "uploading", label: "Uploading…" },
+                  { key: "extracting", label: "Extracting text…" },
+                  { key: "analyzing", label: "Analyzing activities…" },
+                  { key: "creating", label: "Creating ITPs…" },
+                ].map((s, idx) => {
+                  const stepOrder = ["uploading", "extracting", "analyzing", "creating", "done"];
+                  const currentIdx = stepOrder.indexOf(importJobStep);
+                  const thisIdx = stepOrder.indexOf(s.key);
+                  const isActive = thisIdx === currentIdx;
+                  const isDone = thisIdx < currentIdx;
+                  return (
+                    <div key={s.key} className="flex items-center gap-1">
+                      {idx > 0 && <span className="text-slate-300 mx-0.5">›</span>}
+                      <span className={`flex items-center gap-1 ${isActive ? "text-blue-600" : isDone ? "text-green-600" : "text-slate-400"}`}>
+                        {isDone && <span>✓</span>}
+                        {isActive && <span className="inline-block h-3 w-3 rounded-full border-2 border-blue-300 border-t-blue-600 animate-spin" />}
+                        {s.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Progress bar */}
+              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                  style={{ width: `${importJobPercent}%` }}
+                />
+              </div>
+              <p className="text-sm text-slate-600 text-center">{importJobMessage}</p>
+              <button
+                onClick={handleCancelImport}
+                className="w-full text-sm font-semibold text-red-600 border border-red-200 rounded-2xl py-2.5 hover:bg-red-50 active:scale-95 transition-all"
+              >
+                Cancel Import
+              </button>
+            </div>
+          )}
+          {!importing && Array.from({ length: 6 }).map((_, i) => (
             <SkeletonRow key={i} />
           ))}
         </div>
@@ -1844,6 +2139,20 @@ function ITPBuilderPageInner() {
       {/* ── Active Session ─────────────────────────────────────────────── */}
       {!generating && !importing && activeSession && (
         <div className="space-y-3">
+          {/* Fallback warning banner */}
+          {fallbackWarning && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+              <p className="text-sm text-amber-700">
+                <span className="font-bold">AI generation failed</span> — standard template used.
+              </p>
+              <button
+                onClick={() => setFallbackWarning(false)}
+                className="text-amber-400 hover:text-amber-600 transition-colors text-lg font-bold leading-none shrink-0"
+              >
+                ×
+              </button>
+            </div>
+          )}
           {/* Session header */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -1886,25 +2195,24 @@ function ITPBuilderPageInner() {
                   Mark Complete
                 </button>
               )}
+              {/* PDF export — available in any status */}
+              <ItpPdfExport
+                session={{
+                  ...activeSession,
+                  company_name: summary?.activeMembership?.companies?.name ?? null,
+                  project_name: activeProjectName ?? null,
+                  site_name: activeSiteName ?? null,
+                  items: activeItems,
+                }}
+              />
               {activeSession.status === "complete" && (
-                <>
-                  <ItpPdfExport
-                    session={{
-                      ...activeSession,
-                      company_name: summary?.activeMembership?.companies?.name ?? null,
-                      project_name: activeProjectName ?? null,
-                      site_name: activeSiteName ?? null,
-                      items: activeItems,
-                    }}
-                  />
-                  <button
-                    onClick={() => handleStatusChange("archived")}
-                    disabled={updatingStatus}
-                    className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
-                  >
-                    Archive
-                  </button>
-                </>
+                <button
+                  onClick={() => handleStatusChange("archived")}
+                  disabled={updatingStatus}
+                  className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Archive
+                </button>
               )}
               {activeSession.status === "archived" && (
                 <button
@@ -1915,6 +2223,15 @@ function ITPBuilderPageInner() {
                   Reactivate
                 </button>
               )}
+              <button
+                onClick={() => {
+                  const url = `${baseUrl}/itp-sign/session/${activeSession.id}`;
+                  navigator.clipboard.writeText(url).then(() => toast.success("Session link copied to clipboard!"));
+                }}
+                className="text-xs font-semibold text-violet-700 border border-violet-200 bg-violet-50 rounded-xl px-3 py-1.5 hover:bg-violet-100 active:scale-95 transition-all"
+              >
+                Share Session
+              </button>
               <button
                 onClick={() => setShowSessionQR((v) => !v)}
                 className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
@@ -1944,6 +2261,17 @@ function ITPBuilderPageInner() {
                 }`}
               >
                 Audit Trail
+              </button>
+              {/* Get Session Link */}
+              <button
+                onClick={() => {
+                  const url = `${baseUrl}/itp-sign/session/${activeSession.id}`;
+                  navigator.clipboard.writeText(url).then(() => toast.success("Session link copied!"));
+                }}
+                className="text-xs text-slate-400 hover:text-slate-600 transition-colors px-1"
+                title="Copy session sign-off URL"
+              >
+                Get Session Link
               </button>
               {/* Delete ITP session */}
               <button
@@ -2263,6 +2591,57 @@ function ITPBuilderPageInner() {
             All ITPs{totalSessionCount > 0 && ` (${totalSessionCount})`}
           </h2>
 
+          {/* Search + filter controls */}
+          <div className="space-y-2">
+            {/* Search input */}
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                updateFilterParams({ q: e.target.value });
+              }}
+              placeholder="Search by task description…"
+              style={{ fontSize: "16px" }}
+              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2 outline-none text-sm bg-white transition-colors"
+            />
+
+            {/* Status filter pills + Sort toggle */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["all", "active", "complete", "archived"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setStatusFilter(s);
+                    if (s === "archived") setShowArchived(true);
+                    updateFilterParams({ status: s, archived: s === "archived" ? "1" : "0" });
+                  }}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-colors ${
+                    statusFilter === s
+                      ? "bg-slate-800 border-slate-700 text-white"
+                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                  }`}
+                >
+                  {s === "all" ? "All" : s === "active" ? "Active" : s === "complete" ? "Complete" : "Archived"}
+                </button>
+              ))}
+
+              <div className="flex-1" />
+
+              {/* Sort toggle */}
+              <button
+                onClick={() => {
+                  const next = sortOrder === "newest" ? "oldest" : "newest";
+                  setSortOrder(next);
+                  updateFilterParams({ sort: next });
+                }}
+                className="text-xs font-semibold text-slate-500 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-all"
+              >
+                {sortOrder === "newest" ? "Newest first" : "Oldest first"}
+              </button>
+            </div>
+          </div>
+
           {sessionsLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -2336,6 +2715,37 @@ function ITPBuilderPageInner() {
                 ))}
               </div>
             ))
+          )}
+
+          {/* Show archived toggle */}
+          {!showArchived && archivedCount > 0 && statusFilter !== "archived" && (
+            <button
+              onClick={() => {
+                setShowArchived(true);
+                updateFilterParams({ archived: "1" });
+              }}
+              className="w-full text-center text-xs font-semibold text-slate-400 border border-dashed border-slate-200 rounded-2xl py-2.5 hover:text-slate-600 hover:border-slate-300 transition-colors"
+            >
+              Show archived ({archivedCount})
+            </button>
+          )}
+          {showArchived && statusFilter !== "archived" && archivedCount > 0 && (
+            <button
+              onClick={() => {
+                setShowArchived(false);
+                updateFilterParams({ archived: "0" });
+              }}
+              className="w-full text-center text-xs font-semibold text-slate-400 border border-dashed border-slate-200 rounded-2xl py-2.5 hover:text-slate-600 hover:border-slate-300 transition-colors"
+            >
+              Hide archived
+            </button>
+          )}
+
+          {/* No results */}
+          {!sessionsLoading && sortedSessions.length === 0 && sessions.length > 0 && (
+            <div className="text-center py-6 text-sm text-slate-400">
+              No ITPs match your filters.
+            </div>
           )}
 
           {/* Load more button */}
