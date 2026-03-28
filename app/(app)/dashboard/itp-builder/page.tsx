@@ -7,6 +7,7 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
 import { toast } from "sonner";
+import ItpPdfExport from "./components/ItpPdfExport";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1325,6 +1326,17 @@ function ITPBuilderPageInner() {
               <span className="text-xs text-slate-400">
                 {signedCount}/{activeItems.length} signed
               </span>
+              {activeSession.status === "complete" && (
+                <ItpPdfExport
+                  session={{
+                    ...activeSession,
+                    company_name: summary?.activeMembership?.companies?.name ?? null,
+                    project_name: activeProjectName ?? null,
+                    site_name: activeSiteName ?? null,
+                    items: activeItems,
+                  }}
+                />
+              )}
               <button
                 onClick={() => setShowSessionQR((v) => !v)}
                 className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
