@@ -29,6 +29,7 @@ interface ITPItem {
   signed_off_by_name: string | null;
   sign_off_lat: number | null;
   sign_off_lng: number | null;
+  waive_reason?: string | null;
 }
 
 interface ITPSession {
@@ -107,15 +108,20 @@ interface ChecklistItemCardProps {
 }
 
 function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
-  const [expanded, setExpanded] = useState(item.status !== "signed");
+  const [expanded, setExpanded] = useState(item.status !== "signed" && item.status !== "waived");
   const [deleting, setDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editType, setEditType] = useState<ItemType>(item.type);
   const [editTitle, setEditTitle] = useState(item.title);
   const [editDescription, setEditDescription] = useState(item.description ?? "");
   const [saving, setSaving] = useState(false);
+  const [waiveOpen, setWaiveOpen] = useState(false);
+  const [waiveReason, setWaiveReason] = useState("");
+  const [waiving, setWaiving] = useState(false);
 
   const isSigned = item.status === "signed";
+  const isWaived = item.status === "waived";
+  const isPending = item.status === "pending";
   const isHold = item.type === "hold";
 
   const borderColor = isHold ? "border-l-red-500" : "border-l-amber-400";
@@ -172,8 +178,32 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
     setIsEditing(false);
   }
 
-  // Collapsed one-liner for signed cards
-  if (isSigned && !expanded) {
+  async function handleWaive() {
+    const trimmed = waiveReason.trim();
+    if (!trimmed) return;
+    setWaiving(true);
+    const { data: updated, error } = await supabase
+      .from("itp_items")
+      .update({ status: "waived", waive_reason: trimmed, signed_off_at: new Date().toISOString() })
+      .eq("id", item.id)
+      .eq("status", "pending")
+      .select(
+        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason"
+      )
+      .single();
+    if (error || !updated) {
+      toast.error("Failed to waive item.");
+      setWaiving(false);
+      return;
+    }
+    onEdit?.(updated as ITPItem);
+    setWaiveOpen(false);
+    setWaiveReason("");
+    setWaiving(false);
+  }
+
+  // Collapsed one-liner for signed/waived cards
+  if ((isSigned || isWaived) && !expanded) {
     return (
       <button
         onClick={() => setExpanded(true)}
@@ -185,9 +215,11 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
         <span className="flex-1 text-sm font-semibold text-slate-700 truncate">
           {item.title}
         </span>
-        <span className="text-xs font-semibold text-green-600 shrink-0">
-          Signed ✓
-        </span>
+        {isWaived ? (
+          <span className="text-xs font-semibold text-slate-500 shrink-0">Waived</span>
+        ) : (
+          <span className="text-xs font-semibold text-green-600 shrink-0">Signed ✓</span>
+        )}
       </button>
     );
   }
@@ -271,6 +303,10 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
               <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                 Signed ✓
               </span>
+            ) : isWaived ? (
+              <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+                Waived
+              </span>
             ) : (
               <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
                 Pending
@@ -303,11 +339,22 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
               )}
             </div>
           )}
+
+          {/* Waived details */}
+          {isWaived && item.waive_reason && (
+            <div className="mt-3 text-xs text-slate-500 space-y-0.5">
+              <p>
+                Reason:{" "}
+                <span className="font-medium text-slate-700">{item.waive_reason}</span>
+              </p>
+              {item.signed_off_at && <p>{formatSignedAt(item.signed_off_at)}</p>}
+            </div>
+          )}
         </div>
 
         {/* Right-side actions */}
         <div className="flex flex-col items-end gap-2 shrink-0">
-          {isSigned && (
+          {(isSigned || isWaived) && (
             <button
               onClick={() => setExpanded(false)}
               className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
@@ -315,7 +362,7 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
               Collapse
             </button>
           )}
-          {!isSigned && onEdit && (
+          {isPending && onEdit && (
             <button
               onClick={() => setIsEditing(true)}
               className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
@@ -323,7 +370,15 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
               Edit
             </button>
           )}
-          {!isSigned && onDelete && (
+          {isPending && (
+            <button
+              onClick={() => { setWaiveOpen((o) => !o); setWaiveReason(""); }}
+              className="text-xs font-semibold text-slate-500 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
+            >
+              Waive
+            </button>
+          )}
+          {isPending && onDelete && (
             <button
               onClick={handleDelete}
               disabled={deleting}
@@ -334,6 +389,36 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
           )}
         </div>
       </div>
+
+      {/* Inline waiver form */}
+      {waiveOpen && isPending && (
+        <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+          <p className="text-xs font-semibold text-slate-600">Waive reason (required)</p>
+          <textarea
+            value={waiveReason}
+            onChange={(e) => setWaiveReason(e.target.value)}
+            placeholder="Describe why this point is being waived…"
+            rows={2}
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2 outline-none text-sm resize-none bg-white transition-colors"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={handleWaive}
+              disabled={waiving || !waiveReason.trim()}
+              className="flex-1 bg-slate-700 hover:bg-slate-800 disabled:opacity-40 text-white font-bold rounded-2xl py-2 text-sm active:scale-95 transition-transform"
+            >
+              {waiving ? "Waiving…" : "Confirm Waiver"}
+            </button>
+            <button
+              onClick={() => { setWaiveOpen(false); setWaiveReason(""); }}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl text-sm hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

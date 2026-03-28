@@ -26,25 +26,42 @@ function getSupabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { slug?: string; name?: string; signature?: string; lat?: number; lng?: number };
+  let body: {
+    slug?: string;
+    name?: string;
+    signature?: string;
+    lat?: number;
+    lng?: number;
+    status?: string;
+    waive_reason?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { slug, name, signature, lat, lng } = body;
+  const { slug, name, signature, lat, lng, status: requestedStatus, waive_reason } = body;
+  const isWaiver = requestedStatus === 'waived';
 
   // Validate inputs
   if (!slug) {
     return NextResponse.json({ error: 'slug is required' }, { status: 400 });
   }
-  const trimmedName = typeof name === 'string' ? name.trim() : '';
-  if (!trimmedName) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 });
-  }
-  if (!signature || typeof signature !== 'string') {
-    return NextResponse.json({ error: 'signature is required' }, { status: 400 });
+
+  if (isWaiver) {
+    const trimmedReason = typeof waive_reason === 'string' ? waive_reason.trim() : '';
+    if (!trimmedReason) {
+      return NextResponse.json({ error: 'waive_reason is required' }, { status: 400 });
+    }
+  } else {
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 });
+    }
+    if (!signature || typeof signature !== 'string') {
+      return NextResponse.json({ error: 'signature is required' }, { status: 400 });
+    }
   }
 
   // Rate limit
@@ -70,21 +87,32 @@ export async function POST(req: NextRequest) {
   }
 
   // Build the update payload
-  const updatePayload: Record<string, unknown> = {
-    status: 'signed',
-    signed_off_at: new Date().toISOString(),
-    signed_off_by_name: trimmedName,
-    signature,
-  };
-  if (typeof lat === 'number') updatePayload.sign_off_lat = lat;
-  if (typeof lng === 'number') updatePayload.sign_off_lng = lng;
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  const updatePayload: Record<string, unknown> = isWaiver
+    ? {
+        status: 'waived',
+        signed_off_at: new Date().toISOString(),
+        waive_reason: (waive_reason as string).trim(),
+        ...(trimmedName ? { signed_off_by_name: trimmedName } : {}),
+      }
+    : {
+        status: 'signed',
+        signed_off_at: new Date().toISOString(),
+        signed_off_by_name: trimmedName,
+        signature,
+      };
+
+  if (!isWaiver) {
+    if (typeof lat === 'number') updatePayload.sign_off_lat = lat;
+    if (typeof lng === 'number') updatePayload.sign_off_lng = lng;
+  }
 
   const { data: updatedItem, error: updateError } = await supabase
     .from('itp_items')
     .update(updatePayload)
     .eq('slug', slug)
     .eq('status', 'pending')
-    .select('id, title, type, signed_off_at, signed_off_by_name')
+    .select('id, title, type, signed_off_at, signed_off_by_name, waive_reason')
     .single();
 
   if (updateError || !updatedItem) {
@@ -92,14 +120,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Already signed' }, { status: 409 });
   }
 
-  // Check if all hold-type items in the session are now signed
+  // Check if all hold-type items in the session are now signed or waived
   const { data: holdItems, error: holdError } = await supabase
     .from('itp_items')
     .select('status')
     .eq('session_id', item.session_id)
     .eq('type', 'hold');
 
-  if (!holdError && holdItems && holdItems.every((h) => h.status === 'signed')) {
+  if (!holdError && holdItems && holdItems.every((h: { status: string }) => h.status === 'signed' || h.status === 'waived')) {
     await supabase
       .from('itp_sessions')
       .update({ status: 'complete' })
