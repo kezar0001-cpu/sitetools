@@ -853,10 +853,6 @@ function ITPBuilderPageInner() {
   // ── Import state
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{
-    imported: number;
-    total_items: number;
-  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Multi-step import preview
   const [importStep, setImportStep] = useState<ImportStep>("upload");
@@ -1177,7 +1173,6 @@ function ITPBuilderPageInner() {
     setShowAuditTrail(false);
     setConfirmDeleteSession(false);
     setImportFile(null);
-    setImportResult(null);
     setImportStep("upload");
     setDraftSessions([]);
     setShowSaveTemplate(false);
@@ -1509,7 +1504,6 @@ function ITPBuilderPageInner() {
         total_items: number;
         sessions: Array<{ session: ITPSession; items: ITPItem[] }>;
       };
-      setImportResult({ imported: data.imported, total_items: data.total_items });
       setImportFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       setDraftSessions([]);
@@ -1745,7 +1739,6 @@ function ITPBuilderPageInner() {
                     onChange={(e) => {
                       const f = e.target.files?.[0] ?? null;
                       setImportFile(f);
-                      setImportResult(null);
                     }}
                     className="hidden"
                     id="itp-file-input"
