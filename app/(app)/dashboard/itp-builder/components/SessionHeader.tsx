@@ -7,22 +7,6 @@ import ItpPdfExport from "./ItpPdfExport";
 import ItpQrSheet from "./ItpQrSheet";
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatSignedAt(iso: string): string {
-  return new Date(iso).toLocaleString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZoneName: "short",
-    timeZone: "Australia/Sydney",
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 

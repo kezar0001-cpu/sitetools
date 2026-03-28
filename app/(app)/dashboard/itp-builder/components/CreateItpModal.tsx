@@ -64,7 +64,7 @@ export default function CreateItpModal({
   // Generation state
   const [generating, setGenerating] = useState(false);
   const [generatingStatus, setGeneratingStatus] = useState("");
-  const [fallbackWarning, setFallbackWarning] = useState(false);
+  const [, setFallbackWarning] = useState(false);
 
   // Manual creation state
   const [creating, setCreating] = useState(false);
@@ -351,8 +351,6 @@ export default function CreateItpModal({
       toast.success(`Imported ${data.imported} ITP${data.imported !== 1 ? "s" : ""} with ${data.total_items} checks`);
 
       if (data.sessions.length > 0) {
-        const first = data.sessions[0];
-        // Notify parent of all imported sessions; activate the first
         data.sessions.forEach((s) => onSessionCreated(s.session, s.items));
         resetForm();
         onClose();

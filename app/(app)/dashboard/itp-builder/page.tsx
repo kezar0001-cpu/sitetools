@@ -148,7 +148,7 @@ function ITPBuilderPageInner() {
   const [loadingMore, setLoadingMore] = useState(false);
 
   // ── Generating skeleton (for AI generation in-progress display) ────────────
-  const [generating, setGenerating] = useState(false);
+  const [generating] = useState(false);
 
   // ── Load data on mount / company change ───────────────────────────────────
   useEffect(() => {
