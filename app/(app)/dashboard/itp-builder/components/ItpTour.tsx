@@ -89,6 +89,8 @@ export default function ItpTour({
 
   useEffect(() => {
     if (autoStartedRef.current) return;
+    // Don't auto-start on mobile — the overlay conflicts with the native dialog
+    if (window.innerWidth < 768) return;
     const dismissed = localStorage.getItem(DISMISSED_KEY);
     if (!dismissed) {
       autoStartedRef.current = true;
