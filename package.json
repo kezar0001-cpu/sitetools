@@ -18,6 +18,7 @@
     "@upstash/redis": "^1.37.0",
     "cfb": "^1.2.2",
     "chrono-node": "^2.9.0",
+    "driver.js": "^1.4.0",
     "gantt-task-react": "^0.3.9",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
