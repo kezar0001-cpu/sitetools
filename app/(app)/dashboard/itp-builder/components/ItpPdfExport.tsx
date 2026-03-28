@@ -185,7 +185,7 @@ export default function ItpPdfExport({ session }: Props) {
   return (
     <button
       onClick={handleExport}
-      className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl px-4 py-2.5 text-sm active:scale-95 transition-transform"
+      className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl px-4 py-2.5 text-sm active:scale-95 transition-transform"
     >
       Export PDF
     </button>
