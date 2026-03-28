@@ -128,6 +128,96 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid session." }, { status: 401 });
   }
 
+  // ── JSON "confirm" path: reviewed sessions payload from the import preview step ──
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    let jsonBody: {
+      company_id?: string;
+      project_id?: string;
+      site_id?: string;
+      sessions?: GeneratedItp[];
+    };
+    try {
+      jsonBody = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
+
+    const { company_id: companyId, project_id: projectId, site_id: siteId, sessions: reviewedSessions } = jsonBody;
+    if (!companyId || !reviewedSessions || !Array.isArray(reviewedSessions) || reviewedSessions.length === 0) {
+      return NextResponse.json({ error: "company_id and sessions array are required." }, { status: 400 });
+    }
+
+    // Validate structure
+    const validated = validateItps(reviewedSessions);
+    if (!validated) {
+      return NextResponse.json({ error: "Invalid sessions payload." }, { status: 400 });
+    }
+
+    // Verify membership
+    const { data: membership, error: memErr } = await supabaseAdmin
+      .from("org_members")
+      .select("role")
+      .eq("org_id", companyId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (memErr || !membership) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    // Save to DB (same logic as below)
+    const createdSessions: Array<{ session: Record<string, unknown>; items: Record<string, unknown>[] }> = [];
+    for (const itp of validated) {
+      const { data: session, error: sessionErr } = await supabaseAdmin
+        .from("itp_sessions")
+        .insert({
+          company_id: companyId,
+          task_description: itp.task_description,
+          project_id: projectId ?? null,
+          site_id: siteId ?? null,
+          created_by_user_id: user.id,
+        })
+        .select("id, company_id, task_description, created_at, project_id, site_id, status")
+        .single();
+      if (sessionErr || !session) continue;
+
+      const rows = itp.items.map((item, idx) => ({
+        session_id: session.id,
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        sort_order: idx + 1,
+      }));
+      const { data: inserted, error: insertErr } = await supabaseAdmin
+        .from("itp_items")
+        .insert(rows)
+        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng");
+      if (insertErr || !inserted) continue;
+
+      createdSessions.push({ session, items: inserted });
+
+      // Audit log
+      await supabaseAdmin.from("itp_audit_log").insert({
+        session_id: session.id,
+        item_id: null,
+        action: "create",
+        performed_by_user_id: user.id,
+        new_values: { task_description: itp.task_description, source: "import_confirm", items_count: itp.items.length },
+      });
+    }
+
+    if (createdSessions.length === 0) {
+      return NextResponse.json({ error: "Failed to save generated ITPs." }, { status: 500 });
+    }
+    return NextResponse.json({
+      imported: createdSessions.length,
+      total_items: createdSessions.reduce((sum, s) => sum + s.items.length, 0),
+      sessions: createdSessions,
+    });
+  }
+
+  // ── Original multipart form data path ──
+
   // Parse multipart form data
   let formData: FormData;
   try {
@@ -418,6 +508,15 @@ ${documentText}`;
     }
 
     createdSessions.push({ session, items: inserted });
+
+    // Audit log
+    await supabaseAdmin.from("itp_audit_log").insert({
+      session_id: session.id,
+      item_id: null,
+      action: "create",
+      performed_by_user_id: user.id,
+      new_values: { task_description: itp.task_description, source: "import_document", items_count: itp.items.length },
+    });
   }
 
   if (createdSessions.length === 0) {

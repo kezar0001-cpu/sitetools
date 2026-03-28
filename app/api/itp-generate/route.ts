@@ -235,5 +235,18 @@ Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`,
     );
   }
 
+  // Audit log: session created via AI generate
+  await supabaseAdmin.from("itp_audit_log").insert({
+    session_id: session.id,
+    item_id: null,
+    action: "create",
+    performed_by_user_id: user.id,
+    new_values: {
+      task_description,
+      source: "ai_generate",
+      items_count: inserted.length,
+    },
+  });
+
   return NextResponse.json({ session, items: inserted });
 }
