@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { FolderOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchCompanyProjects } from "@/lib/workspace/client";
@@ -286,7 +287,27 @@ function SiteITPDashboardInner() {
       {/* Grid */}
       {isLoading ? (
         <GridSkeleton />
-      ) : stats.length === 0 || !hasAny ? (
+      ) : stats.length === 0 ? (
+        /* No projects exist at all */
+        <div className="border-2 border-dashed border-slate-200 rounded-xl p-16 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
+              <FolderOpen className="h-6 w-6 text-slate-400" />
+            </div>
+          </div>
+          <p className="text-slate-700 font-bold">No projects yet</p>
+          <p className="text-slate-400 text-sm mt-1 max-w-xs mx-auto">
+            Add a project to get started with inspection &amp; test plans.
+          </p>
+          <button
+            onClick={() => router.push("/dashboard/projects")}
+            className="mt-5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-xl px-5 py-2.5 text-sm transition-colors active:scale-95"
+          >
+            Add a project
+          </button>
+        </div>
+      ) : !hasAny ? (
+        /* Projects exist but no ITPs created */
         <div className="border-2 border-dashed border-slate-200 rounded-xl p-16 text-center">
           <p className="text-slate-500 font-semibold">No ITPs yet</p>
           <p className="text-slate-400 text-sm mt-1">
