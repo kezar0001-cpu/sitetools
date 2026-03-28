@@ -1,20 +1,30 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
-// In-memory rate limiter: slug → { count, windowStart }
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
-const RATE_LIMIT_MAX = 10;
-const RATE_LIMIT_WINDOW_MS = 60_000;
+// Upstash Redis rate limiter (sliding window, 10 req / 60 s per slug).
+// Falls back to allowing the request if env vars are absent.
+async function checkRateLimit(slug: string): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return true; // graceful fallback
 
-function checkRateLimit(slug: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(slug);
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimitMap.set(slug, { count: 1, windowStart: now });
+  try {
+    const { Redis } = await import('@upstash/redis');
+    const { Ratelimit } = await import('@upstash/ratelimit');
+
+    const redis = new Redis({ url, token });
+    const ratelimit = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(10, '60 s'),
+      prefix: 'itp-sign',
+    });
+
+    const { success } = await ratelimit.limit(slug);
+    return success;
+  } catch {
+    // If Upstash is unreachable, fail open
     return true;
   }
-  entry.count += 1;
-  return entry.count <= RATE_LIMIT_MAX;
 }
 
 function getSupabaseAdmin() {
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Rate limit
-  if (!checkRateLimit(slug)) {
+  if (!(await checkRateLimit(slug))) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }
 
