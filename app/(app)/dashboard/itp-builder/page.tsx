@@ -119,6 +119,10 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
   const [waiveOpen, setWaiveOpen] = useState(false);
   const [waiveReason, setWaiveReason] = useState("");
   const [waiving, setWaiving] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const signUrl = `${baseUrl}/itp-sign/${item.slug}`;
 
   const isSigned = item.status === "signed";
   const isWaived = item.status === "waived";
@@ -363,6 +367,18 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
               Collapse
             </button>
           )}
+          {isPending && (
+            <button
+              onClick={() => setShowQr((v) => !v)}
+              className={`text-xs font-semibold border rounded-xl px-3 py-1.5 active:scale-95 transition-transform ${
+                showQr
+                  ? "bg-slate-700 border-slate-700 text-white"
+                  : "text-slate-600 border-slate-200 hover:bg-slate-50"
+              }`}
+            >
+              QR
+            </button>
+          )}
           {isPending && onEdit && (
             <button
               onClick={() => setIsEditing(true)}
@@ -390,6 +406,24 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
           )}
         </div>
       </div>
+
+      {/* QR code panel */}
+      {showQr && isPending && (
+        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col items-center gap-3">
+          <QRCodeSVG value={signUrl} size={160} />
+          <code className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 break-all text-center select-all">
+            {signUrl}
+          </code>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(signUrl).then(() => toast.success("Link copied!"));
+            }}
+            className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-4 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
+          >
+            Copy link
+          </button>
+        </div>
+      )}
 
       {/* Inline waiver form */}
       {waiveOpen && isPending && (
