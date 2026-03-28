@@ -15,6 +15,7 @@ import SessionSidebar from "./components/SessionSidebar";
 import SessionHeader from "./components/SessionHeader";
 import ItemsList, { SkeletonRow } from "./components/ItemsList";
 import CreateItpModal from "./components/CreateItpModal";
+import ItpErrorBoundary from "./components/ItpErrorBoundary";
 
 const ItpTour = dynamic(() => import("./components/ItpTour"), { ssr: false });
 
@@ -556,43 +557,45 @@ function ITPBuilderPageInner() {
             All ITPs
           </button>
 
-          <SessionHeader
-            session={activeSession}
-            items={activeItems}
-            projectName={activeProjectName}
-            siteName={activeSiteName}
-            companyName={summary?.activeMembership?.companies?.name ?? null}
-            updatingStatus={updatingStatus}
-            showSessionQR={showSessionQR}
-            showSaveTemplate={showSaveTemplate}
-            showAuditTrail={showAuditTrail}
-            templateName={templateName}
-            savingTemplate={savingTemplate}
-            auditLogs={auditLogs}
-            auditLoading={auditLoading}
-            fallbackWarning={fallbackWarning}
-            onStatusChange={handleStatusChange}
-            onToggleSessionQR={() => setShowSessionQR((v) => !v)}
-            onToggleSaveTemplate={() => setShowSaveTemplate((v) => !v)}
-            onToggleAuditTrail={() => setShowAuditTrail((v) => !v)}
-            onTemplateNameChange={setTemplateName}
-            onSaveTemplate={handleSaveTemplate}
-            onDeleteClick={() => setConfirmDeleteSession(true)}
-            onDismissFallback={() => setFallbackWarning(false)}
-            onLoadAuditLog={() => loadAuditLog(activeSession.id)}
-          />
+          <ItpErrorBoundary>
+            <SessionHeader
+              session={activeSession}
+              items={activeItems}
+              projectName={activeProjectName}
+              siteName={activeSiteName}
+              companyName={summary?.activeMembership?.companies?.name ?? null}
+              updatingStatus={updatingStatus}
+              showSessionQR={showSessionQR}
+              showSaveTemplate={showSaveTemplate}
+              showAuditTrail={showAuditTrail}
+              templateName={templateName}
+              savingTemplate={savingTemplate}
+              auditLogs={auditLogs}
+              auditLoading={auditLoading}
+              fallbackWarning={fallbackWarning}
+              onStatusChange={handleStatusChange}
+              onToggleSessionQR={() => setShowSessionQR((v) => !v)}
+              onToggleSaveTemplate={() => setShowSaveTemplate((v) => !v)}
+              onToggleAuditTrail={() => setShowAuditTrail((v) => !v)}
+              onTemplateNameChange={setTemplateName}
+              onSaveTemplate={handleSaveTemplate}
+              onDeleteClick={() => setConfirmDeleteSession(true)}
+              onDismissFallback={() => setFallbackWarning(false)}
+              onLoadAuditLog={() => loadAuditLog(activeSession.id)}
+            />
 
-          <ItemsList
-            session={activeSession}
-            items={activeItems}
-            showAddItem={showAddItem}
-            onDragEnd={handleDragEnd}
-            onItemDeleted={handleItemDeleted}
-            onItemEdited={handleItemEdited}
-            onItemAdded={handleItemAdded}
-            onToggleAddItem={setShowAddItem}
-            onRegenerate={() => handleNewITPWithMode("ai")}
-          />
+            <ItemsList
+              session={activeSession}
+              items={activeItems}
+              showAddItem={showAddItem}
+              onDragEnd={handleDragEnd}
+              onItemDeleted={handleItemDeleted}
+              onItemEdited={handleItemEdited}
+              onItemAdded={handleItemAdded}
+              onToggleAddItem={setShowAddItem}
+              onRegenerate={() => handleNewITPWithMode("ai")}
+            />
+          </ItpErrorBoundary>
         </div>
       ) : sessions.length === 0 && !sessionsLoading ? (
         /* Empty state — no sessions at all */
