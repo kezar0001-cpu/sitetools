@@ -663,7 +663,7 @@ function ITPBuilderPageInner() {
         {/* ── Left sidebar (desktop: always visible; mobile: conditional) ── */}
         <aside
           className={`
-            w-80 shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden
+            w-full md:w-80 md:shrink-0 border-r border-slate-200 bg-white flex flex-col overflow-hidden
             ${mobileView === "list" ? "flex" : "hidden"}
             md:flex
           `}
@@ -738,7 +738,7 @@ function ITPBuilderPageInner() {
         {/* ── Main content area ─────────────────────────────────────────── */}
         <main
           className={`
-            flex-1 min-w-0 flex flex-col bg-slate-50 overflow-hidden
+            w-full md:flex-1 md:min-w-0 flex flex-col bg-slate-50 overflow-hidden
             ${mobileView === "detail" ? "flex" : "hidden"}
             md:flex
           `}
