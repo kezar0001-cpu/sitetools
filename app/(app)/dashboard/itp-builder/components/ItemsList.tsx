@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ListX } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { supabase } from "@/lib/supabase";
@@ -535,6 +536,8 @@ export interface ItemsListProps {
   onItemEdited: (item: ITPItem) => void;
   onItemAdded: (item: ITPItem) => void;
   onToggleAddItem: (show: boolean) => void;
+  /** Called when the user clicks "Regenerate" on the no-items empty state. */
+  onRegenerate?: () => void;
 }
 
 export default function ItemsList({
@@ -546,18 +549,35 @@ export default function ItemsList({
   onItemEdited,
   onItemAdded,
   onToggleAddItem,
+  onRegenerate,
 }: ItemsListProps) {
   return (
     <div className="space-y-3">
       {items.length === 0 && !showAddItem && (
-        <div className="bg-white border border-dashed border-slate-300 rounded-2xl p-8 text-center">
-          <p className="text-sm text-slate-400">No items yet.</p>
-          <button
-            onClick={() => onToggleAddItem(true)}
-            className="mt-3 text-sm font-semibold text-amber-600 hover:text-amber-700"
-          >
-            + Add first item
-          </button>
+        <div className="flex flex-col items-center text-center bg-white border border-dashed border-slate-200 rounded-2xl p-10">
+          <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
+            <ListX className="h-5 w-5 text-slate-400" />
+          </div>
+          <p className="font-bold text-slate-700 text-sm">This session has no items</p>
+          <p className="text-xs text-slate-500 mt-1 max-w-xs">
+            Add an inspection point manually or regenerate from a task description.
+          </p>
+          <div className="mt-4 flex gap-2 flex-wrap justify-center">
+            <button
+              onClick={() => onToggleAddItem(true)}
+              className="px-4 py-2 bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-xl text-xs active:scale-95 transition-transform"
+            >
+              + Add manually
+            </button>
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                className="px-4 py-2 bg-violet-100 hover:bg-violet-200 text-violet-700 font-bold rounded-xl text-xs active:scale-95 transition-transform"
+              >
+                ✦ Regenerate
+              </button>
+            )}
+          </div>
         </div>
       )}
 

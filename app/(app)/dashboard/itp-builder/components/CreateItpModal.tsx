@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FileSearch } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import {
@@ -30,6 +31,8 @@ export interface CreateItpModalProps {
   templatesLoading: boolean;
   onSessionCreated: (session: ITPSession, items: ITPItem[]) => void;
   onTemplateDeleted: (id: string) => void;
+  /** Pre-select a creation mode when the modal opens. Defaults to "ai". */
+  initialMode?: CreationMode;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +51,7 @@ export default function CreateItpModal({
   templatesLoading,
   onSessionCreated,
   onTemplateDeleted,
+  initialMode = "ai",
 }: CreateItpModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -55,7 +59,7 @@ export default function CreateItpModal({
   const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [taskDescription, setTaskDescription] = useState("");
-  const [creationMode, setCreationMode] = useState<CreationMode>("ai");
+  const [creationMode, setCreationMode] = useState<CreationMode>(initialMode);
   const [selectedProjectId, setSelectedProjectId] = useState(
     projectFilter && projectFilter !== "unassigned" ? projectFilter : ""
   );
@@ -89,12 +93,14 @@ export default function CreateItpModal({
     const el = dialogRef.current;
     if (!el) return;
     if (open && !el.open) {
+      setCreationMode(initialMode);
+      if (initialMode === "import") setImportStep("upload");
       el.showModal();
       setTimeout(() => textareaRef.current?.focus(), 50);
     } else if (!open && el.open) {
       el.close();
     }
-  }, [open]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear site when project changes
   useEffect(() => {
@@ -657,6 +663,32 @@ export default function CreateItpModal({
 
             {importStep === "preview" && (
               <>
+                {draftSessions.length === 0 ? (
+                  <div className="flex flex-col items-center text-center py-6 px-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl">
+                    <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mb-3">
+                      <FileSearch className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <p className="font-bold text-slate-700 text-sm">No activities found in this document</p>
+                    <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                      Try a different file or create an ITP manually.
+                    </p>
+                    <div className="mt-4 flex gap-2 flex-wrap justify-center">
+                      <button
+                        onClick={() => { setImportStep("upload"); setDraftSessions([]); }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs active:scale-95 transition-transform"
+                      >
+                        Try a different file
+                      </button>
+                      <button
+                        onClick={() => setCreationMode("manual")}
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl text-xs hover:bg-slate-50 transition-colors"
+                      >
+                        Create manually
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
                 <div className="bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 text-xs text-blue-700 font-semibold flex items-center justify-between">
                   <span>{draftSessions.length} ITP{draftSessions.length !== 1 ? "s" : ""} generated · Edit as needed</span>
                 </div>
@@ -752,6 +784,8 @@ export default function CreateItpModal({
                     Back
                   </button>
                 </div>
+                  </>
+                )}
               </>
             )}
           </div>
