@@ -93,7 +93,7 @@ function ITPProjectCard({
   return (
     <button
       onClick={onClick}
-      className="text-left rounded-xl border border-slate-200 bg-white p-5 space-y-3 hover:border-violet-300 hover:shadow-sm transition-all w-full min-h-[44px]"
+      className="text-left rounded-xl border border-slate-200 bg-white p-5 space-y-3 hover:border-amber-300 hover:shadow-sm transition-all w-full min-h-[44px]"
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-900 line-clamp-2">
@@ -301,7 +301,7 @@ function SiteITPDashboardInner() {
   if (loading || !summary) {
     return (
       <div className="p-8 flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-violet-500 animate-spin" />
+        <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
       </div>
     );
   }
@@ -328,7 +328,7 @@ function SiteITPDashboardInner() {
         </div>
         <button
           onClick={() => router.push("/dashboard/itp-builder")}
-          className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl px-4 py-2 text-sm transition-colors active:scale-95"
+          className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-xl px-4 py-2 text-sm transition-colors active:scale-95"
         >
           + New ITP
         </button>
@@ -365,7 +365,7 @@ function SiteITPDashboardInner() {
           </p>
           <button
             onClick={() => router.push("/dashboard/itp-builder")}
-            className="mt-5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-colors active:scale-95"
+            className="mt-5 bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-xl px-5 py-2.5 text-sm transition-colors active:scale-95"
           >
             Create ITP
           </button>
