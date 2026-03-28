@@ -235,7 +235,7 @@ export default function SessionSidebar({
       </div>
 
       {/* Session list — scrollable */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+      <div id="itp-session-list" className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
         {sessionsLoading ? (
           <div className="space-y-2 px-1">
             {Array.from({ length: 4 }).map((_, i) => (

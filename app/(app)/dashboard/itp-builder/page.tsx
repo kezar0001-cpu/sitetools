@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { DropResult } from "@hello-pangea/dnd";
+import dynamic from "next/dynamic";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, fetchCompanySites } from "@/lib/workspace/client";
@@ -14,6 +15,8 @@ import SessionSidebar from "./components/SessionSidebar";
 import SessionHeader from "./components/SessionHeader";
 import ItemsList, { SkeletonRow } from "./components/ItemsList";
 import CreateItpModal from "./components/CreateItpModal";
+
+const ItpTour = dynamic(() => import("./components/ItpTour"), { ssr: false });
 
 // ---------------------------------------------------------------------------
 // Delete Confirmation Modal
@@ -100,6 +103,9 @@ function ITPBuilderPageInner() {
   const initialStatusFilter = searchParams.get("status") ?? "all";
   const initialSort = searchParams.get("sort") ?? "newest";
   const initialShowArchived = searchParams.get("archived") === "1";
+
+  // ── Tour ───────────────────────────────────────────────────────────────────
+  const tourStartRef = useRef<(() => void) | null>(null);
 
   // ── Filter/search state ────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState(initialSearch);
@@ -623,6 +629,13 @@ function ITPBuilderPageInner() {
 
   return (
     <>
+      {/* ── Onboarding tour ───────────────────────────────────────────── */}
+      <ItpTour
+        startTourRef={tourStartRef}
+        onRequestOpenModal={handleNewITP}
+        onRequestCloseModal={() => setShowCreateModal(false)}
+      />
+
       {/* ── Two-panel split layout ─────────────────────────────────────── */}
       <div className="flex h-full overflow-hidden">
         {/* ── Left sidebar (desktop: always visible; mobile: conditional) ── */}
@@ -652,6 +665,13 @@ function ITPBuilderPageInner() {
                 {filterProjectName ?? "Inspection & Test Plans"}
               </p>
             </div>
+            <button
+              onClick={() => tourStartRef.current?.()}
+              title="Take a tour"
+              className="mt-1 w-6 h-6 rounded-full border border-slate-300 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-400 transition-colors text-xs font-bold shrink-0 flex items-center justify-center"
+            >
+              ?
+            </button>
           </div>
 
           <SessionSidebar
