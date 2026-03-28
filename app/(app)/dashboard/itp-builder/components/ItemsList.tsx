@@ -585,7 +585,6 @@ export default function ItemsList({
         <Droppable droppableId="itp-items">
           {(droppableProvided) => {
             const sortedItems = [...items].sort((a, b) => a.sort_order - b.sort_order);
-            const firstPendingIdx = sortedItems.findIndex((i) => i.status === "pending");
             return (
             <div
               ref={droppableProvided.innerRef}
