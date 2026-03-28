@@ -88,9 +88,15 @@ export default function ItpTour({
   startTourRef.current = startTour;
 
   useEffect(() => {
+    // On mobile: mark dismissed immediately so the tour never auto-starts,
+    // and clean up any driver.js overlay left over from a previous session.
+    if (window.innerWidth < 768) {
+      localStorage.setItem(DISMISSED_KEY, "1");
+      // Remove any stale driver.js overlay elements from a previous stuck session
+      document.querySelectorAll(".driver-overlay, #driver-page-overlay, .driver-popover-wrapper").forEach((el) => el.remove());
+      return;
+    }
     if (autoStartedRef.current) return;
-    // Don't auto-start on mobile — the overlay conflicts with the native dialog
-    if (window.innerWidth < 768) return;
     const dismissed = localStorage.getItem(DISMISSED_KEY);
     if (!dismissed) {
       autoStartedRef.current = true;
