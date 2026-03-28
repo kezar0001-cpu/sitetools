@@ -1,5 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Buildstate — Civil Site Operations Platform",
+  description:
+    "Replace clipboards and paper registers with one digital workspace. SiteSign, SitePlan, Site Diary, and ITP management for civil construction teams.",
+};
 
 interface LandingPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -27,7 +34,6 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
         if (key === "site" || key === "slug" || key === "siteSlug" || key === "site_id" || value === undefined) {
           continue;
         }
-
         if (Array.isArray(value)) {
           for (const item of value) {
             forwardParams.append(key, item);
@@ -42,71 +48,371 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
   }
 
   return (
-    <div className="bg-slate-50 min-h-full">
-      <section className="bg-white border-b border-slate-200 py-20 lg:py-32">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 flex flex-col items-center text-center">
-          <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full inline-block">SiteSign via Buildstate</p>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-slate-900 max-w-4xl leading-tight">
-            Faster gate sign-in. <br />
-            <span className="text-amber-500">Live headcount.</span>
-          </h1>
-          <p className="text-xl text-slate-600 max-w-2xl">
-            Digital QR sign-in sheets for construction sites. Get an export-ready compliance record without the paperwork.
+    <div className="bg-white">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden bg-slate-950 py-24 lg:py-36">
+        {/* Decorative background grid */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.06]">
+          <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="hero-grid" width="60" height="60" patternUnits="userSpaceOnUse">
+                <path d="M0 60V0H60V60z" fill="none" stroke="white" strokeWidth="1" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#hero-grid)" />
+          </svg>
+        </div>
+        {/* Glow blobs */}
+        <div className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full bg-amber-400/10 blur-[120px]" />
+        <div className="pointer-events-none absolute -bottom-20 -left-20 h-72 w-72 rounded-full bg-blue-500/10 blur-[100px]" />
+
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center text-center space-y-8">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-xs font-black uppercase tracking-widest text-amber-400">
+                Built for Civil Construction
+              </span>
+            </div>
+
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.05] max-w-4xl">
+              One workspace for{" "}
+              <span className="text-amber-400">every job on site.</span>
+            </h1>
+
+            <p className="text-xl text-slate-400 font-medium max-w-2xl leading-relaxed">
+              Replace clipboards, paper registers, and disconnected spreadsheets. Buildstate gives civil site
+              teams a single digital operations platform — from gate sign-in to programme delivery.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
+              <Link
+                href="/login?signup=1"
+                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-lg transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-amber-400/20"
+              >
+                Start your workspace free
+              </Link>
+              <Link
+                href="/login"
+                className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-lg transition-colors border border-white/10"
+              >
+                Log in
+              </Link>
+            </div>
+
+            <p className="text-xs text-slate-500 font-medium">
+              No credit card required · Set up in minutes · Cancel anytime
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Trust bar ────────────────────────────────────────────────────── */}
+      <div className="border-y border-slate-100 bg-slate-50 py-5">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <p className="text-center text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
+            Used by civil contractors across Australia
           </p>
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
-            <Link href="/login?signup=1&intent=sitesign" className="w-full sm:w-auto px-8 py-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-950 font-black text-lg transition-transform hover:scale-105 shadow-xl shadow-amber-200">
-              Start SiteSign Free
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
+            {["Site Supervisors", "Project Engineers", "Foremen", "Project Managers", "EHS Officers"].map((role) => (
+              <span key={role} className="flex items-center gap-2 text-sm font-semibold text-slate-500">
+                <svg className="h-4 w-4 text-amber-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {role}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Module Showcase ───────────────────────────────────────────────── */}
+      <section className="py-24 lg:py-32 bg-white">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-16">
+          <div className="text-center space-y-4">
+            <p className="text-xs font-black uppercase tracking-widest text-amber-600">The Platform Suite</p>
+            <h2 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900">
+              Everything your site team needs.
+            </h2>
+            <p className="text-lg text-slate-500 font-medium max-w-2xl mx-auto">
+              Four modules, one workspace. Each one purpose-built for the realities of civil site delivery.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* SiteSign */}
+            <Link
+              href="/sitesign"
+              className="group relative rounded-3xl border border-amber-100 bg-amber-50 p-8 hover:border-amber-300 hover:shadow-xl hover:shadow-amber-100 transition-all overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-48 h-48 bg-amber-400/10 rounded-full -mr-16 -mt-16 group-hover:bg-amber-400/20 transition-colors" />
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-amber-400 flex items-center justify-center text-amber-950 mb-6 group-hover:scale-110 transition-transform">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+                  </svg>
+                </div>
+                <div className="inline-block bg-amber-400 text-amber-950 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">SiteSign</h3>
+                <p className="text-slate-600 font-medium leading-relaxed mb-4">
+                  QR-based digital gate sign-in. Workers scan with their phone — no app needed. Live headcount, compliance exports, and signature capture.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["QR sign-in", "Live headcount", "CSV / PDF exports", "Signatures"].map((t) => (
+                    <span key={t} className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full">{t}</span>
+                  ))}
+                </div>
+                <div className="mt-6 flex items-center gap-2 text-amber-700 font-bold text-sm group-hover:gap-3 transition-all">
+                  Explore SiteSign
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
+              </div>
             </Link>
-            <Link href="/login" className="w-full sm:w-auto px-8 py-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-lg transition-colors">
-              Log In
+
+            {/* SitePlan */}
+            <Link
+              href="/siteplan"
+              className="group relative rounded-3xl border border-blue-100 bg-blue-50 p-8 hover:border-blue-300 hover:shadow-xl hover:shadow-blue-100 transition-all overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/10 rounded-full -mr-16 -mt-16 group-hover:bg-blue-400/20 transition-colors" />
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                </div>
+                <div className="inline-block bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">SitePlan</h3>
+                <p className="text-slate-600 font-medium leading-relaxed mb-4">
+                  Civil programme planning and delivery tracking. Build your programme, track daily progress, manage delays, and keep field and office teams aligned.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["Programme tracking", "Milestone management", "Delay flags", "Team alignment"].map((t) => (
+                    <span key={t} className="text-xs font-bold text-blue-800 bg-blue-100 px-2.5 py-1 rounded-full">{t}</span>
+                  ))}
+                </div>
+                <div className="mt-6 flex items-center gap-2 text-blue-700 font-bold text-sm group-hover:gap-3 transition-all">
+                  Explore SitePlan
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </div>
+              </div>
             </Link>
+
+            {/* Site Diary */}
+            <div className="group relative rounded-3xl border border-sky-100 bg-sky-50 p-8 overflow-hidden">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-sky-400/10 rounded-full -mr-16 -mt-16" />
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-sky-500 flex items-center justify-center text-white mb-6">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <div className="inline-block bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">Site Diary</h3>
+                <p className="text-slate-600 font-medium leading-relaxed mb-4">
+                  Daily weather conditions, work completed, delays, instructions, and photos. Generate professional reports for your principal contractor.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["Daily records", "Weather logging", "Photo attachments", "PDF reports"].map((t) => (
+                    <span key={t} className="text-xs font-bold text-sky-800 bg-sky-100 px-2.5 py-1 rounded-full">{t}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* SiteITP */}
+            <div className="group relative rounded-3xl border border-violet-100 bg-violet-50 p-8 overflow-hidden">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-violet-400/10 rounded-full -mr-16 -mt-16" />
+              <div className="relative">
+                <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center text-white mb-6">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="inline-block bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">SiteITP</h3>
+                <p className="text-slate-600 font-medium leading-relaxed mb-4">
+                  Hold & witness point checklists, AI-generated or built manually. Share QR codes for sign-off — no app or account required for inspectors.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {["ITP checklists", "AI generation", "QR sign-off", "Hold & witness"].map((t) => (
+                    <span key={t} className="text-xs font-bold text-violet-800 bg-violet-100 px-2.5 py-1 rounded-full">{t}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ── A day on site with Buildstate ────────────────────────────────── */}
+      <section className="py-24 lg:py-32 bg-slate-950 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 opacity-[0.05]">
+          <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern id="workflow-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M0 40V0H40V40z" fill="none" stroke="white" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#workflow-grid)" />
+          </svg>
+        </div>
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-16">
+          <div className="text-center space-y-4">
+            <p className="text-xs font-black uppercase tracking-widest text-amber-400">How it fits together</p>
+            <h2 className="text-4xl sm:text-5xl font-black tracking-tight text-white">
+              From gate to programme — all in one place.
+            </h2>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                time: "7:00 AM",
+                icon: (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+                  </svg>
+                ),
+                title: "Gate sign-in",
+                desc: "Workers scan QR code at the gate. Live headcount visible instantly. No paperwork.",
+                color: "amber",
+              },
+              {
+                time: "8:30 AM",
+                icon: (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ),
+                title: "ITP checkpoint",
+                desc: "Inspector scans a QR code and signs off hold / witness points on the spot.",
+                color: "violet",
+              },
+              {
+                time: "4:00 PM",
+                icon: (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                ),
+                title: "Daily diary",
+                desc: "Engineer logs weather, progress, delays, and instructions before leaving site.",
+                color: "sky",
+              },
+              {
+                time: "5:00 PM",
+                icon: (
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                ),
+                title: "Programme updated",
+                desc: "PM marks today's progress. Delays flagged. Tomorrow's tasks confirmed.",
+                color: "blue",
+              },
+            ].map((step) => (
+              <div key={step.time} className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    step.color === "amber" ? "bg-amber-400 text-amber-950" :
+                    step.color === "violet" ? "bg-violet-500 text-white" :
+                    step.color === "sky" ? "bg-sky-500 text-white" :
+                    "bg-blue-600 text-white"
+                  }`}>
+                    {step.icon}
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">{step.time}</span>
+                </div>
+                <h3 className="text-lg font-black text-white">{step.title}</h3>
+                <p className="text-sm text-slate-400 font-medium leading-relaxed">{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Why Buildstate ───────────────────────────────────────────────── */}
+      <section className="py-24 bg-white">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center space-y-4">
+            <p className="text-xs font-black uppercase tracking-widest text-amber-600">Why teams choose us</p>
+            <h2 className="text-4xl sm:text-5xl font-black tracking-tight text-slate-900">
+              Built for site. Not just software.
+            </h2>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 mb-6">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
+            {[
+              {
+                icon: (
+                  <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                ),
+                title: "Mobile first",
+                desc: "Every tool works on the phone you already have in your pocket. No specialist hardware, no app store download for workers.",
+              },
+              {
+                icon: (
+                  <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                ),
+                title: "Compliance ready",
+                desc: "Export attendance registers, signed records, and audit trails in PDF, CSV, or Excel — ready for any site audit or authority request.",
+              },
+              {
+                icon: (
+                  <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                ),
+                title: "Set up in minutes",
+                desc: "Create your workspace, register your site, and print your first QR sign-in poster in under 10 minutes. No IT team required.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="rounded-2xl border border-slate-100 bg-slate-50 p-8 space-y-4">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 shadow-sm">
+                  {item.icon}
+                </div>
+                <h3 className="text-xl font-black text-slate-900">{item.title}</h3>
+                <p className="text-slate-600 font-medium leading-relaxed text-sm">{item.desc}</p>
               </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">QR Code Entry</h3>
-              <p className="text-slate-600 text-sm">Print a single poster for your gate. Workers scan with their phone camera to sign in instantly.</p>
-            </div>
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 mb-6">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Live Headcount</h3>
-              <p className="text-slate-600 text-sm">See exactly who is on site right now from your dashboard. Keep track of all workers and visitors.</p>
-            </div>
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 mb-6">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">Export-Ready Records</h3>
-              <p className="text-slate-600 text-sm">Download signed CSV, Excel, or PDF registers instantly for compliance audits or payroll.</p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="py-12 border-t border-slate-200 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 rounded-2xl border border-slate-200 bg-slate-50 p-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <p className="text-slate-900 font-bold text-lg">Looking for SitePlan? Explore the broader Buildstate suite.</p>
-              <p className="text-slate-600 text-sm mt-1">SiteSign is part of Buildstate. We also develop tools for planning, inspections, and civil construction delivery.</p>
-            </div>
-            <Link href="/siteplan" className="inline-flex px-5 py-3 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-900 font-bold whitespace-nowrap">
-              Explore SitePlan
+      {/* ── Final CTA ─────────────────────────────────────────────────────── */}
+      <section className="py-24 bg-amber-400">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center space-y-8">
+          <h2 className="text-4xl sm:text-5xl font-black tracking-tight text-amber-950">
+            Start your Buildstate workspace today.
+          </h2>
+          <p className="text-xl text-amber-950/70 font-medium max-w-xl mx-auto">
+            Free to start. No credit card. Set up your first site in minutes and see why civil teams switch from clipboards.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <Link
+              href="/login?signup=1"
+              className="w-full sm:w-auto px-10 py-5 rounded-2xl bg-amber-950 hover:bg-black text-amber-50 font-black text-xl transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-amber-950/20"
+            >
+              Create your workspace
+            </Link>
+            <Link
+              href="/pricing"
+              className="w-full sm:w-auto px-10 py-5 rounded-2xl bg-amber-950/10 hover:bg-amber-950/20 text-amber-950 font-bold text-xl transition-colors"
+            >
+              View pricing
             </Link>
           </div>
         </div>

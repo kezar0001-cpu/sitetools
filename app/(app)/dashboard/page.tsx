@@ -134,11 +134,12 @@ export default function DashboardHome() {
                     </div>
 
                     <div className="relative z-10">
+                        <p className="text-xs font-black uppercase tracking-widest text-amber-400 mb-3">Module Centre</p>
                         <h1 className="text-3xl md:text-5xl font-black tracking-tight mb-4 text-balance">
-                            Welcome to Buildstate
+                            Your Workspace
                         </h1>
                         <p className="text-lg md:text-xl text-slate-400 font-medium max-w-2xl leading-relaxed text-balance">
-                            Your workspace is ready. Access SiteSign for daily workforce attendance and SitePlan for project programming, or explore the rest of the operations suite below.
+                            Choose a module to get started. SiteSign for gate sign-in and headcount, SitePlan for programme delivery, Site Diary for daily records, and SiteITP for inspection checklists.
                         </p>
                     </div>
                 </div>
@@ -146,8 +147,8 @@ export default function DashboardHome() {
 
             <section>
                 <div className="flex items-center gap-3 mb-6">
-                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Core Apps</h2>
-                    <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-amber-200">Action Hub</span>
+                    <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Your Modules</h2>
+                    <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-amber-200">Live</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {primaryModules.map((m) => (

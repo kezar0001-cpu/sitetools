@@ -8,7 +8,13 @@ export function parseProductIntent(value: string | null | undefined): ProductInt
   return PRODUCT_INTENTS.includes(normalized as ProductIntent) ? (normalized as ProductIntent) : null;
 }
 
+/**
+ * Resolves the post-login destination.
+ * Default: /dashboard (Module Centre / Workspace) so users can choose their module.
+ * Intent-specific: only used when arriving from a known deep-link (e.g. invite QR flow).
+ */
 export function resolveProductHome(intent: ProductIntent | null | undefined): string {
   if (intent === "siteplan") return "/site-plan";
-  return "/dashboard/site-sign-in";
+  if (intent === "sitesign") return "/dashboard/site-sign-in";
+  return "/dashboard";
 }
