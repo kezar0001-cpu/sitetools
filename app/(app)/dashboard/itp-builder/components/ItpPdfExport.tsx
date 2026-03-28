@@ -161,9 +161,19 @@ export default function ItpPdfExport({ session }: Props) {
 
         // Row background by point type
         if (item.type === "hold") {
-          data.cell.styles.fillColor = [254, 242, 242]; // #fef2f2
+          data.cell.styles.fillColor = [254, 242, 242]; // red-50 #fef2f2
         } else {
-          data.cell.styles.fillColor = [255, 251, 235]; // #fffbeb
+          data.cell.styles.fillColor = [255, 251, 235]; // amber-50 #fffbeb
+        }
+
+        // Type column: bold + colored text to match card badge
+        if (data.column.index === 1) {
+          data.cell.styles.fontStyle = "bold";
+          if (item.type === "hold") {
+            data.cell.styles.textColor = [185, 28, 28]; // red-700
+          } else {
+            data.cell.styles.textColor = [146, 64, 14]; // amber-800
+          }
         }
 
         // Pending status cell: italic grey
