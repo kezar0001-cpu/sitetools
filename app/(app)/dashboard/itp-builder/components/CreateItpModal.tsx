@@ -556,7 +556,7 @@ export default function CreateItpModal({
           <label className="block text-xs font-semibold text-slate-500 mb-1.5">
             How do you want to build this ITP?
           </label>
-          <div id="itp-creation-mode" className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {(
               [
                 { mode: "ai", label: "✦ AI Generate", active: "bg-violet-100 border-violet-300 text-violet-700" },
