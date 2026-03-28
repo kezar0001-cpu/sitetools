@@ -228,7 +228,6 @@ export default function ItpPdfExport({ session }: Props) {
 
   return (
     <button
-      id="itp-pdf-export"
       onClick={handleExport}
       className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl px-4 py-2.5 text-sm active:scale-95 transition-transform"
     >

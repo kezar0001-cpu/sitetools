@@ -53,10 +53,9 @@ interface ChecklistItemCardProps {
   onEdit?: (updated: ITPItem) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dragHandleProps?: any;
-  qrButtonId?: string;
 }
 
-function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps, qrButtonId }: ChecklistItemCardProps) {
+function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: ChecklistItemCardProps) {
   const [expanded, setExpanded] = useState(item.status !== "signed" && item.status !== "waived");
   const [deleting, setDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -340,7 +339,6 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps, qrButtonId
           )}
           {isPending && (
             <button
-              id={qrButtonId}
               onClick={() => setShowQr((v) => !v)}
               className={`text-xs font-semibold border rounded-xl px-3 py-1.5 active:scale-95 transition-transform ${
                 showQr
@@ -587,7 +585,6 @@ export default function ItemsList({
         <Droppable droppableId="itp-items">
           {(droppableProvided) => {
             const sortedItems = [...items].sort((a, b) => a.sort_order - b.sort_order);
-            const firstPendingIdx = sortedItems.findIndex((i) => i.status === "pending");
             return (
             <div
               ref={droppableProvided.innerRef}
@@ -612,7 +609,6 @@ export default function ItemsList({
                           dragHandleProps={draggableProvided.dragHandleProps}
                           onDelete={onItemDeleted}
                           onEdit={onItemEdited}
-                          qrButtonId={index === firstPendingIdx ? "itp-item-qr" : undefined}
                         />
                       </div>
                     )}
