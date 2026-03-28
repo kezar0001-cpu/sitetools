@@ -477,26 +477,39 @@ export default function CreateItpModal({
 
   const isBusy = generating || creating || importing || previewing;
 
+  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
+    if (isBusy) return;
+    const rect = (e.target as HTMLDialogElement).getBoundingClientRect();
+    const clickedOutside =
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom;
+    if (clickedOutside) handleClose();
+  }
+
   return (
     <dialog
       ref={dialogRef}
       onClose={handleClose}
+      onClick={handleBackdropClick}
       className="backdrop:bg-black/40 bg-white rounded-2xl shadow-xl p-0 w-full max-w-lg border-0 mx-4"
     >
-      {/* Modal header */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100">
+      {/* Modal header — sticky so close button is always reachable */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-5 pt-5 pb-4 border-b border-slate-100 bg-white rounded-t-2xl">
         <h2 className="text-base font-bold text-slate-900">New ITP</h2>
         <button
           onClick={handleClose}
           disabled={isBusy}
-          className="text-slate-400 hover:text-slate-600 transition-colors text-xl font-bold leading-none disabled:opacity-40"
+          aria-label="Close"
+          className="-mr-1 p-3 text-slate-400 hover:text-slate-600 transition-colors text-xl font-bold leading-none disabled:opacity-40 touch-manipulation"
         >
           ×
         </button>
       </div>
 
       {/* Modal body */}
-      <div className="px-5 py-4 space-y-4 max-h-[80vh] overflow-y-auto">
+      <div className="px-5 py-4 space-y-4 max-h-[calc(100dvh-10rem)] overflow-y-auto">
         {/* Project & Site selectors */}
         {(projects.length > 0 || allSites.length > 0) && (
           <div className="grid grid-cols-2 gap-3">
