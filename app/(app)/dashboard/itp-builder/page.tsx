@@ -818,6 +818,7 @@ function ITPBuilderPageInner() {
   const [showSessionQR, setShowSessionQR] = useState(false);
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
   const [deletingSession, setDeletingSession] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // ── Project / site options
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -1189,6 +1190,28 @@ function ITPBuilderPageInner() {
     }
   }
 
+  async function handleStatusChange(newStatus: string) {
+    if (!activeSession) return;
+    setUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from("itp_sessions")
+        .update({ status: newStatus })
+        .eq("id", activeSession.id);
+      if (error) throw error;
+      const updated = { ...activeSession, status: newStatus };
+      setActiveSession(updated);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === activeSession.id ? { ...s, status: newStatus } : s))
+      );
+      toast.success(`Session marked as ${newStatus}.`);
+    } catch {
+      toast.error("Failed to update session status.");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
   function handleLoadSession(session: ITPSession) {
     setActiveSession(session);
     setActiveItems(session.items ?? []);
@@ -1504,20 +1527,64 @@ function ITPBuilderPageInner() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
               <span className="text-xs text-slate-400">
                 {signedCount}/{activeItems.length} signed
               </span>
+              {/* Status badge */}
+              {activeSession.status === "active" && (
+                <span className="text-xs font-semibold bg-green-100 text-green-700 rounded-full px-2.5 py-0.5">
+                  Active
+                </span>
+              )}
               {activeSession.status === "complete" && (
-                <ItpPdfExport
-                  session={{
-                    ...activeSession,
-                    company_name: summary?.activeMembership?.companies?.name ?? null,
-                    project_name: activeProjectName ?? null,
-                    site_name: activeSiteName ?? null,
-                    items: activeItems,
-                  }}
-                />
+                <span className="text-xs font-semibold bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5">
+                  Complete
+                </span>
+              )}
+              {activeSession.status === "archived" && (
+                <span className="text-xs font-semibold bg-slate-100 text-slate-500 rounded-full px-2.5 py-0.5">
+                  Archived
+                </span>
+              )}
+              {/* Contextual status action buttons */}
+              {activeSession.status === "active" && (
+                <button
+                  onClick={() => handleStatusChange("complete")}
+                  disabled={updatingStatus}
+                  className="text-xs font-semibold text-green-700 border border-green-200 bg-green-50 rounded-xl px-3 py-1.5 hover:bg-green-100 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Mark Complete
+                </button>
+              )}
+              {activeSession.status === "complete" && (
+                <>
+                  <ItpPdfExport
+                    session={{
+                      ...activeSession,
+                      company_name: summary?.activeMembership?.companies?.name ?? null,
+                      project_name: activeProjectName ?? null,
+                      site_name: activeSiteName ?? null,
+                      items: activeItems,
+                    }}
+                  />
+                  <button
+                    onClick={() => handleStatusChange("archived")}
+                    disabled={updatingStatus}
+                    className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    Archive
+                  </button>
+                </>
+              )}
+              {activeSession.status === "archived" && (
+                <button
+                  onClick={() => handleStatusChange("active")}
+                  disabled={updatingStatus}
+                  className="text-xs font-semibold text-amber-700 border border-amber-200 bg-amber-50 rounded-xl px-3 py-1.5 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  Reactivate
+                </button>
               )}
               <button
                 onClick={() => setShowSessionQR((v) => !v)}
