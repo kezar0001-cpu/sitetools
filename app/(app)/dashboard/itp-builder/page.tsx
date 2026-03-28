@@ -56,6 +56,81 @@ interface SiteOption {
 }
 
 // ---------------------------------------------------------------------------
+// Delete Confirmation Modal
+// ---------------------------------------------------------------------------
+
+interface DeleteConfirmModalProps {
+  open: boolean;
+  taskDescription: string;
+  itemCount: number;
+  signedCount: number;
+  deleting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function DeleteConfirmModal({
+  open,
+  taskDescription,
+  itemCount,
+  signedCount,
+  deleting,
+  onConfirm,
+  onCancel,
+}: DeleteConfirmModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    else if (!open && el.open) el.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onClose={onCancel}
+      className="backdrop:bg-black/40 bg-white rounded-2xl shadow-xl p-0 max-w-sm w-full border-0"
+    >
+      <div className="p-6 space-y-4">
+        <h3 className="text-lg font-bold text-slate-900">Delete ITP?</h3>
+        <div className="space-y-2 text-sm text-slate-600">
+          <p>
+            <span className="font-semibold text-slate-800">{taskDescription}</span>
+          </p>
+          <p>
+            {itemCount} item{itemCount !== 1 ? "s" : ""}
+            {signedCount > 0 && (
+              <span> ({signedCount} signed)</span>
+            )}
+          </p>
+          <p className="text-red-600 font-medium">
+            This action cannot be undone. All items including signed records will be permanently deleted.
+          </p>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl py-2.5 text-sm active:scale-95 transition-all"
+          >
+            {deleting ? "Deleting…" : "Delete ITP"}
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={deleting}
+            className="flex-1 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl py-2.5 text-sm hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -339,7 +414,14 @@ function ChecklistItemCard({ item, onDelete, onEdit }: ChecklistItemCardProps) {
               {item.signed_off_at && <p>{formatSignedAt(item.signed_off_at)}</p>}
               {item.sign_off_lat != null && item.sign_off_lng != null && (
                 <p className="font-mono">
-                  {item.sign_off_lat.toFixed(5)}, {item.sign_off_lng.toFixed(5)}
+                  <a
+                    href={`https://maps.google.com/?q=${item.sign_off_lat},${item.sign_off_lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-violet-600 transition-colors"
+                  >
+                    {item.sign_off_lat.toFixed(5)}, {item.sign_off_lng.toFixed(5)}
+                  </a>
                 </p>
               )}
             </div>
@@ -1266,25 +1348,6 @@ function ITPBuilderPageInner() {
             </div>
           )}
 
-          {/* Task description (hidden in import mode) */}
-          {creationMode !== "import" && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-                Task description
-              </label>
-              <textarea
-                ref={textareaRef}
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                placeholder="e.g. Laying pavers on median island"
-                rows={3}
-                disabled={generating || creating}
-                style={{ fontSize: "16px" }}
-                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-3 resize-none outline-none disabled:opacity-60 placeholder:text-slate-400 transition-colors"
-              />
-            </div>
-          )}
-
           {/* Creation mode toggle */}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1.5">
@@ -1315,6 +1378,25 @@ function ITPBuilderPageInner() {
               </button>
             </div>
           </div>
+
+          {/* Task description (hidden in import mode) */}
+          {creationMode !== "import" && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                Task description
+              </label>
+              <textarea
+                ref={textareaRef}
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="e.g. Laying pavers on median island"
+                rows={3}
+                disabled={generating || creating}
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-3 resize-none outline-none disabled:opacity-60 placeholder:text-slate-400 transition-colors"
+              />
+            </div>
+          )}
 
           {/* Action area */}
           {creationMode === "import" ? (
@@ -1444,32 +1526,13 @@ function ITPBuilderPageInner() {
                 {showSessionQR ? "Hide QR" : "QR Code"}
               </button>
               {/* Delete ITP session */}
-              {!confirmDeleteSession ? (
-                <button
-                  onClick={() => setConfirmDeleteSession(true)}
-                  className="text-xs text-red-400 hover:text-red-600 transition-colors px-1"
-                  title="Delete this ITP"
-                >
-                  Delete
-                </button>
-              ) : (
-                <span className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-500">Delete ITP?</span>
-                  <button
-                    onClick={handleDeleteSession}
-                    disabled={deletingSession}
-                    className="text-xs font-bold text-red-600 hover:text-red-700 disabled:opacity-50 transition-colors"
-                  >
-                    {deletingSession ? "…" : "Yes"}
-                  </button>
-                  <button
-                    onClick={() => setConfirmDeleteSession(false)}
-                    className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
-                  >
-                    No
-                  </button>
-                </span>
-              )}
+              <button
+                onClick={() => setConfirmDeleteSession(true)}
+                className="text-xs text-red-400 hover:text-red-600 transition-colors px-1"
+                title="Delete this ITP"
+              >
+                Delete
+              </button>
             </div>
           </div>
 
@@ -1528,6 +1591,19 @@ function ITPBuilderPageInner() {
             </button>
           )}
         </div>
+      )}
+
+      {/* ── Delete Confirmation Modal ──────────────────────────────── */}
+      {activeSession && (
+        <DeleteConfirmModal
+          open={confirmDeleteSession}
+          taskDescription={activeSession.task_description}
+          itemCount={activeItems.length}
+          signedCount={activeItems.filter((i) => i.status === "signed").length}
+          deleting={deletingSession}
+          onConfirm={handleDeleteSession}
+          onCancel={() => setConfirmDeleteSession(false)}
+        />
       )}
 
       {/* ── Session File Tree ─────────────────────────────────────────── */}
