@@ -21,6 +21,7 @@ export interface ITPItem {
   sign_off_lat: number | null;
   sign_off_lng: number | null;
   waive_reason?: string | null;
+  signature?: string | null;
 }
 
 export interface ITPSession {

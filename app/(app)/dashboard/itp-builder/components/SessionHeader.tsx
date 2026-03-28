@@ -4,7 +4,6 @@ import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { ITPSession, ITPItem, AuditLogEntry } from "./types";
 import ItpPdfExport from "./ItpPdfExport";
-import ItpQrSheet from "./ItpQrSheet";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -175,7 +174,6 @@ export default function SessionHeader({
         >
           {showSessionQR ? "Hide QR" : "QR Code"}
         </button>
-        <ItpQrSheet session={session} items={items} />
         <button
           onClick={onToggleSaveTemplate}
           className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-transform"
