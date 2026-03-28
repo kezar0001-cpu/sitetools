@@ -388,8 +388,15 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                     {item.sign_off_lat != null &&
                       item.sign_off_lng != null && (
                         <p className="font-mono">
-                          {item.sign_off_lat.toFixed(5)},{" "}
-                          {item.sign_off_lng.toFixed(5)}
+                          <a
+                            href={`https://maps.google.com/?q=${item.sign_off_lat},${item.sign_off_lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-violet-600 transition-colors"
+                          >
+                            {item.sign_off_lat.toFixed(5)},{" "}
+                            {item.sign_off_lng.toFixed(5)}
+                          </a>
                         </p>
                       )}
                   </div>

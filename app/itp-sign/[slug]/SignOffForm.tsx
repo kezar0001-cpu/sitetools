@@ -226,7 +226,14 @@ export default function SignOffForm({
                 Location
               </p>
               <p className="text-slate-700 text-sm font-mono">
-                {success.lat.toFixed(5)}, {success.lng.toFixed(5)}
+                <a
+                  href={`https://maps.google.com/?q=${success.lat},${success.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-violet-600 transition-colors"
+                >
+                  {success.lat.toFixed(5)}, {success.lng.toFixed(5)}
+                </a>
               </p>
             </div>
           )}

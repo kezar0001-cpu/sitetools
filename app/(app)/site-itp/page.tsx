@@ -135,6 +135,7 @@ function SiteITPDashboardInner() {
 
   const [stats, setStats] = useState<ProjectITPStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAllProjects, setShowAllProjects] = useState(false);
 
   useEffect(() => {
     if (!activeCompanyId) return;
@@ -206,19 +207,30 @@ function SiteITPDashboardInner() {
         }
       }
 
-      // Build result: known projects first (sorted alphabetically), unassigned last
+      // Build result: sort active projects by pending_holds desc, then pct asc
       const result: ProjectITPStats[] = [];
-      const sortedProjects = [...projects].sort((a, b) =>
-        a.name.localeCompare(b.name)
-      );
-      for (const p of sortedProjects) {
+      const allProjects = projects.map((p) => {
         const s = byProject.get(p.id) ?? {
           itp_count: 0,
           total_items: 0,
           signed_items: 0,
           pending_holds: 0,
         };
-        result.push({ id: p.id, name: p.name, ...s });
+        return { id: p.id, name: p.name, ...s };
+      });
+      // Sort: pending_holds descending (most urgent first), then pct ascending (least complete first)
+      allProjects.sort((a, b) => {
+        const aActive = a.itp_count > 0 ? 0 : 1;
+        const bActive = b.itp_count > 0 ? 0 : 1;
+        if (aActive !== bActive) return aActive - bActive;
+        if (b.pending_holds !== a.pending_holds) return b.pending_holds - a.pending_holds;
+        const aPct = a.total_items > 0 ? a.signed_items / a.total_items : 0;
+        const bPct = b.total_items > 0 ? b.signed_items / b.total_items : 0;
+        if (aPct !== bPct) return aPct - bPct;
+        return a.name.localeCompare(b.name);
+      });
+      for (const p of allProjects) {
+        result.push(p);
       }
 
       // Unassigned bucket (only if there are some)
@@ -288,15 +300,56 @@ function SiteITPDashboardInner() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {stats.map((s) => (
-            <ITPProjectCard
-              key={s.id ?? "__unassigned"}
-              stats={s}
-              onClick={() => handleProjectClick(s.id)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {stats
+              .filter((s) => s.itp_count > 0)
+              .map((s) => (
+                <ITPProjectCard
+                  key={s.id ?? "__unassigned"}
+                  stats={s}
+                  onClick={() => handleProjectClick(s.id)}
+                />
+              ))}
+          </div>
+
+          {/* Show all projects expander */}
+          {stats.some((s) => s.itp_count === 0) && (
+            <>
+              {!showAllProjects ? (
+                <button
+                  onClick={() => setShowAllProjects(true)}
+                  className="mt-4 w-full text-center text-xs font-semibold text-slate-400 hover:text-slate-600 py-2 transition-colors"
+                >
+                  Show all projects ({stats.filter((s) => s.itp_count === 0).length} with no ITPs)
+                </button>
+              ) : (
+                <>
+                  <p className="mt-4 text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                    Projects with no ITPs
+                  </p>
+                  <div className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {stats
+                      .filter((s) => s.itp_count === 0)
+                      .map((s) => (
+                        <ITPProjectCard
+                          key={s.id ?? "__empty"}
+                          stats={s}
+                          onClick={() => handleProjectClick(s.id)}
+                        />
+                      ))}
+                  </div>
+                  <button
+                    onClick={() => setShowAllProjects(false)}
+                    className="mt-2 w-full text-center text-xs font-semibold text-slate-400 hover:text-slate-600 py-2 transition-colors"
+                  >
+                    Hide empty projects
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </>
       )}
     </div>
   );
