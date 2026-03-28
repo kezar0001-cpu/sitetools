@@ -744,6 +744,9 @@ function ITPBuilderPageInner() {
   // ── Session list state
   const [sessions, setSessions] = useState<ITPSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalSessionCount, setTotalSessionCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputCardRef = useRef<HTMLDivElement>(null);
@@ -767,12 +770,53 @@ function ITPBuilderPageInner() {
     setSelectedSiteId("");
   }, [selectedProjectId]);
 
-  // Poll active session every 15s for real-time sign-off updates
+  // Subscribe to Supabase Realtime for sign-off updates on the active session
   useEffect(() => {
     if (!activeSession?.id) return;
-    const id = activeSession.id;
-    const interval = setInterval(() => pollSession(id), 15_000);
-    return () => clearInterval(interval);
+    const sessionId = activeSession.id;
+
+    const channel = supabase
+      .channel("itp-items-" + sessionId)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "itp_items",
+          filter: "session_id=eq." + sessionId,
+        },
+        (payload) => {
+          const updated = payload.new as ITPItem;
+          setActiveItems((prev) =>
+            prev.map((i) => (i.id === updated.id ? updated : i))
+          );
+          // Also sync to sessions list
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? {
+                    ...s,
+                    items: (s.items ?? []).map((i) =>
+                      i.id === updated.id ? updated : i
+                    ),
+                  }
+                : s
+            )
+          );
+          if (updated.signed_off_by_name && updated.status === "signed") {
+            toast.success(
+              `${updated.signed_off_by_name} signed "${updated.title}"`
+            );
+          } else if (updated.status === "waived") {
+            toast.info(`"${updated.title}" was waived`);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [activeSession?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-focus textarea when input card is shown
@@ -798,15 +842,20 @@ function ITPBuilderPageInner() {
     }
   }
 
-  async function loadSessions(companyId: string) {
-    setSessionsLoading(true);
+  async function loadSessions(companyId: string, pageNum = 0, append = false) {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setSessionsLoading(true);
+    }
     try {
+      const PAGE_SIZE = 50;
       let query = supabase
         .from("itp_sessions")
-        .select("id, company_id, task_description, created_at, status, project_id, site_id")
+        .select("id, company_id, task_description, created_at, status, project_id, site_id", { count: "exact" })
         .eq("company_id", companyId)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
       // Apply project filter from URL param
       if (projectFilter === "unassigned") {
@@ -815,12 +864,16 @@ function ITPBuilderPageInner() {
         query = query.eq("project_id", projectFilter);
       }
 
-      const { data: sessionRows, error: sessionError } = await query;
+      const { data: sessionRows, error: sessionError, count } = await query;
 
       if (sessionError) throw sessionError;
 
+      if (typeof count === "number") {
+        setTotalSessionCount(count);
+      }
+
       const sessionList = (sessionRows ?? []) as ITPSession[];
-      if (sessionList.length === 0) {
+      if (sessionList.length === 0 && !append) {
         setSessions([]);
         return;
       }
@@ -843,26 +896,22 @@ function ITPBuilderPageInner() {
         itemsBySession.set(item.session_id, bucket);
       }
 
-      setSessions(
-        sessionList.map((s) => ({ ...s, items: itemsBySession.get(s.id) ?? [] }))
-      );
+      const newSessions = sessionList.map((s) => ({
+        ...s,
+        items: itemsBySession.get(s.id) ?? [],
+      }));
+
+      if (append) {
+        setSessions((prev) => [...prev, ...newSessions]);
+      } else {
+        setSessions(newSessions);
+      }
     } catch {
       // Sessions are non-critical; fail silently
     } finally {
       setSessionsLoading(false);
+      setLoadingMore(false);
     }
-  }
-
-  async function pollSession(sessionId: string) {
-    const { data, error } = await supabase
-      .from("itp_items")
-      .select(
-        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
-      )
-      .eq("session_id", sessionId);
-
-    if (error || !data) return;
-    setActiveItems(data as ITPItem[]);
   }
 
   async function handleGenerate() {
@@ -905,7 +954,8 @@ function ITPBuilderPageInner() {
       setShowSessionQR(false);
       setTaskDescription("");
 
-      if (activeCompanyId) loadSessions(activeCompanyId);
+      // Prepend the new session to the list instead of re-fetching all sessions
+      setSessions((prev) => [{ ...data.session, items: data.items }, ...prev]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate checklist.");
     } finally {
@@ -932,13 +982,15 @@ function ITPBuilderPageInner() {
 
       if (error || !session) throw error ?? new Error("Failed to create ITP session.");
 
-      setActiveSession(session as ITPSession);
+      const newSession = session as ITPSession;
+      setActiveSession(newSession);
       setActiveItems([]);
       setShowInput(false);
       setShowAddItem(true);
       setTaskDescription("");
 
-      if (activeCompanyId) loadSessions(activeCompanyId);
+      // Prepend the new session to the list instead of re-fetching all sessions
+      setSessions((prev) => [{ ...newSession, items: [] }, ...prev]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create ITP.");
     } finally {
@@ -1000,7 +1052,12 @@ function ITPBuilderPageInner() {
         `Imported ${data.imported} ITP${data.imported !== 1 ? "s" : ""} with ${data.total_items} checks`
       );
 
-      if (activeCompanyId) loadSessions(activeCompanyId);
+      // Prepend all imported sessions to the list instead of re-fetching
+      const importedSessions = data.sessions.map((s) => ({
+        ...s.session,
+        items: s.items,
+      }));
+      setSessions((prev) => [...importedSessions, ...prev]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to import document.");
     } finally {
@@ -1061,6 +1118,15 @@ function ITPBuilderPageInner() {
 
   function handleItemAdded(item: ITPItem) {
     setActiveItems((prev) => [...prev, item]);
+    if (activeSession) {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id
+            ? { ...s, items: [...(s.items ?? []), item] }
+            : s
+        )
+      );
+    }
   }
 
   function handleItemDeleted(itemId: string) {
@@ -1468,7 +1534,7 @@ function ITPBuilderPageInner() {
       {(sessions.length > 0 || sessionsLoading) && (
         <div className="space-y-2">
           <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-            All ITPs
+            All ITPs{totalSessionCount > 0 && ` (${totalSessionCount})`}
           </h2>
 
           {sessionsLoading ? (
@@ -1544,6 +1610,21 @@ function ITPBuilderPageInner() {
                 ))}
               </div>
             ))
+          )}
+
+          {/* Load more button */}
+          {sessions.length < totalSessionCount && !sessionsLoading && (
+            <button
+              onClick={() => {
+                const nextPage = page + 1;
+                setPage(nextPage);
+                if (activeCompanyId) loadSessions(activeCompanyId, nextPage, true);
+              }}
+              disabled={loadingMore}
+              className="w-full text-center text-sm font-semibold text-slate-500 border border-slate-200 rounded-2xl py-3 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              {loadingMore ? "Loading…" : `Load more (${sessions.length} of ${totalSessionCount})`}
+            </button>
           )}
         </div>
       )}

@@ -98,6 +98,35 @@ export async function POST(req: NextRequest) {
 
   // Build the update payload
   const trimmedName = typeof name === 'string' ? name.trim() : '';
+  let signaturePath: string | undefined;
+
+  // Upload signature to Supabase Storage instead of storing base64 in the DB
+  if (!isWaiver && signature) {
+    try {
+      // Strip the data URL prefix (e.g. "data:image/png;base64,")
+      const base64Data = signature.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const storagePath = `${item.session_id}/${slug}.png`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('itp-signatures')
+        .upload(storagePath, buffer, {
+          contentType: 'image/png',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Signature upload failed:', uploadError);
+        return NextResponse.json({ error: 'Failed to store signature' }, { status: 500 });
+      }
+
+      signaturePath = storagePath;
+    } catch (err) {
+      console.error('Signature processing error:', err);
+      return NextResponse.json({ error: 'Failed to process signature' }, { status: 500 });
+    }
+  }
+
   const updatePayload: Record<string, unknown> = isWaiver
     ? {
         status: 'waived',
@@ -109,7 +138,7 @@ export async function POST(req: NextRequest) {
         status: 'signed',
         signed_off_at: new Date().toISOString(),
         signed_off_by_name: trimmedName,
-        signature,
+        signature: signaturePath,
       };
 
   if (!isWaiver) {
