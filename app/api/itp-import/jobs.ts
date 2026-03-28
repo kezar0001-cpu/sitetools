@@ -30,9 +30,9 @@ export function deleteJob(id: string): void {
 // Clean up old jobs every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [id, job] of jobs) {
+  jobs.forEach((job, id) => {
     if (now - job.createdAt > 10 * 60 * 1000) {
       jobs.delete(id);
     }
-  }
+  });
 }, 5 * 60 * 1000);
