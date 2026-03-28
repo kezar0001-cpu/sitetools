@@ -61,7 +61,7 @@ function formatAU(iso: string): string {
 // ---------------------------------------------------------------------------
 
 export default function ItpPdfExport({ session }: Props) {
-  if (session.status !== "complete") return null;
+  const isComplete = session.status === "complete";
 
   function handleExport() {
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -95,6 +95,16 @@ export default function ItpPdfExport({ session }: Props) {
       nextY += 6;
       doc.text(projectSite, 14, nextY);
     }
+
+    // Show draft label in header if not complete
+    if (!isComplete) {
+      nextY += 6;
+      doc.setTextColor(200, 100, 0);
+      doc.setFont("helvetica", "bold");
+      doc.text("STATUS: DRAFT — IN PROGRESS", 14, nextY);
+      doc.setFont("helvetica", "normal");
+    }
+
     doc.setTextColor(0);
 
     const startY = nextY + 7;
@@ -102,11 +112,12 @@ export default function ItpPdfExport({ session }: Props) {
     // ── Table body data ──────────────────────────────────────────────────────
     const bodyRows = items.map((item, i) => {
       const isSigned = item.status === "signed";
+      const isWaived = item.status === "waived";
       return [
         String(i + 1),
         item.type.toUpperCase(),
         item.title,
-        isSigned ? "Signed" : "— Pending —",
+        isSigned ? "Signed" : isWaived ? "Waived" : "",
         isSigned && item.signed_off_by_name ? item.signed_off_by_name : "",
         isSigned && item.signed_off_at ? formatAU(item.signed_off_at) : "",
         isSigned && item.sign_off_lat != null && item.sign_off_lng != null
@@ -163,8 +174,31 @@ export default function ItpPdfExport({ session }: Props) {
       },
     });
 
-    // ── Footer on every page ─────────────────────────────────────────────────
+    // ── DRAFT watermark on every page for non-complete sessions ──────────────
     const totalPages = doc.getNumberOfPages();
+
+    if (!isComplete) {
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.saveGraphicsState();
+        // Semi-transparent grey watermark text
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (doc as any).setGState(new (doc as any).GState({ opacity: 0.08 }));
+        doc.setFontSize(60);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(150, 0, 0);
+        // Rotate text diagonally across the page
+        const centerX = pageWidth / 2;
+        const centerY = pageHeight / 2;
+        doc.text("DRAFT — IN PROGRESS", centerX, centerY, {
+          align: "center",
+          angle: 45,
+        });
+        doc.restoreGraphicsState();
+      }
+    }
+
+    // ── Footer on every page ─────────────────────────────────────────────────
     for (let p = 1; p <= totalPages; p++) {
       doc.setPage(p);
       doc.setFontSize(7.5);
@@ -187,7 +221,7 @@ export default function ItpPdfExport({ session }: Props) {
       onClick={handleExport}
       className="bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl px-4 py-2.5 text-sm active:scale-95 transition-transform"
     >
-      Export PDF
+      Export PDF{!isComplete && " (Draft)"}
     </button>
   );
 }
