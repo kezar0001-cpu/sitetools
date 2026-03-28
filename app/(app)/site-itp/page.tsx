@@ -15,20 +15,28 @@ interface ProjectITPStats {
   id: string | null; // null = unassigned
   name: string;
   itp_count: number;
-  total_items: number;
-  signed_items: number;
-  pending_holds: number;
+  hold_total: number;
+  hold_done: number; // signed or waived
+  witness_total: number;
+  witness_done: number; // signed or waived
 }
 
 // ---------------------------------------------------------------------------
 // ITP Progress Bar
 // ---------------------------------------------------------------------------
 
-function ITPProgressBar({ value }: { value: number }) {
+function ITPProgressBar({
+  value,
+  color,
+}: {
+  value: number;
+  color: "red" | "amber";
+}) {
+  const barCls = color === "red" ? "bg-red-500" : "bg-amber-400";
   return (
     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
       <div
-        className="h-full bg-violet-500 rounded-full transition-all duration-300"
+        className={`h-full ${barCls} rounded-full transition-all duration-300`}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
@@ -46,29 +54,41 @@ function ITPProjectCard({
   stats: ProjectITPStats;
   onClick: () => void;
 }) {
-  const pct =
-    stats.total_items > 0
-      ? Math.round((stats.signed_items / stats.total_items) * 100)
-      : 0;
+  const hasHolds = stats.hold_total > 0;
+  const hasWitnesses = stats.witness_total > 0;
+  const totalItems = stats.hold_total + stats.witness_total;
 
-  const hasPendingHolds = stats.pending_holds > 0;
-  const isComplete = stats.total_items > 0 && pct === 100;
+  const holdsPending = stats.hold_total - stats.hold_done;
+  const witnessesPending = stats.witness_total - stats.witness_done;
 
-  const statusLabel = hasPendingHolds
-    ? "Hold Pending"
-    : isComplete
-    ? "Complete"
-    : stats.total_items === 0
-    ? "Empty"
-    : "In Progress";
+  const allHoldsDone = holdsPending === 0;
+  const allWitnessesDone = witnessesPending === 0;
+  const isComplete = totalItems > 0 && allHoldsDone && allWitnessesDone;
 
-  const statusCls = hasPendingHolds
-    ? "bg-red-100 text-red-700"
-    : isComplete
-    ? "bg-green-100 text-green-700"
-    : stats.total_items === 0
-    ? "bg-slate-100 text-slate-500"
-    : "bg-amber-100 text-amber-700";
+  const statusLabel =
+    holdsPending > 0
+      ? "Hold Pending"
+      : witnessesPending > 0
+      ? "Witness Pending"
+      : isComplete
+      ? "Complete"
+      : "Empty";
+
+  const statusCls =
+    holdsPending > 0
+      ? "bg-red-100 text-red-700"
+      : witnessesPending > 0
+      ? "bg-amber-100 text-amber-700"
+      : isComplete
+      ? "bg-green-100 text-green-700"
+      : "bg-slate-100 text-slate-500";
+
+  const holdPct = hasHolds
+    ? Math.round((stats.hold_done / stats.hold_total) * 100)
+    : 100;
+  const witnessPct = hasWitnesses
+    ? Math.round((stats.witness_done / stats.witness_total) * 100)
+    : 100;
 
   return (
     <button
@@ -86,21 +106,38 @@ function ITPProjectCard({
         </span>
       </div>
 
-      <ITPProgressBar value={pct} />
-
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-slate-500 tabular-nums">
-          {pct}% signed off
-        </p>
-        <p className="text-xs text-slate-400">
-          {stats.itp_count} {stats.itp_count === 1 ? "ITP" : "ITPs"}
-          {hasPendingHolds && (
-            <span className="ml-1.5 text-red-500 font-semibold">
-              · {stats.pending_holds} hold{stats.pending_holds !== 1 ? "s" : ""} pending
-            </span>
+      {totalItems > 0 ? (
+        <div className="space-y-2">
+          {hasHolds && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Hold Points</span>
+                <span className="text-xs font-medium tabular-nums text-slate-600">
+                  {stats.hold_done}/{stats.hold_total} signed
+                </span>
+              </div>
+              <ITPProgressBar value={holdPct} color="red" />
+            </div>
           )}
-        </p>
-      </div>
+          {hasWitnesses && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Witness Points</span>
+                <span className="text-xs font-medium tabular-nums text-slate-600">
+                  {stats.witness_done}/{stats.witness_total} signed
+                </span>
+              </div>
+              <ITPProgressBar value={witnessPct} color="amber" />
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="h-1.5 bg-slate-100 rounded-full" />
+      )}
+
+      <p className="text-xs text-slate-400">
+        {stats.itp_count} {stats.itp_count === 1 ? "ITP" : "ITPs"}
+      </p>
     </button>
   );
 }
@@ -159,14 +196,15 @@ function SiteITPDashboardInner() {
         string | null,
         {
           itp_count: number;
-          total_items: number;
-          signed_items: number;
-          pending_holds: number;
+          hold_total: number;
+          hold_done: number;
+          witness_total: number;
+          witness_done: number;
         }
       >(
         projects.map((p) => [
           p.id,
-          { itp_count: 0, total_items: 0, signed_items: 0, pending_holds: 0 },
+          { itp_count: 0, hold_total: 0, hold_done: 0, witness_total: 0, witness_done: 0 },
         ])
       );
 
@@ -177,9 +215,10 @@ function SiteITPDashboardInner() {
           if (!byProject.has(key)) {
             byProject.set(key, {
               itp_count: 0,
-              total_items: 0,
-              signed_items: 0,
-              pending_holds: 0,
+              hold_total: 0,
+              hold_done: 0,
+              witness_total: 0,
+              witness_done: 0,
             });
           }
           byProject.get(key)!.itp_count++;
@@ -200,33 +239,44 @@ function SiteITPDashboardInner() {
             const key = sessionToProject.get(item.session_id) ?? null;
             const bucket = byProject.get(key);
             if (!bucket) continue;
-            bucket.total_items++;
-            if (item.status === "signed") bucket.signed_items++;
-            if (item.type === "hold" && item.status === "pending")
-              bucket.pending_holds++;
+            const done = item.status === "signed" || item.status === "waived";
+            if (item.type === "hold") {
+              bucket.hold_total++;
+              if (done) bucket.hold_done++;
+            } else {
+              bucket.witness_total++;
+              if (done) bucket.witness_done++;
+            }
           }
         }
       }
 
-      // Build result: sort active projects by pending_holds desc, then pct asc
+      // Build result: sort active projects by urgency (holds pending > witnesses pending > least complete)
       const result: ProjectITPStats[] = [];
       const allProjects = projects.map((p) => {
         const s = byProject.get(p.id) ?? {
           itp_count: 0,
-          total_items: 0,
-          signed_items: 0,
-          pending_holds: 0,
+          hold_total: 0,
+          hold_done: 0,
+          witness_total: 0,
+          witness_done: 0,
         };
         return { id: p.id, name: p.name, ...s };
       });
-      // Sort: pending_holds descending (most urgent first), then pct ascending (least complete first)
       allProjects.sort((a, b) => {
         const aActive = a.itp_count > 0 ? 0 : 1;
         const bActive = b.itp_count > 0 ? 0 : 1;
         if (aActive !== bActive) return aActive - bActive;
-        if (b.pending_holds !== a.pending_holds) return b.pending_holds - a.pending_holds;
-        const aPct = a.total_items > 0 ? a.signed_items / a.total_items : 0;
-        const bPct = b.total_items > 0 ? b.signed_items / b.total_items : 0;
+        const aHoldPending = a.hold_total - a.hold_done;
+        const bHoldPending = b.hold_total - b.hold_done;
+        if (bHoldPending !== aHoldPending) return bHoldPending - aHoldPending;
+        const aWitnessPending = a.witness_total - a.witness_done;
+        const bWitnessPending = b.witness_total - b.witness_done;
+        if (bWitnessPending !== aWitnessPending) return bWitnessPending - aWitnessPending;
+        const aTotal = a.hold_total + a.witness_total;
+        const bTotal = b.hold_total + b.witness_total;
+        const aPct = aTotal > 0 ? (a.hold_done + a.witness_done) / aTotal : 0;
+        const bPct = bTotal > 0 ? (b.hold_done + b.witness_done) / bTotal : 0;
         if (aPct !== bPct) return aPct - bPct;
         return a.name.localeCompare(b.name);
       });
