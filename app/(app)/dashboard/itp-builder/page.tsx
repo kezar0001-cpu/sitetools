@@ -107,6 +107,9 @@ function ITPBuilderPageInner() {
   // ── Tour ───────────────────────────────────────────────────────────────────
   const tourStartRef = useRef<(() => void) | null>(null);
 
+  // ── Realtime channel ref (prevents duplicate subscriptions in StrictMode) ──
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
   // ── Filter/search state ────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
@@ -170,12 +173,22 @@ function ITPBuilderPageInner() {
   useEffect(() => {
     if (!activeSession?.id) return;
     const sessionId = activeSession.id;
+    const channelName = `itp-items-${sessionId}`;
+
+    // Guard against duplicate subscriptions (e.g. React StrictMode double-invoke
+    // or rapid session switches where cleanup hasn't fired yet).
+    if (channelRef.current) {
+      console.warn(`[ITP Realtime] Channel "${channelName}" already has an active subscription — cleaning up stale channel before re-subscribing.`);
+      channelRef.current.unsubscribe();
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
 
     const channel = supabase
-      .channel("itp-items-" + sessionId)
+      .channel(channelName)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "itp_items", filter: "session_id=eq." + sessionId },
+        { event: "UPDATE", schema: "public", table: "itp_items", filter: `session_id=eq.${sessionId}` },
         (payload) => {
           const updated = payload.new as ITPItem;
           setActiveItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
@@ -195,7 +208,13 @@ function ITPBuilderPageInner() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    channelRef.current = channel;
+
+    return () => {
+      channel.unsubscribe();
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
   }, [activeSession?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Data loaders ───────────────────────────────────────────────────────────
