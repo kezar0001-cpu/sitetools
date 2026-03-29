@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import SignOffForm from "./SignOffForm";
 
-type ItemType = "hold" | "witness";
+type ItemType = "hold" | "witness" | "review";
 type ItemStatus = "pending" | "signed" | "waived";
 
 interface ItpItem {
@@ -16,6 +16,9 @@ interface ItpItem {
   sign_off_lat: number | null;
   sign_off_lng: number | null;
   session_id: string;
+  reference_standard: string | null;
+  responsibility: string | null;
+  acceptance_criteria: string | null;
   itp_sessions: { task_description: string | null } | null;
 }
 
@@ -38,7 +41,7 @@ export default async function ItpSignPage({
   const { data } = await supabase
     .from("itp_items")
     .select(
-      "id, slug, title, description, type, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, session_id, itp_sessions!session_id(task_description)"
+      "id, slug, title, description, type, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, session_id, reference_standard, responsibility, acceptance_criteria, itp_sessions!session_id(task_description)"
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -176,6 +179,9 @@ export default async function ItpSignPage({
           description={item.description}
           type={item.type}
           taskDescription={taskDescription}
+          referenceStandard={item.reference_standard}
+          responsibility={item.responsibility}
+          acceptanceCriteria={item.acceptance_criteria}
         />
       </div>
     </div>

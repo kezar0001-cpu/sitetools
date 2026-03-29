@@ -2,8 +2,9 @@
 // Shared types for ITP Builder
 // ---------------------------------------------------------------------------
 
-export type ItemType = "hold" | "witness";
+export type ItemType = "hold" | "witness" | "review";
 export type ItemStatus = "pending" | "signed" | "waived";
+export type Responsibility = "contractor" | "superintendent" | "third_party";
 export type CreationMode = "ai" | "manual" | "import" | "template";
 export type ImportStep = "upload" | "preview" | "saving";
 
@@ -22,6 +23,10 @@ export interface ITPItem {
   sign_off_lng: number | null;
   waive_reason?: string | null;
   signature?: string | null;
+  reference_standard?: string | null;
+  responsibility?: Responsibility | null;
+  records_required?: string | null;
+  acceptance_criteria?: string | null;
 }
 
 export interface ITPSession {
@@ -46,7 +51,15 @@ export interface ITPTemplate {
   name: string;
   created_by_user_id: string | null;
   created_at: string;
-  items: Array<{ type: "witness" | "hold"; title: string; description: string }>;
+  items: Array<{
+    type: "witness" | "hold" | "review";
+    title: string;
+    description: string;
+    reference_standard?: string;
+    responsibility?: Responsibility;
+    records_required?: string;
+    acceptance_criteria?: string;
+  }>;
 }
 
 export interface AuditLogEntry {
@@ -61,9 +74,13 @@ export interface AuditLogEntry {
 }
 
 export interface DraftItpItem {
-  type: "witness" | "hold";
+  type: "witness" | "hold" | "review";
   title: string;
   description: string;
+  reference_standard?: string;
+  responsibility?: Responsibility;
+  records_required?: string;
+  acceptance_criteria?: string;
 }
 
 export interface DraftItp {

@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
   // Fetch the session's items
   const { data: items, error: itemsErr } = await supabaseAdmin
     .from("itp_items")
-    .select("type, title, description, sort_order")
+    .select("type, title, description, sort_order, reference_standard, responsibility, records_required, acceptance_criteria")
     .eq("session_id", session_id)
     .order("sort_order", { ascending: true });
 
@@ -99,10 +99,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch session items." }, { status: 500 });
   }
 
-  const templateItems = (items ?? []).map(({ type, title, description }) => ({
-    type,
-    title,
-    description,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const templateItems = (items ?? []).map((item: any) => ({
+    type: item.type,
+    title: item.title,
+    description: item.description,
+    ...(item.reference_standard && { reference_standard: item.reference_standard }),
+    ...(item.responsibility && { responsibility: item.responsibility }),
+    ...(item.records_required && { records_required: item.records_required }),
+    ...(item.acceptance_criteria && { acceptance_criteria: item.acceptance_criteria }),
   }));
 
   const { data: template, error: insertErr } = await supabaseAdmin

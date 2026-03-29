@@ -17,10 +17,16 @@ const supabaseAdmin = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
+type Responsibility = "contractor" | "superintendent" | "third_party";
+
 interface ItpItem {
-  type: "witness" | "hold";
+  type: "witness" | "hold" | "review";
   title: string;
   description: string;
+  reference_standard: string;
+  responsibility: Responsibility;
+  records_required: string;
+  acceptance_criteria: string;
 }
 
 interface GeneratedItp {
@@ -50,6 +56,9 @@ function extractTextFromExcel(buffer: Buffer): string {
   return parts.join("\n\n");
 }
 
+const VALID_TYPES = ["witness", "hold", "review"];
+const VALID_RESPONSIBILITIES = ["contractor", "superintendent", "third_party"];
+
 function validateItps(raw: unknown): GeneratedItp[] | null {
   if (!Array.isArray(raw) || raw.length < 1) return null;
   for (const itp of raw) {
@@ -64,10 +73,15 @@ function validateItps(raw: unknown): GeneratedItp[] | null {
       if (
         typeof item !== "object" ||
         item === null ||
-        !["witness", "hold"].includes(item.type) ||
+        !VALID_TYPES.includes(item.type) ||
         typeof item.title !== "string" ||
         typeof item.description !== "string"
       ) return null;
+      // Normalise optional structured fields
+      if (typeof item.reference_standard !== "string") item.reference_standard = "";
+      if (!VALID_RESPONSIBILITIES.includes(item.responsibility)) item.responsibility = "contractor";
+      if (typeof item.records_required !== "string") item.records_required = "";
+      if (typeof item.acceptance_criteria !== "string") item.acceptance_criteria = "";
     }
   }
   return raw as GeneratedItp[];
@@ -84,8 +98,48 @@ const SUPPORTED_TYPES: Record<string, string> = {
   "text/csv": "csv",
 };
 
+const IMPORT_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer with 20+ years of experience preparing Inspection & Test Plans (ITPs). You analyse specification documents, engineering drawings, project scopes, and construction documents, then generate comprehensive ITPs that comply with AS/NZS ISO 9001 and align with state road authority specifications.
+
+## Your task
+1. Analyse the uploaded document thoroughly
+2. Identify EVERY distinct construction activity/task that warrants its own ITP
+3. For each activity, generate a complete ITP with 8–12 inspection checkpoints
+
+## ITP structure for each activity
+
+Each ITP must follow this sequence:
+1. **Document review** (review point): Confirm approved drawings, specs, and standards are current
+2. **Pre-work inspections** (witness points): Site conditions, materials, equipment, safety
+3. **Construction sequence checkpoints** (mix of hold & witness): Follow the physical construction steps
+4. **Testing and verification** (witness or hold): In-process and post-process testing
+5. **Completion and handover** (review point): As-built documentation, compiled records
+
+## Inspection point types
+- **hold**: Mandatory stop — work CANNOT proceed until Superintendent inspects and releases. Use for critical quality gates where defects would be concealed.
+- **witness**: Notification point — Superintendent notified, may attend, work may proceed. Use for important but non-critical checks.
+- **review**: Document/record review — no physical inspection. Use for paperwork verification at start and end.
+
+## Output format
+
+Each ITP object must have:
+- task_description: short plain-English name (max 12 words)
+- items: array of inspection points
+
+Each item must have:
+- type: "hold" | "witness" | "review"
+- title: short action phrase (max 10 words)
+- description: one sentence explaining what is inspected and why
+- reference_standard: specific Australian Standard and clause (e.g. "AS 3600 Cl. 17.1.3")
+- responsibility: "contractor" | "superintendent" | "third_party"
+- records_required: specific documents/evidence produced
+- acceptance_criteria: measurable pass/fail criterion with tolerance
+
+## Australian Standards reference (use only those relevant)
+AS 3600, AS 1379, AS 1012, AS 3610 (concrete) | AS/NZS 4671 (rebar) | AS 4100, AS/NZS 1554 (steel/welding) | AS 1289, AS 3798 (earthworks) | Austroads AGPT04 (pavements) | AS 2159 (piling) | AS 3700 (masonry) | AS 3725, AS/NZS 3500, AS 1597 (drainage) | AS 2876 (kerb) | AS 1742 (traffic) | AS 1428 (access) | AS 2870 (residential footings) | AS 4678 (retaining walls) | WHS Regulation 2017
+
+Return ONLY a valid JSON array of ITP objects. No markdown, no explanation, no code fences.`;
+
 // POST /api/itp-import/preview
-// Same as /api/itp-import but returns draft sessions without saving to DB
 export async function POST(req: NextRequest) {
   // Authenticate
   const authHeader = req.headers.get("authorization");
@@ -174,31 +228,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const systemPrompt = `You are an experienced Australian civil construction quality assurance engineer. You read specification documents, engineering drawings callouts, project scopes, and other construction documents, then generate ITP (Inspection & Test Plan) checklists.
-
-Your job:
-1. Analyse the uploaded document
-2. Identify EVERY distinct construction activity/task that warrants its own ITP
-3. For each activity, generate a focused ITP with 6-10 inspection checklist items
-
-Each ITP must have:
-- task_description: a short (max 12 words) plain-English name for the activity
-- items: an array of inspection points
-
-Each item must have:
-- type: "witness" (notify and observe, work can continue) OR "hold" (mandatory stop, cannot proceed until signed)
-- title: short action phrase (max 8 words)
-- description: one sentence with a measurable acceptance criterion — cite the relevant Australian Standard where applicable
-
-Return ONLY a valid JSON array of ITP objects. No markdown, no explanation, no code fences.`;
-
-  const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.
-
-Document filename: ${file.name}
-
-Document content:
-
-${documentText}`;
+  const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.\n\nDocument filename: ${file.name}\n\nDocument content:\n\n${documentText}`;
 
   let itps: GeneratedItp[];
   try {
@@ -209,7 +239,7 @@ ${documentText}`;
       {
         model: "claude-sonnet-4-6",
         max_tokens: 8192,
-        system: systemPrompt,
+        system: IMPORT_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
       },
       { signal: controller.signal }

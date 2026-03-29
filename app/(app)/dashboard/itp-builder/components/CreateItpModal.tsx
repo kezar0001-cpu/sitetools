@@ -263,12 +263,16 @@ export default function CreateItpModal({
         type: item.type,
         title: item.title,
         description: item.description,
+        reference_standard: item.reference_standard || null,
+        responsibility: item.responsibility || "contractor",
+        records_required: item.records_required || null,
+        acceptance_criteria: item.acceptance_criteria || null,
         sort_order: idx + 1,
       }));
       const { data: items, error: itemsErr } = await supabase
         .from("itp_items")
         .insert(rows)
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng");
+        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
       if (itemsErr) throw itemsErr;
 
       resetForm();
@@ -730,15 +734,16 @@ export default function CreateItpModal({
                               value={item.type}
                               onChange={(e) => {
                                 const updated = [...draftSessions];
-                                updated[si].items[ii] = { ...item, type: e.target.value as "witness" | "hold" };
+                                updated[si].items[ii] = { ...item, type: e.target.value as "witness" | "hold" | "review" };
                                 setDraftSessions(updated);
                               }}
                               className={`text-xs font-bold rounded-full px-2 py-0.5 border-0 outline-none cursor-pointer shrink-0 ${
-                                item.type === "hold" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                                item.type === "hold" ? "bg-red-100 text-red-700" : item.type === "review" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
                               }`}
                             >
                               <option value="witness">WITNESS</option>
                               <option value="hold">HOLD</option>
+                              <option value="review">REVIEW</option>
                             </select>
                             <div className="flex-1 min-w-0 space-y-1">
                               <input
@@ -761,6 +766,16 @@ export default function CreateItpModal({
                                 className="w-full text-xs text-slate-500 outline-none border-b border-transparent focus:border-slate-300 bg-transparent transition-colors"
                                 style={{ fontSize: "13px" }}
                               />
+                              {(item.reference_standard || item.acceptance_criteria) && (
+                                <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                  {item.reference_standard && (
+                                    <span className="text-xs text-slate-400 font-mono">{item.reference_standard}</span>
+                                  )}
+                                  {item.acceptance_criteria && (
+                                    <span className="text-xs text-slate-400">{item.acceptance_criteria}</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <button
                               onClick={() => {
