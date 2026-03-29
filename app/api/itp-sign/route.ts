@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
+export const runtime = 'nodejs';
+
 // Upstash Redis rate limiter (sliding window, 10 req / 60 s per slug).
 // Falls back to allowing the request if env vars are absent.
 async function checkRateLimit(slug: string): Promise<boolean> {
