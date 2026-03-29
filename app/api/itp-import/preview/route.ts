@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+import { getSecret } from "@/lib/server/get-secret";
 
 type Responsibility = "contractor" | "superintendent" | "third_party";
 
@@ -299,6 +299,13 @@ export async function POST(req: NextRequest) {
   }
 
   const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.\n\nDocument filename: ${file.name}\n\nDocument content:\n\n${documentText}`;
+
+  // Resolve Anthropic API key from env or Supabase vault
+  const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
+  if (!apiKey) {
+    return NextResponse.json({ error: "AI service not configured — API key not found." }, { status: 500 });
+  }
+  const anthropic = new Anthropic({ apiKey });
 
   let itps: GeneratedItp[];
   try {

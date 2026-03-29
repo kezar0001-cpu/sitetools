@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getSecret } from "@/lib/server/get-secret";
 
 export const runtime = "nodejs";
 
@@ -9,8 +10,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 type Responsibility = "contractor" | "superintendent" | "third_party";
 
@@ -23,315 +22,6 @@ interface ItpItem {
   responsibility: Responsibility;
   records_required: string;
   acceptance_criteria: string;
-}
-
-function detectPhaseCategory(phaseName?: string, taskDescription?: string): string {
-  const text = `${phaseName ?? ""} ${taskDescription ?? ""}`.toLowerCase();
-  if (/demolish|excavat|strip|clear|remov|grub|fell|tree/.test(text)) return "demolish";
-  if (/drain|stormwater|pit|pipe|culvert/.test(text)) return "drainage";
-  if (/sub.?base|kerb|gutter|pavement|asphalt|seal/.test(text)) return "pavement";
-  if (/concrete|pour|slab|footing|foundation|formwork/.test(text)) return "concrete";
-  if (/footpath|path|walkway|cycleway/.test(text)) return "footpath";
-  if (/steel|structural steel|weld/.test(text)) return "steel";
-  if (/earth.?work|fill|compact|embankment/.test(text)) return "earthworks";
-  return "general";
-}
-
-const FALLBACK_SETS: Record<string, Omit<ItpItem, "phase">[]> = {
-  demolish: [
-    {
-      type: "witness",
-      title: "Pre-demolition site survey",
-      description: "Confirm existing services located, marked, and isolated before demolition begins.",
-      reference_standard: "AS 2601 Cl. 1.6",
-      responsibility: "contractor",
-      records_required: "Dial Before You Dig results, service isolation certificates",
-      acceptance_criteria: "All services confirmed isolated with utility provider sign-off",
-    },
-    {
-      type: "witness",
-      title: "Erosion and sediment controls",
-      description: "Install and verify erosion and sediment control measures prior to ground disturbance.",
-      reference_standard: "Blue Book (Landcom 2004)",
-      responsibility: "contractor",
-      records_required: "ESCP layout, installation photographs",
-      acceptance_criteria: "Controls installed per approved ESCP and functioning correctly",
-    },
-    {
-      type: "hold",
-      title: "Demolition exclusion zone verification",
-      description: "Superintendent confirms exclusion zones, traffic management, and safety barriers in place.",
-      reference_standard: "WHS Regulation 2017 Cl. 142",
-      responsibility: "superintendent",
-      records_required: "TCP sign-off, exclusion zone photographs",
-      acceptance_criteria: "All exclusion zones, barriers, and signage compliant with approved TCP",
-    },
-    {
-      type: "witness",
-      title: "Demolition and removal execution",
-      description: "Monitor demolition of structures, trees, vegetation, kerbs, and fencing per scope.",
-      reference_standard: "AS 2601",
-      responsibility: "contractor",
-      records_required: "Daily progress photographs, waste disposal dockets",
-      acceptance_criteria: "All items within scope demolished and removed from site",
-    },
-    {
-      type: "witness",
-      title: "Waste classification and disposal",
-      description: "Verify waste is classified, segregated, and disposed of to licensed facilities.",
-      reference_standard: "EPA waste classification guidelines",
-      responsibility: "third_party",
-      records_required: "Waste classification reports, tip dockets, recycling receipts",
-      acceptance_criteria: "All waste disposed per EPA requirements with valid tip dockets",
-    },
-    {
-      type: "hold",
-      title: "Excavation levels and limits check",
-      description: "Survey confirms excavation extents and levels comply with design.",
-      reference_standard: "Project drawings",
-      responsibility: "superintendent",
-      records_required: "Survey pick-up of excavated levels, photographs",
-      acceptance_criteria: "Excavation levels within ±50 mm of design, extents within boundary",
-    },
-  ],
-  drainage: [
-    {
-      type: "witness",
-      title: "Trench excavation and bedding",
-      description: "Verify trench dimensions, grade, and bedding material conform to design.",
-      reference_standard: "AS 3725 Cl. 5.2",
-      responsibility: "contractor",
-      records_required: "Trench inspection checklist, grade survey",
-      acceptance_criteria: "Trench grade within ±10 mm, bedding compacted to 95% SMDD",
-    },
-    {
-      type: "witness",
-      title: "Pipe delivery and condition check",
-      description: "Inspect pipes for damage and verify class and size match specifications.",
-      reference_standard: "AS/NZS 4058",
-      responsibility: "contractor",
-      records_required: "Delivery dockets, pipe inspection photographs",
-      acceptance_criteria: "Pipes undamaged with class and diameter matching design",
-    },
-    {
-      type: "hold",
-      title: "Pipe laying and jointing inspection",
-      description: "Superintendent inspects pipe alignment, jointing, and grade before backfill.",
-      reference_standard: "AS 3725 Cl. 6.3",
-      responsibility: "superintendent",
-      records_required: "Hold point release form, joint inspection photographs",
-      acceptance_criteria: "Pipes laid to design grade ±5 mm, joints sealed per manufacturer spec",
-    },
-    {
-      type: "witness",
-      title: "Pit and headwall construction",
-      description: "Inspect pit dimensions, invert levels, and headwall construction.",
-      reference_standard: "AS 3725 Cl. 8",
-      responsibility: "contractor",
-      records_required: "Pit schedule check, level survey, photographs",
-      acceptance_criteria: "Invert levels within ±10 mm of design, pits square and plumb",
-    },
-    {
-      type: "witness",
-      title: "Pipe pressure or infiltration test",
-      description: "Conduct mandrel or water test to verify pipe integrity.",
-      reference_standard: "AS 3725 Cl. 10",
-      responsibility: "third_party",
-      records_required: "NATA-accredited test reports",
-      acceptance_criteria: "All test results within specification limits",
-    },
-    {
-      type: "witness",
-      title: "Backfill and compaction",
-      description: "Verify backfill material and compaction meet specification requirements.",
-      reference_standard: "AS 3798 Cl. 7",
-      responsibility: "contractor",
-      records_required: "Compaction test results, material certification",
-      acceptance_criteria: "Compaction ≥95% SMDD per AS 1289.5.4.1",
-    },
-  ],
-  earthworks: [
-    {
-      type: "witness",
-      title: "Subgrade preparation and proof roll",
-      description: "Inspect subgrade for soft spots and verify proof rolling results.",
-      reference_standard: "AS 3798 Cl. 6.2",
-      responsibility: "contractor",
-      records_required: "Proof roll photographs, soft spot treatment records",
-      acceptance_criteria: "No visible deflection under proof roll loading",
-    },
-    {
-      type: "hold",
-      title: "Foundation level survey",
-      description: "Survey confirms formation levels comply with design before fill placement.",
-      reference_standard: "Project drawings",
-      responsibility: "superintendent",
-      records_required: "Registered surveyor level report",
-      acceptance_criteria: "All levels within ±25 mm of design",
-    },
-    {
-      type: "witness",
-      title: "Fill material conformance",
-      description: "Verify imported fill material meets specification requirements.",
-      reference_standard: "AS 3798 Cl. 4",
-      responsibility: "contractor",
-      records_required: "Material test certificates, source approval",
-      acceptance_criteria: "Material classification and properties within specification limits",
-    },
-    {
-      type: "witness",
-      title: "Layer placement and moisture",
-      description: "Verify fill placed in specified layer thicknesses at optimum moisture content.",
-      reference_standard: "AS 3798 Cl. 7.2",
-      responsibility: "contractor",
-      records_required: "Layer thickness records, moisture content tests",
-      acceptance_criteria: "Layers ≤200 mm compacted thickness, moisture within ±2% OMC",
-    },
-    {
-      type: "witness",
-      title: "Compaction testing",
-      description: "Conduct density tests to verify compaction meets specification.",
-      reference_standard: "AS 1289.5.4.1",
-      responsibility: "third_party",
-      records_required: "NATA-accredited compaction test reports",
-      acceptance_criteria: "Density ratio ≥98% SMDD for structural fill, ≥95% for general fill",
-    },
-    {
-      type: "hold",
-      title: "Final levels and tolerances check",
-      description: "Survey confirms finished surface levels and tolerances before next activity.",
-      reference_standard: "Project drawings",
-      responsibility: "superintendent",
-      records_required: "Final survey report, photographs",
-      acceptance_criteria: "Surface levels within ±25 mm of design, shape conforming",
-    },
-  ],
-  general: [
-    {
-      type: "witness",
-      title: "Material delivery and conformance",
-      description: "Verify delivered materials match approved specifications and check test certificates.",
-      reference_standard: "Project specification",
-      responsibility: "contractor",
-      records_required: "Delivery dockets, material test certificates",
-      acceptance_criteria: "Materials conform to specified grade with valid test certificates",
-    },
-    {
-      type: "hold",
-      title: "Set-out and levels verification",
-      description: "Survey confirms all dimensions, alignments, and levels within design tolerances.",
-      reference_standard: "Project drawings",
-      responsibility: "superintendent",
-      records_required: "Registered surveyor set-out certificate",
-      acceptance_criteria: "All dimensions and levels within ±10 mm of design",
-    },
-    {
-      type: "witness",
-      title: "Work area preparation",
-      description: "Verify work area is prepared, protected, and ready for construction activity.",
-      reference_standard: "Project specification",
-      responsibility: "contractor",
-      records_required: "Pre-start checklist, photographs",
-      acceptance_criteria: "Work area clear, services protected, access established",
-    },
-    {
-      type: "hold",
-      title: "Pre-activity superintendent inspection",
-      description: "Mandatory hold for superintendent inspection before critical activity proceeds.",
-      reference_standard: "Project specification",
-      responsibility: "superintendent",
-      records_required: "Hold point release form, inspection photographs",
-      acceptance_criteria: "All preceding items signed off, work conforms to drawings",
-    },
-    {
-      type: "witness",
-      title: "In-process quality testing",
-      description: "Conduct required quality tests and verify acceptance criteria met.",
-      reference_standard: "Project specification",
-      responsibility: "third_party",
-      records_required: "NATA-accredited test reports",
-      acceptance_criteria: "All test results within specification limits",
-    },
-    {
-      type: "witness",
-      title: "Post-work visual inspection",
-      description: "Inspect completed work for defects and conformance to drawings.",
-      reference_standard: "Project specification",
-      responsibility: "contractor",
-      records_required: "Completion photographs, inspection checklist",
-      acceptance_criteria: "Work free of visible defects, within specified tolerances",
-    },
-  ],
-};
-
-// Concrete and pavement/steel/footpath share the general set or have their own
-FALLBACK_SETS.concrete = [
-  {
-    type: "witness",
-    title: "Material delivery and conformance",
-    description: "Verify delivered materials match approved specifications and check test certificates.",
-    reference_standard: "Project specification",
-    responsibility: "contractor",
-    records_required: "Delivery dockets, material test certificates",
-    acceptance_criteria: "Materials conform to specified grade with valid test certificates",
-  },
-  {
-    type: "hold",
-    title: "Set-out and levels verification",
-    description: "Survey confirms all dimensions, alignments, and levels within design tolerances.",
-    reference_standard: "Project drawings",
-    responsibility: "superintendent",
-    records_required: "Registered surveyor set-out certificate",
-    acceptance_criteria: "All dimensions and levels within ±10 mm of design",
-  },
-  {
-    type: "witness",
-    title: "Formwork and reinforcement check",
-    description: "Inspect formwork alignment, bracing, and reinforcement placement.",
-    reference_standard: "AS 3600 Cl. 17.1.3",
-    responsibility: "contractor",
-    records_required: "Inspection checklist, photographs",
-    acceptance_criteria: "Cover ≥40 mm per AS 3600 Table 4.10.3.2",
-  },
-  {
-    type: "hold",
-    title: "Pre-pour superintendent inspection",
-    description: "Mandatory hold for superintendent inspection before concrete is placed.",
-    reference_standard: "AS 3600",
-    responsibility: "superintendent",
-    records_required: "Hold point release form, inspection photographs",
-    acceptance_criteria: "All preceding items signed off, work conforms to drawings",
-  },
-  {
-    type: "witness",
-    title: "In-process quality testing",
-    description: "Conduct required quality tests and verify acceptance criteria met.",
-    reference_standard: "Project specification",
-    responsibility: "third_party",
-    records_required: "NATA-accredited test reports",
-    acceptance_criteria: "All test results within specification limits",
-  },
-  {
-    type: "witness",
-    title: "Post-work visual inspection",
-    description: "Inspect completed work for defects and conformance to drawings.",
-    reference_standard: "Project specification",
-    responsibility: "contractor",
-    records_required: "Completion photographs, inspection checklist",
-    acceptance_criteria: "Work free of visible defects, within specified tolerances",
-  },
-];
-FALLBACK_SETS.pavement = FALLBACK_SETS.general;
-FALLBACK_SETS.steel = FALLBACK_SETS.general;
-FALLBACK_SETS.footpath = FALLBACK_SETS.general;
-
-function fallbackItems(phaseName?: string, taskDescription?: string): ItpItem[] {
-  const category = detectPhaseCategory(phaseName, taskDescription);
-  const items = FALLBACK_SETS[category] || FALLBACK_SETS.general;
-  return items.map((item) => ({
-    ...item,
-    phase: phaseName || undefined,
-  }));
 }
 
 function validateItems(raw: unknown): ItpItem[] | null {
@@ -361,6 +51,10 @@ function validateItems(raw: unknown): ItpItem[] | null {
 // SSE helper: send a named event
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -417,6 +111,9 @@ Hold points only at critical stages (levels, formwork, pre-cover etc.).
 
 Return ONLY a valid JSON array of 5–10 items. No markdown, no explanation, no code fences.`;
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
 export async function POST(req: NextRequest) {
   // Authenticate via Bearer token
   const authHeader = req.headers.get("authorization");
@@ -465,6 +162,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 
+  // Resolve Anthropic API key from env or Supabase vault
+  const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "AI service not configured — API key not found." },
+      { status: 500 }
+    );
+  }
+  const anthropic = new Anthropic({ apiKey });
+
   // Set up SSE stream
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -476,9 +183,6 @@ export async function POST(req: NextRequest) {
       // Step 1: Analyzing task
       send("status", { step: "analyzing", message: "Analysing task requirements…" });
 
-      let items: ItpItem[];
-      let usedFallback = false;
-
       // Build the user prompt with optional phase context
       const phaseContext = phase_name?.trim()
         ? `\nPhase: ${phase_name.trim()}`
@@ -487,75 +191,99 @@ export async function POST(req: NextRequest) {
         .replace("{TASK}", task_description)
         .replace("{PHASE_CONTEXT}", phaseContext);
 
-      try {
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 30_000);
+      // Attempt AI generation with retries
+      let items: ItpItem[] | null = null;
+      let lastError = "";
 
-        let responseText = "";
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          send("status", { step: "retrying", message: `Retrying generation (attempt ${attempt + 1})…` });
+          await sleep(RETRY_DELAY_MS);
+        }
+
         try {
-          // Step 2: Generating ITP phase
-          send("status", { step: "generating", message: phase_name?.trim() ? `Generating phase: ${phase_name.trim()}…` : "Generating inspection & test plan…" });
+          const abortController = new AbortController();
+          const timeoutId = setTimeout(() => abortController.abort(), 30_000);
 
-          const streamResponse = anthropic.messages.stream(
-            {
-              model: "claude-sonnet-4-6",
-              max_tokens: 4096,
-              system: SYSTEM_PROMPT,
-              messages: [
-                {
-                  role: "user",
-                  content: userPrompt,
-                },
-              ],
-            },
-            { signal: abortController.signal }
-          );
+          let responseText = "";
+          try {
+            // Step 2: Generating ITP phase
+            if (attempt === 0) {
+              send("status", { step: "generating", message: phase_name?.trim() ? `Generating phase: ${phase_name.trim()}…` : "Generating inspection & test plan…" });
+            }
 
-          // Stream text chunks to the client
-          for await (const event of streamResponse) {
-            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-              responseText += event.delta.text;
-              send("chunk", { text: event.delta.text });
+            const streamResponse = anthropic.messages.stream(
+              {
+                model: "claude-sonnet-4-6",
+                max_tokens: 4096,
+                system: SYSTEM_PROMPT,
+                messages: [
+                  {
+                    role: "user",
+                    content: userPrompt,
+                  },
+                ],
+              },
+              { signal: abortController.signal }
+            );
+
+            // Stream text chunks to the client
+            for await (const event of streamResponse) {
+              if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+                responseText += event.delta.text;
+                send("chunk", { text: event.delta.text });
+              }
+            }
+
+            clearTimeout(timeoutId);
+          } catch (err) {
+            clearTimeout(timeoutId);
+            lastError = err instanceof Error ? err.message : "Claude request failed";
+            console.error(`[itp-generate] AI attempt ${attempt + 1} stream error:`, lastError);
+            continue;
+          }
+
+          // Parse and validate the JSON response
+          responseText = responseText.trim();
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(responseText);
+          } catch {
+            // Try to extract JSON array from response
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = null; }
+            } else {
+              parsed = null;
             }
           }
 
-          clearTimeout(timeoutId);
-        } catch {
-          clearTimeout(timeoutId);
-          throw new Error("Claude request failed");
-        }
-
-        // Parse and validate the JSON response
-        responseText = responseText.trim();
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(responseText);
-        } catch {
-          // Try to extract JSON array from response
-          const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = null; }
+          const validated = parsed !== null ? validateItems(parsed) : null;
+          if (validated) {
+            // Apply phase_name to all items if provided
+            if (phase_name?.trim()) {
+              for (const item of validated) {
+                item.phase = phase_name.trim();
+              }
+            }
+            items = validated;
+            break; // Success — exit retry loop
           } else {
-            parsed = null;
+            lastError = "AI response could not be parsed into valid inspection items";
+            console.error(`[itp-generate] AI attempt ${attempt + 1} validation failed. Response: ${responseText.slice(0, 200)}`);
           }
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : "Unexpected error";
+          console.error(`[itp-generate] AI attempt ${attempt + 1} error:`, lastError);
         }
+      }
 
-        const validated = parsed !== null ? validateItems(parsed) : null;
-        if (validated) {
-          // Apply phase_name to all items if provided
-          if (phase_name?.trim()) {
-            for (const item of validated) {
-              item.phase = phase_name.trim();
-            }
-          }
-          items = validated;
-        } else {
-          items = fallbackItems(phase_name?.trim(), task_description);
-          usedFallback = true;
-        }
-      } catch {
-        items = fallbackItems(phase_name?.trim(), task_description);
-        usedFallback = true;
+      // If all retries exhausted, send error to client
+      if (!items) {
+        console.error(`[itp-generate] All ${MAX_RETRIES + 1} attempts failed. Last error: ${lastError}`);
+        send("error", { error: "AI generation failed — please try again." });
+        controller.close();
+        return;
       }
 
       // Step 3: Saving items
@@ -654,7 +382,6 @@ export async function POST(req: NextRequest) {
       send("done", {
         session,
         items: inserted,
-        meta: { usedFallback },
       });
 
       controller.close();

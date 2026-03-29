@@ -130,7 +130,6 @@ function ITPBuilderPageInner() {
   const [confirmDeleteSession, setConfirmDeleteSession] = useState(false);
   const [deletingSession, setDeletingSession] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [fallbackWarning, setFallbackWarning] = useState(false);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
@@ -577,7 +576,6 @@ function ITPBuilderPageInner() {
               savingTemplate={savingTemplate}
               auditLogs={auditLogs}
               auditLoading={auditLoading}
-              fallbackWarning={fallbackWarning}
               onStatusChange={handleStatusChange}
               onToggleSessionQR={() => setShowSessionQR((v) => !v)}
               onToggleSaveTemplate={() => setShowSaveTemplate((v) => !v)}
@@ -585,7 +583,6 @@ function ITPBuilderPageInner() {
               onTemplateNameChange={setTemplateName}
               onSaveTemplate={handleSaveTemplate}
               onDeleteClick={() => setConfirmDeleteSession(true)}
-              onDismissFallback={() => setFallbackWarning(false)}
               onLoadAuditLog={() => loadAuditLog(activeSession.id)}
             />
 

@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getSecret } from "@/lib/server/get-secret";
 
 export const runtime = "nodejs";
 
@@ -9,8 +10,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,6 +103,12 @@ export async function POST(req: NextRequest) {
   if (!description) {
     return NextResponse.json({ error: "description is required." }, { status: 400 });
   }
+
+  const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
+  if (!apiKey) {
+    return NextResponse.json({ error: "AI service not configured — API key not found." }, { status: 500 });
+  }
+  const anthropic = new Anthropic({ apiKey });
 
   try {
     const controller = new AbortController();

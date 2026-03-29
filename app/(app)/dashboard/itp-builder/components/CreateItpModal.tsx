@@ -69,7 +69,6 @@ export default function CreateItpModal({
   // Generation state
   const [generating, setGenerating] = useState(false);
   const [generatingStatus, setGeneratingStatus] = useState("");
-  const [, setFallbackWarning] = useState(false);
 
   // Manual creation state
   const [creating, setCreating] = useState(false);
@@ -117,7 +116,6 @@ export default function CreateItpModal({
     setImportFile(null);
     setImportStep("upload");
     setDraftSessions([]);
-    setFallbackWarning(false);
     setGeneratingStatus("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -136,7 +134,6 @@ export default function CreateItpModal({
 
     setGenerating(true);
     setGeneratingStatus("Analyzing task…");
-    setFallbackWarning(false);
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession();
       const res = await fetch("/api/itp-generate", {
@@ -188,12 +185,10 @@ export default function CreateItpModal({
                 const result = data as {
                   session: ITPSession;
                   items: ITPItem[];
-                  meta: { usedFallback: boolean };
                 };
                 resetForm();
                 onClose();
                 onSessionCreated(result.session, result.items);
-                if (result.meta.usedFallback) setFallbackWarning(true);
                 return;
               } else if (currentEvent === "error") {
                 throw new Error(data.error ?? "Generation failed");

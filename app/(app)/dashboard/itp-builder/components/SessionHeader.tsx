@@ -23,7 +23,6 @@ export interface SessionHeaderProps {
   savingTemplate: boolean;
   auditLogs: AuditLogEntry[];
   auditLoading: boolean;
-  fallbackWarning: boolean;
   onStatusChange: (status: string) => void;
   onToggleSessionQR: () => void;
   onToggleSaveTemplate: () => void;
@@ -31,7 +30,6 @@ export interface SessionHeaderProps {
   onTemplateNameChange: (name: string) => void;
   onSaveTemplate: () => void;
   onDeleteClick: () => void;
-  onDismissFallback: () => void;
   onLoadAuditLog: () => void;
 }
 
@@ -53,7 +51,6 @@ export default function SessionHeader({
   savingTemplate,
   auditLogs,
   auditLoading,
-  fallbackWarning,
   onStatusChange,
   onToggleSessionQR,
   onToggleSaveTemplate,
@@ -61,7 +58,6 @@ export default function SessionHeader({
   onTemplateNameChange,
   onSaveTemplate,
   onDeleteClick,
-  onDismissFallback,
   onLoadAuditLog,
 }: SessionHeaderProps) {
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
@@ -70,21 +66,6 @@ export default function SessionHeader({
 
   return (
     <div className="space-y-3">
-      {/* Fallback warning banner */}
-      {fallbackWarning && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-sm text-amber-700">
-            <span className="font-bold">AI generation failed</span> — standard template used.
-          </p>
-          <button
-            onClick={onDismissFallback}
-            className="text-amber-400 hover:text-amber-600 transition-colors text-lg font-bold leading-none shrink-0"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       {/* Title row */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
