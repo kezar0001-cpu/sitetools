@@ -266,7 +266,7 @@ function ITPBuilderPageInner() {
       const ids = sessionList.map((s) => s.id);
       const { data: itemRows, error: itemError } = await supabase
         .from("itp_items")
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, signature, reference_standard, responsibility, records_required, acceptance_criteria")
+        .select("id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, signature, reference_standard, responsibility, records_required, acceptance_criteria")
         .in("session_id", ids);
       if (itemError) throw itemError;
 

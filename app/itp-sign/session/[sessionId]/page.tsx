@@ -84,7 +84,7 @@ export default async function ItpSessionSignPage({
   const { data: itemsData } = await supabase
     .from("itp_items")
     .select(
-      "id, slug, title, description, type, status, sort_order, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, acceptance_criteria, client_hold_reason, client_hold_by_name, client_hold_at"
+      "id, slug, title, description, type, phase, status, sort_order, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, acceptance_criteria, client_hold_reason, client_hold_by_name, client_hold_at"
     )
     .eq("session_id", sessionId)
     .order("sort_order", { ascending: true });

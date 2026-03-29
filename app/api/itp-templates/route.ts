@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   // Fetch the session's items
   const { data: items, error: itemsErr } = await supabaseAdmin
     .from("itp_items")
-    .select("type, title, description, sort_order, reference_standard, responsibility, records_required, acceptance_criteria")
+    .select("type, phase, title, description, sort_order, reference_standard, responsibility, records_required, acceptance_criteria")
     .eq("session_id", session_id)
     .order("sort_order", { ascending: true });
 

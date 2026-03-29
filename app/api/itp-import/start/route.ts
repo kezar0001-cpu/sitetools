@@ -23,6 +23,7 @@ type Responsibility = "contractor" | "superintendent" | "third_party";
 
 interface ItpItem {
   type: "witness" | "hold" | "review";
+  phase: string;
   title: string;
   description: string;
   reference_standard: string;
@@ -82,6 +83,7 @@ function validateItps(raw: unknown): GeneratedItp[] | null {
         typeof item.description !== "string"
       ) return null;
       // Normalise optional structured fields
+      if (typeof item.phase !== "string" || !item.phase.trim()) item.phase = "General";
       if (typeof item.reference_standard !== "string") item.reference_standard = "";
       if (!VALID_RESPONSIBILITIES.includes(item.responsibility)) item.responsibility = "contractor";
       if (typeof item.records_required !== "string") item.records_required = "";
@@ -102,26 +104,23 @@ const SUPPORTED_TYPES: Record<string, string> = {
   "text/csv": "csv",
 };
 
-const IMPORT_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer with 20+ years of experience preparing Inspection & Test Plans (ITPs). You analyse specification documents, engineering drawings, project scopes, and construction documents, then generate comprehensive ITPs that comply with AS/NZS ISO 9001 and align with state road authority specifications.
+const IMPORT_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer with 20+ years of experience preparing Inspection & Test Plans (ITPs). You analyse specification documents, engineering drawings, project scopes, and construction documents, then generate phase-based ITPs that comply with AS/NZS ISO 9001 and align with state road authority specifications.
 
 ## Your task
 1. Analyse the uploaded document thoroughly
 2. Identify EVERY distinct construction activity/task that warrants its own ITP
-3. For each activity, generate a complete ITP with 8–12 inspection checkpoints
+3. For each activity, generate a phase-based ITP with 8–15 inspection items across 3–6 work phases
 
-## ITP structure for each activity
+## Phase-based methodology
 
-Each ITP must follow this sequence:
-1. **Document review** (review point): Confirm approved drawings, specs, and standards are current
-2. **Pre-work inspections** (witness points): Site conditions, materials, equipment, safety
-3. **Construction sequence checkpoints** (mix of hold & witness): Follow the physical construction steps
-4. **Testing and verification** (witness or hold): In-process and post-process testing
-5. **Completion and handover** (review point): As-built documentation, compiled records
+Each ITP must be organised into work phases that reflect the real progression of work on site. Choose phases specific to each activity — do NOT use a fixed template. Examples: Site Establishment, Demolish & Excavate, Drainage / Stormwater, Sub-base & Kerbs, Footpaths, Thresholds, Structural Works, Finishing & Reinstatement.
+
+Under each phase, list simple sequential activity descriptions — not verbose checklists.
 
 ## Inspection point types
-- **hold**: Mandatory stop — work CANNOT proceed until Superintendent inspects and releases. Use for critical quality gates where defects would be concealed.
-- **witness**: Notification point — Superintendent notified, may attend, work may proceed. Use for important but non-critical checks.
-- **review**: Document/record review — no physical inspection. Use for paperwork verification at start and end.
+- **hold**: Mandatory stop — work CANNOT proceed until Superintendent inspects and releases. Use ONLY at critical quality gates (levels inspection, formwork inspection, pre-cover). Typically 2–3 per ITP.
+- **witness**: Notification point — Superintendent notified, may attend, work may proceed. Used for the majority of items.
+- **review**: Document/record review — no physical inspection. Used sparingly for paperwork.
 
 ## Output format
 
@@ -131,8 +130,9 @@ Each ITP object must have:
 
 Each item must have:
 - type: "hold" | "witness" | "review"
-- title: short action phrase (max 10 words)
-- description: one sentence explaining what is inspected and why
+- phase: work phase name (e.g. "Site Establishment", "Excavation")
+- title: short action phrase (max 8 words)
+- description: one plain sentence — what is being checked
 - reference_standard: specific Australian Standard and clause (e.g. "AS 3600 Cl. 17.1.3")
 - responsibility: "contractor" | "superintendent" | "third_party"
 - records_required: specific documents/evidence produced
@@ -326,6 +326,7 @@ async function processImport(
       const rows = itp.items.map((item, idx) => ({
         session_id: session.id,
         type: item.type,
+        phase: item.phase || null,
         title: item.title,
         description: item.description,
         reference_standard: item.reference_standard || null,
@@ -337,7 +338,7 @@ async function processImport(
       const { data: inserted, error: insertErr } = await supabaseAdmin
         .from("itp_items")
         .insert(rows)
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
+        .select("id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
       if (insertErr || !inserted) continue;
 
       createdSessions.push({ session, items: inserted });

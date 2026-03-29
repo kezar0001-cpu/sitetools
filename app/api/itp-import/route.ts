@@ -25,6 +25,7 @@ type Responsibility = "contractor" | "superintendent" | "third_party";
 
 interface ItpItem {
   type: "witness" | "hold" | "review";
+  phase?: string;
   title: string;
   description: string;
   reference_standard?: string;
@@ -190,6 +191,7 @@ export async function POST(req: NextRequest) {
       const rows = itp.items.map((item, idx) => ({
         session_id: session.id,
         type: item.type,
+        phase: item.phase || null,
         title: item.title,
         description: item.description,
         reference_standard: item.reference_standard || null,
@@ -201,7 +203,7 @@ export async function POST(req: NextRequest) {
       const { data: inserted, error: insertErr } = await supabaseAdmin
         .from("itp_items")
         .insert(rows)
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
+        .select("id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
       if (insertErr || !inserted) continue;
 
       createdSessions.push({ session, items: inserted });
@@ -500,6 +502,7 @@ ${documentText}`;
     const rows = itp.items.map((item, idx) => ({
       session_id: session.id,
       type: item.type,
+      phase: item.phase || null,
       title: item.title,
       description: item.description,
       reference_standard: item.reference_standard || null,
@@ -513,7 +516,7 @@ ${documentText}`;
       .from("itp_items")
       .insert(rows)
       .select(
-        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria"
+        "id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria"
       );
 
     if (insertErr || !inserted) {

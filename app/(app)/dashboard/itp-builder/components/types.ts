@@ -12,6 +12,7 @@ export interface ITPItem {
   id: string;
   session_id: string;
   type: ItemType;
+  phase?: string | null;
   title: string;
   description: string;
   sort_order: number;
@@ -56,6 +57,7 @@ export interface ITPTemplate {
   created_at: string;
   items: Array<{
     type: "witness" | "hold";
+    phase?: string;
     title: string;
     description: string;
     reference_standard?: string;
@@ -78,6 +80,7 @@ export interface AuditLogEntry {
 
 export interface DraftItpItem {
   type: "witness" | "hold";
+  phase?: string;
   title: string;
   description: string;
   reference_standard?: string;

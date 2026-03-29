@@ -261,6 +261,7 @@ export default function CreateItpModal({
       const rows = template.items.map((item, idx) => ({
         session_id: session.id,
         type: item.type,
+        phase: item.phase || null,
         title: item.title,
         description: item.description,
         reference_standard: item.reference_standard || null,
@@ -272,7 +273,7 @@ export default function CreateItpModal({
       const { data: items, error: itemsErr } = await supabase
         .from("itp_items")
         .insert(rows)
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
+        .select("id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
       if (itemsErr) throw itemsErr;
 
       resetForm();

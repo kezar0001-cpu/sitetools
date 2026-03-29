@@ -17,6 +17,7 @@ export interface ItpItem {
   id: string;
   session_id: string;
   type: ItemType;
+  phase?: string | null;
   title: string;
   description: string;
   sort_order: number;
@@ -160,27 +161,58 @@ export default function ItpPdfExport({ session }: Props) {
       const startY = nextY + 4;
 
       // ── ITP Summary Table ─────────────────────────────────────────────────
-      const bodyRows = items.map((item, i) => {
-        const isSigned = item.status === "signed";
-        const isWaived = item.status === "waived";
+      // Build rows with phase headers interspersed
+      const hasPhases = items.some((i) => i.phase && i.phase.trim());
+      type RowMeta = { kind: "phase"; phase: string } | { kind: "item"; item: ItpItem; num: number };
+      const rowMeta: RowMeta[] = [];
+      const bodyRows: string[][] = [];
 
-        return [
-          String(i + 1),
-          typeCode(item.type),
-          item.title,
-          item.reference_standard || "—",
-          item.acceptance_criteria || item.description || "—",
-          responsibilityLabel(item.responsibility),
-          item.records_required || "—",
-          isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
-          (isSigned || isWaived) && item.signed_off_by_name
-            ? item.signed_off_by_name
-            : "",
-          (isSigned || isWaived) && item.signed_off_at
-            ? formatAU(item.signed_off_at)
-            : "",
-        ];
-      });
+      if (hasPhases) {
+        let lastPhase = "";
+        let itemNum = 0;
+        for (const item of items) {
+          const phase = item.phase?.trim() || "General";
+          if (phase !== lastPhase) {
+            rowMeta.push({ kind: "phase", phase });
+            bodyRows.push([{ content: phase, colSpan: 10 } as unknown as string, "", "", "", "", "", "", "", "", ""]);
+            lastPhase = phase;
+          }
+          itemNum++;
+          const isSigned = item.status === "signed";
+          const isWaived = item.status === "waived";
+          rowMeta.push({ kind: "item", item, num: itemNum });
+          bodyRows.push([
+            String(itemNum),
+            typeCode(item.type),
+            item.title,
+            item.reference_standard || "—",
+            item.acceptance_criteria || item.description || "—",
+            responsibilityLabel(item.responsibility),
+            item.records_required || "—",
+            isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
+            (isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : "",
+            (isSigned || isWaived) && item.signed_off_at ? formatAU(item.signed_off_at) : "",
+          ]);
+        }
+      } else {
+        items.forEach((item, i) => {
+          const isSigned = item.status === "signed";
+          const isWaived = item.status === "waived";
+          rowMeta.push({ kind: "item", item, num: i + 1 });
+          bodyRows.push([
+            String(i + 1),
+            typeCode(item.type),
+            item.title,
+            item.reference_standard || "—",
+            item.acceptance_criteria || item.description || "—",
+            responsibilityLabel(item.responsibility),
+            item.records_required || "—",
+            isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
+            (isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : "",
+            (isSigned || isWaived) && item.signed_off_at ? formatAU(item.signed_off_at) : "",
+          ]);
+        });
+      }
 
       autoTable(doc, {
         head: [["#", "Type", "Activity / Inspection", "Reference Standard", "Acceptance Criteria", "Resp.", "Records Required", "Status", "Signed By", "Date/Time"]],
@@ -216,8 +248,19 @@ export default function ItpPdfExport({ session }: Props) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         didParseCell: (data: any) => {
           if (data.section !== "body") return;
-          const item = items[data.row.index];
-          if (!item) return;
+          const meta = rowMeta[data.row.index];
+          if (!meta) return;
+
+          // Phase header row styling
+          if (meta.kind === "phase") {
+            data.cell.styles.fillColor = [237, 233, 254]; // violet-100
+            data.cell.styles.textColor = [109, 40, 217]; // violet-700
+            data.cell.styles.fontStyle = "bold";
+            data.cell.styles.fontSize = 7.5;
+            return;
+          }
+
+          const item = meta.item;
 
           // Row background by type
           if (item.type === "hold") {

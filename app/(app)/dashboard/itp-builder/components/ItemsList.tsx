@@ -13,7 +13,7 @@ import { ITPItem, ITPSession, ItemType, Responsibility } from "./types";
 // ---------------------------------------------------------------------------
 
 const ITP_ITEM_SELECT =
-  "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, reference_standard, responsibility, records_required, acceptance_criteria, client_hold_reason, client_hold_by_name, client_hold_at";
+  "id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, reference_standard, responsibility, records_required, acceptance_criteria, client_hold_reason, client_hold_by_name, client_hold_at";
 
 function formatSignedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-AU", {
@@ -764,6 +764,42 @@ export interface ItemsListProps {
   onRegenerate?: () => void;
 }
 
+// ---------------------------------------------------------------------------
+// Phase grouping helper
+// ---------------------------------------------------------------------------
+
+interface PhaseGroup {
+  phase: string;
+  items: ITPItem[];
+}
+
+function groupByPhase(items: ITPItem[]): PhaseGroup[] {
+  const sorted = [...items].sort((a, b) => a.sort_order - b.sort_order);
+  const groups: PhaseGroup[] = [];
+  const seen = new Map<string, PhaseGroup>();
+
+  for (const item of sorted) {
+    const phase = item.phase?.trim() || "General";
+    let group = seen.get(phase);
+    if (!group) {
+      group = { phase, items: [] };
+      seen.set(phase, group);
+      groups.push(group);
+    }
+    group.items.push(item);
+  }
+  return groups;
+}
+
+const PHASE_COLORS = [
+  { bg: "bg-violet-50", border: "border-violet-200", text: "text-violet-700", dot: "bg-violet-400" },
+  { bg: "bg-sky-50", border: "border-sky-200", text: "text-sky-700", dot: "bg-sky-400" },
+  { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-400" },
+  { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-400" },
+  { bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700", dot: "bg-rose-400" },
+  { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700", dot: "bg-indigo-400" },
+];
+
 export default function ItemsList({
   session,
   items,
@@ -775,6 +811,9 @@ export default function ItemsList({
   onToggleAddItem,
   onRegenerate,
 }: ItemsListProps) {
+  const hasPhases = items.some((i) => i.phase && i.phase.trim());
+  const phaseGroups = hasPhases ? groupByPhase(items) : null;
+
   return (
     <div className="space-y-3">
       {items.length === 0 && !showAddItem && (
@@ -809,14 +848,64 @@ export default function ItemsList({
         <Droppable droppableId="itp-items">
           {(droppableProvided) => {
             const sortedItems = [...items].sort((a, b) => a.sort_order - b.sort_order);
+
+            // Flat index counter for Draggable (must be contiguous across phases)
+            let flatIndex = 0;
+
             return (
             <div
               ref={droppableProvided.innerRef}
               {...droppableProvided.droppableProps}
               className="space-y-3"
             >
-              {sortedItems
-                .map((item, index) => (
+              {phaseGroups ? (
+                // Phase-grouped rendering
+                phaseGroups.map((group, gi) => {
+                  const color = PHASE_COLORS[gi % PHASE_COLORS.length];
+                  return (
+                    <div key={group.phase} className="space-y-2">
+                      {/* Phase header */}
+                      <div className={`flex items-center gap-2.5 ${color.bg} ${color.border} border rounded-xl px-4 py-2.5 mt-${gi === 0 ? "0" : "2"}`}>
+                        <span className={`w-2.5 h-2.5 rounded-full ${color.dot} shrink-0`} />
+                        <span className={`text-sm font-bold ${color.text} uppercase tracking-wide`}>
+                          {group.phase}
+                        </span>
+                        <span className="text-xs text-slate-400 ml-auto">
+                          {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                        </span>
+                      </div>
+                      {/* Items under this phase */}
+                      {group.items.map((item) => {
+                        const idx = flatIndex++;
+                        return (
+                          <Draggable
+                            key={item.id}
+                            draggableId={item.id}
+                            index={idx}
+                            isDragDisabled={item.status !== "pending"}
+                          >
+                            {(draggableProvided) => (
+                              <div
+                                ref={draggableProvided.innerRef}
+                                {...draggableProvided.draggableProps}
+                              >
+                                <ChecklistItemCard
+                                  item={item}
+                                  dragHandleProps={draggableProvided.dragHandleProps}
+                                  onDelete={onItemDeleted}
+                                  onEdit={onItemEdited}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+                    </div>
+                  );
+                })
+              ) : (
+                // Flat rendering (legacy items without phases)
+                sortedItems.map((item, index) => (
                   <Draggable
                     key={item.id}
                     draggableId={item.id}
@@ -837,7 +926,8 @@ export default function ItemsList({
                       </div>
                     )}
                   </Draggable>
-                ))}
+                ))
+              )}
               {droppableProvided.placeholder}
             </div>
           );}}
