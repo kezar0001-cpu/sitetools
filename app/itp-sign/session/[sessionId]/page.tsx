@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import SessionSignOffClient from "./SessionSignOffClient";
 
-type ItemType = "hold" | "witness" | "review";
+type ItemType = "hold" | "witness";
 type ItemStatus = "pending" | "signed" | "waived";
 
 export interface ItpItem {

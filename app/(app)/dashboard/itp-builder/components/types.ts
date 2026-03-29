@@ -2,7 +2,7 @@
 // Shared types for ITP Builder
 // ---------------------------------------------------------------------------
 
-export type ItemType = "hold" | "witness" | "review";
+export type ItemType = "hold" | "witness";
 export type ItemStatus = "pending" | "signed" | "waived";
 export type Responsibility = "contractor" | "superintendent" | "third_party";
 export type CreationMode = "ai" | "manual" | "import" | "template";
@@ -52,7 +52,7 @@ export interface ITPTemplate {
   created_by_user_id: string | null;
   created_at: string;
   items: Array<{
-    type: "witness" | "hold" | "review";
+    type: "witness" | "hold";
     title: string;
     description: string;
     reference_standard?: string;
@@ -74,7 +74,7 @@ export interface AuditLogEntry {
 }
 
 export interface DraftItpItem {
-  type: "witness" | "hold" | "review";
+  type: "witness" | "hold";
   title: string;
   description: string;
   reference_standard?: string;

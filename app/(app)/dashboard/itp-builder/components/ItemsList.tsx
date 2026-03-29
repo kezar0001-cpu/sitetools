@@ -29,32 +29,27 @@ function formatSignedAt(iso: string): string {
 
 function typeLabel(type: ItemType): string {
   if (type === "hold") return "HOLD";
-  if (type === "review") return "REVIEW";
   return "WITNESS";
 }
 
 function typeBadgeClasses(type: ItemType): string {
   if (type === "hold") return "bg-red-100 text-red-700";
-  if (type === "review") return "bg-blue-100 text-blue-700";
   return "bg-amber-100 text-amber-700";
 }
 
 function typeBorderColor(type: ItemType): string {
   if (type === "hold") return "border-l-red-500";
-  if (type === "review") return "border-l-blue-400";
   return "border-l-amber-400";
 }
 
 function typeCardBg(type: ItemType): string {
   if (type === "hold") return "bg-red-50";
-  if (type === "review") return "bg-blue-50";
   return "bg-amber-50";
 }
 
 function typeTooltipText(type: ItemType): string {
-  if (type === "hold") return "Hold: Work must stop until this item is signed off by the Superintendent.";
-  if (type === "review") return "Review: Document or record review — no physical site inspection required.";
-  return "Witness: Inspector must be notified; work may continue if they don't attend.";
+  if (type === "hold") return "Hold Point: Work must stop until signed off by the Superintendent or Third Party.";
+  return "Witness Point: The Superintendent or Third Party must be notified; work may continue if they don't attend.";
 }
 
 function responsibilityLabel(r?: Responsibility | null): string {
@@ -241,7 +236,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
         </p>
         {/* Type selector */}
         <div className="flex gap-2 mb-3">
-          {(["witness", "hold", "review"] as const).map((t) => (
+          {(["witness", "hold"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -250,8 +245,6 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
                 editType === t
                   ? t === "hold"
                     ? "bg-red-100 border-red-300 text-red-700"
-                    : t === "review"
-                    ? "bg-blue-100 border-blue-300 text-blue-700"
                     : "bg-amber-100 border-amber-300 text-amber-700"
                   : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
               }`}
@@ -602,7 +595,7 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
         Add Inspection Point
       </p>
       <div className="flex gap-2 mb-3">
-        {(["witness", "hold", "review"] as const).map((t) => (
+        {(["witness", "hold"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -611,8 +604,6 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
               type === t
                 ? t === "hold"
                   ? "bg-red-100 border-red-300 text-red-700"
-                  : t === "review"
-                  ? "bg-blue-100 border-blue-300 text-blue-700"
                   : "bg-amber-100 border-amber-300 text-amber-700"
                 : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
             }`}

@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 // Types (match DB column names)
 // ---------------------------------------------------------------------------
 
-type ItemType = "hold" | "witness" | "review";
+type ItemType = "hold" | "witness";
 type ItemStatus = "pending" | "signed" | "waived";
 type Responsibility = "contractor" | "superintendent" | "third_party";
 
@@ -73,7 +73,6 @@ function responsibilityLabel(r?: Responsibility | null): string {
 
 function typeCode(type: ItemType): string {
   if (type === "hold") return "H";
-  if (type === "review") return "R";
   return "W";
 }
 
@@ -155,7 +154,7 @@ export default function ItpPdfExport({ session }: Props) {
       nextY += 5;
       doc.setFontSize(7);
       doc.setTextColor(120);
-      doc.text("H = Hold Point (mandatory stop)    W = Witness Point (notification)    R = Review (document check)    C = Contractor    S = Superintendent    TP = Third Party", margin, nextY);
+      doc.text("H = Hold Point (mandatory stop)    W = Witness Point (notification)    C = Contractor    S = Superintendent    TP = Third Party", margin, nextY);
 
       doc.setTextColor(0);
       const startY = nextY + 4;
@@ -223,8 +222,6 @@ export default function ItpPdfExport({ session }: Props) {
           // Row background by type
           if (item.type === "hold") {
             data.cell.styles.fillColor = [254, 242, 242];
-          } else if (item.type === "review") {
-            data.cell.styles.fillColor = [239, 246, 255];
           } else {
             data.cell.styles.fillColor = [255, 251, 235];
           }
@@ -233,8 +230,6 @@ export default function ItpPdfExport({ session }: Props) {
           if (data.column.index === 1) {
             if (item.type === "hold") {
               data.cell.styles.textColor = [185, 28, 28];
-            } else if (item.type === "review") {
-              data.cell.styles.textColor = [29, 78, 216];
             } else {
               data.cell.styles.textColor = [146, 64, 14];
             }
@@ -275,7 +270,6 @@ export default function ItpPdfExport({ session }: Props) {
 
         for (const item of resolvedItems) {
           const isHold = item.type === "hold";
-          const isReview = item.type === "review";
           const hasSig = item.status === "signed" && sigMap.has(item.slug);
           const sigH = 22;
           const sigW = 70;
@@ -300,9 +294,9 @@ export default function ItpPdfExport({ session }: Props) {
 
           // Card background
           doc.setFillColor(
-            isHold ? 254 : isReview ? 239 : 255,
-            isHold ? 242 : isReview ? 246 : 251,
-            isHold ? 242 : isReview ? 255 : 235
+            isHold ? 254 : 255,
+            isHold ? 242 : 251,
+            isHold ? 242 : 235
           );
           doc.roundedRect(margin, y - 3, pageWidth - margin * 2, blockH, 2, 2, "F");
 
@@ -310,9 +304,9 @@ export default function ItpPdfExport({ session }: Props) {
           doc.setFontSize(7);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(
-            isHold ? 185 : isReview ? 29 : 146,
-            isHold ? 28 : isReview ? 78 : 64,
-            isHold ? 28 : isReview ? 216 : 14
+            isHold ? 185 : 146,
+            isHold ? 28 : 64,
+            isHold ? 28 : 14
           );
           doc.text(typeCode(item.type), margin + 2, y + 1);
 

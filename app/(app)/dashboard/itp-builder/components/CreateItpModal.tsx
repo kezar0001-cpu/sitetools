@@ -734,16 +734,15 @@ export default function CreateItpModal({
                               value={item.type}
                               onChange={(e) => {
                                 const updated = [...draftSessions];
-                                updated[si].items[ii] = { ...item, type: e.target.value as "witness" | "hold" | "review" };
+                                updated[si].items[ii] = { ...item, type: e.target.value as "witness" | "hold" };
                                 setDraftSessions(updated);
                               }}
                               className={`text-xs font-bold rounded-full px-2 py-0.5 border-0 outline-none cursor-pointer shrink-0 ${
-                                item.type === "hold" ? "bg-red-100 text-red-700" : item.type === "review" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-700"
+                                item.type === "hold" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
                               }`}
                             >
                               <option value="witness">WITNESS</option>
                               <option value="hold">HOLD</option>
-                              <option value="review">REVIEW</option>
                             </select>
                             <div className="flex-1 min-w-0 space-y-1">
                               <input

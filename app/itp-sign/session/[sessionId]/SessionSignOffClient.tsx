@@ -338,17 +338,14 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
       {/* ── Items ────────────────────────────────────────────────────── */}
       {items.map((item) => {
         const isHold = item.type === "hold";
-        const isReview = item.type === "review";
         const isSigned = item.status === "signed";
         const isWaived = item.status === "waived";
         const isPending = item.status === "pending";
         const isActive = activeItemId === item.id;
 
-        const borderColor = isHold ? "border-l-red-500" : isReview ? "border-l-blue-400" : "border-l-amber-400";
+        const borderColor = isHold ? "border-l-red-500" : "border-l-amber-400";
         const typeBadgeColor = isHold
           ? "bg-red-100 text-red-700"
-          : isReview
-          ? "bg-blue-100 text-blue-700"
           : "bg-amber-100 text-amber-700";
 
         return (

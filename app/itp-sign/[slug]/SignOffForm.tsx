@@ -9,7 +9,7 @@ interface Props {
   slug: string;
   title: string;
   description: string | null;
-  type: "hold" | "witness" | "review";
+  type: "hold" | "witness";
   taskDescription: string | null;
   referenceStandard?: string | null;
   responsibility?: string | null;
@@ -287,10 +287,6 @@ export default function SignOffForm({
         {type === "hold" ? (
           <span className="inline-flex items-center gap-2 bg-red-100 text-red-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-red-200">
             🔴 HOLD POINT
-          </span>
-        ) : type === "review" ? (
-          <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-blue-200">
-            🔵 REVIEW POINT
           </span>
         ) : (
           <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-amber-200">
