@@ -598,13 +598,14 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
 
 interface AddItemFormProps {
   sessionId: string;
+  companyId: string;
   nextOrder: number;
   onAdd: (item: ITPItem) => void;
   onAddMultiple?: (items: ITPItem[]) => void;
 }
 
-function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemFormProps) {
-  const [mode, setMode] = useState<"manual" | "phase" | "expand">("manual");
+function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: AddItemFormProps) {
+  const [mode, setMode] = useState<"manual" | "ai_phase" | "expand">("manual");
   const [type, setType] = useState<ItemType>("witness");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -612,7 +613,10 @@ function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemForm
   const [responsibility, setResponsibility] = useState<Responsibility>("contractor");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [recordsRequired, setRecordsRequired] = useState("");
-  const [phaseName, setPhaseName] = useState("");
+  const [aiPhaseName, setAiPhaseName] = useState("");
+  const [aiPhaseTask, setAiPhaseTask] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiGeneratingStatus, setAiGeneratingStatus] = useState("");
   const [adding, setAdding] = useState(false);
   const [expanding, setExpanding] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -652,31 +656,83 @@ function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemForm
     }
   }
 
-  async function handleAddPhase() {
-    const trimmed = phaseName.trim();
-    if (!trimmed) return;
-    setAdding(true);
+  async function handleGeneratePhase() {
+    const phaseName = aiPhaseName.trim();
+    const taskDesc = aiPhaseTask.trim();
+    if (!phaseName || !taskDesc) return;
+    setAiGenerating(true);
+    setAiGeneratingStatus("Analysing task…");
     try {
-      // Insert a placeholder witness item that acts as the first item in the phase
-      const { data: item, error } = await supabase
-        .from("itp_items")
-        .insert({
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const res = await fetch("/api/itp-generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({
+          task_description: taskDesc,
+          company_id: companyId,
           session_id: sessionId,
-          type: "witness" as const,
-          phase: trimmed,
-          title: `${trimmed} — first activity`,
-          description: "Update this with the first inspection activity for this phase.",
-          sort_order: nextOrder,
-        })
-        .select(ITP_ITEM_SELECT)
-        .single();
-      if (error || !item) throw error ?? new Error("Insert failed");
-      onAdd(item as unknown as ITPItem);
-      setPhaseName("");
-    } catch {
-      toast.error("Failed to add phase.");
+          phase_name: phaseName,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? `Request failed (${res.status})`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = "";
+        let currentEvent = "";
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7);
+          } else if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6);
+            try {
+              const data = JSON.parse(dataStr);
+              if (currentEvent === "status") {
+                setAiGeneratingStatus(data.message);
+              } else if (currentEvent === "done") {
+                const result = data as { session: unknown; items: ITPItem[]; meta: { usedFallback: boolean } };
+                if (onAddMultiple) {
+                  onAddMultiple(result.items);
+                } else {
+                  for (const item of result.items) onAdd(item);
+                }
+                setAiPhaseName("");
+                setAiPhaseTask("");
+                toast.success(`Added ${result.items.length} items for phase "${phaseName}"`);
+                return;
+              } else if (currentEvent === "error") {
+                throw new Error(data.error ?? "Generation failed");
+              }
+            } catch (e) {
+              if (currentEvent === "error" || currentEvent === "done") throw e;
+            }
+            currentEvent = "";
+          } else if (line !== "") {
+            buffer = lines.slice(i).join("\n");
+            break;
+          }
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate phase.");
     } finally {
-      setAdding(false);
+      setAiGenerating(false);
+      setAiGeneratingStatus("");
     }
   }
 
@@ -750,8 +806,8 @@ function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemForm
       <div className="flex gap-1.5 mb-3">
         {([
           { key: "manual", label: "Manual" },
+          { key: "ai_phase", label: "✦ AI Phase" },
           { key: "expand", label: "✦ AI Expand" },
-          { key: "phase", label: "Phase Header" },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
@@ -759,10 +815,10 @@ function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemForm
             onClick={() => setMode(key)}
             className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
               mode === key
-                ? key === "expand"
+                ? key === "ai_phase"
                   ? "bg-violet-100 border-violet-300 text-violet-700"
-                  : key === "phase"
-                    ? "bg-sky-100 border-sky-300 text-sky-700"
+                  : key === "expand"
+                    ? "bg-violet-100 border-violet-300 text-violet-700"
                     : "bg-slate-800 border-slate-700 text-white"
                 : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
             }`}
@@ -893,29 +949,48 @@ function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemForm
         </>
       )}
 
-      {/* ── Phase Header mode ── */}
-      {mode === "phase" && (
+      {/* ── AI Phase mode ── */}
+      {mode === "ai_phase" && (
         <>
-          <p className="text-xs text-slate-500 mb-2">
-            Add a phase header to group items. Items added after this will belong to this phase.
-          </p>
-          <input
-            value={phaseName}
-            onChange={(e) => setPhaseName(e.target.value)}
-            placeholder="e.g. Site Establishment, Drainage / Stormwater"
-            style={{ fontSize: "16px" }}
-            className="w-full border-2 border-slate-200 focus:border-sky-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddPhase(); }
-            }}
-          />
-          <button
-            onClick={handleAddPhase}
-            disabled={adding || !phaseName.trim()}
-            className="w-full bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
-          >
-            {adding ? "Adding…" : "+ Add Phase"}
-          </button>
+          {aiGenerating ? (
+            <div className="space-y-2">
+              <div className="bg-violet-50 border border-violet-200 rounded-xl px-3 py-2.5 flex items-center gap-2">
+                <span className="h-3.5 w-3.5 rounded-full border-2 border-violet-300 border-t-violet-600 animate-spin shrink-0" />
+                <span className="text-xs font-semibold text-violet-700">{aiGeneratingStatus || "Generating…"}</span>
+              </div>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-10 bg-slate-100 rounded-xl animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-slate-500 mb-2">
+                AI will generate a full set of inspection items for a new phase in this ITP.
+              </p>
+              <input
+                value={aiPhaseName}
+                onChange={(e) => setAiPhaseName(e.target.value)}
+                placeholder="Phase name (e.g. Concrete Pour, Site Establishment)"
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-violet-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
+              />
+              <textarea
+                value={aiPhaseTask}
+                onChange={(e) => setAiPhaseTask(e.target.value)}
+                placeholder="Describe the work to be inspected (e.g. Install 600mm diameter RCPC stormwater drainage)"
+                rows={2}
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-violet-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-2 bg-white transition-colors"
+              />
+              <button
+                onClick={handleGeneratePhase}
+                disabled={!aiPhaseName.trim() || !aiPhaseTask.trim()}
+                className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
+              >
+                ✦ Generate Phase Items
+              </button>
+            </>
+          )}
         </>
       )}
     </div>
@@ -1114,6 +1189,7 @@ export default function ItemsList({
       {showAddItem ? (
         <AddItemForm
           sessionId={session.id}
+          companyId={session.company_id}
           nextOrder={items.length + 1}
           onAdd={onItemAdded}
           onAddMultiple={onItemsAdded}

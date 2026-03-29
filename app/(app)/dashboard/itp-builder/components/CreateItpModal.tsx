@@ -59,6 +59,7 @@ export default function CreateItpModal({
   const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [taskDescription, setTaskDescription] = useState("");
+  const [phaseName, setPhaseName] = useState("");
   const [creationMode, setCreationMode] = useState<CreationMode>(initialMode);
   const [selectedProjectId, setSelectedProjectId] = useState(
     projectFilter && projectFilter !== "unassigned" ? projectFilter : ""
@@ -109,6 +110,7 @@ export default function CreateItpModal({
 
   function resetForm() {
     setTaskDescription("");
+    setPhaseName("");
     setCreationMode("ai");
     setSelectedProjectId(projectFilter && projectFilter !== "unassigned" ? projectFilter : "");
     setSelectedSiteId("");
@@ -148,6 +150,7 @@ export default function CreateItpModal({
           company_id: activeCompanyId,
           project_id: selectedProjectId || undefined,
           site_id: selectedSiteId || undefined,
+          phase_name: phaseName.trim() || undefined,
         }),
       });
 
@@ -587,22 +590,39 @@ export default function CreateItpModal({
           </div>
         </div>
 
-        {/* Task description */}
+        {/* Task description + phase name (AI / manual modes) */}
         {creationMode !== "import" && creationMode !== "template" && (
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1.5">
-              Task description
-            </label>
-            <textarea
-              ref={textareaRef}
-              value={taskDescription}
-              onChange={(e) => setTaskDescription(e.target.value)}
-              placeholder="e.g. Laying pavers on median island"
-              rows={3}
-              disabled={isBusy}
-              style={{ fontSize: "16px" }}
-              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-3 resize-none outline-none disabled:opacity-60 placeholder:text-slate-400 transition-colors"
-            />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                ITP name / task description
+              </label>
+              <textarea
+                ref={textareaRef}
+                value={taskDescription}
+                onChange={(e) => setTaskDescription(e.target.value)}
+                placeholder="e.g. Retaining Wall Construction – Stage 1"
+                rows={2}
+                disabled={isBusy}
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-3 resize-none outline-none disabled:opacity-60 placeholder:text-slate-400 transition-colors"
+              />
+            </div>
+            {creationMode === "ai" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">
+                  First phase name <span className="font-normal text-slate-400">(optional)</span>
+                </label>
+                <input
+                  value={phaseName}
+                  onChange={(e) => setPhaseName(e.target.value)}
+                  placeholder="e.g. Earthworks, Concrete Pour, Site Establishment"
+                  disabled={isBusy}
+                  style={{ fontSize: "16px" }}
+                  className="w-full border-2 border-slate-200 focus:border-violet-400 rounded-xl px-4 py-2.5 outline-none text-sm disabled:opacity-60 placeholder:text-slate-400 transition-colors"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -947,7 +967,7 @@ export default function CreateItpModal({
               disabled={generating || !taskDescription.trim()}
               className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-900 font-bold rounded-2xl py-4 text-base active:scale-95 transition-transform"
             >
-              Generate Checklist
+              ✦ Generate ITP {phaseName.trim() ? `— ${phaseName.trim()}` : "Phase"}
             </button>
           ) : (
             <button
