@@ -708,8 +708,35 @@ export default function CreateItpModal({
                   <span>{draftSessions.length} ITP{draftSessions.length !== 1 ? "s" : ""} generated · Edit as needed</span>
                 </div>
                 <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {draftSessions.map((draft, si) => (
-                    <div key={si} className="border border-slate-200 rounded-2xl overflow-hidden">
+                  {/* Group sessions by phase for display */}
+                  {(() => {
+                    const phases = new Map<string, { si: number; draft: DraftItp }[]>();
+                    draftSessions.forEach((draft, si) => {
+                      const phase = draft.items[0]?.phase || "General";
+                      if (!phases.has(phase)) phases.set(phase, []);
+                      phases.get(phase)!.push({ si, draft });
+                    });
+                    const phaseColors = [
+                      { bg: "bg-violet-50", border: "border-violet-200", text: "text-violet-700" },
+                      { bg: "bg-sky-50", border: "border-sky-200", text: "text-sky-700" },
+                      { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700" },
+                      { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700" },
+                      { bg: "bg-rose-50", border: "border-rose-200", text: "text-rose-700" },
+                      { bg: "bg-indigo-50", border: "border-indigo-200", text: "text-indigo-700" },
+                    ];
+                    let ci = 0;
+                    return Array.from(phases.entries()).map(([phase, sessions]) => {
+                      const color = phaseColors[ci++ % phaseColors.length];
+                      return (
+                        <div key={phase} className="space-y-2">
+                          {/* Phase header */}
+                          <div className={`flex items-center gap-2 ${color.bg} ${color.border} border rounded-xl px-3 py-2`}>
+                            <span className={`text-xs font-bold ${color.text} uppercase tracking-wide`}>{phase}</span>
+                            <span className="text-xs text-slate-400 ml-auto">{sessions.length} task{sessions.length !== 1 ? "s" : ""}</span>
+                          </div>
+                          {/* Tasks under this phase */}
+                          {sessions.map(({ si, draft }) => (
+                    <div key={si} className="border border-slate-200 rounded-2xl overflow-hidden ml-2">
                       <div className="bg-slate-50 px-4 py-2.5 flex items-center justify-between gap-2">
                         <input
                           value={draft.task_description}
@@ -791,7 +818,11 @@ export default function CreateItpModal({
                         ))}
                       </div>
                     </div>
-                  ))}
+                          ))}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
                 <div className="flex gap-2">
                   <button

@@ -74,28 +74,50 @@ function extractTextFromTxt(buffer: Buffer): string {
 // Helpers
 // ---------------------------------------------------------------------------
 
+const VALID_TYPES = ["witness", "hold", "review"];
+
+function normaliseItem(item: Record<string, unknown>, phase?: string): boolean {
+  if (
+    typeof item !== "object" || item === null ||
+    !VALID_TYPES.includes(item.type as string) ||
+    typeof item.title !== "string" ||
+    typeof item.description !== "string"
+  ) return false;
+  if (phase) item.phase = phase;
+  else if (typeof item.phase !== "string" || !(item.phase as string).trim()) item.phase = undefined;
+  return true;
+}
+
 function validateItps(raw: unknown): GeneratedItp[] | null {
   if (!Array.isArray(raw) || raw.length < 1) return null;
+  const first = raw[0] as Record<string, unknown>;
+  if (typeof first !== "object" || first === null) return null;
+
+  // New Phase→Tasks format
+  if ("phase" in first && "tasks" in first) {
+    const result: GeneratedItp[] = [];
+    for (const group of raw) {
+      if (typeof group.phase !== "string" || !Array.isArray(group.tasks)) return null;
+      for (const task of group.tasks) {
+        if (typeof task.task_description !== "string" || !Array.isArray(task.items) || task.items.length < 1) return null;
+        for (const item of task.items) {
+          if (!normaliseItem(item, group.phase)) return null;
+        }
+        result.push({ task_description: task.task_description, items: task.items });
+      }
+    }
+    return result.length > 0 ? result : null;
+  }
+
+  // Legacy flat format
   for (const itp of raw) {
     if (
-      typeof itp !== "object" ||
-      itp === null ||
+      typeof itp !== "object" || itp === null ||
       typeof itp.task_description !== "string" ||
-      !Array.isArray(itp.items) ||
-      itp.items.length < 1
-    ) {
-      return null;
-    }
+      !Array.isArray(itp.items) || itp.items.length < 1
+    ) return null;
     for (const item of itp.items) {
-      if (
-        typeof item !== "object" ||
-        item === null ||
-        !["witness", "hold", "review"].includes(item.type) ||
-        typeof item.title !== "string" ||
-        typeof item.description !== "string"
-      ) {
-        return null;
-      }
+      if (!normaliseItem(item)) return null;
     }
   }
   return raw as GeneratedItp[];
@@ -337,51 +359,46 @@ export async function POST(req: NextRequest) {
   }
 
   // Build the Claude prompt
-  const systemPrompt = `You are an experienced Australian civil construction quality assurance engineer. You read specification documents, engineering drawings callouts, project scopes, and other construction documents, then generate ITP (Inspection & Test Plan) checklists.
+  const systemPrompt = `You are a senior Australian civil construction Quality Assurance engineer. You analyse specification documents, engineering drawings, and construction documents, then generate structured ITPs organised by work phases.
 
-Your job:
+## Your task
 1. Analyse the uploaded document
-2. Identify EVERY distinct construction activity/task that warrants its own ITP
-3. For each activity, generate a focused ITP with 6-10 inspection checklist items
+2. Identify the distinct WORK PHASES the project goes through
+3. Under each phase, identify the specific TASKS (inspection activities) that need checking
 
-Each ITP must have:
-- task_description: a short (max 12 words) plain-English name for the activity
-- items: an array of inspection points
+## Output structure — Phase → Tasks hierarchy
 
-Each item must have:
-- type: "witness" (notify and observe, work can continue) OR "hold" (mandatory stop, cannot proceed until signed)
-- title: short action phrase (max 8 words)
-- description: one sentence with a measurable acceptance criterion — cite the relevant Australian Standard where applicable (e.g. "per AS 3600 Cl. 17.1.3", "AS 1289.5.4.1 >= 98% MDD")
-
-Sequence rules for each ITP:
-- Start with 1-2 witness points (preparatory / pre-work checks)
-- Include at least 2 hold points at critical quality gates
-- End with 1 witness point (post-work visual inspection)
-- Order must follow the physical construction sequence
-
-Australian Standards to consider (select those relevant):
-- Concrete: AS 3600, AS 1379, AS 1012, AS 3610
-- Steel reinforcement: AS 4671, AS/NZS 4671
-- Structural steel / welding: AS 4100, AS/NZS 1554
-- Earthworks / compaction: AS 1289, AS 1726
-- Paving: Austroads AGPT, state road authority specs
-- Piling: AS 2159
-- Drainage / pipes: AS 3725, AS/NZS 3500, AS 1597
-- Residential slabs: AS 2870
-- Retaining walls: AS 4678
-
-Return ONLY a valid JSON array of ITP objects. No markdown, no explanation, no code fences.
-
-Example output format:
+Return a JSON array where each object represents ONE PHASE:
 [
   {
-    "task_description": "Strip footings concrete pour",
-    "items": [
-      { "type": "witness", "title": "Pre-pour formwork check", "description": "Verify formwork dimensions and bracing per AS 3610 Cl. 3.4." },
-      { "type": "hold", "title": "Rebar placement hold", "description": "Confirm reinforcement cover, spacing and lap lengths per AS 3600 Cl. 17.1.3." }
+    "phase": "Site Establishment",
+    "tasks": [
+      {
+        "task_description": "Erosion and sediment controls",
+        "items": [
+          { "type": "witness", "title": "Install sediment fence", "description": "Verify sediment fence placement per ESCP.", "reference_standard": "Project ESCP", "responsibility": "contractor", "records_required": "ESCP checklist", "acceptance_criteria": "Fence installed per ESCP locations" }
+        ]
+      }
     ]
   }
-]`;
+]
+
+## Rules
+- 3–6 phases in chronological construction order, specific to the document
+- Each task has 4–8 sequential inspection items
+- type: "hold" (mandatory stop at critical quality gates) | "witness" (notification point)
+- title: max 8 words, action-oriented
+- description: one plain sentence
+- reference_standard: specific Australian Standard and clause
+- responsibility: "contractor" | "superintendent" | "third_party"
+- records_required: specific documents produced
+- acceptance_criteria: measurable criterion with tolerance
+- Hold points only at genuinely critical stages
+
+## Australian Standards (use those relevant)
+AS 3600, AS 1379, AS 1012, AS 3610 | AS/NZS 4671 | AS 4100, AS/NZS 1554 | AS 1289, AS 3798 | Austroads AGPT04 | AS 2159 | AS 3700 | AS 3725, AS/NZS 3500, AS 1597 | AS 2876 | AS 1742 | AS 1428 | AS 2870 | AS 4678 | WHS Regulation 2017
+
+Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`;
 
   if (!documentText.trim()) {
     return NextResponse.json(

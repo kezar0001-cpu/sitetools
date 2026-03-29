@@ -16,7 +16,7 @@ type Responsibility = "contractor" | "superintendent" | "third_party";
 
 interface ItpItem {
   type: "witness" | "hold" | "review";
-  phase: string;
+  phase?: string;
   title: string;
   description: string;
   reference_standard: string;
@@ -28,40 +28,27 @@ interface ItpItem {
 function fallbackItems(): ItpItem[] {
   return [
     {
-      type: "review",
-      phase: "Site Establishment",
-      title: "Review approved drawings and specs",
-      description: "Confirm current revision of drawings, specifications, and approved-for-construction documents are on site.",
+      type: "witness",
+      title: "Review drawings and pre-start",
+      description: "Confirm approved-for-construction documents are on site and SWMS briefing completed.",
       reference_standard: "AS/NZS ISO 9001",
       responsibility: "contractor",
-      records_required: "Document transmittal register, drawing revision log",
-      acceptance_criteria: "All documents are current revision and stamped 'Approved for Construction'",
+      records_required: "Document register, SWMS sign-on sheet",
+      acceptance_criteria: "All documents current revision, pre-start requirements satisfied",
     },
     {
       type: "witness",
-      phase: "Site Establishment",
-      title: "Confirm site access and traffic management",
-      description: "Verify site access routes, traffic control measures, and SWMS briefing completed.",
-      reference_standard: "WHS Regulation 2017",
+      title: "Material delivery and conformance",
+      description: "Verify delivered materials match approved specifications and check test certificates.",
+      reference_standard: "Project specification",
       responsibility: "contractor",
-      records_required: "SWMS sign-on sheet, traffic management plan",
-      acceptance_criteria: "All pre-start requirements satisfied, hazards controlled per SWMS",
-    },
-    {
-      type: "witness",
-      phase: "Demolish & Excavate",
-      title: "Service location and clearance",
-      description: "Confirm underground services located and marked prior to excavation commencing.",
-      reference_standard: "AS 1726",
-      responsibility: "contractor",
-      records_required: "Dial-before-you-dig confirmation, services location report",
-      acceptance_criteria: "All services identified, marked, and clearance obtained",
+      records_required: "Delivery dockets, material test certificates",
+      acceptance_criteria: "Materials conform to specified grade with valid test certificates",
     },
     {
       type: "hold",
-      phase: "Demolish & Excavate",
-      title: "Excavation levels and dimensions",
-      description: "Survey confirms excavation depth, width, and batter angles comply with design.",
+      title: "Set-out and levels verification",
+      description: "Survey confirms all dimensions, alignments, and levels within design tolerances.",
       reference_standard: "Project drawings",
       responsibility: "superintendent",
       records_required: "Registered surveyor set-out certificate",
@@ -69,37 +56,15 @@ function fallbackItems(): ItpItem[] {
     },
     {
       type: "witness",
-      phase: "Sub-base & Compaction",
-      title: "Material delivery and conformance",
-      description: "Verify delivered sub-base materials match approved specifications and check test certificates.",
-      reference_standard: "AS 3798",
-      responsibility: "contractor",
-      records_required: "Delivery dockets, material test certificates",
-      acceptance_criteria: "Materials conform to specified grade with valid test certificates",
-    },
-    {
-      type: "hold",
-      phase: "Sub-base & Compaction",
-      title: "Compaction testing and approval",
-      description: "NATA-accredited compaction testing at specified frequency before next layer proceeds.",
-      reference_standard: "AS 1289.5.4.1",
-      responsibility: "third_party",
-      records_required: "NATA-accredited compaction test report per lot",
-      acceptance_criteria: "≥98% Standard MDD per AS 1289.5.4.1",
-    },
-    {
-      type: "witness",
-      phase: "Construction",
       title: "Formwork and reinforcement check",
-      description: "Inspect formwork alignment, bracing, and reinforcement placement before pour.",
+      description: "Inspect formwork alignment, bracing, and reinforcement placement.",
       reference_standard: "AS 3600 Cl. 17.1.3",
       responsibility: "contractor",
       records_required: "Inspection checklist, photographs",
-      acceptance_criteria: "Cover ≥40 mm per AS 3600 Table 4.10.3.2, ties at specified centres",
+      acceptance_criteria: "Cover ≥40 mm per AS 3600 Table 4.10.3.2",
     },
     {
       type: "hold",
-      phase: "Construction",
       title: "Pre-pour superintendent inspection",
       description: "Mandatory hold for superintendent inspection before concrete is placed.",
       reference_standard: "AS 3600",
@@ -109,23 +74,21 @@ function fallbackItems(): ItpItem[] {
     },
     {
       type: "witness",
-      phase: "Testing & Verification",
       title: "In-process quality testing",
-      description: "Conduct required quality tests during construction and verify acceptance criteria met.",
+      description: "Conduct required quality tests and verify acceptance criteria met.",
       reference_standard: "Project specification",
       responsibility: "third_party",
-      records_required: "NATA-accredited test reports, test location plan",
+      records_required: "NATA-accredited test reports",
       acceptance_criteria: "All test results within specification limits",
     },
     {
-      type: "review",
-      phase: "Completion & Handover",
-      title: "As-built documentation and handover",
-      description: "Compile as-built survey, test records, and warranties for lot handover.",
-      reference_standard: "AS/NZS ISO 9001",
+      type: "witness",
+      title: "Post-work visual inspection",
+      description: "Inspect completed work for defects and conformance to drawings.",
+      reference_standard: "Project specification",
       responsibility: "contractor",
-      records_required: "As-built drawings, compiled test results, warranty certificates",
-      acceptance_criteria: "Complete documentation package accepted by superintendent",
+      records_required: "Completion photographs, inspection checklist",
+      acceptance_criteria: "Work free of visible defects, within specified tolerances",
     },
   ];
 }
@@ -145,7 +108,7 @@ function validateItems(raw: unknown): ItpItem[] | null {
       return null;
     }
     // Normalise optional structured fields with defaults
-    if (typeof item.phase !== "string" || !item.phase.trim()) item.phase = "General";
+    if (typeof item.phase === "string" && item.phase.trim()) { /* keep it */ } else { delete item.phase; }
     if (typeof item.reference_standard !== "string") item.reference_standard = "";
     if (!validResponsibilities.includes(item.responsibility)) item.responsibility = "contractor";
     if (typeof item.records_required !== "string") item.records_required = "";
@@ -163,72 +126,35 @@ function sseEvent(event: string, data: unknown): string {
 // System prompt — Australian civil construction ITP methodology
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer with 20+ years of experience preparing Inspection & Test Plans (ITPs) for Tier 1 and Tier 2 contractors. You produce ITPs that comply with AS/NZS ISO 9001 quality management requirements and align with state road authority specifications (e.g. VicRoads, Transport for NSW, TMR, Main Roads WA).
+const SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer with 20+ years of experience preparing Inspection & Test Plans (ITPs). You produce ITPs that comply with AS/NZS ISO 9001 and align with state road authority specifications.
 
-## What an ITP is
+## What you generate
 
-An Inspection & Test Plan (ITP) is a structured quality control document organised by WORK PHASES. Each phase represents a distinct stage of construction, and under each phase sits a sequence of simple activity descriptions that need checking.
+A focused ITP for a single construction activity — a sequential list of inspection points that follow the physical construction sequence from preparation through to completion.
 
-## Phase-based methodology
-
-Every ITP you generate MUST be organised into work phases. Phases represent the real progression of work on site. Examples of phases include (but are NOT limited to):
-- Site Establishment
-- Demolish & Excavate
-- Drainage / Stormwater
-- Sub-base & Kerbs
-- Footpaths
-- Thresholds
-- Structural Works
-- Finishing & Reinstatement
-
-Choose phases that are specific and appropriate to the task — do NOT use a fixed template. The phases should reflect what actually happens for THIS particular scope of work. Be creative and realistic; every ITP should have a unique set of phases driven by the work being described.
-
-## Items within each phase
-
-Under each phase, list simple, sequential activity descriptions — NOT verbose checklists. Each item describes one thing that needs checking at that point in the work sequence. Keep descriptions to a single plain sentence.
+Each item is a simple, plain activity description — one thing that needs checking at that point in the sequence. NOT verbose checklists.
 
 ## Inspection point types
-
-- **hold**: Mandatory stop — work CANNOT proceed until the Superintendent inspects and releases. Use ONLY at critical quality gates (e.g. levels inspection, formwork inspection, pre-cover). Hold points should be rare and meaningful.
-- **witness**: Notification point — Superintendent notified, may attend, work may proceed. Used for the majority of inspection activities.
-- **review**: Document/record review — no physical inspection. Used sparingly for paperwork verification.
+- **hold**: Mandatory stop — work CANNOT proceed until the Superintendent inspects and releases. Use ONLY at genuinely critical quality gates (levels inspection, formwork inspection, pre-cover). Maximum 2–3 per ITP.
+- **witness**: Notification point — Superintendent notified, may attend, work may proceed. The majority of items.
 
 ## Rules
-- Generate 8–15 items spread across 3–6 phases
-- Each phase must have at least 2 items
-- Items MUST follow the physical construction sequence within each phase
-- Hold points ONLY at genuinely critical stages — typically 2–3 per ITP maximum
-- Keep item titles short (max 8 words) and action-oriented
-- Keep descriptions to one simple sentence — what is being checked
+- Generate 5–10 items in construction sequence order
+- Keep titles short (max 8 words), action-oriented
+- Keep descriptions to one plain sentence
 - Every item must reference the relevant Australian Standard clause
 - Acceptance criteria must be measurable with tolerances
-- Do NOT follow a rigid pattern — the phases and activities should be driven entirely by the nature of the task
+- Each ITP should feel unique — driven by the specific task, not a template
 
-## Australian Standards reference (use only those relevant)
-- Concrete: AS 3600, AS 1379, AS 1012, AS 3610
-- Reinforcement: AS/NZS 4671
-- Steel: AS 4100, AS/NZS 1554
-- Earthworks: AS 1289, AS 3798, AS 1726
-- Pavements: Austroads AGPT04
-- Piling: AS 2159
-- Masonry: AS 3700
-- Drainage: AS 3725, AS/NZS 3500, AS 1597
-- Kerb: AS 2876
-- Traffic: AS 1742, AS/NZS 1158
-- Accessibility: AS 1428
-- Residential footings: AS 2870
-- Retaining walls: AS 4678
-- Surveying: SP1 (ICSM)
-- WHS: WHS Regulation 2017
-- Quality: AS/NZS ISO 9001`;
+## Australian Standards (use only those relevant)
+AS 3600, AS 1379, AS 1012, AS 3610 (concrete) | AS/NZS 4671 (rebar) | AS 4100, AS/NZS 1554 (steel/welding) | AS 1289, AS 3798, AS 1726 (earthworks) | Austroads AGPT04 (pavements) | AS 2159 (piling) | AS 3700 (masonry) | AS 3725, AS/NZS 3500, AS 1597 (drainage) | AS 2876 (kerb) | AS 1742 (traffic) | AS 1428 (access) | AS 2870 (residential footings) | AS 4678 (retaining walls) | WHS Regulation 2017 | AS/NZS ISO 9001`;
 
 const USER_PROMPT_TEMPLATE = `Task: {TASK}
 
-Think about the real work phases this task goes through on site — from mobilisation through to completion. Break the work into logical phases, then list the sequential inspection activities under each phase.
+Generate a focused ITP for this specific construction activity. List the sequential inspection points from preparation through to completion.
 
-Generate a JSON array of 8–15 ITP items grouped by phase. Each item must have:
-- type: "hold" | "witness" | "review"
-- phase: the work phase this activity belongs to (e.g. "Site Establishment", "Excavation", "Drainage / Stormwater")
+Each item must have:
+- type: "hold" | "witness"
 - title: short action phrase (max 8 words)
 - description: one plain sentence — what is being checked
 - reference_standard: specific Australian Standard and clause (e.g. "AS 3600 Cl. 17.1.3")
@@ -236,13 +162,9 @@ Generate a JSON array of 8–15 ITP items grouped by phase. Each item must have:
 - records_required: specific documents/evidence produced
 - acceptance_criteria: measurable pass/fail criterion with tolerance
 
-Important:
-- Use 3–6 phases that are specific to THIS task (not generic)
-- Hold points only at critical stages (levels inspection, formwork inspection, pre-cover etc.)
-- Items within each phase must follow the real construction sequence
-- Do not repeat the same pattern across different tasks — each ITP should feel unique
+Hold points only at critical stages (levels, formwork, pre-cover etc.).
 
-Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`;
+Return ONLY a valid JSON array of 5–10 items. No markdown, no explanation, no code fences.`;
 
 export async function POST(req: NextRequest) {
   // Authenticate via Bearer token

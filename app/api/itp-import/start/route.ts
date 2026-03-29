@@ -64,30 +64,53 @@ function extractTextFromExcel(buffer: Buffer): string {
 const VALID_TYPES = ["witness", "hold", "review"];
 const VALID_RESPONSIBILITIES = ["contractor", "superintendent", "third_party"];
 
+function normaliseItem(item: Record<string, unknown>, phase?: string): boolean {
+  if (
+    typeof item !== "object" ||
+    item === null ||
+    !VALID_TYPES.includes(item.type as string) ||
+    typeof item.title !== "string" ||
+    typeof item.description !== "string"
+  ) return false;
+  if (phase) item.phase = phase;
+  else if (typeof item.phase !== "string" || !(item.phase as string).trim()) item.phase = "General";
+  if (typeof item.reference_standard !== "string") item.reference_standard = "";
+  if (!VALID_RESPONSIBILITIES.includes(item.responsibility as string)) item.responsibility = "contractor";
+  if (typeof item.records_required !== "string") item.records_required = "";
+  if (typeof item.acceptance_criteria !== "string") item.acceptance_criteria = "";
+  return true;
+}
+
 function validateItps(raw: unknown): GeneratedItp[] | null {
   if (!Array.isArray(raw) || raw.length < 1) return null;
+  const first = raw[0] as Record<string, unknown>;
+  if (typeof first !== "object" || first === null) return null;
+
+  // New Phase→Tasks format: [{ phase, tasks: [{ task_description, items }] }]
+  if ("phase" in first && "tasks" in first) {
+    const result: GeneratedItp[] = [];
+    for (const group of raw) {
+      if (typeof group.phase !== "string" || !Array.isArray(group.tasks)) return null;
+      for (const task of group.tasks) {
+        if (typeof task.task_description !== "string" || !Array.isArray(task.items) || task.items.length < 1) return null;
+        for (const item of task.items) {
+          if (!normaliseItem(item, group.phase)) return null;
+        }
+        result.push({ task_description: task.task_description, items: task.items });
+      }
+    }
+    return result.length > 0 ? result : null;
+  }
+
+  // Legacy flat format: [{ task_description, items }]
   for (const itp of raw) {
     if (
-      typeof itp !== "object" ||
-      itp === null ||
+      typeof itp !== "object" || itp === null ||
       typeof itp.task_description !== "string" ||
-      !Array.isArray(itp.items) ||
-      itp.items.length < 1
+      !Array.isArray(itp.items) || itp.items.length < 1
     ) return null;
     for (const item of itp.items) {
-      if (
-        typeof item !== "object" ||
-        item === null ||
-        !VALID_TYPES.includes(item.type) ||
-        typeof item.title !== "string" ||
-        typeof item.description !== "string"
-      ) return null;
-      // Normalise optional structured fields
-      if (typeof item.phase !== "string" || !item.phase.trim()) item.phase = "General";
-      if (typeof item.reference_standard !== "string") item.reference_standard = "";
-      if (!VALID_RESPONSIBILITIES.includes(item.responsibility)) item.responsibility = "contractor";
-      if (typeof item.records_required !== "string") item.records_required = "";
-      if (typeof item.acceptance_criteria !== "string") item.acceptance_criteria = "";
+      if (!normaliseItem(item)) return null;
     }
   }
   return raw as GeneratedItp[];
@@ -104,44 +127,53 @@ const SUPPORTED_TYPES: Record<string, string> = {
   "text/csv": "csv",
 };
 
-const IMPORT_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer with 20+ years of experience preparing Inspection & Test Plans (ITPs). You analyse specification documents, engineering drawings, project scopes, and construction documents, then generate phase-based ITPs that comply with AS/NZS ISO 9001 and align with state road authority specifications.
+const IMPORT_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer. You analyse specification documents, engineering drawings, and construction documents, then generate structured Inspection & Test Plans (ITPs) organised by work phases.
 
 ## Your task
 1. Analyse the uploaded document thoroughly
-2. Identify EVERY distinct construction activity/task that warrants its own ITP
-3. For each activity, generate a phase-based ITP with 8–15 inspection items across 3–6 work phases
+2. Identify the distinct WORK PHASES the project goes through (e.g. Site Establishment, Demolish & Excavate, Drainage / Stormwater, Sub-base & Kerbs, Footpaths, Thresholds)
+3. Under each phase, identify the specific TASKS (inspection activities) that need checking
 
-## Phase-based methodology
+## Output structure — Phase → Tasks hierarchy
 
-Each ITP must be organised into work phases that reflect the real progression of work on site. Choose phases specific to each activity — do NOT use a fixed template. Examples: Site Establishment, Demolish & Excavate, Drainage / Stormwater, Sub-base & Kerbs, Footpaths, Thresholds, Structural Works, Finishing & Reinstatement.
+Return a JSON array where each object represents ONE PHASE:
+[
+  {
+    "phase": "Site Establishment",
+    "tasks": [
+      {
+        "task_description": "Erosion and sediment controls",
+        "items": [
+          { "type": "witness", "title": "Install sediment fence", "description": "...", "reference_standard": "...", "responsibility": "contractor", "records_required": "...", "acceptance_criteria": "..." }
+        ]
+      }
+    ]
+  }
+]
 
-Under each phase, list simple sequential activity descriptions — not verbose checklists.
+## Rules for phases
+- Use 3–6 phases that reflect the real construction sequence in the document
+- Phase names should be specific to the project (not generic)
 
-## Inspection point types
-- **hold**: Mandatory stop — work CANNOT proceed until Superintendent inspects and releases. Use ONLY at critical quality gates (levels inspection, formwork inspection, pre-cover). Typically 2–3 per ITP.
-- **witness**: Notification point — Superintendent notified, may attend, work may proceed. Used for the majority of items.
-- **review**: Document/record review — no physical inspection. Used sparingly for paperwork.
-
-## Output format
-
-Each ITP object must have:
+## Rules for tasks within each phase
+- Each task is a distinct construction activity that gets its own ITP
+- Each task has 4–8 sequential inspection items
 - task_description: short plain-English name (max 12 words)
-- items: array of inspection points
 
-Each item must have:
-- type: "hold" | "witness" | "review"
-- phase: work phase name (e.g. "Site Establishment", "Excavation")
+## Rules for items within each task
+- type: "hold" | "witness" (hold = mandatory stop at critical quality gates; witness = notification point)
 - title: short action phrase (max 8 words)
 - description: one plain sentence — what is being checked
-- reference_standard: specific Australian Standard and clause (e.g. "AS 3600 Cl. 17.1.3")
+- reference_standard: specific Australian Standard and clause
 - responsibility: "contractor" | "superintendent" | "third_party"
 - records_required: specific documents/evidence produced
 - acceptance_criteria: measurable pass/fail criterion with tolerance
+- Hold points only at genuinely critical stages
 
 ## Australian Standards reference (use only those relevant)
 AS 3600, AS 1379, AS 1012, AS 3610 (concrete) | AS/NZS 4671 (rebar) | AS 4100, AS/NZS 1554 (steel/welding) | AS 1289, AS 3798 (earthworks) | Austroads AGPT04 (pavements) | AS 2159 (piling) | AS 3700 (masonry) | AS 3725, AS/NZS 3500, AS 1597 (drainage) | AS 2876 (kerb) | AS 1742 (traffic) | AS 1428 (access) | AS 2870 (residential footings) | AS 4678 (retaining walls) | WHS Regulation 2017
 
-Return ONLY a valid JSON array of ITP objects. No markdown, no explanation, no code fences.`;
+Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`;
 
 function updateJob(jobId: string, updates: Partial<ImportJob>) {
   const job = getJob(jobId);

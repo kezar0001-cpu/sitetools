@@ -600,9 +600,11 @@ interface AddItemFormProps {
   sessionId: string;
   nextOrder: number;
   onAdd: (item: ITPItem) => void;
+  onAddMultiple?: (items: ITPItem[]) => void;
 }
 
-function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
+function AddItemForm({ sessionId, nextOrder, onAdd, onAddMultiple }: AddItemFormProps) {
+  const [mode, setMode] = useState<"manual" | "phase" | "expand">("manual");
   const [type, setType] = useState<ItemType>("witness");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -610,7 +612,9 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
   const [responsibility, setResponsibility] = useState<Responsibility>("contractor");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [recordsRequired, setRecordsRequired] = useState("");
+  const [phaseName, setPhaseName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [expanding, setExpanding] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function handleSubmit() {
@@ -648,101 +652,272 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
     }
   }
 
+  async function handleAddPhase() {
+    const trimmed = phaseName.trim();
+    if (!trimmed) return;
+    setAdding(true);
+    try {
+      // Insert a placeholder witness item that acts as the first item in the phase
+      const { data: item, error } = await supabase
+        .from("itp_items")
+        .insert({
+          session_id: sessionId,
+          type: "witness" as const,
+          phase: trimmed,
+          title: `${trimmed} — first activity`,
+          description: "Update this with the first inspection activity for this phase.",
+          sort_order: nextOrder,
+        })
+        .select(ITP_ITEM_SELECT)
+        .single();
+      if (error || !item) throw error ?? new Error("Insert failed");
+      onAdd(item as unknown as ITPItem);
+      setPhaseName("");
+    } catch {
+      toast.error("Failed to add phase.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleExpand() {
+    const desc = description.trim();
+    if (!desc) return;
+    setExpanding(true);
+    try {
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const res = await fetch("/api/itp-expand", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authSession?.access_token ?? ""}`,
+        },
+        body: JSON.stringify({ description: desc }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Expansion failed");
+      }
+      const data = await res.json() as { items: Array<{
+        type: "witness" | "hold";
+        title: string;
+        description: string;
+        reference_standard: string;
+        responsibility: string;
+        records_required: string;
+        acceptance_criteria: string;
+      }> };
+
+      // Insert all expanded items into the DB
+      const rows = data.items.map((item, idx) => ({
+        session_id: sessionId,
+        type: item.type,
+        title: item.title,
+        description: item.description,
+        reference_standard: item.reference_standard || null,
+        responsibility: item.responsibility || "contractor",
+        records_required: item.records_required || null,
+        acceptance_criteria: item.acceptance_criteria || null,
+        sort_order: nextOrder + idx,
+      }));
+
+      const { data: inserted, error: insertErr } = await supabase
+        .from("itp_items")
+        .insert(rows)
+        .select(ITP_ITEM_SELECT);
+
+      if (insertErr || !inserted) throw insertErr ?? new Error("Insert failed");
+
+      if (onAddMultiple) {
+        onAddMultiple(inserted as unknown as ITPItem[]);
+      } else {
+        for (const item of inserted) {
+          onAdd(item as unknown as ITPItem);
+        }
+      }
+      setDescription("");
+      toast.success(`Expanded into ${inserted.length} inspection items`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to expand activity.");
+    } finally {
+      setExpanding(false);
+    }
+  }
+
   return (
     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-        Add Inspection Point
-      </p>
-      <div className="flex gap-2 mb-3">
-        {(["witness", "hold"] as const).map((t) => (
+      {/* Mode toggle */}
+      <div className="flex gap-1.5 mb-3">
+        {([
+          { key: "manual", label: "Manual" },
+          { key: "expand", label: "✦ AI Expand" },
+          { key: "phase", label: "Phase Header" },
+        ] as const).map(({ key, label }) => (
           <button
-            key={t}
+            key={key}
             type="button"
-            onClick={() => setType(t)}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-              type === t
-                ? t === "hold"
-                  ? "bg-red-100 border-red-300 text-red-700"
-                  : "bg-amber-100 border-amber-300 text-amber-700"
+            onClick={() => setMode(key)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+              mode === key
+                ? key === "expand"
+                  ? "bg-violet-100 border-violet-300 text-violet-700"
+                  : key === "phase"
+                    ? "bg-sky-100 border-sky-300 text-sky-700"
+                    : "bg-slate-800 border-slate-700 text-white"
                 : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
             }`}
           >
-            {t.toUpperCase()}
+            {label}
           </button>
         ))}
       </div>
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="e.g. Pre-pour reinforcement inspection"
-        style={{ fontSize: "16px" }}
-        className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
-        }}
-      />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="Description of what is being inspected"
-        rows={2}
-        style={{ fontSize: "16px" }}
-        className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-2 bg-white transition-colors"
-      />
 
-      {/* Toggle for advanced fields */}
-      <button
-        type="button"
-        onClick={() => setShowAdvanced((v) => !v)}
-        className="text-xs font-semibold text-slate-500 hover:text-slate-700 mb-2 transition-colors"
-      >
-        {showAdvanced ? "− Hide details" : "+ Standard, criteria & records"}
-      </button>
-
-      {showAdvanced && (
-        <div className="space-y-2 mb-3">
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={referenceStandard}
-              onChange={(e) => setReferenceStandard(e.target.value)}
-              placeholder="Ref standard (e.g. AS 3600 Cl. 17.1.3)"
-              style={{ fontSize: "16px" }}
-              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
-            />
-            <select
-              value={responsibility}
-              onChange={(e) => setResponsibility(e.target.value as Responsibility)}
-              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
-            >
-              <option value="contractor">Contractor</option>
-              <option value="superintendent">Superintendent</option>
-              <option value="third_party">Third Party</option>
-            </select>
+      {/* ── Manual mode ── */}
+      {mode === "manual" && (
+        <>
+          <div className="flex gap-2 mb-3">
+            {(["witness", "hold"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setType(t)}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                  type === t
+                    ? t === "hold"
+                      ? "bg-red-100 border-red-300 text-red-700"
+                      : "bg-amber-100 border-amber-300 text-amber-700"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                }`}
+              >
+                {t.toUpperCase()}
+              </button>
+            ))}
           </div>
           <input
-            value={acceptanceCriteria}
-            onChange={(e) => setAcceptanceCriteria(e.target.value)}
-            placeholder="Acceptance criteria (e.g. ≥98% MDD)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Pre-pour reinforcement inspection"
             style={{ fontSize: "16px" }}
-            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
+            }}
           />
-          <input
-            value={recordsRequired}
-            onChange={(e) => setRecordsRequired(e.target.value)}
-            placeholder="Records required (e.g. NATA test report)"
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Description of what is being inspected"
+            rows={2}
             style={{ fontSize: "16px" }}
-            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-2 bg-white transition-colors"
           />
-        </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="text-xs font-semibold text-slate-500 hover:text-slate-700 mb-2 transition-colors"
+          >
+            {showAdvanced ? "− Hide details" : "+ Standard, criteria & records"}
+          </button>
+          {showAdvanced && (
+            <div className="space-y-2 mb-3">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={referenceStandard}
+                  onChange={(e) => setReferenceStandard(e.target.value)}
+                  placeholder="Ref standard (e.g. AS 3600 Cl. 17.1.3)"
+                  style={{ fontSize: "16px" }}
+                  className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+                />
+                <select
+                  value={responsibility}
+                  onChange={(e) => setResponsibility(e.target.value as Responsibility)}
+                  className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+                >
+                  <option value="contractor">Contractor</option>
+                  <option value="superintendent">Superintendent</option>
+                  <option value="third_party">Third Party</option>
+                </select>
+              </div>
+              <input
+                value={acceptanceCriteria}
+                onChange={(e) => setAcceptanceCriteria(e.target.value)}
+                placeholder="Acceptance criteria (e.g. ≥98% MDD)"
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+              />
+              <input
+                value={recordsRequired}
+                onChange={(e) => setRecordsRequired(e.target.value)}
+                placeholder="Records required (e.g. NATA test report)"
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+              />
+            </div>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={adding || !title.trim()}
+            className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-900 font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
+          >
+            {adding ? "Adding…" : "+ Add Item"}
+          </button>
+        </>
       )}
 
-      <button
-        onClick={handleSubmit}
-        disabled={adding || !title.trim()}
-        className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-900 font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
-      >
-        {adding ? "Adding…" : "+ Add Item"}
-      </button>
+      {/* ── AI Expand mode ── */}
+      {mode === "expand" && (
+        <>
+          <p className="text-xs text-slate-500 mb-2">
+            Describe an activity and AI will expand it into 3–5 specific inspection tasks.
+          </p>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g. Check the concrete pour, Verify drainage pipe installation"
+            rows={2}
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 focus:border-violet-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-2 bg-white transition-colors"
+          />
+          <button
+            onClick={handleExpand}
+            disabled={expanding || !description.trim()}
+            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
+          >
+            {expanding ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                Expanding…
+              </span>
+            ) : "✦ Expand into Tasks"}
+          </button>
+        </>
+      )}
+
+      {/* ── Phase Header mode ── */}
+      {mode === "phase" && (
+        <>
+          <p className="text-xs text-slate-500 mb-2">
+            Add a phase header to group items. Items added after this will belong to this phase.
+          </p>
+          <input
+            value={phaseName}
+            onChange={(e) => setPhaseName(e.target.value)}
+            placeholder="e.g. Site Establishment, Drainage / Stormwater"
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 focus:border-sky-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAddPhase(); }
+            }}
+          />
+          <button
+            onClick={handleAddPhase}
+            disabled={adding || !phaseName.trim()}
+            className="w-full bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold rounded-2xl py-3 text-sm active:scale-95 transition-transform"
+          >
+            {adding ? "Adding…" : "+ Add Phase"}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -759,6 +934,7 @@ export interface ItemsListProps {
   onItemDeleted: (id: string) => void;
   onItemEdited: (item: ITPItem) => void;
   onItemAdded: (item: ITPItem) => void;
+  onItemsAdded?: (items: ITPItem[]) => void;
   onToggleAddItem: (show: boolean) => void;
   /** Called when the user clicks "Regenerate" on the no-items empty state. */
   onRegenerate?: () => void;
@@ -808,6 +984,7 @@ export default function ItemsList({
   onItemDeleted,
   onItemEdited,
   onItemAdded,
+  onItemsAdded,
   onToggleAddItem,
   onRegenerate,
 }: ItemsListProps) {
@@ -939,6 +1116,7 @@ export default function ItemsList({
           sessionId={session.id}
           nextOrder={items.length + 1}
           onAdd={onItemAdded}
+          onAddMultiple={onItemsAdded}
         />
       ) : (
         <button

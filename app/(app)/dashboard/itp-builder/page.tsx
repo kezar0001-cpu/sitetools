@@ -385,6 +385,17 @@ function ITPBuilderPageInner() {
     }
   }
 
+  function handleItemsAdded(items: ITPItem[]) {
+    setActiveItems((prev) => [...prev, ...items]);
+    if (activeSession) {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id ? { ...s, items: [...(s.items ?? []), ...items] } : s
+        )
+      );
+    }
+  }
+
   function handleItemDeleted(itemId: string) {
     setActiveItems((prev) => prev.filter((i) => i.id !== itemId));
     if (activeSession) {
@@ -586,6 +597,7 @@ function ITPBuilderPageInner() {
               onItemDeleted={handleItemDeleted}
               onItemEdited={handleItemEdited}
               onItemAdded={handleItemAdded}
+              onItemsAdded={handleItemsAdded}
               onToggleAddItem={setShowAddItem}
               onRegenerate={() => handleNewITPWithMode("ai")}
             />
