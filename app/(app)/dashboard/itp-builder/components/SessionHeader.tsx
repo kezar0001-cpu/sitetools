@@ -132,13 +132,22 @@ export default function SessionHeader({
           </button>
         )}
         {session.status === "complete" && (
-          <button
-            onClick={() => onStatusChange("archived")}
-            disabled={updatingStatus}
-            className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
-          >
-            Archive
-          </button>
+          <>
+            <button
+              onClick={() => onStatusChange("active")}
+              disabled={updatingStatus}
+              className="text-xs font-semibold text-amber-700 border border-amber-200 bg-amber-50 rounded-xl px-3 py-1.5 hover:bg-amber-100 active:scale-95 transition-all disabled:opacity-50"
+            >
+              Reopen
+            </button>
+            <button
+              onClick={() => onStatusChange("archived")}
+              disabled={updatingStatus}
+              className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-xl px-3 py-1.5 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
+            >
+              Archive
+            </button>
+          </>
         )}
         {session.status === "archived" && (
           <button

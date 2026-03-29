@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 // ---------------------------------------------------------------------------
 
 type ItemType = "hold" | "witness";
-type ItemStatus = "pending" | "signed" | "waived";
+type ItemStatus = "pending" | "signed" | "waived" | "client_hold";
 type Responsibility = "contractor" | "superintendent" | "third_party";
 
 export interface ItpItem {

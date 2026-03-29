@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 export type ItemType = "hold" | "witness";
-export type ItemStatus = "pending" | "signed" | "waived";
+export type ItemStatus = "pending" | "signed" | "waived" | "client_hold";
 export type Responsibility = "contractor" | "superintendent" | "third_party";
 export type CreationMode = "ai" | "manual" | "import" | "template";
 export type ImportStep = "upload" | "preview" | "saving";
@@ -27,6 +27,9 @@ export interface ITPItem {
   responsibility?: Responsibility | null;
   records_required?: string | null;
   acceptance_criteria?: string | null;
+  client_hold_reason?: string | null;
+  client_hold_by_name?: string | null;
+  client_hold_at?: string | null;
 }
 
 export interface ITPSession {

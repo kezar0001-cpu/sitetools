@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     lng?: number;
     status?: string;
     waive_reason?: string;
+    client_hold_reason?: string;
   };
   try {
     body = await req.json();
@@ -53,8 +54,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { slug, name, signature, lat, lng, status: requestedStatus, waive_reason } = body;
+  const { slug, name, signature, lat, lng, status: requestedStatus, waive_reason, client_hold_reason } = body;
   const isWaiver = requestedStatus === 'waived';
+  const isClientHold = requestedStatus === 'client_hold';
 
   // Validate inputs
   if (!slug) {
@@ -65,6 +67,15 @@ export async function POST(req: NextRequest) {
     const trimmedReason = typeof waive_reason === 'string' ? waive_reason.trim() : '';
     if (!trimmedReason) {
       return NextResponse.json({ error: 'waive_reason is required' }, { status: 400 });
+    }
+  } else if (isClientHold) {
+    const trimmedHold = typeof client_hold_reason === 'string' ? client_hold_reason.trim() : '';
+    if (!trimmedHold) {
+      return NextResponse.json({ error: 'client_hold_reason is required' }, { status: 400 });
+    }
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    if (!trimmedName) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 });
     }
   } else {
     const trimmedName = typeof name === 'string' ? name.trim() : '';
@@ -103,7 +114,7 @@ export async function POST(req: NextRequest) {
   let signaturePath: string | undefined;
 
   // Upload signature to Supabase Storage instead of storing base64 in the DB
-  if (!isWaiver && signature) {
+  if (!isWaiver && !isClientHold && signature) {
     try {
       // Strip the data URL prefix (e.g. "data:image/png;base64,")
       const base64Data = signature.replace(/^data:image\/\w+;base64,/, '');
@@ -136,6 +147,13 @@ export async function POST(req: NextRequest) {
         waive_reason: (waive_reason as string).trim(),
         ...(trimmedName ? { signed_off_by_name: trimmedName } : {}),
       }
+    : isClientHold
+    ? {
+        status: 'client_hold',
+        client_hold_at: new Date().toISOString(),
+        client_hold_reason: (client_hold_reason as string).trim(),
+        client_hold_by_name: trimmedName,
+      }
     : {
         status: 'signed',
         signed_off_at: new Date().toISOString(),
@@ -143,7 +161,7 @@ export async function POST(req: NextRequest) {
         signature: signaturePath,
       };
 
-  if (!isWaiver) {
+  if (!isWaiver && !isClientHold) {
     if (typeof lat === 'number') updatePayload.sign_off_lat = lat;
     if (typeof lng === 'number') updatePayload.sign_off_lng = lng;
   }
@@ -153,7 +171,7 @@ export async function POST(req: NextRequest) {
     .update(updatePayload)
     .eq('slug', slug)
     .eq('status', 'pending')
-    .select('id, title, type, signed_off_at, signed_off_by_name, waive_reason')
+    .select('id, title, type, signed_off_at, signed_off_by_name, waive_reason, client_hold_at, client_hold_by_name, client_hold_reason')
     .single();
 
   if (updateError || !updatedItem) {
@@ -165,10 +183,12 @@ export async function POST(req: NextRequest) {
   await supabase.from('itp_audit_log').insert({
     session_id: item.session_id,
     item_id: item.id,
-    action: isWaiver ? 'waive' : 'sign',
+    action: isClientHold ? 'client_hold' : isWaiver ? 'waive' : 'sign',
     performed_by_user_id: null, // public sign-off — no authenticated user
     old_values: { status: 'pending' },
-    new_values: isWaiver
+    new_values: isClientHold
+      ? { status: 'client_hold', client_hold_reason: typeof client_hold_reason === 'string' ? client_hold_reason.trim() : '' }
+      : isWaiver
       ? { status: 'waived', waive_reason: typeof waive_reason === 'string' ? waive_reason.trim() : '' }
       : { status: 'signed', signed_off_by_name: trimmedName },
   });

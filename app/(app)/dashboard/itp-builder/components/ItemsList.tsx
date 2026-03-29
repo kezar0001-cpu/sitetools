@@ -13,7 +13,7 @@ import { ITPItem, ITPSession, ItemType, Responsibility } from "./types";
 // ---------------------------------------------------------------------------
 
 const ITP_ITEM_SELECT =
-  "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, reference_standard, responsibility, records_required, acceptance_criteria";
+  "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, reference_standard, responsibility, records_required, acceptance_criteria, client_hold_reason, client_hold_by_name, client_hold_at";
 
 function formatSignedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-AU", {
@@ -96,7 +96,9 @@ interface ChecklistItemCardProps {
 }
 
 function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: ChecklistItemCardProps) {
-  const [expanded, setExpanded] = useState(item.status !== "signed" && item.status !== "waived");
+  const [expanded, setExpanded] = useState(
+    item.status !== "signed" && item.status !== "waived"
+  );
   const [deleting, setDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editType, setEditType] = useState<ItemType>(item.type);
@@ -118,6 +120,8 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
   const isSigned = item.status === "signed";
   const isWaived = item.status === "waived";
   const isPending = item.status === "pending";
+  const isClientHold = item.status === "client_hold";
+  const isResolved = isSigned || isWaived;
 
   const borderColor = typeBorderColor(item.type);
   const typeBadge = typeBadgeClasses(item.type);
@@ -168,6 +172,30 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
     setSaving(false);
   }
 
+  // ── Lift client hold (admin action — resets item back to pending) ──────────
+  async function handleLiftHold() {
+    setSaving(true);
+    const { data: updated, error } = await supabase
+      .from("itp_items")
+      .update({
+        status: "pending",
+        client_hold_reason: null,
+        client_hold_by_name: null,
+        client_hold_at: null,
+      })
+      .eq("id", item.id)
+      .eq("status", "client_hold")
+      .select(ITP_ITEM_SELECT)
+      .single();
+    if (error || !updated) {
+      toast.error("Failed to lift hold.");
+      setSaving(false);
+      return;
+    }
+    onEdit?.(updated as unknown as ITPItem);
+    setSaving(false);
+  }
+
   function handleCancelEdit() {
     setEditType(item.type);
     setEditTitle(item.title);
@@ -201,15 +229,15 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
     setWaiving(false);
   }
 
-  // Collapsed one-liner for signed/waived cards
-  if ((isSigned || isWaived) && !expanded) {
+  // Collapsed one-liner for signed/waived/client_hold cards
+  if ((isResolved || isClientHold) && !expanded) {
     return (
       <button
         onClick={() => setExpanded(true)}
-        className={`w-full text-left ${cardBg} border border-slate-200 border-l-4 ${borderColor} rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3 active:scale-95 transition-transform`}
+        className={`w-full text-left ${isClientHold ? "bg-orange-50" : cardBg} border border-l-4 ${isClientHold ? "border-orange-200 border-l-orange-500" : `border-slate-200 ${borderColor}`} rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3 active:scale-95 transition-transform`}
       >
         <span className="relative group inline-flex shrink-0 cursor-help">
-          <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${typeBadge}`}>
+          <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${isClientHold ? "bg-orange-100 text-orange-700" : typeBadge}`}>
             {typeLabel(item.type)}
           </span>
           <span className="pointer-events-none absolute left-0 top-full mt-1.5 z-20 hidden group-hover:block w-56 rounded-lg bg-slate-800 text-white text-xs leading-relaxed px-3 py-2 shadow-xl whitespace-normal">
@@ -217,7 +245,9 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
           </span>
         </span>
         <span className="flex-1 text-sm font-semibold text-slate-700 truncate">{item.title}</span>
-        {isWaived ? (
+        {isClientHold ? (
+          <span className="text-xs font-bold text-orange-700 shrink-0">⏸ Client Hold</span>
+        ) : isWaived ? (
           <span className="text-xs font-semibold text-slate-500 shrink-0">Waived</span>
         ) : (
           <span className="text-xs font-semibold text-green-600 shrink-0">Signed ✓</span>
@@ -320,7 +350,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
   }
 
   return (
-    <div className={`${cardBg} border border-slate-200 border-l-4 ${borderColor} rounded-2xl p-4 shadow-sm`}>
+    <div className={`${isClientHold ? "bg-orange-50" : cardBg} border border-l-4 ${isClientHold ? "border-orange-200 border-l-orange-500" : `border-slate-200 ${borderColor}`} rounded-2xl p-4 shadow-sm`}>
       <div className="flex items-start justify-between gap-3">
         {/* Drag handle — only for pending items */}
         {isPending && dragHandleProps && (
@@ -359,6 +389,10 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
             ) : isWaived ? (
               <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
                 Waived
+              </span>
+            ) : isClientHold ? (
+              <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                ⏸ Client Hold
               </span>
             ) : (
               <span className="text-xs font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
@@ -421,6 +455,21 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
             </div>
           )}
 
+          {isClientHold && (
+            <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2.5 space-y-1">
+              <p className="text-xs font-bold text-orange-700 uppercase tracking-wide">⏸ Client Hold Raised</p>
+              {item.client_hold_reason && (
+                <p className="text-xs text-orange-800">{item.client_hold_reason}</p>
+              )}
+              {item.client_hold_by_name && (
+                <p className="text-xs text-orange-600">Raised by <span className="font-semibold">{item.client_hold_by_name}</span></p>
+              )}
+              {item.client_hold_at && (
+                <p className="text-xs text-orange-500">{formatSignedAt(item.client_hold_at)}</p>
+              )}
+            </div>
+          )}
+
           {isWaived && item.waive_reason && (
             <div className="mt-3 text-xs text-slate-500 space-y-0.5">
               <p>
@@ -434,7 +483,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
 
         {/* Right-side actions */}
         <div className="flex flex-col items-end gap-2 shrink-0">
-          {(isSigned || isWaived) && (
+          {(isResolved || isClientHold) && (
             <button
               onClick={() => setExpanded(false)}
               className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
@@ -442,6 +491,16 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
               Collapse
             </button>
           )}
+          {isClientHold && onEdit && (
+            <button
+              onClick={handleLiftHold}
+              disabled={saving}
+              className="text-xs font-bold text-orange-700 border border-orange-300 bg-orange-50 rounded-xl px-3 py-1.5 hover:bg-orange-100 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {saving ? "Lifting…" : "Lift Hold"}
+            </button>
+          )}
+
           {isPending && (
             <button
               onClick={() => setShowQr((v) => !v)}

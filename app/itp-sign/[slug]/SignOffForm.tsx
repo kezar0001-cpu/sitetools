@@ -50,6 +50,11 @@ export default function SignOffForm({
   const [waiving, setWaiving] = useState(false);
   const [waiveError, setWaiveError] = useState<string | null>(null);
   const [waived, setWaived] = useState(false);
+  const [clientHoldOpen, setClientHoldOpen] = useState(false);
+  const [clientHoldReason, setClientHoldReason] = useState("");
+  const [placingHold, setPlacingHold] = useState(false);
+  const [holdError, setHoldError] = useState<string | null>(null);
+  const [holdPlaced, setHoldPlaced] = useState(false);
 
   // GPS auto-capture on mount
   useEffect(() => {
@@ -139,6 +144,43 @@ export default function SignOffForm({
     }
   }
 
+  async function handleClientHold() {
+    const trimmedReason = clientHoldReason.trim();
+    const trimmedName = name.trim();
+    if (!trimmedReason || !trimmedName) return;
+    setPlacingHold(true);
+    setHoldError(null);
+    try {
+      const body: Record<string, unknown> = {
+        slug,
+        name: trimmedName,
+        status: "client_hold",
+        client_hold_reason: trimmedReason,
+      };
+      if (gpsCoords) {
+        body.lat = gpsCoords.lat;
+        body.lng = gpsCoords.lng;
+      }
+      const res = await fetch("/api/itp-sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.status === 409) {
+        setAlreadySigned(true);
+        return;
+      }
+      if (!res.ok) throw new Error("network");
+      setHoldPlaced(true);
+    } catch {
+      setHoldError("Failed to place point on hold. Please check your connection.");
+    } finally {
+      setPlacingHold(false);
+    }
+  }
+
+
   async function handleWaive() {
     const trimmed = waiveReason.trim();
     if (!trimmed) return;
@@ -204,6 +246,27 @@ export default function SignOffForm({
         <h2 className="text-xl font-bold text-slate-900">Point Waived</h2>
         <p className="text-slate-500 text-sm">
           This inspection point has been waived. You can close this page.
+        </p>
+      </div>
+    );
+  }
+
+  // ── Success — Hold Placed ──────────────────────────────────────────────────
+  if (holdPlaced) {
+    return (
+      <div
+        className="fixed inset-0 bg-orange-500 flex flex-col items-center justify-center text-center text-white px-6 z-50"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        <div className="w-24 h-24 bg-white/20 rounded-full flex items-center justify-center mb-6">
+          <span className="text-4xl text-white font-bold">⏸</span>
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Client Hold Active</h2>
+        <p className="text-orange-100 text-sm max-w-sm">
+          This inspection point has been placed on hold. The site team has been notified.
         </p>
       </div>
     );
@@ -440,6 +503,59 @@ export default function SignOffForm({
             )}
           </div>
         )}
+
+        {/* Client Hold this point */}
+        <div className="pt-2">
+          {!clientHoldOpen ? (
+            <button
+              type="button"
+              onClick={() => { setClientHoldOpen(true); setWaiveOpen(false); }}
+              className="w-full text-sm font-semibold text-orange-600 border border-orange-200 bg-orange-50 rounded-2xl py-3 hover:bg-orange-100 transition-colors mt-2"
+            >
+              Place on Client Hold
+            </button>
+          ) : (
+            <div className="border border-orange-200 rounded-2xl p-4 space-y-3 bg-orange-50 mt-4">
+              <p className="text-sm font-semibold text-orange-800">Hold reason (required)</p>
+              <textarea
+                value={clientHoldReason}
+                onChange={(e) => setClientHoldReason(e.target.value)}
+                placeholder="Describe what is missing or incorrect…"
+                rows={3}
+                style={{ fontSize: "16px" }}
+                className="w-full border-2 border-orange-200 focus:border-orange-400 rounded-xl px-4 py-3 outline-none text-sm resize-none bg-white transition-colors"
+              />
+              <p className="text-xs text-orange-600 mt-1">
+                Your sign-off name must be filled in above to place a hold.
+              </p>
+              {holdError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+                  {holdError}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleClientHold}
+                  disabled={placingHold || !clientHoldReason.trim() || !name.trim()}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-3 rounded-2xl text-sm transition-all active:scale-95 disabled:active:scale-100"
+                >
+                  {placingHold ? "Placing…" : "Confirm Hold"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClientHoldOpen(false);
+                    setClientHoldReason("");
+                  }}
+                  className="px-4 bg-white border border-orange-200 text-orange-700 font-semibold rounded-2xl text-sm hover:bg-orange-50 transition-colors active:scale-95"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Sticky submit button */}

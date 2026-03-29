@@ -225,12 +225,149 @@ function ItemSignOffForm({
 }
 
 // ---------------------------------------------------------------------------
+// Inline hold form for a single item
+// ---------------------------------------------------------------------------
+
+function ItemClientHoldForm({
+  item,
+  defaultName,
+  gpsCoords,
+  onHoldPlaced,
+  onCancel,
+}: {
+  item: ItpItem;
+  defaultName: string;
+  gpsCoords: { lat: number; lng: number } | null;
+  onHoldPlaced: (updated: ItpItem, usedName: string) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(defaultName);
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim() || !reason.trim()) return;
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const body: Record<string, unknown> = {
+        slug: item.slug,
+        name: name.trim(),
+        status: "client_hold",
+        client_hold_reason: reason.trim(),
+      };
+      if (gpsCoords) {
+        body.lat = gpsCoords.lat;
+        body.lng = gpsCoords.lng;
+      }
+      const res = await fetch("/api/itp-sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.status === 409) {
+        onHoldPlaced(
+          {
+            ...item,
+            status: "client_hold",
+            client_hold_at: new Date().toISOString(),
+            client_hold_by_name: name.trim(),
+            client_hold_reason: reason.trim(),
+          },
+          name.trim()
+        );
+        return;
+      }
+
+      if (!res.ok) throw new Error("network");
+
+      const data = await res.json();
+      onHoldPlaced(
+        {
+          ...item,
+          status: "client_hold",
+          client_hold_at: data.item?.client_hold_at ?? new Date().toISOString(),
+          client_hold_by_name: name.trim(),
+          client_hold_reason: reason.trim(),
+        },
+        name.trim()
+      );
+    } catch {
+      setError("Hold failed — check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const canSubmit = name.trim().length > 0 && reason.trim().length > 0 && !submitting;
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 pt-4 border-t border-slate-100 space-y-4">
+      <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2.5 text-sm text-orange-700 font-semibold mb-2">
+        ⏸ Placing item on Client Hold
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">Your name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="Full name"
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-orange-400 transition-colors bg-white"
+        />
+      </div>
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">Reason</label>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          required
+          placeholder="Describe what is missing or incorrect…"
+          rows={3}
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 focus:border-orange-400 rounded-xl px-4 py-3 outline-none text-sm resize-none bg-white transition-colors"
+        />
+      </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black py-3 rounded-2xl transition-all active:scale-95 disabled:active:scale-100"
+        >
+          {submitting ? "Placing…" : "Confirm Hold"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-3 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl hover:bg-slate-50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main session sign-off client
 // ---------------------------------------------------------------------------
 
 export default function SessionSignOffClient({ session, initialItems }: Props) {
   const [items, setItems] = useState<ItpItem[]>(initialItems);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const [activeHoldItemId, setActiveHoldItemId] = useState<string | null>(null);
   const [lastUsedName, setLastUsedName] = useState("");
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("capturing");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -257,6 +394,7 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
     );
     setLastUsedName(usedName);
     setActiveItemId(null);
+    setActiveHoldItemId(null);
   }
 
   const signedCount = items.filter((i) => i.status === "signed").length;
@@ -340,10 +478,12 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
         const isHold = item.type === "hold";
         const isSigned = item.status === "signed";
         const isWaived = item.status === "waived";
+        const isClientHold = item.status === "client_hold";
         const isPending = item.status === "pending";
         const isActive = activeItemId === item.id;
+        const isHolding = activeHoldItemId === item.id;
 
-        const borderColor = isHold ? "border-l-red-500" : "border-l-amber-400";
+        const borderColor = isClientHold ? "border-l-orange-500" : isHold ? "border-l-red-500" : "border-l-amber-400";
         const typeBadgeColor = isHold
           ? "bg-red-100 text-red-700"
           : "bg-amber-100 text-amber-700";
@@ -351,7 +491,7 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
         return (
           <div
             key={item.id}
-            className={`bg-white border border-slate-200 border-l-4 ${borderColor} rounded-2xl p-4 shadow-sm`}
+            className={`${isClientHold ? "bg-orange-50" : "bg-white"} border ${isClientHold ? "border-orange-200" : "border-slate-200"} border-l-4 ${borderColor} rounded-2xl p-4 shadow-sm`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
@@ -370,6 +510,11 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                   {isWaived && (
                     <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                       Waived
+                    </span>
+                  )}
+                  {isClientHold && (
+                    <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">
+                      ⏸ Client Hold
                     </span>
                   )}
                   {isPending && (
@@ -421,20 +566,42 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                       )}
                   </div>
                 )}
+                {isClientHold && (
+                  <div className="mt-3 bg-orange-100 border border-orange-200 rounded-xl px-3 py-2.5 text-xs">
+                    <p className="font-bold text-orange-700 uppercase tracking-wide">⏸ Client Hold</p>
+                    {item.client_hold_reason && (
+                      <p className="text-orange-900 mt-1">{item.client_hold_reason}</p>
+                    )}
+                    {item.client_hold_by_name && (
+                      <p className="text-orange-700 mt-1">Raised by <span className="font-semibold">{item.client_hold_by_name}</span></p>
+                    )}
+                    {item.client_hold_at && (
+                      <p className="text-orange-600 mt-0.5">{formatSignedAt(item.client_hold_at)}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Sign Off button */}
-              {isPending && !isActive && (
-                <button
-                  onClick={() => setActiveItemId(item.id)}
-                  className={`shrink-0 text-sm font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 ${
-                    isHold
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-amber-400 hover:bg-amber-500 text-amber-900"
-                  }`}
-                >
-                  Sign Off
-                </button>
+              {/* Action buttons */}
+              {isPending && !isActive && !isHolding && (
+                <div className="shrink-0 flex flex-col gap-2">
+                  <button
+                    onClick={() => { setActiveItemId(item.id); setActiveHoldItemId(null); }}
+                    className={`text-sm font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 ${
+                      isHold
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-amber-400 hover:bg-amber-500 text-amber-900"
+                    }`}
+                  >
+                    Sign Off
+                  </button>
+                  <button
+                    onClick={() => { setActiveHoldItemId(item.id); setActiveItemId(null); }}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 bg-orange-100 hover:bg-orange-200 text-orange-700"
+                  >
+                    Place on Hold
+                  </button>
+                </div>
               )}
             </div>
 
@@ -446,6 +613,17 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                 gpsCoords={gpsCoords}
                 onSigned={handleSigned}
                 onCancel={() => setActiveItemId(null)}
+              />
+            )}
+
+            {/* Inline client-hold form */}
+            {isHolding && (
+              <ItemClientHoldForm
+                item={item}
+                defaultName={lastUsedName}
+                gpsCoords={gpsCoords}
+                onHoldPlaced={handleSigned}
+                onCancel={() => setActiveHoldItemId(null)}
               />
             )}
           </div>
