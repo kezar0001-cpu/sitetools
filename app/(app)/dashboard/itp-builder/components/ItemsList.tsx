@@ -6,11 +6,14 @@ import { QRCodeSVG } from "qrcode.react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { ITPItem, ITPSession, ItemType } from "./types";
+import { ITPItem, ITPSession, ItemType, Responsibility } from "./types";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const ITP_ITEM_SELECT =
+  "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, reference_standard, responsibility, records_required, acceptance_criteria";
 
 function formatSignedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-AU", {
@@ -22,6 +25,48 @@ function formatSignedAt(iso: string): string {
     timeZoneName: "short",
     timeZone: "Australia/Sydney",
   });
+}
+
+function typeLabel(type: ItemType): string {
+  if (type === "hold") return "HOLD";
+  if (type === "review") return "REVIEW";
+  return "WITNESS";
+}
+
+function typeBadgeClasses(type: ItemType): string {
+  if (type === "hold") return "bg-red-100 text-red-700";
+  if (type === "review") return "bg-blue-100 text-blue-700";
+  return "bg-amber-100 text-amber-700";
+}
+
+function typeBorderColor(type: ItemType): string {
+  if (type === "hold") return "border-l-red-500";
+  if (type === "review") return "border-l-blue-400";
+  return "border-l-amber-400";
+}
+
+function typeCardBg(type: ItemType): string {
+  if (type === "hold") return "bg-red-50";
+  if (type === "review") return "bg-blue-50";
+  return "bg-amber-50";
+}
+
+function typeTooltipText(type: ItemType): string {
+  if (type === "hold") return "Hold: Work must stop until this item is signed off by the Superintendent.";
+  if (type === "review") return "Review: Document or record review — no physical site inspection required.";
+  return "Witness: Inspector must be notified; work may continue if they don't attend.";
+}
+
+function responsibilityLabel(r?: Responsibility | null): string {
+  if (r === "superintendent") return "Superintendent";
+  if (r === "third_party") return "Third Party";
+  return "Contractor";
+}
+
+function responsibilityBadgeClasses(r?: Responsibility | null): string {
+  if (r === "superintendent") return "bg-violet-100 text-violet-700";
+  if (r === "third_party") return "bg-emerald-100 text-emerald-700";
+  return "bg-slate-100 text-slate-600";
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +107,10 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
   const [editType, setEditType] = useState<ItemType>(item.type);
   const [editTitle, setEditTitle] = useState(item.title);
   const [editDescription, setEditDescription] = useState(item.description ?? "");
+  const [editReferenceStandard, setEditReferenceStandard] = useState(item.reference_standard ?? "");
+  const [editResponsibility, setEditResponsibility] = useState<Responsibility>(item.responsibility ?? "contractor");
+  const [editRecordsRequired, setEditRecordsRequired] = useState(item.records_required ?? "");
+  const [editAcceptanceCriteria, setEditAcceptanceCriteria] = useState(item.acceptance_criteria ?? "");
   const [saving, setSaving] = useState(false);
   const [waiveOpen, setWaiveOpen] = useState(false);
   const [waiveReason, setWaiveReason] = useState("");
@@ -74,14 +123,11 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
   const isSigned = item.status === "signed";
   const isWaived = item.status === "waived";
   const isPending = item.status === "pending";
-  const isHold = item.type === "hold";
 
-  const borderColor = isHold ? "border-l-red-500" : "border-l-amber-400";
-  const typeBadge = isHold ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700";
-  const cardBg = isHold ? "bg-red-50" : "bg-amber-50";
-  const typeTooltip = isHold
-    ? "Hold: Work must stop until this item is signed off"
-    : "Witness: Inspector must be notified; work may continue.";
+  const borderColor = typeBorderColor(item.type);
+  const typeBadge = typeBadgeClasses(item.type);
+  const cardBg = typeCardBg(item.type);
+  const typeTooltip = typeTooltipText(item.type);
 
   async function handleDelete() {
     if (!onDelete) return;
@@ -105,18 +151,24 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
     setSaving(true);
     const { data: updated, error } = await supabase
       .from("itp_items")
-      .update({ type: editType, title: trimmedTitle, description: editDescription.trim() })
+      .update({
+        type: editType,
+        title: trimmedTitle,
+        description: editDescription.trim(),
+        reference_standard: editReferenceStandard.trim() || null,
+        responsibility: editResponsibility,
+        records_required: editRecordsRequired.trim() || null,
+        acceptance_criteria: editAcceptanceCriteria.trim() || null,
+      })
       .eq("id", item.id)
-      .select(
-        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
-      )
+      .select(ITP_ITEM_SELECT)
       .single();
     if (error || !updated) {
       toast.error("Failed to save changes.");
       setSaving(false);
       return;
     }
-    onEdit?.(updated as ITPItem);
+    onEdit?.(updated as unknown as ITPItem);
     setIsEditing(false);
     setSaving(false);
   }
@@ -125,6 +177,10 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
     setEditType(item.type);
     setEditTitle(item.title);
     setEditDescription(item.description ?? "");
+    setEditReferenceStandard(item.reference_standard ?? "");
+    setEditResponsibility(item.responsibility ?? "contractor");
+    setEditRecordsRequired(item.records_required ?? "");
+    setEditAcceptanceCriteria(item.acceptance_criteria ?? "");
     setIsEditing(false);
   }
 
@@ -137,16 +193,14 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
       .update({ status: "waived", waive_reason: trimmed, signed_off_at: new Date().toISOString() })
       .eq("id", item.id)
       .eq("status", "pending")
-      .select(
-        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason"
-      )
+      .select(ITP_ITEM_SELECT)
       .single();
     if (error || !updated) {
       toast.error("Failed to waive item.");
       setWaiving(false);
       return;
     }
-    onEdit?.(updated as ITPItem);
+    onEdit?.(updated as unknown as unknown as ITPItem);
     setWaiveOpen(false);
     setWaiveReason("");
     setWaiving(false);
@@ -161,7 +215,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
       >
         <span className="relative group inline-flex shrink-0 cursor-help">
           <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${typeBadge}`}>
-            {isHold ? "HOLD" : "WITNESS"}
+            {typeLabel(item.type)}
           </span>
           <span className="pointer-events-none absolute left-0 top-full mt-1.5 z-20 hidden group-hover:block w-56 rounded-lg bg-slate-800 text-white text-xs leading-relaxed px-3 py-2 shadow-xl whitespace-normal">
             {typeTooltip}
@@ -179,35 +233,32 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
 
   // Inline edit form
   if (isEditing) {
-    const editBorder = editType === "hold" ? "border-l-red-500" : "border-l-amber-400";
+    const editBorder = typeBorderColor(editType);
     return (
       <div className={`bg-white border border-slate-200 border-l-4 ${editBorder} rounded-2xl p-4 shadow-sm`}>
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
           Edit Inspection Point
         </p>
+        {/* Type selector */}
         <div className="flex gap-2 mb-3">
-          <button
-            type="button"
-            onClick={() => setEditType("witness")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-              editType === "witness"
-                ? "bg-amber-100 border-amber-300 text-amber-700"
-                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-            }`}
-          >
-            WITNESS
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditType("hold")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-              editType === "hold"
-                ? "bg-red-100 border-red-300 text-red-700"
-                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-            }`}
-          >
-            HOLD
-          </button>
+          {(["witness", "hold", "review"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setEditType(t)}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                editType === t
+                  ? t === "hold"
+                    ? "bg-red-100 border-red-300 text-red-700"
+                    : t === "review"
+                    ? "bg-blue-100 border-blue-300 text-blue-700"
+                    : "bg-amber-100 border-amber-300 text-amber-700"
+                  : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+              }`}
+            >
+              {t.toUpperCase()}
+            </button>
+          ))}
         </div>
         <input
           value={editTitle}
@@ -219,10 +270,42 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
         <textarea
           value={editDescription}
           onChange={(e) => setEditDescription(e.target.value)}
-          placeholder="Acceptance criterion (optional)"
+          placeholder="Description"
           rows={2}
           style={{ fontSize: "16px" }}
-          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-3 bg-white transition-colors"
+          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-2 bg-white transition-colors"
+        />
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <input
+            value={editReferenceStandard}
+            onChange={(e) => setEditReferenceStandard(e.target.value)}
+            placeholder="Reference standard (e.g. AS 3600 Cl. 17.1.3)"
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+          />
+          <select
+            value={editResponsibility}
+            onChange={(e) => setEditResponsibility(e.target.value as Responsibility)}
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+          >
+            <option value="contractor">Contractor</option>
+            <option value="superintendent">Superintendent</option>
+            <option value="third_party">Third Party</option>
+          </select>
+        </div>
+        <input
+          value={editAcceptanceCriteria}
+          onChange={(e) => setEditAcceptanceCriteria(e.target.value)}
+          placeholder="Acceptance criteria (e.g. ≥98% MDD per AS 1289.5.4.1)"
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
+        />
+        <input
+          value={editRecordsRequired}
+          onChange={(e) => setEditRecordsRequired(e.target.value)}
+          placeholder="Records required (e.g. NATA-accredited test report)"
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-3 bg-white transition-colors"
         />
         <div className="flex gap-2">
           <button
@@ -265,12 +348,17 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
           <div className="flex items-center gap-2 flex-wrap">
             <span className="relative group inline-flex cursor-help">
               <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded-full ${typeBadge}`}>
-                {isHold ? "HOLD" : "WITNESS"}
+                {typeLabel(item.type)}
               </span>
               <span className="pointer-events-none absolute left-0 top-full mt-1.5 z-20 hidden group-hover:block w-56 rounded-lg bg-slate-800 text-white text-xs leading-relaxed px-3 py-2 shadow-xl whitespace-normal">
                 {typeTooltip}
               </span>
             </span>
+            {item.responsibility && (
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${responsibilityBadgeClasses(item.responsibility)}`}>
+                {responsibilityLabel(item.responsibility)}
+              </span>
+            )}
             {isSigned ? (
               <span className="text-xs font-semibold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                 Signed ✓
@@ -290,6 +378,30 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
 
           {item.description && (
             <p className="mt-1 text-sm text-slate-500">{item.description}</p>
+          )}
+
+          {/* Structured ITP fields */}
+          {(item.reference_standard || item.acceptance_criteria || item.records_required) && (
+            <div className="mt-2 space-y-1">
+              {item.reference_standard && (
+                <p className="text-xs text-slate-500">
+                  <span className="font-semibold text-slate-600">Ref:</span>{" "}
+                  <span className="font-mono">{item.reference_standard}</span>
+                </p>
+              )}
+              {item.acceptance_criteria && (
+                <p className="text-xs text-slate-500">
+                  <span className="font-semibold text-slate-600">Criteria:</span>{" "}
+                  {item.acceptance_criteria}
+                </p>
+              )}
+              {item.records_required && (
+                <p className="text-xs text-slate-500">
+                  <span className="font-semibold text-slate-600">Records:</span>{" "}
+                  {item.records_required}
+                </p>
+              )}
+            </div>
           )}
 
           {isSigned && (
@@ -442,7 +554,12 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
   const [type, setType] = useState<ItemType>("witness");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [referenceStandard, setReferenceStandard] = useState("");
+  const [responsibility, setResponsibility] = useState<Responsibility>("contractor");
+  const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
+  const [recordsRequired, setRecordsRequired] = useState("");
   const [adding, setAdding] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function handleSubmit() {
     const trimmedTitle = title.trim();
@@ -451,13 +568,27 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
     try {
       const { data: item, error } = await supabase
         .from("itp_items")
-        .insert({ session_id: sessionId, type, title: trimmedTitle, description: description.trim(), sort_order: nextOrder })
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng")
+        .insert({
+          session_id: sessionId,
+          type,
+          title: trimmedTitle,
+          description: description.trim(),
+          reference_standard: referenceStandard.trim() || null,
+          responsibility,
+          records_required: recordsRequired.trim() || null,
+          acceptance_criteria: acceptanceCriteria.trim() || null,
+          sort_order: nextOrder,
+        })
+        .select(ITP_ITEM_SELECT)
         .single();
       if (error || !item) throw error ?? new Error("Insert failed");
-      onAdd(item as ITPItem);
+      onAdd(item as unknown as ITPItem);
       setTitle("");
       setDescription("");
+      setReferenceStandard("");
+      setResponsibility("contractor");
+      setAcceptanceCriteria("");
+      setRecordsRequired("");
     } catch {
       toast.error("Failed to add item.");
     } finally {
@@ -471,33 +602,29 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
         Add Inspection Point
       </p>
       <div className="flex gap-2 mb-3">
-        <button
-          type="button"
-          onClick={() => setType("witness")}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-            type === "witness"
-              ? "bg-amber-100 border-amber-300 text-amber-700"
-              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-          }`}
-        >
-          WITNESS POINT
-        </button>
-        <button
-          type="button"
-          onClick={() => setType("hold")}
-          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
-            type === "hold"
-              ? "bg-red-100 border-red-300 text-red-700"
-              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-          }`}
-        >
-          HOLD POINT
-        </button>
+        {(["witness", "hold", "review"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setType(t)}
+            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${
+              type === t
+                ? t === "hold"
+                  ? "bg-red-100 border-red-300 text-red-700"
+                  : t === "review"
+                  ? "bg-blue-100 border-blue-300 text-blue-700"
+                  : "bg-amber-100 border-amber-300 text-amber-700"
+                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+            }`}
+          >
+            {t.toUpperCase()}
+          </button>
+        ))}
       </div>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="e.g. Dimensions and levels check"
+        placeholder="e.g. Pre-pour reinforcement inspection"
         style={{ fontSize: "16px" }}
         className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
         onKeyDown={(e) => {
@@ -507,11 +634,58 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
       <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        placeholder="Acceptance criterion (optional)"
+        placeholder="Description of what is being inspected"
         rows={2}
         style={{ fontSize: "16px" }}
-        className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-3 bg-white transition-colors"
+        className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm resize-none mb-2 bg-white transition-colors"
       />
+
+      {/* Toggle for advanced fields */}
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="text-xs font-semibold text-slate-500 hover:text-slate-700 mb-2 transition-colors"
+      >
+        {showAdvanced ? "− Hide details" : "+ Standard, criteria & records"}
+      </button>
+
+      {showAdvanced && (
+        <div className="space-y-2 mb-3">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={referenceStandard}
+              onChange={(e) => setReferenceStandard(e.target.value)}
+              placeholder="Ref standard (e.g. AS 3600 Cl. 17.1.3)"
+              style={{ fontSize: "16px" }}
+              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+            />
+            <select
+              value={responsibility}
+              onChange={(e) => setResponsibility(e.target.value as Responsibility)}
+              className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+            >
+              <option value="contractor">Contractor</option>
+              <option value="superintendent">Superintendent</option>
+              <option value="third_party">Third Party</option>
+            </select>
+          </div>
+          <input
+            value={acceptanceCriteria}
+            onChange={(e) => setAcceptanceCriteria(e.target.value)}
+            placeholder="Acceptance criteria (e.g. ≥98% MDD)"
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+          />
+          <input
+            value={recordsRequired}
+            onChange={(e) => setRecordsRequired(e.target.value)}
+            placeholder="Records required (e.g. NATA test report)"
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
+          />
+        </div>
+      )}
+
       <button
         onClick={handleSubmit}
         disabled={adding || !title.trim()}

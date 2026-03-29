@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import SessionSignOffClient from "./SessionSignOffClient";
 
-type ItemType = "hold" | "witness";
+type ItemType = "hold" | "witness" | "review";
 type ItemStatus = "pending" | "signed" | "waived";
 
 export interface ItpItem {
@@ -16,6 +16,9 @@ export interface ItpItem {
   signed_off_by_name: string | null;
   sign_off_lat: number | null;
   sign_off_lng: number | null;
+  reference_standard: string | null;
+  responsibility: string | null;
+  acceptance_criteria: string | null;
 }
 
 export interface ItpSession {
@@ -78,7 +81,7 @@ export default async function ItpSessionSignPage({
   const { data: itemsData } = await supabase
     .from("itp_items")
     .select(
-      "id, slug, title, description, type, status, sort_order, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
+      "id, slug, title, description, type, status, sort_order, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, acceptance_criteria"
     )
     .eq("session_id", sessionId)
     .order("sort_order", { ascending: true });

@@ -9,8 +9,11 @@ interface Props {
   slug: string;
   title: string;
   description: string | null;
-  type: "hold" | "witness";
+  type: "hold" | "witness" | "review";
   taskDescription: string | null;
+  referenceStandard?: string | null;
+  responsibility?: string | null;
+  acceptanceCriteria?: string | null;
 }
 
 interface SignOffResult {
@@ -26,6 +29,9 @@ export default function SignOffForm({
   description,
   type,
   taskDescription,
+  referenceStandard,
+  responsibility,
+  acceptanceCriteria,
 }: Props) {
   const [name, setName] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -278,9 +284,13 @@ export default function SignOffForm({
     <form onSubmit={handleSubmit} className="space-y-6 pb-28">
       {/* Header */}
       <div className="space-y-3">
-        {isHold ? (
+        {type === "hold" ? (
           <span className="inline-flex items-center gap-2 bg-red-100 text-red-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-red-200">
             🔴 HOLD POINT
+          </span>
+        ) : type === "review" ? (
+          <span className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-blue-200">
+            🔵 REVIEW POINT
           </span>
         ) : (
           <span className="inline-flex items-center gap-2 bg-amber-100 text-amber-700 font-black text-lg px-4 py-2 rounded-2xl border-2 border-amber-200">
@@ -296,6 +306,30 @@ export default function SignOffForm({
 
         <h1 className="text-xl font-bold text-slate-900">{title}</h1>
         {description && <p className="text-base text-slate-600">{description}</p>}
+
+        {/* Structured ITP details */}
+        {(referenceStandard || acceptanceCriteria || responsibility) && (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
+            {referenceStandard && (
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Standard:</span>{" "}
+                <span className="font-mono">{referenceStandard}</span>
+              </p>
+            )}
+            {acceptanceCriteria && (
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Acceptance criteria:</span>{" "}
+                {acceptanceCriteria}
+              </p>
+            )}
+            {responsibility && (
+              <p className="text-xs text-slate-600">
+                <span className="font-semibold">Verification by:</span>{" "}
+                {responsibility === "superintendent" ? "Superintendent" : responsibility === "third_party" ? "Third Party" : "Contractor"}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Form fields */}

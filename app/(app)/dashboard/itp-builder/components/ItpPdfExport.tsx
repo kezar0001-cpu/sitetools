@@ -9,8 +9,9 @@ import { supabase } from "@/lib/supabase";
 // Types (match DB column names)
 // ---------------------------------------------------------------------------
 
-type ItemType = "hold" | "witness";
+type ItemType = "hold" | "witness" | "review";
 type ItemStatus = "pending" | "signed" | "waived";
+type Responsibility = "contractor" | "superintendent" | "third_party";
 
 export interface ItpItem {
   id: string;
@@ -27,6 +28,10 @@ export interface ItpItem {
   sign_off_lng: number | null;
   waive_reason?: string | null;
   signature?: string | null;
+  reference_standard?: string | null;
+  responsibility?: Responsibility | null;
+  records_required?: string | null;
+  acceptance_criteria?: string | null;
 }
 
 export interface ItpSession {
@@ -58,6 +63,18 @@ function formatAU(iso: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function responsibilityLabel(r?: Responsibility | null): string {
+  if (r === "superintendent") return "Supt.";
+  if (r === "third_party") return "3rd Party";
+  return "Contractor";
+}
+
+function typeCode(type: ItemType): string {
+  if (type === "hold") return "H";
+  if (type === "review") return "R";
+  return "W";
 }
 
 // ---------------------------------------------------------------------------
@@ -94,57 +111,68 @@ export default function ItpPdfExport({ session }: Props) {
         // Continue without signatures
       }
 
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 14;
+      const margin = 10;
       const generatedAt = formatAU(new Date().toISOString());
       const companyName = session.company_name ?? "";
       const projectSite = [session.project_name, session.site_name]
         .filter(Boolean)
-        .join(" › ");
+        .join(" > ");
 
       // ── Header ──────────────────────────────────────────────────────────────
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text("INSPECTION & TEST PLAN", margin, 18);
+      doc.text("INSPECTION & TEST PLAN", margin, 14);
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      doc.text(session.task_description, margin, 27);
-      doc.text(`Generated: ${generatedAt}`, margin, 33);
+      doc.text(session.task_description, margin, 21);
 
-      let nextY = 33;
+      let nextY = 21;
       if (companyName) {
-        nextY += 6;
+        nextY += 5;
         doc.text(companyName, margin, nextY);
       }
       if (projectSite) {
-        nextY += 6;
+        nextY += 5;
         doc.text(projectSite, margin, nextY);
       }
+      nextY += 5;
+      doc.text(`Generated: ${generatedAt}`, margin, nextY);
 
       if (!isComplete) {
-        nextY += 6;
+        nextY += 5;
         doc.setTextColor(200, 100, 0);
         doc.setFont("helvetica", "bold");
         doc.text("STATUS: DRAFT — IN PROGRESS", margin, nextY);
         doc.setFont("helvetica", "normal");
       }
 
-      doc.setTextColor(0);
-      const startY = nextY + 7;
+      // Legend
+      nextY += 5;
+      doc.setFontSize(7);
+      doc.setTextColor(120);
+      doc.text("H = Hold Point (mandatory stop)    W = Witness Point (notification)    R = Review (document check)    C = Contractor    S = Superintendent    TP = Third Party", margin, nextY);
 
-      // ── Summary table ────────────────────────────────────────────────────────
+      doc.setTextColor(0);
+      const startY = nextY + 4;
+
+      // ── ITP Summary Table ─────────────────────────────────────────────────
       const bodyRows = items.map((item, i) => {
         const isSigned = item.status === "signed";
         const isWaived = item.status === "waived";
-        const notes = isWaived && item.waive_reason ? item.waive_reason : "";
+
         return [
           String(i + 1),
-          item.type.toUpperCase(),
+          typeCode(item.type),
           item.title,
+          item.reference_standard || "—",
+          item.acceptance_criteria || item.description || "—",
+          responsibilityLabel(item.responsibility),
+          item.records_required || "—",
           isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
           (isSigned || isWaived) && item.signed_off_by_name
             ? item.signed_off_by_name
@@ -152,34 +180,38 @@ export default function ItpPdfExport({ session }: Props) {
           (isSigned || isWaived) && item.signed_off_at
             ? formatAU(item.signed_off_at)
             : "",
-          notes,
         ];
       });
 
       autoTable(doc, {
-        head: [["#", "Type", "Title", "Status", "Signed By", "Date/Time", "Notes"]],
+        head: [["#", "Type", "Activity / Inspection", "Reference Standard", "Acceptance Criteria", "Resp.", "Records Required", "Status", "Signed By", "Date/Time"]],
         body: bodyRows,
         startY,
         styles: {
-          fontSize: 7.5,
-          cellPadding: 2.5,
+          fontSize: 6.5,
+          cellPadding: 1.8,
           overflow: "linebreak",
+          lineWidth: 0.1,
+          lineColor: [200, 200, 200],
         },
         headStyles: {
-          fillColor: [251, 191, 36],
-          textColor: [113, 63, 18],
+          fillColor: [109, 40, 217], // violet-700
+          textColor: [255, 255, 255],
           fontStyle: "bold",
           halign: "center",
-          fontSize: 8,
+          fontSize: 6.5,
         },
         columnStyles: {
-          0: { cellWidth: 8, halign: "center" },
-          1: { cellWidth: 16, halign: "center" },
-          2: { cellWidth: 42 },
-          3: { cellWidth: 18, halign: "center" },
-          4: { cellWidth: 28 },
-          5: { cellWidth: 32 },
-          6: { cellWidth: "auto" },
+          0: { cellWidth: 7, halign: "center" },
+          1: { cellWidth: 10, halign: "center", fontStyle: "bold" },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 30, fontStyle: "italic", fontSize: 6 },
+          4: { cellWidth: 50 },
+          5: { cellWidth: 16, halign: "center" },
+          6: { cellWidth: 40 },
+          7: { cellWidth: 14, halign: "center" },
+          8: { cellWidth: 24 },
+          9: { cellWidth: 28 },
         },
         margin: { left: margin, right: margin },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -188,24 +220,35 @@ export default function ItpPdfExport({ session }: Props) {
           const item = items[data.row.index];
           if (!item) return;
 
+          // Row background by type
           if (item.type === "hold") {
             data.cell.styles.fillColor = [254, 242, 242];
+          } else if (item.type === "review") {
+            data.cell.styles.fillColor = [239, 246, 255];
           } else {
             data.cell.styles.fillColor = [255, 251, 235];
           }
 
+          // Type column coloring
           if (data.column.index === 1) {
-            data.cell.styles.fontStyle = "bold";
             if (item.type === "hold") {
               data.cell.styles.textColor = [185, 28, 28];
+            } else if (item.type === "review") {
+              data.cell.styles.textColor = [29, 78, 216];
             } else {
               data.cell.styles.textColor = [146, 64, 14];
             }
           }
 
-          if (data.column.index === 3 && item.status === "pending") {
-            data.cell.styles.textColor = [156, 163, 175];
-            data.cell.styles.fontStyle = "italic";
+          // Status column styling
+          if (data.column.index === 7) {
+            if (item.status === "signed") {
+              data.cell.styles.textColor = [22, 101, 52];
+              data.cell.styles.fontStyle = "bold";
+            } else if (item.status === "pending") {
+              data.cell.styles.textColor = [156, 163, 175];
+              data.cell.styles.fontStyle = "italic";
+            }
           }
         },
       });
@@ -217,24 +260,25 @@ export default function ItpPdfExport({ session }: Props) {
 
       if (resolvedItems.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let y = (doc as any).lastAutoTable.finalY + 14;
+        let y = (doc as any).lastAutoTable.finalY + 12;
 
         if (y + 20 > pageHeight - 20) {
           doc.addPage();
-          y = 20;
+          y = 16;
         }
 
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(15, 23, 42);
         doc.text("SIGN-OFF RECORDS", margin, y);
-        y += 10;
+        y += 8;
 
         for (const item of resolvedItems) {
           const isHold = item.type === "hold";
+          const isReview = item.type === "review";
           const hasSig = item.status === "signed" && sigMap.has(item.slug);
-          const sigH = 26;
-          const sigW = 80;
+          const sigH = 22;
+          const sigW = 70;
           const noteLines =
             item.waive_reason
               ? (doc.splitTextToSize(
@@ -243,48 +287,48 @@ export default function ItpPdfExport({ session }: Props) {
                 ) as string[])
               : [];
           const blockH =
-            7 + // title row
-            6 + // meta row
-            (hasSig ? sigH + 4 : 0) +
-            (noteLines.length > 0 ? noteLines.length * 4.5 + 3 : 0) +
-            6; // bottom padding
+            7 +
+            6 +
+            (hasSig ? sigH + 3 : 0) +
+            (noteLines.length > 0 ? noteLines.length * 4 + 2 : 0) +
+            5;
 
-          if (y + blockH > pageHeight - 20) {
+          if (y + blockH > pageHeight - 16) {
             doc.addPage();
-            y = 20;
+            y = 16;
           }
 
           // Card background
           doc.setFillColor(
-            isHold ? 254 : 255,
-            isHold ? 242 : 251,
-            isHold ? 242 : 235
+            isHold ? 254 : isReview ? 239 : 255,
+            isHold ? 242 : isReview ? 246 : 251,
+            isHold ? 242 : isReview ? 255 : 235
           );
-          doc.roundedRect(margin, y - 4, pageWidth - margin * 2, blockH, 2, 2, "F");
+          doc.roundedRect(margin, y - 3, pageWidth - margin * 2, blockH, 2, 2, "F");
 
           // Type badge
           doc.setFontSize(7);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(
-            isHold ? 185 : 146,
-            isHold ? 28 : 64,
-            isHold ? 28 : 14
+            isHold ? 185 : isReview ? 29 : 146,
+            isHold ? 28 : isReview ? 78 : 64,
+            isHold ? 28 : isReview ? 216 : 14
           );
-          doc.text(item.type.toUpperCase(), margin + 2, y + 1);
+          doc.text(typeCode(item.type), margin + 2, y + 1);
 
           // Title
-          doc.setFontSize(9);
+          doc.setFontSize(8);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(15, 23, 42);
           const titleLine = doc.splitTextToSize(
             item.title,
             pageWidth - margin * 2 - 26
           ) as string[];
-          doc.text(titleLine[0], margin + 24, y + 1);
+          doc.text(titleLine[0], margin + 14, y + 1);
           y += 7;
 
           // Meta: date · name · status
-          doc.setFontSize(8);
+          doc.setFontSize(7);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 116, 139);
           const metaParts: string[] = [];
@@ -300,19 +344,19 @@ export default function ItpPdfExport({ session }: Props) {
             doc.setFillColor(255, 255, 255);
             doc.roundedRect(margin + 2, y, sigW, sigH, 1, 1, "F");
             doc.addImage(dataUrl, "PNG", margin + 2, y, sigW, sigH);
-            y += sigH + 4;
+            y += sigH + 3;
           }
 
           // Notes
           if (noteLines.length > 0) {
-            doc.setFontSize(7.5);
+            doc.setFontSize(7);
             doc.setFont("helvetica", "italic");
             doc.setTextColor(100, 116, 139);
             doc.text(noteLines, margin + 2, y);
-            y += noteLines.length * 4.5 + 3;
+            y += noteLines.length * 4 + 2;
           }
 
-          y += 6;
+          y += 5;
           doc.setTextColor(0);
         }
       }
@@ -340,11 +384,11 @@ export default function ItpPdfExport({ session }: Props) {
       // ── Footer on every page ─────────────────────────────────────────────────
       for (let p = 1; p <= totalPages; p++) {
         doc.setPage(p);
-        doc.setFontSize(7.5);
+        doc.setFontSize(7);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(160);
-        doc.text("Generated by SiteITP · Buildstate", margin, pageHeight - 8);
-        doc.text(`Page ${p} of ${totalPages}`, pageWidth - margin, pageHeight - 8, {
+        doc.text("Generated by SiteITP · Buildstate", margin, pageHeight - 6);
+        doc.text(`Page ${p} of ${totalPages}`, pageWidth - margin, pageHeight - 6, {
           align: "right",
         });
         doc.setTextColor(0);

@@ -21,10 +21,16 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 // Types
 // ---------------------------------------------------------------------------
 
+type Responsibility = "contractor" | "superintendent" | "third_party";
+
 interface ItpItem {
-  type: "witness" | "hold";
+  type: "witness" | "hold" | "review";
   title: string;
   description: string;
+  reference_standard?: string;
+  responsibility?: Responsibility;
+  records_required?: string;
+  acceptance_criteria?: string;
 }
 
 interface GeneratedItp {
@@ -83,7 +89,7 @@ function validateItps(raw: unknown): GeneratedItp[] | null {
       if (
         typeof item !== "object" ||
         item === null ||
-        !["witness", "hold"].includes(item.type) ||
+        !["witness", "hold", "review"].includes(item.type) ||
         typeof item.title !== "string" ||
         typeof item.description !== "string"
       ) {
@@ -186,12 +192,16 @@ export async function POST(req: NextRequest) {
         type: item.type,
         title: item.title,
         description: item.description,
+        reference_standard: item.reference_standard || null,
+        responsibility: item.responsibility || "contractor",
+        records_required: item.records_required || null,
+        acceptance_criteria: item.acceptance_criteria || null,
         sort_order: idx + 1,
       }));
       const { data: inserted, error: insertErr } = await supabaseAdmin
         .from("itp_items")
         .insert(rows)
-        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng");
+        .select("id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
       if (insertErr || !inserted) continue;
 
       createdSessions.push({ session, items: inserted });
@@ -492,6 +502,10 @@ ${documentText}`;
       type: item.type,
       title: item.title,
       description: item.description,
+      reference_standard: item.reference_standard || null,
+      responsibility: item.responsibility || "contractor",
+      records_required: item.records_required || null,
+      acceptance_criteria: item.acceptance_criteria || null,
       sort_order: idx + 1,
     }));
 
@@ -499,7 +513,7 @@ ${documentText}`;
       .from("itp_items")
       .insert(rows)
       .select(
-        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng"
+        "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria"
       );
 
     if (insertErr || !inserted) {
