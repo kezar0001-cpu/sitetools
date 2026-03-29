@@ -75,6 +75,7 @@ function extractTextFromTxt(buffer: Buffer): string {
 // ---------------------------------------------------------------------------
 
 const VALID_TYPES = ["witness", "hold", "review"];
+const VALID_RESPONSIBILITIES = ["contractor", "superintendent", "third_party"];
 
 function normaliseItem(item: Record<string, unknown>, phase?: string): boolean {
   if (
@@ -85,6 +86,10 @@ function normaliseItem(item: Record<string, unknown>, phase?: string): boolean {
   ) return false;
   if (phase) item.phase = phase;
   else if (typeof item.phase !== "string" || !(item.phase as string).trim()) item.phase = undefined;
+  if (typeof item.reference_standard !== "string") item.reference_standard = "";
+  if (!VALID_RESPONSIBILITIES.includes(item.responsibility as string)) item.responsibility = "contractor";
+  if (typeof item.records_required !== "string") item.records_required = "";
+  if (typeof item.acceptance_criteria !== "string") item.acceptance_criteria = "";
   return true;
 }
 
