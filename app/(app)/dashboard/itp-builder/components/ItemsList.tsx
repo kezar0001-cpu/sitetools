@@ -13,7 +13,7 @@ import { ITPItem, ITPSession, ItemType, Responsibility } from "./types";
 // ---------------------------------------------------------------------------
 
 const ITP_ITEM_SELECT =
-  "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria";
+  "id, session_id, slug, type, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, waive_reason, reference_standard, responsibility, records_required, acceptance_criteria";
 
 function formatSignedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-AU", {
@@ -168,7 +168,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
       setSaving(false);
       return;
     }
-    onEdit?.(updated as ITPItem);
+    onEdit?.(updated as unknown as ITPItem);
     setIsEditing(false);
     setSaving(false);
   }
@@ -193,14 +193,14 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
       .update({ status: "waived", waive_reason: trimmed, signed_off_at: new Date().toISOString() })
       .eq("id", item.id)
       .eq("status", "pending")
-      .select(ITP_ITEM_SELECT + ", waive_reason")
+      .select(ITP_ITEM_SELECT)
       .single();
     if (error || !updated) {
       toast.error("Failed to waive item.");
       setWaiving(false);
       return;
     }
-    onEdit?.(updated as ITPItem);
+    onEdit?.(updated as unknown as unknown as ITPItem);
     setWaiveOpen(false);
     setWaiveReason("");
     setWaiving(false);
@@ -582,7 +582,7 @@ function AddItemForm({ sessionId, nextOrder, onAdd }: AddItemFormProps) {
         .select(ITP_ITEM_SELECT)
         .single();
       if (error || !item) throw error ?? new Error("Insert failed");
-      onAdd(item as ITPItem);
+      onAdd(item as unknown as ITPItem);
       setTitle("");
       setDescription("");
       setReferenceStandard("");
