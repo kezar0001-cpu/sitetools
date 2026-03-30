@@ -363,6 +363,23 @@ function ITPBuilderPageInner() {
     }
   }
 
+  async function handleAssignProject(projectId: string | null, siteId: string | null) {
+    if (!activeSession) return;
+    const { data: { session: authSession } } = await supabase.auth.getSession();
+    const res = await fetch(`/api/itp-sessions/${activeSession.id}/assign`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authSession?.access_token ?? ""}` },
+      body: JSON.stringify({ project_id: projectId, site_id: siteId }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { error?: string }).error ?? "Failed to assign");
+    }
+    const updated = { ...activeSession, project_id: projectId, site_id: siteId };
+    setActiveSession(updated);
+    setSessions((prev) => prev.map((s) => s.id === activeSession.id ? { ...s, project_id: projectId, site_id: siteId } : s));
+  }
+
   async function handleStatusChange(newStatus: string) {
     if (!activeSession) return;
     setUpdatingStatus(true);
@@ -580,6 +597,8 @@ function ITPBuilderPageInner() {
               projectName={activeProjectName}
               siteName={activeSiteName}
               companyName={summary?.activeMembership?.companies?.name ?? null}
+              projects={projects}
+              allSites={allSites}
               updatingStatus={updatingStatus}
               showSessionQR={showSessionQR}
               showSaveTemplate={showSaveTemplate}
@@ -589,6 +608,7 @@ function ITPBuilderPageInner() {
               auditLogs={auditLogs}
               auditLoading={auditLoading}
               onStatusChange={handleStatusChange}
+              onAssignProject={handleAssignProject}
               onToggleSessionQR={() => setShowSessionQR((v) => !v)}
               onToggleSaveTemplate={() => setShowSaveTemplate((v) => !v)}
               onToggleAuditTrail={() => setShowAuditTrail((v) => !v)}

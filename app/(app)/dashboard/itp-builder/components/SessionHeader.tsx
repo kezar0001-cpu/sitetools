@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
-import { ITPSession, ITPItem, AuditLogEntry } from "./types";
+import { ITPSession, ITPItem, AuditLogEntry, ProjectOption, SiteOption } from "./types";
 import ItpPdfExport from "./ItpPdfExport";
 
 // ---------------------------------------------------------------------------
@@ -15,6 +16,8 @@ export interface SessionHeaderProps {
   projectName: string | null;
   siteName: string | null;
   companyName: string | null;
+  projects: ProjectOption[];
+  allSites: SiteOption[];
   updatingStatus: boolean;
   showSessionQR: boolean;
   showSaveTemplate: boolean;
@@ -24,6 +27,7 @@ export interface SessionHeaderProps {
   auditLogs: AuditLogEntry[];
   auditLoading: boolean;
   onStatusChange: (status: string) => void;
+  onAssignProject: (projectId: string | null, siteId: string | null) => Promise<void>;
   onToggleSessionQR: () => void;
   onToggleSaveTemplate: () => void;
   onToggleAuditTrail: () => void;
@@ -43,6 +47,8 @@ export default function SessionHeader({
   projectName,
   siteName,
   companyName,
+  projects,
+  allSites,
   updatingStatus,
   showSessionQR,
   showSaveTemplate,
@@ -52,6 +58,7 @@ export default function SessionHeader({
   auditLogs,
   auditLoading,
   onStatusChange,
+  onAssignProject,
   onToggleSessionQR,
   onToggleSaveTemplate,
   onToggleAuditTrail,
@@ -63,6 +70,28 @@ export default function SessionHeader({
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const sessionUrl = `${baseUrl}/itp-sign/session/${session.id}`;
   const signedCount = items.filter((i) => i.status === "signed").length;
+
+  const [showAssignPanel, setShowAssignPanel] = useState(false);
+  const [assignProjectId, setAssignProjectId] = useState(session.project_id ?? "");
+  const [assignSiteId, setAssignSiteId] = useState(session.site_id ?? "");
+  const [assigning, setAssigning] = useState(false);
+
+  const filteredSites = assignProjectId
+    ? allSites.filter((s) => s.project_id === assignProjectId)
+    : allSites;
+
+  async function handleAssign() {
+    setAssigning(true);
+    try {
+      await onAssignProject(assignProjectId || null, assignSiteId || null);
+      setShowAssignPanel(false);
+      toast.success("Project assigned.");
+    } catch {
+      toast.error("Failed to assign project.");
+    } finally {
+      setAssigning(false);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -184,6 +213,20 @@ export default function SessionHeader({
           Audit Trail
         </button>
         <button
+          onClick={() => {
+            setAssignProjectId(session.project_id ?? "");
+            setAssignSiteId(session.site_id ?? "");
+            setShowAssignPanel((v) => !v);
+          }}
+          className={`text-xs font-semibold border rounded-xl px-3 py-1.5 active:scale-95 transition-all ${
+            showAssignPanel
+              ? "bg-slate-800 border-slate-700 text-white"
+              : "text-slate-600 border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          {session.project_id ? "Change Project" : "Assign to Project"}
+        </button>
+        <button
           onClick={onDeleteClick}
           className="text-xs text-red-400 hover:text-red-600 transition-colors px-1"
           title="Delete this ITP"
@@ -191,6 +234,61 @@ export default function SessionHeader({
           Delete
         </button>
       </div>
+
+      {/* Assign to Project panel */}
+      {showAssignPanel && (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+            {session.project_id ? "Change Project / Site" : "Assign to Project"}
+          </p>
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Project</label>
+              <select
+                value={assignProjectId}
+                onChange={(e) => {
+                  setAssignProjectId(e.target.value);
+                  setAssignSiteId("");
+                }}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 transition-colors"
+              >
+                <option value="">No project</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Site</label>
+              <select
+                value={assignSiteId}
+                onChange={(e) => setAssignSiteId(e.target.value)}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:border-violet-400 transition-colors"
+              >
+                <option value="">No site</option>
+                {filteredSites.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAssign}
+              disabled={assigning}
+              className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold rounded-xl py-2.5 text-sm active:scale-95 transition-transform"
+            >
+              {assigning ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={() => setShowAssignPanel(false)}
+              className="px-4 bg-white border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Session QR panel */}
       {showSessionQR && (
