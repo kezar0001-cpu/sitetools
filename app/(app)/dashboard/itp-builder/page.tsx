@@ -118,8 +118,11 @@ function ITPBuilderPageInner() {
   // ── Mobile layout: "list" or "detail" ─────────────────────────────────────
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
+  // ── Auto-open modal when navigated here with ?new=1 ──────────────────────
+  const autoOpenModal = searchParams.get("new") === "1";
+
   // ── Modal state ────────────────────────────────────────────────────────────
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(autoOpenModal);
   const [createModalInitialMode, setCreateModalInitialMode] = useState<"ai" | "manual" | "import" | "template">("ai");
 
   // ── Active session state ───────────────────────────────────────────────────
@@ -154,6 +157,15 @@ function ITPBuilderPageInner() {
 
   // ── Generating skeleton (for AI generation in-progress display) ────────────
   const [generating] = useState(false);
+
+  // ── Strip ?new=1 from URL after it has triggered the modal ────────────────
+  useEffect(() => {
+    if (!autoOpenModal) return;
+    const qs = new URLSearchParams(searchParams.toString());
+    qs.delete("new");
+    const next = qs.toString() ? `?${qs.toString()}` : window.location.pathname;
+    router.replace(next, { scroll: false });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load data on mount / company change ───────────────────────────────────
   useEffect(() => {

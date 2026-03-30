@@ -8,24 +8,42 @@ import type { ItpItem, ItpSession } from "./page";
 // Types
 // ---------------------------------------------------------------------------
 
-type GpsStatus = "capturing" | "captured" | "unavailable";
+export interface SignoffRecord {
+  id: string;
+  item_id: string;
+  name: string;
+  role: string;
+  signed_at: string;
+}
 
 interface ItemSignOffFormProps {
   item: ItpItem;
   defaultName: string;
-  gpsCoords: { lat: number; lng: number } | null;
-  onSigned: (updated: ItpItem, usedName: string) => void;
+  onSigned: (updated: ItpItem, usedName: string, signoff: SignoffRecord) => void;
   onCancel: () => void;
 }
 
 interface Props {
   session: ItpSession;
   initialItems: ItpItem[];
+  initialSignoffs: SignoffRecord[];
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "superintendent", label: "Superintendent" },
+  { value: "third_party", label: "Third Party" },
+  { value: "designer", label: "Designer" },
+  { value: "inspector", label: "Inspector" },
+  { value: "contractor", label: "Contractor" },
+];
+
+function roleLabel(role: string): string {
+  return ROLE_OPTIONS.find((r) => r.value === role)?.label ?? role;
+}
 
 function formatSignedAt(iso: string): string {
   return new Date(iso).toLocaleString("en-AU", {
@@ -44,11 +62,11 @@ function formatSignedAt(iso: string): string {
 function ItemSignOffForm({
   item,
   defaultName,
-  gpsCoords,
   onSigned,
   onCancel,
 }: ItemSignOffFormProps) {
   const [name, setName] = useState(defaultName);
+  const [role, setRole] = useState("superintendent");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,52 +107,44 @@ function ItemSignOffForm({
     setError(null);
 
     try {
-      const body: Record<string, unknown> = {
-        slug: item.slug,
-        name: name.trim(),
-        signature: signatureData,
-      };
-      if (gpsCoords) {
-        body.lat = gpsCoords.lat;
-        body.lng = gpsCoords.lng;
-      }
-
       const res = await fetch("/api/itp-sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          slug: item.slug,
+          name: name.trim(),
+          role,
+          signature: signatureData,
+        }),
       });
 
-      if (res.status === 409) {
-        // Race — treat as already signed
-        onSigned(
-          {
-            ...item,
-            status: "signed",
-            signed_off_by_name: name.trim(),
-            signed_off_at: new Date().toISOString(),
-          },
-          name.trim()
-        );
-        return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "network");
       }
 
-      if (!res.ok) throw new Error("network");
+      const signoff: SignoffRecord = {
+        id: crypto.randomUUID(),
+        item_id: item.id,
+        name: name.trim(),
+        role,
+        signed_at: new Date().toISOString(),
+      };
 
-      const data = await res.json();
       onSigned(
         {
           ...item,
           status: "signed",
-          signed_off_at: data.item?.signed_off_at ?? new Date().toISOString(),
+          signed_off_at: signoff.signed_at,
           signed_off_by_name: name.trim(),
-          sign_off_lat: gpsCoords?.lat ?? null,
-          sign_off_lng: gpsCoords?.lng ?? null,
+          sign_off_lat: null,
+          sign_off_lng: null,
         },
-        name.trim()
+        name.trim(),
+        signoff
       );
-    } catch {
-      setError("Sign-off failed — check your connection and try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-off failed — check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -153,6 +163,25 @@ function ItemSignOffForm({
           ⛔ Hold point — work cannot proceed until signed
         </div>
       )}
+
+      {/* Role */}
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">
+          Your role
+        </label>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-amber-400 transition-colors bg-white"
+        >
+          {ROLE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Name */}
       <div className="space-y-1.5">
@@ -231,14 +260,12 @@ function ItemSignOffForm({
 function ItemClientHoldForm({
   item,
   defaultName,
-  gpsCoords,
   onHoldPlaced,
   onCancel,
 }: {
   item: ItpItem;
   defaultName: string;
-  gpsCoords: { lat: number; lng: number } | null;
-  onHoldPlaced: (updated: ItpItem, usedName: string) => void;
+  onHoldPlaced: (updated: ItpItem, usedName: string, signoff: SignoffRecord) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(defaultName);
@@ -254,20 +281,15 @@ function ItemClientHoldForm({
     setError(null);
 
     try {
-      const body: Record<string, unknown> = {
-        slug: item.slug,
-        name: name.trim(),
-        status: "client_hold",
-        client_hold_reason: reason.trim(),
-      };
-      if (gpsCoords) {
-        body.lat = gpsCoords.lat;
-        body.lng = gpsCoords.lng;
-      }
       const res = await fetch("/api/itp-sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          slug: item.slug,
+          name: name.trim(),
+          status: "client_hold",
+          client_hold_reason: reason.trim(),
+        }),
       });
 
       if (res.status === 409) {
@@ -279,7 +301,8 @@ function ItemClientHoldForm({
             client_hold_by_name: name.trim(),
             client_hold_reason: reason.trim(),
           },
-          name.trim()
+          name.trim(),
+          { id: crypto.randomUUID(), item_id: item.id, name: name.trim(), role: "contractor", signed_at: new Date().toISOString() }
         );
         return;
       }
@@ -295,7 +318,8 @@ function ItemClientHoldForm({
           client_hold_by_name: name.trim(),
           client_hold_reason: reason.trim(),
         },
-        name.trim()
+        name.trim(),
+        { id: crypto.randomUUID(), item_id: item.id, name: name.trim(), role: "contractor", signed_at: new Date().toISOString() }
       );
     } catch {
       setError("Hold failed — check your connection and try again.");
@@ -364,34 +388,18 @@ function ItemClientHoldForm({
 // Main session sign-off client
 // ---------------------------------------------------------------------------
 
-export default function SessionSignOffClient({ session, initialItems }: Props) {
+export default function SessionSignOffClient({ session, initialItems, initialSignoffs }: Props) {
   const [items, setItems] = useState<ItpItem[]>(initialItems);
+  const [signoffs, setSignoffs] = useState<SignoffRecord[]>(initialSignoffs);
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const [activeHoldItemId, setActiveHoldItemId] = useState<string | null>(null);
   const [lastUsedName, setLastUsedName] = useState("");
-  const [gpsStatus, setGpsStatus] = useState<GpsStatus>("capturing");
-  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
 
-  // Capture GPS once on mount — shared across all sign-offs on this page
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setGpsStatus("unavailable");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGpsStatus("captured");
-      },
-      () => setGpsStatus("unavailable"),
-      { timeout: 10_000, enableHighAccuracy: false }
-    );
-  }, []);
-
-  function handleSigned(updatedItem: ItpItem, usedName: string) {
+  function handleSigned(updatedItem: ItpItem, usedName: string, signoff: SignoffRecord) {
     setItems((prev) =>
       prev.map((i) => (i.id === updatedItem.id ? updatedItem : i))
     );
+    setSignoffs((prev) => [...prev, signoff]);
     setLastUsedName(usedName);
     setActiveItemId(null);
     setActiveHoldItemId(null);
@@ -432,13 +440,6 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
             />
           </div>
         )}
-
-        {/* GPS status */}
-        <p className="mt-2 text-xs text-slate-400">
-          {gpsStatus === "capturing" && "📍 Acquiring GPS location…"}
-          {gpsStatus === "captured" && "📍 Location ready"}
-          {gpsStatus === "unavailable" && "📍 Location unavailable"}
-        </p>
       </div>
 
       {/* ── Complete banner ──────────────────────────────────────────── */}
@@ -482,6 +483,8 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
         const isPending = item.status === "pending";
         const isActive = activeItemId === item.id;
         const isHolding = activeHoldItemId === item.id;
+
+        const itemSignoffs = signoffs.filter((s) => s.item_id === item.id);
 
         const borderColor = isClientHold ? "border-l-orange-500" : isHold ? "border-l-red-500" : "border-l-amber-400";
         const typeBadgeColor = isHold
@@ -536,36 +539,21 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                   </p>
                 )}
 
-                {/* Sign-off details */}
-                {isSigned && (
-                  <div className="mt-3 text-xs text-slate-400 space-y-0.5">
-                    {item.signed_off_by_name && (
-                      <p>
-                        Signed by{" "}
-                        <span className="font-medium text-slate-600">
-                          {item.signed_off_by_name}
-                        </span>
-                      </p>
-                    )}
-                    {item.signed_off_at && (
-                      <p>{formatSignedAt(item.signed_off_at)}</p>
-                    )}
-                    {item.sign_off_lat != null &&
-                      item.sign_off_lng != null && (
-                        <p className="font-mono">
-                          <a
-                            href={`https://maps.google.com/?q=${item.sign_off_lat},${item.sign_off_lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-violet-600 transition-colors"
-                          >
-                            {item.sign_off_lat.toFixed(5)},{" "}
-                            {item.sign_off_lng.toFixed(5)}
-                          </a>
-                        </p>
-                      )}
+                {/* Sign-off records */}
+                {itemSignoffs.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {itemSignoffs.map((s) => (
+                      <div key={s.id} className="flex items-center gap-2 text-xs text-slate-500">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                        <span className="font-semibold text-slate-700">{s.name}</span>
+                        <span className="text-slate-400">—</span>
+                        <span>{roleLabel(s.role)}</span>
+                        <span className="text-slate-400 ml-auto shrink-0">{formatSignedAt(s.signed_at)}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
+
                 {isClientHold && (
                   <div className="mt-3 bg-orange-100 border border-orange-200 rounded-xl px-3 py-2.5 text-xs">
                     <p className="font-bold text-orange-700 uppercase tracking-wide">⏸ Client Hold</p>
@@ -590,7 +578,9 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                     className={`text-sm font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 ${
                       isHold
                         ? "bg-red-500 hover:bg-red-600 text-white"
-                        : "bg-amber-400 hover:bg-amber-500 text-amber-900"
+                        : isSigned
+                          ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
+                          : "bg-amber-400 hover:bg-amber-500 text-amber-900"
                     }`}
                   >
                     Sign Off
@@ -612,7 +602,6 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
               <ItemSignOffForm
                 item={item}
                 defaultName={lastUsedName}
-                gpsCoords={gpsCoords}
                 onSigned={handleSigned}
                 onCancel={() => setActiveItemId(null)}
               />
@@ -623,7 +612,6 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
               <ItemClientHoldForm
                 item={item}
                 defaultName={lastUsedName}
-                gpsCoords={gpsCoords}
                 onHoldPlaced={handleSigned}
                 onCancel={() => setActiveHoldItemId(null)}
               />

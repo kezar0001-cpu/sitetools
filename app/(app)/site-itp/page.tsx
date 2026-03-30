@@ -327,7 +327,7 @@ function SiteITPDashboardInner() {
           </p>
         </div>
         <button
-          onClick={() => router.push("/dashboard/itp-builder")}
+          onClick={() => router.push("/dashboard/itp-builder?new=1")}
           className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-xl px-4 py-2 text-sm transition-colors active:scale-95"
         >
           + New ITP
@@ -364,7 +364,7 @@ function SiteITPDashboardInner() {
             Create your first inspection &amp; test plan to get started.
           </p>
           <button
-            onClick={() => router.push("/dashboard/itp-builder")}
+            onClick={() => router.push("/dashboard/itp-builder?new=1")}
             className="mt-5 bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-xl px-5 py-2.5 text-sm transition-colors active:scale-95"
           >
             Create ITP
