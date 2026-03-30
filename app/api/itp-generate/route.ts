@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getSecret } from "@/lib/server/get-secret";
 
 export const runtime = "nodejs";
 
@@ -9,8 +10,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 type Responsibility = "contractor" | "superintendent" | "third_party";
 
@@ -23,71 +22,6 @@ interface ItpItem {
   responsibility: Responsibility;
   records_required: string;
   acceptance_criteria: string;
-}
-
-function fallbackItems(phaseName?: string): ItpItem[] {
-  return [
-    {
-      type: "witness",
-      phase: phaseName || undefined,
-      title: "Material delivery and conformance",
-      description: "Verify delivered materials match approved specifications and check test certificates.",
-      reference_standard: "Project specification",
-      responsibility: "contractor",
-      records_required: "Delivery dockets, material test certificates",
-      acceptance_criteria: "Materials conform to specified grade with valid test certificates",
-    },
-    {
-      type: "hold",
-      phase: phaseName || undefined,
-      title: "Set-out and levels verification",
-      description: "Survey confirms all dimensions, alignments, and levels within design tolerances.",
-      reference_standard: "Project drawings",
-      responsibility: "superintendent",
-      records_required: "Registered surveyor set-out certificate",
-      acceptance_criteria: "All dimensions and levels within ±10 mm of design",
-    },
-    {
-      type: "witness",
-      phase: phaseName || undefined,
-      title: "Formwork and reinforcement check",
-      description: "Inspect formwork alignment, bracing, and reinforcement placement.",
-      reference_standard: "AS 3600 Cl. 17.1.3",
-      responsibility: "contractor",
-      records_required: "Inspection checklist, photographs",
-      acceptance_criteria: "Cover ≥40 mm per AS 3600 Table 4.10.3.2",
-    },
-    {
-      type: "hold",
-      phase: phaseName || undefined,
-      title: "Pre-pour superintendent inspection",
-      description: "Mandatory hold for superintendent inspection before concrete is placed.",
-      reference_standard: "AS 3600",
-      responsibility: "superintendent",
-      records_required: "Hold point release form, inspection photographs",
-      acceptance_criteria: "All preceding items signed off, work conforms to drawings",
-    },
-    {
-      type: "witness",
-      phase: phaseName || undefined,
-      title: "In-process quality testing",
-      description: "Conduct required quality tests and verify acceptance criteria met.",
-      reference_standard: "Project specification",
-      responsibility: "third_party",
-      records_required: "NATA-accredited test reports",
-      acceptance_criteria: "All test results within specification limits",
-    },
-    {
-      type: "witness",
-      phase: phaseName || undefined,
-      title: "Post-work visual inspection",
-      description: "Inspect completed work for defects and conformance to drawings.",
-      reference_standard: "Project specification",
-      responsibility: "contractor",
-      records_required: "Completion photographs, inspection checklist",
-      acceptance_criteria: "Work free of visible defects, within specified tolerances",
-    },
-  ];
 }
 
 function validateItems(raw: unknown): ItpItem[] | null {
@@ -117,6 +51,10 @@ function validateItems(raw: unknown): ItpItem[] | null {
 // SSE helper: send a named event
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +111,9 @@ Hold points only at critical stages (levels, formwork, pre-cover etc.).
 
 Return ONLY a valid JSON array of 5–10 items. No markdown, no explanation, no code fences.`;
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
 export async function POST(req: NextRequest) {
   // Authenticate via Bearer token
   const authHeader = req.headers.get("authorization");
@@ -221,6 +162,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 
+  // Resolve Anthropic API key from env or Supabase vault
+  const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "AI service not configured — API key not found." },
+      { status: 500 }
+    );
+  }
+  const anthropic = new Anthropic({ apiKey });
+
   // Set up SSE stream
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -232,9 +183,6 @@ export async function POST(req: NextRequest) {
       // Step 1: Analyzing task
       send("status", { step: "analyzing", message: "Analysing task requirements…" });
 
-      let items: ItpItem[];
-      let usedFallback = false;
-
       // Build the user prompt with optional phase context
       const phaseContext = phase_name?.trim()
         ? `\nPhase: ${phase_name.trim()}`
@@ -243,75 +191,99 @@ export async function POST(req: NextRequest) {
         .replace("{TASK}", task_description)
         .replace("{PHASE_CONTEXT}", phaseContext);
 
-      try {
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 30_000);
+      // Attempt AI generation with retries
+      let items: ItpItem[] | null = null;
+      let lastError = "";
 
-        let responseText = "";
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+          send("status", { step: "retrying", message: `Retrying generation (attempt ${attempt + 1})…` });
+          await sleep(RETRY_DELAY_MS);
+        }
+
         try {
-          // Step 2: Generating ITP phase
-          send("status", { step: "generating", message: phase_name?.trim() ? `Generating phase: ${phase_name.trim()}…` : "Generating inspection & test plan…" });
+          const abortController = new AbortController();
+          const timeoutId = setTimeout(() => abortController.abort(), 30_000);
 
-          const streamResponse = anthropic.messages.stream(
-            {
-              model: "claude-sonnet-4-6",
-              max_tokens: 4096,
-              system: SYSTEM_PROMPT,
-              messages: [
-                {
-                  role: "user",
-                  content: userPrompt,
-                },
-              ],
-            },
-            { signal: abortController.signal }
-          );
+          let responseText = "";
+          try {
+            // Step 2: Generating ITP phase
+            if (attempt === 0) {
+              send("status", { step: "generating", message: phase_name?.trim() ? `Generating phase: ${phase_name.trim()}…` : "Generating inspection & test plan…" });
+            }
 
-          // Stream text chunks to the client
-          for await (const event of streamResponse) {
-            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-              responseText += event.delta.text;
-              send("chunk", { text: event.delta.text });
+            const streamResponse = anthropic.messages.stream(
+              {
+                model: "claude-sonnet-4-6",
+                max_tokens: 4096,
+                system: SYSTEM_PROMPT,
+                messages: [
+                  {
+                    role: "user",
+                    content: userPrompt,
+                  },
+                ],
+              },
+              { signal: abortController.signal }
+            );
+
+            // Stream text chunks to the client
+            for await (const event of streamResponse) {
+              if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+                responseText += event.delta.text;
+                send("chunk", { text: event.delta.text });
+              }
+            }
+
+            clearTimeout(timeoutId);
+          } catch (err) {
+            clearTimeout(timeoutId);
+            lastError = err instanceof Error ? err.message : "Claude request failed";
+            console.error(`[itp-generate] AI attempt ${attempt + 1} stream error:`, lastError);
+            continue;
+          }
+
+          // Parse and validate the JSON response
+          responseText = responseText.trim();
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(responseText);
+          } catch {
+            // Try to extract JSON array from response
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = null; }
+            } else {
+              parsed = null;
             }
           }
 
-          clearTimeout(timeoutId);
-        } catch {
-          clearTimeout(timeoutId);
-          throw new Error("Claude request failed");
-        }
-
-        // Parse and validate the JSON response
-        responseText = responseText.trim();
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(responseText);
-        } catch {
-          // Try to extract JSON array from response
-          const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = null; }
+          const validated = parsed !== null ? validateItems(parsed) : null;
+          if (validated) {
+            // Apply phase_name to all items if provided
+            if (phase_name?.trim()) {
+              for (const item of validated) {
+                item.phase = phase_name.trim();
+              }
+            }
+            items = validated;
+            break; // Success — exit retry loop
           } else {
-            parsed = null;
+            lastError = "AI response could not be parsed into valid inspection items";
+            console.error(`[itp-generate] AI attempt ${attempt + 1} validation failed. Response: ${responseText.slice(0, 200)}`);
           }
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : "Unexpected error";
+          console.error(`[itp-generate] AI attempt ${attempt + 1} error:`, lastError);
         }
+      }
 
-        const validated = parsed !== null ? validateItems(parsed) : null;
-        if (validated) {
-          // Apply phase_name to all items if provided
-          if (phase_name?.trim()) {
-            for (const item of validated) {
-              item.phase = phase_name.trim();
-            }
-          }
-          items = validated;
-        } else {
-          items = fallbackItems(phase_name?.trim());
-          usedFallback = true;
-        }
-      } catch {
-        items = fallbackItems(phase_name?.trim());
-        usedFallback = true;
+      // If all retries exhausted, send error to client
+      if (!items) {
+        console.error(`[itp-generate] All ${MAX_RETRIES + 1} attempts failed. Last error: ${lastError}`);
+        send("error", { error: "AI generation failed — please try again." });
+        controller.close();
+        return;
       }
 
       // Step 3: Saving items
@@ -410,7 +382,6 @@ export async function POST(req: NextRequest) {
       send("done", {
         session,
         items: inserted,
-        meta: { usedFallback },
       });
 
       controller.close();

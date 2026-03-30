@@ -705,7 +705,7 @@ function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: 
               if (currentEvent === "status") {
                 setAiGeneratingStatus(data.message);
               } else if (currentEvent === "done") {
-                const result = data as { session: unknown; items: ITPItem[]; meta: { usedFallback: boolean } };
+                const result = data as { session: unknown; items: ITPItem[] };
                 if (onAddMultiple) {
                   onAddMultiple(result.items);
                 } else {
