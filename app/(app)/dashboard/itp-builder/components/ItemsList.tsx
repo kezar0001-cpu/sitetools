@@ -321,13 +321,6 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
           onChange={(e) => setEditAcceptanceCriteria(e.target.value)}
           placeholder="Acceptance criteria (e.g. ≥98% MDD per AS 1289.5.4.1)"
           style={{ fontSize: "16px" }}
-          className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-2 bg-white transition-colors"
-        />
-        <input
-          value={editRecordsRequired}
-          onChange={(e) => setEditRecordsRequired(e.target.value)}
-          placeholder="Records required (e.g. NATA-accredited test report)"
-          style={{ fontSize: "16px" }}
           className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm mb-3 bg-white transition-colors"
         />
         <div className="flex gap-2">
@@ -408,7 +401,7 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
           )}
 
           {/* Structured ITP fields */}
-          {(item.reference_standard || item.acceptance_criteria || item.records_required) && (
+          {(item.reference_standard || item.acceptance_criteria) && (
             <div className="mt-2 space-y-1">
               {item.reference_standard && (
                 <p className="text-xs text-slate-500">
@@ -420,12 +413,6 @@ function ChecklistItemCard({ item, onDelete, onEdit, dragHandleProps }: Checklis
                 <p className="text-xs text-slate-500">
                   <span className="font-semibold text-slate-600">Criteria:</span>{" "}
                   {item.acceptance_criteria}
-                </p>
-              )}
-              {item.records_required && (
-                <p className="text-xs text-slate-500">
-                  <span className="font-semibold text-slate-600">Records:</span>{" "}
-                  {item.records_required}
                 </p>
               )}
             </div>
@@ -770,6 +757,7 @@ function AddItemForm({ sessionId, companyId, nextOrder, defaultPhase, onAdd, onA
       const rows = data.items.map((item, idx) => ({
         session_id: sessionId,
         type: item.type,
+        phase: defaultPhase?.trim() || null,
         title: item.title,
         description: item.description,
         reference_standard: item.reference_standard || null,
@@ -880,7 +868,7 @@ function AddItemForm({ sessionId, companyId, nextOrder, defaultPhase, onAdd, onA
             onClick={() => setShowAdvanced((v) => !v)}
             className="text-xs font-semibold text-slate-500 hover:text-slate-700 mb-2 transition-colors"
           >
-            {showAdvanced ? "− Hide details" : "+ Standard, criteria & records"}
+            {showAdvanced ? "− Hide details" : "+ Standard & criteria"}
           </button>
           {showAdvanced && (
             <div className="space-y-2 mb-3">
@@ -906,13 +894,6 @@ function AddItemForm({ sessionId, companyId, nextOrder, defaultPhase, onAdd, onA
                 value={acceptanceCriteria}
                 onChange={(e) => setAcceptanceCriteria(e.target.value)}
                 placeholder="Acceptance criteria (e.g. ≥98% MDD)"
-                style={{ fontSize: "16px" }}
-                className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
-              />
-              <input
-                value={recordsRequired}
-                onChange={(e) => setRecordsRequired(e.target.value)}
-                placeholder="Records required (e.g. NATA test report)"
                 style={{ fontSize: "16px" }}
                 className="w-full border-2 border-slate-200 focus:border-amber-400 rounded-xl px-3 py-2.5 outline-none text-sm bg-white transition-colors"
               />
@@ -1220,8 +1201,8 @@ export default function ItemsList({
         </Droppable>
       </DragDropContext>
 
-      {/* Global add item — only show when not tied to a specific phase */}
-      {showAddItem && !addItemPhase ? (
+      {/* Global add item — only show when not tied to a specific phase, and no phases exist */}
+      {showAddItem && !addItemPhase && !hasPhases ? (
         <AddItemForm
           sessionId={session.id}
           companyId={session.company_id}
