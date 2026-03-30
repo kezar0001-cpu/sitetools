@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  if (item.status !== 'pending') {
+  if (item.status !== 'pending' && item.status !== 'client_hold') {
     return NextResponse.json({ error: 'Already signed' }, { status: 409 });
   }
 
@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
     .from('itp_items')
     .update(updatePayload)
     .eq('slug', slug)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'client_hold'])
     .select('id, title, type, signed_off_at, signed_off_by_name, waive_reason, client_hold_at, client_hold_by_name, client_hold_reason')
     .single();
 
