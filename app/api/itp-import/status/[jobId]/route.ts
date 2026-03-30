@@ -28,7 +28,7 @@ export async function GET(
     return NextResponse.json({ error: "Invalid session." }, { status: 401 });
   }
 
-  const job = getJob(jobId);
+  const job = await getJob(jobId);
   if (!job) {
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
@@ -75,7 +75,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid session." }, { status: 401 });
   }
 
-  const job = getJob(jobId);
+  const job = await getJob(jobId);
   if (!job) {
     return NextResponse.json({ error: "Job not found." }, { status: 404 });
   }
@@ -83,11 +83,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 
-  // Abort the in-flight request
+  // Abort the in-flight request (only works if cancel hits the same instance)
   if (job.abortController) {
     job.abortController.abort();
   }
-  deleteJob(jobId);
+  await deleteJob(jobId);
 
   return NextResponse.json({ cancelled: true });
 }

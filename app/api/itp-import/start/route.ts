@@ -175,9 +175,9 @@ AS 3600, AS 1379, AS 1012, AS 3610 (concrete) | AS/NZS 4671 (rebar) | AS 4100, A
 
 Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`;
 
-function updateJob(jobId: string, updates: Partial<ImportJob>) {
-  const job = getJob(jobId);
-  if (job) setJob({ ...job, ...updates });
+async function updateJob(jobId: string, updates: Partial<ImportJob>) {
+  const job = await getJob(jobId);
+  if (job) await setJob({ ...job, ...updates });
 }
 
 export async function POST(req: NextRequest) {
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
   // Create job
   const jobId = randomUUID();
   const abortController = new AbortController();
-  const job: ImportJob = {
+  const job: ImportJob & { abortController: AbortController } = {
     id: jobId,
     userId: user.id,
     step: "uploading",
@@ -247,16 +247,19 @@ export async function POST(req: NextRequest) {
     abortController,
     createdAt: Date.now(),
   };
-  setJob(job);
+  await setJob(job);
 
-  // Return jobId immediately, process in background
+  // Return jobId immediately, process in background.
+  // NOTE: On Vercel Node.js runtime the event loop continues after the
+  // response is sent, so processImport will run to completion. If you later
+  // move to an edge / strict serverless environment, wrap this with
+  // `waitUntil` (e.g. from @vercel/functions) to guarantee execution.
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const effectiveType = (fileType && fileType !== "auto") ? fileType : ext;
   const fileName = file.name;
 
-  // Kick off background processing (non-blocking)
-  processImport(jobId, buffer, effectiveType, fileName, companyId, projectId, siteId, user.id, abortController.signal);
+  void processImport(jobId, buffer, effectiveType, fileName, companyId, projectId, siteId, user.id, abortController.signal);
 
   return NextResponse.json({ jobId });
 }
@@ -274,8 +277,8 @@ async function processImport(
 ) {
   try {
     // Step: Extracting text
-    updateJob(jobId, { step: "extracting", message: "Extracting text…", percent: 20 });
-    if (signal.aborted) { updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
+    await updateJob(jobId, { step: "extracting", message: "Extracting text…", percent: 20 });
+    if (signal.aborted) { await updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
 
     let documentText = "";
     switch (effectiveType) {
@@ -284,12 +287,12 @@ async function processImport(
       case "xlsx": case "xls": case "csv": documentText = extractTextFromExcel(buffer); break;
       case "txt": documentText = buffer.toString("utf-8"); break;
       default:
-        updateJob(jobId, { step: "error", message: "Could not process file.", percent: 0, error: "Unsupported format" });
+        await updateJob(jobId, { step: "error", message: "Could not process file.", percent: 0, error: "Unsupported format" });
         return;
     }
 
     if (!documentText.trim()) {
-      updateJob(jobId, { step: "error", message: "No text could be extracted from this document.", percent: 0, error: "Empty document" });
+      await updateJob(jobId, { step: "error", message: "No text could be extracted from this document.", percent: 0, error: "Empty document" });
       return;
     }
 
@@ -297,17 +300,17 @@ async function processImport(
       documentText = documentText.slice(0, 80_000) + "\n\n[Document truncated]";
     }
 
-    if (signal.aborted) { updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
+    if (signal.aborted) { await updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
 
     // Step: Analyzing with AI
-    updateJob(jobId, { step: "analyzing", message: "Analysing activities…", percent: 40 });
+    await updateJob(jobId, { step: "analyzing", message: "Analysing activities…", percent: 40 });
 
     const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.\n\nDocument filename: ${fileName}\n\nDocument content:\n\n${documentText}`;
 
     // Resolve Anthropic API key from env or Supabase vault
     const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
     if (!apiKey) {
-      updateJob(jobId, { step: "error", message: "AI service not configured — API key not found.", percent: 0 });
+      await updateJob(jobId, { step: "error", message: "AI service not configured — API key not found.", percent: 0 });
       return;
     }
     const anthropic = new Anthropic({ apiKey });
@@ -322,7 +325,7 @@ async function processImport(
       { signal }
     );
 
-    if (signal.aborted) { updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
+    if (signal.aborted) { await updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
 
     const textBlock = message.content.find((b) => b.type === "text");
     const responseText = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
@@ -336,19 +339,19 @@ async function processImport(
 
     const validated = parsed !== null ? validateItps(parsed) : null;
     if (!validated || validated.length === 0) {
-      updateJob(jobId, { step: "error", message: "Could not extract ITPs from this document.", percent: 0, error: "Parse failed" });
+      await updateJob(jobId, { step: "error", message: "Could not extract ITPs from this document.", percent: 0, error: "Parse failed" });
       return;
     }
 
     // Step: Creating ITPs
-    updateJob(jobId, { step: "creating", message: "Creating ITPs…", percent: 75 });
+    await updateJob(jobId, { step: "creating", message: "Creating ITPs…", percent: 75 });
 
-    if (signal.aborted) { updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
+    if (signal.aborted) { await updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
 
     const createdSessions: Array<{ session: Record<string, unknown>; items: Record<string, unknown>[] }> = [];
 
     for (const itp of validated) {
-      if (signal.aborted) { updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
+      if (signal.aborted) { await updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 }); return; }
 
       const { data: session, error: sessionErr } = await supabaseAdmin
         .from("itp_sessions")
@@ -393,11 +396,11 @@ async function processImport(
     }
 
     if (createdSessions.length === 0) {
-      updateJob(jobId, { step: "error", message: "Failed to save generated ITPs.", percent: 0, error: "DB error" });
+      await updateJob(jobId, { step: "error", message: "Failed to save generated ITPs.", percent: 0, error: "DB error" });
       return;
     }
 
-    updateJob(jobId, {
+    await updateJob(jobId, {
       step: "done",
       message: `Imported ${createdSessions.length} ITP${createdSessions.length !== 1 ? "s" : ""}`,
       percent: 100,
@@ -409,10 +412,10 @@ async function processImport(
     });
   } catch (err) {
     if (signal.aborted) {
-      updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 });
+      await updateJob(jobId, { step: "cancelled", message: "Cancelled", percent: 0 });
       return;
     }
     console.error("Import job error:", err);
-    updateJob(jobId, { step: "error", message: "Import failed. Please try again.", percent: 0, error: String(err) });
+    await updateJob(jobId, { step: "error", message: "Import failed. Please try again.", percent: 0, error: String(err) });
   }
 }
