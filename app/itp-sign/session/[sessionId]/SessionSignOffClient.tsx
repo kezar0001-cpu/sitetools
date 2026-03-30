@@ -583,7 +583,7 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
               </div>
 
               {/* Action buttons */}
-              {isPending && !isActive && !isHolding && (
+              {(isPending || isClientHold) && !isActive && !isHolding && (
                 <div className="shrink-0 flex flex-col gap-2">
                   <button
                     onClick={() => { setActiveItemId(item.id); setActiveHoldItemId(null); }}
@@ -595,12 +595,14 @@ export default function SessionSignOffClient({ session, initialItems }: Props) {
                   >
                     Sign Off
                   </button>
-                  <button
-                    onClick={() => { setActiveHoldItemId(item.id); setActiveItemId(null); }}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 bg-orange-100 hover:bg-orange-200 text-orange-700"
-                  >
-                    Place on Hold
-                  </button>
+                  {isPending && (
+                    <button
+                      onClick={() => { setActiveHoldItemId(item.id); setActiveItemId(null); }}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 bg-orange-100 hover:bg-orange-200 text-orange-700"
+                    >
+                      Place on Hold
+                    </button>
+                  )}
                 </div>
               )}
             </div>
