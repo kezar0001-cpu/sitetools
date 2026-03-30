@@ -5,6 +5,16 @@ import SignatureCanvas from "react-signature-canvas";
 
 type GpsStatus = "capturing" | "captured" | "unavailable";
 
+const ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "superintendent", label: "Superintendent" },
+  { value: "third_party", label: "Third Party" },
+  { value: "designer", label: "Designer" },
+  { value: "inspector", label: "Inspector" },
+  { value: "contractor", label: "Contractor" },
+];
+
+const VALID_ROLES = new Set(ROLE_OPTIONS.map((r) => r.value));
+
 interface Props {
   slug: string;
   title: string;
@@ -33,7 +43,10 @@ export default function SignOffForm({
   responsibility,
   acceptanceCriteria,
 }: Props) {
+  const defaultRole =
+    responsibility && VALID_ROLES.has(responsibility) ? responsibility : "superintendent";
   const [name, setName] = useState("");
+  const [role, setRole] = useState(defaultRole);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("capturing");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -108,6 +121,7 @@ export default function SignOffForm({
       const body: Record<string, unknown> = {
         slug,
         name: name.trim(),
+        role,
         signature: signatureData,
       };
       if (gpsCoords) {
@@ -393,6 +407,23 @@ export default function SignOffForm({
 
       {/* Form fields */}
       <div className="space-y-5">
+        {/* Role */}
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">Your role</label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-amber-400 transition-colors bg-white"
+          >
+            {ROLE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Name */}
         <div className="space-y-1.5">
           <label className="block text-sm font-semibold text-slate-700">Your name</label>
