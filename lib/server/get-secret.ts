@@ -7,7 +7,7 @@ const TTL_MS = 5 * 60 * 1000; // 5 minutes
  * Resolve a secret by name.
  * 1. Check process.env (local dev / platform env vars)
  * 2. Check in-memory cache
- * 3. Query the Supabase vault (vault.decrypted_secrets view)
+ * 3. Query the Supabase vault via the read_vault_secret RPC function
  */
 export async function getSecret(
   name: string,
@@ -21,22 +21,22 @@ export async function getSecret(
   const cached = cache.get(name);
   if (cached && Date.now() < cached.expiresAt) return cached.value;
 
-  // 3. Supabase vault
+  // 3. Supabase vault via RPC
   try {
-    const { data, error } = await supabaseAdmin
-      .schema("vault")
-      .from("decrypted_secrets")
-      .select("decrypted_secret")
-      .eq("name", name)
-      .maybeSingle();
+    const { data, error } = await supabaseAdmin.rpc("read_vault_secret", {
+      secret_name: name,
+    });
 
-    if (error || !data?.decrypted_secret) return null;
+    if (error || !data) return null;
+
+    const secret = typeof data === "string" ? data : null;
+    if (!secret) return null;
 
     cache.set(name, {
-      value: data.decrypted_secret,
+      value: secret,
       expiresAt: Date.now() + TTL_MS,
     });
-    return data.decrypted_secret;
+    return secret;
   } catch {
     return null;
   }
