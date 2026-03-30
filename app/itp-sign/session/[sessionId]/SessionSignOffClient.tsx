@@ -570,8 +570,8 @@ export default function SessionSignOffClient({ session, initialItems, initialSig
                 )}
               </div>
 
-              {/* Action buttons — show for pending items AND for signed items (additional sign-offs) */}
-              {!isWaived && !isClientHold && !isActive && !isHolding && (
+              {/* Action buttons */}
+              {(isPending || isClientHold) && !isActive && !isHolding && (
                 <div className="shrink-0 flex flex-col gap-2">
                   <button
                     onClick={() => { setActiveItemId(item.id); setActiveHoldItemId(null); }}
@@ -583,7 +583,7 @@ export default function SessionSignOffClient({ session, initialItems, initialSig
                           : "bg-amber-400 hover:bg-amber-500 text-amber-900"
                     }`}
                   >
-                    {isSigned ? "+ Add Signature" : "Sign Off"}
+                    Sign Off
                   </button>
                   {isPending && (
                     <button

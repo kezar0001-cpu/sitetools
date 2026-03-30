@@ -110,9 +110,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  // Waivers and client holds still require the item to be in a signable state
-  if ((isWaiver || isClientHold) && item.status !== 'pending') {
-    return NextResponse.json({ error: 'Item is not in a pending state' }, { status: 409 });
+  if (item.status !== 'pending' && item.status !== 'client_hold') {
+    return NextResponse.json({ error: 'Already signed' }, { status: 409 });
   }
   // Normal sign-offs: allow multiple people to sign the same item
 
@@ -254,8 +253,8 @@ export async function POST(req: NextRequest) {
       client_hold_by_name: trimmedName,
     })
     .eq('slug', slug)
-    .eq('status', 'pending')
-    .select('id, title, type, client_hold_at, client_hold_by_name, client_hold_reason')
+    .in('status', ['pending', 'client_hold'])
+    .select('id, title, type, signed_off_at, signed_off_by_name, waive_reason, client_hold_at, client_hold_by_name, client_hold_reason')
     .single();
 
   if (updateError || !updatedItem) {
