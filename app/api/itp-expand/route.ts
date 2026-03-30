@@ -31,7 +31,7 @@ const VALID_TYPES = ["witness", "hold"];
 const VALID_RESPONSIBILITIES = ["contractor", "superintendent", "third_party"];
 
 function validateExpandedItems(raw: unknown): ExpandedItem[] | null {
-  if (!Array.isArray(raw) || raw.length < 1 || raw.length > 8) return null;
+  if (!Array.isArray(raw) || raw.length !== 1) return null;
   for (const item of raw) {
     if (
       typeof item !== "object" ||
@@ -52,18 +52,17 @@ function validateExpandedItems(raw: unknown): ExpandedItem[] | null {
 // System prompt — item expansion
 // ---------------------------------------------------------------------------
 
-const EXPAND_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer. You take a single inspection activity description and expand it into 3–5 specific, sequential tasks that a site supervisor would actually check.
+const EXPAND_SYSTEM_PROMPT = `You are a senior Australian civil construction Quality Assurance engineer. You take a single inspection activity description and produce exactly one detailed inspection item that a site supervisor would actually check.
 
 ## What you do
 
-The user gives you a brief description like "Check the concrete pour" or "Verify drainage pipe installation". You break that into the real sequential inspection steps that happen on site.
+The user gives you a brief description like "Check the concrete pour" or "Verify drainage pipe installation". You identify the single most important inspection check for that activity and return it as one fully-specified inspection item.
 
 ## Rules
-- Return 3–5 items (no more, no less)
-- Each item is one specific check in the construction sequence
-- Keep titles short (max 8 words) and action-oriented
-- Keep descriptions to one plain sentence
-- Use "hold" type ONLY if the step is a genuine critical quality gate (max 1 per expansion)
+- Return EXACTLY 1 item (no more, no less)
+- Keep the title short (max 8 words) and action-oriented
+- Keep the description to one plain sentence
+- Use "hold" type ONLY if the activity is a genuine critical quality gate
 - Use "witness" for everything else
 - Reference the relevant Australian Standard clause
 - Acceptance criteria must be measurable with tolerances
@@ -71,7 +70,7 @@ The user gives you a brief description like "Check the concrete pour" or "Verify
 ## Australian Standards (use those relevant)
 AS 3600, AS 1379, AS 1012, AS 3610 (concrete) | AS/NZS 4671 (rebar) | AS 4100, AS/NZS 1554 (steel/welding) | AS 1289, AS 3798 (earthworks) | Austroads AGPT04 (pavements) | AS 2159 (piling) | AS 3725, AS/NZS 3500, AS 1597 (drainage) | AS 2876 (kerb) | AS 1742 (traffic) | AS 1428 (access) | AS 2870 (residential footings) | AS 4678 (retaining walls) | WHS Regulation 2017
 
-Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`;
+Return ONLY a valid JSON array containing exactly 1 object. No markdown, no explanation, no code fences.`;
 
 // ---------------------------------------------------------------------------
 // POST /api/itp-expand
@@ -122,7 +121,7 @@ export async function POST(req: NextRequest) {
         messages: [
           {
             role: "user",
-            content: `Expand this inspection activity into 3–5 specific sequential tasks:\n\n"${description}"\n\nEach item must have:\n- type: "hold" | "witness"\n- title: short action phrase (max 8 words)\n- description: one plain sentence\n- reference_standard: Australian Standard clause\n- responsibility: "contractor" | "superintendent" | "third_party"\n- records_required: specific documents\n- acceptance_criteria: measurable criterion with tolerance\n\nReturn ONLY a valid JSON array.`,
+            content: `Generate exactly 1 inspection item for this activity:\n\n"${description}"\n\nThe item must have:\n- type: "hold" | "witness"\n- title: short action phrase (max 8 words)\n- description: one plain sentence\n- reference_standard: Australian Standard clause\n- responsibility: "superintendent" | "third_party"\n- records_required: specific documents\n- acceptance_criteria: measurable criterion with tolerance\n\nReturn ONLY a valid JSON array containing exactly 1 object.`,
           },
         ],
       },

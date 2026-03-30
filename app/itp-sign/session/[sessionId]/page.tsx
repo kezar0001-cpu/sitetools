@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import SessionSignOffClient from "./SessionSignOffClient";
+import SessionSignOffClient, { SignoffRecord } from "./SessionSignOffClient";
 
 type ItemType = "hold" | "witness";
 type ItemStatus = "pending" | "signed" | "waived" | "client_hold";
@@ -89,13 +89,25 @@ export default async function ItpSessionSignPage({
     .eq("session_id", sessionId)
     .order("sort_order", { ascending: true });
 
+  // Fetch existing sign-off records for display
+  const { data: signoffsData } = await supabase
+    .from("itp_item_signoffs")
+    .select("id, item_id, name, role, signed_at")
+    .eq("session_id", sessionId)
+    .order("signed_at", { ascending: true });
+
   const items = (itemsData ?? []) as ItpItem[];
   const session = sessionData as ItpSession;
+  const signoffs = (signoffsData ?? []) as SignoffRecord[];
 
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-lg mx-auto px-4 py-8">
-        <SessionSignOffClient session={session} initialItems={items} />
+        <SessionSignOffClient
+          session={session}
+          initialItems={items}
+          initialSignoffs={signoffs}
+        />
       </div>
     </div>
   );

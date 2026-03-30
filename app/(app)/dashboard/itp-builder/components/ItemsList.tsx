@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ListX } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
@@ -600,11 +600,12 @@ interface AddItemFormProps {
   sessionId: string;
   companyId: string;
   nextOrder: number;
+  defaultPhase?: string;
   onAdd: (item: ITPItem) => void;
   onAddMultiple?: (items: ITPItem[]) => void;
 }
 
-function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: AddItemFormProps) {
+function AddItemForm({ sessionId, companyId, nextOrder, defaultPhase, onAdd, onAddMultiple }: AddItemFormProps) {
   const [mode, setMode] = useState<"manual" | "ai_phase" | "expand">("manual");
   const [type, setType] = useState<ItemType>("witness");
   const [title, setTitle] = useState("");
@@ -631,6 +632,7 @@ function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: 
         .insert({
           session_id: sessionId,
           type,
+          phase: defaultPhase?.trim() || null,
           title: trimmedTitle,
           description: description.trim(),
           reference_standard: referenceStandard.trim() || null,
@@ -831,6 +833,12 @@ function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: 
       {/* ── Manual mode ── */}
       {mode === "manual" && (
         <>
+          {defaultPhase && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-xs text-slate-500">Adding to phase:</span>
+              <span className="text-xs font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2.5 py-0.5">{defaultPhase}</span>
+            </div>
+          )}
           <div className="flex gap-2 mb-3">
             {(["witness", "hold"] as const).map((t) => (
               <button
@@ -924,7 +932,7 @@ function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: 
       {mode === "expand" && (
         <>
           <p className="text-xs text-slate-500 mb-2">
-            Describe an activity and AI will expand it into 3–5 specific inspection tasks.
+            Describe an activity and AI will generate one detailed inspection item. Use ✦ AI Phase to generate multiple items at once.
           </p>
           <textarea
             value={description}
@@ -944,7 +952,7 @@ function AddItemForm({ sessionId, companyId, nextOrder, onAdd, onAddMultiple }: 
                 <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                 Expanding…
               </span>
-            ) : "✦ Expand into Tasks"}
+            ) : "✦ Generate Item"}
           </button>
         </>
       )}
@@ -1066,6 +1074,14 @@ export default function ItemsList({
   const hasPhases = items.some((i) => i.phase && i.phase.trim());
   const phaseGroups = hasPhases ? groupByPhase(items) : null;
 
+  // Track which phase the "add item" form is scoped to
+  const [addItemPhase, setAddItemPhase] = useState<string | undefined>(undefined);
+
+  // Reset phase scope when add-item panel is closed
+  useEffect(() => {
+    if (!showAddItem) setAddItemPhase(undefined);
+  }, [showAddItem]);
+
   return (
     <div className="space-y-3">
       {items.length === 0 && !showAddItem && (
@@ -1152,6 +1168,24 @@ export default function ItemsList({
                           </Draggable>
                         );
                       })}
+                      {/* Per-phase add item — shown when this phase is active */}
+                      {showAddItem && addItemPhase === group.phase ? (
+                        <AddItemForm
+                          sessionId={session.id}
+                          companyId={session.company_id}
+                          nextOrder={items.length + 1}
+                          defaultPhase={group.phase}
+                          onAdd={(item) => { onItemAdded(item); }}
+                          onAddMultiple={onItemsAdded}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => { setAddItemPhase(group.phase); onToggleAddItem(true); }}
+                          className="w-full text-center text-xs font-semibold text-slate-400 border border-dashed border-slate-200 rounded-xl py-2 hover:border-violet-300 hover:text-violet-600 transition-colors"
+                        >
+                          + Add item to {group.phase}
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -1186,7 +1220,8 @@ export default function ItemsList({
         </Droppable>
       </DragDropContext>
 
-      {showAddItem ? (
+      {/* Global add item — only show when not tied to a specific phase */}
+      {showAddItem && !addItemPhase ? (
         <AddItemForm
           sessionId={session.id}
           companyId={session.company_id}
@@ -1194,14 +1229,22 @@ export default function ItemsList({
           onAdd={onItemAdded}
           onAddMultiple={onItemsAdded}
         />
-      ) : (
+      ) : !hasPhases && !showAddItem ? (
         <button
-          onClick={() => onToggleAddItem(true)}
+          onClick={() => { setAddItemPhase(undefined); onToggleAddItem(true); }}
           className="w-full text-center text-xs font-semibold text-slate-500 border border-dashed border-slate-300 rounded-2xl py-3 hover:border-slate-400 hover:text-slate-700 transition-colors"
         >
           + Add item
         </button>
-      )}
+      ) : !hasPhases && showAddItem ? (
+        <AddItemForm
+          sessionId={session.id}
+          companyId={session.company_id}
+          nextOrder={items.length + 1}
+          onAdd={onItemAdded}
+          onAddMultiple={onItemsAdded}
+        />
+      ) : null}
     </div>
   );
 }

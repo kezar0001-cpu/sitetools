@@ -25,8 +25,6 @@ export interface ItpItem {
   status: ItemStatus;
   signed_off_at: string | null;
   signed_off_by_name: string | null;
-  sign_off_lat: number | null;
-  sign_off_lng: number | null;
   waive_reason?: string | null;
   signature?: string | null;
   reference_standard?: string | null;
@@ -46,6 +44,15 @@ export interface ItpSession {
   company_name?: string | null;
   project_name?: string | null;
   site_name?: string | null;
+}
+
+interface SignoffRecord {
+  id: string;
+  item_id: string;
+  name: string;
+  role: string;
+  signed_at: string;
+  dataUrl?: string;
 }
 
 interface Props {
@@ -72,6 +79,17 @@ function responsibilityLabel(r?: Responsibility | null): string {
   return "Contractor";
 }
 
+function roleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    superintendent: "Superintendent",
+    third_party: "Third Party",
+    contractor: "Contractor",
+    designer: "Designer",
+    inspector: "Inspector",
+  };
+  return labels[role] ?? role;
+}
+
 function typeCode(type: ItemType): string {
   if (type === "hold") return "H";
   return "W";
@@ -90,25 +108,29 @@ export default function ItpPdfExport({ session }: Props) {
     try {
       const { items } = session;
 
-      // Fetch signature images (non-critical — PDF is still useful without them)
-      const sigMap = new Map<string, string>(); // slug → data URL
+      // Fetch sign-off records (with signature images)
+      let signoffs: SignoffRecord[] = [];
       try {
         const {
           data: { session: authSession },
         } = await supabase.auth.getSession();
-        const res = await fetch(`/api/itp-signatures/${session.id}`, {
+        const res = await fetch(`/api/itp-signoffs/${session.id}`, {
           headers: { Authorization: `Bearer ${authSession?.access_token ?? ""}` },
         });
         if (res.ok) {
-          const data = (await res.json()) as {
-            signatures: { slug: string; dataUrl: string }[];
-          };
-          for (const sig of data.signatures ?? []) {
-            sigMap.set(sig.slug, sig.dataUrl);
-          }
+          const data = await res.json() as { signoffs: SignoffRecord[] };
+          signoffs = data.signoffs ?? [];
         }
       } catch {
-        // Continue without signatures
+        // Continue without sign-off details
+      }
+
+      // Group sign-offs by item_id for quick lookup
+      const signoffsByItem = new Map<string, SignoffRecord[]>();
+      for (const s of signoffs) {
+        const existing = signoffsByItem.get(s.item_id) ?? [];
+        existing.push(s);
+        signoffsByItem.set(s.item_id, existing);
       }
 
       const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -161,7 +183,6 @@ export default function ItpPdfExport({ session }: Props) {
       const startY = nextY + 4;
 
       // ── ITP Summary Table ─────────────────────────────────────────────────
-      // Build rows with phase headers interspersed
       const hasPhases = items.some((i) => i.phase && i.phase.trim());
       type RowMeta = { kind: "phase"; phase: string } | { kind: "item"; item: ItpItem; num: number };
       const rowMeta: RowMeta[] = [];
@@ -180,6 +201,8 @@ export default function ItpPdfExport({ session }: Props) {
           itemNum++;
           const isSigned = item.status === "signed";
           const isWaived = item.status === "waived";
+          const itemSigs = signoffsByItem.get(item.id) ?? [];
+          const signerNames = itemSigs.map((s) => `${s.name} (${roleLabel(s.role)})`).join(", ");
           rowMeta.push({ kind: "item", item, num: itemNum });
           bodyRows.push([
             String(itemNum),
@@ -190,7 +213,7 @@ export default function ItpPdfExport({ session }: Props) {
             responsibilityLabel(item.responsibility),
             item.records_required || "—",
             isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
-            (isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : "",
+            signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : ""),
             (isSigned || isWaived) && item.signed_off_at ? formatAU(item.signed_off_at) : "",
           ]);
         }
@@ -198,6 +221,8 @@ export default function ItpPdfExport({ session }: Props) {
         items.forEach((item, i) => {
           const isSigned = item.status === "signed";
           const isWaived = item.status === "waived";
+          const itemSigs = signoffsByItem.get(item.id) ?? [];
+          const signerNames = itemSigs.map((s) => `${s.name} (${roleLabel(s.role)})`).join(", ");
           rowMeta.push({ kind: "item", item, num: i + 1 });
           bodyRows.push([
             String(i + 1),
@@ -208,7 +233,7 @@ export default function ItpPdfExport({ session }: Props) {
             responsibilityLabel(item.responsibility),
             item.records_required || "—",
             isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
-            (isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : "",
+            signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : ""),
             (isSigned || isWaived) && item.signed_off_at ? formatAU(item.signed_off_at) : "",
           ]);
         });
@@ -292,11 +317,14 @@ export default function ItpPdfExport({ session }: Props) {
       });
 
       // ── Sign-Off Records ─────────────────────────────────────────────────────
-      const resolvedItems = items.filter(
-        (item) => item.status === "signed" || item.status === "waived"
-      );
+      // Use sign-offs from itp_item_signoffs table; fall back to legacy item field
+      const itemsWithSignoffs = items.filter((item) => {
+        const hasSigs = (signoffsByItem.get(item.id) ?? []).length > 0;
+        const isResolved = item.status === "signed" || item.status === "waived";
+        return hasSigs || isResolved;
+      });
 
-      if (resolvedItems.length > 0) {
+      if (itemsWithSignoffs.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let y = (doc as any).lastAutoTable.finalY + 12;
 
@@ -311,11 +339,22 @@ export default function ItpPdfExport({ session }: Props) {
         doc.text("SIGN-OFF RECORDS", margin, y);
         y += 8;
 
-        for (const item of resolvedItems) {
+        for (const item of itemsWithSignoffs) {
           const isHold = item.type === "hold";
-          const hasSig = item.status === "signed" && sigMap.has(item.slug);
-          const sigH = 22;
-          const sigW = 70;
+          const itemSigs = signoffsByItem.get(item.id) ?? [];
+          const isWaived = item.status === "waived";
+
+          // Determine signatories to display
+          // Prefer itp_item_signoffs; fall back to legacy signed_off_by_name
+          const signatories: { name: string; role: string; signed_at: string; dataUrl?: string }[] =
+            itemSigs.length > 0
+              ? itemSigs.map((s) => ({ name: s.name, role: s.role, signed_at: s.signed_at, dataUrl: s.dataUrl }))
+              : item.signed_off_by_name
+              ? [{ name: item.signed_off_by_name, role: "", signed_at: item.signed_off_at ?? "", dataUrl: undefined }]
+              : [];
+
+          if (signatories.length === 0 && !isWaived) continue;
+
           const noteLines =
             item.waive_reason
               ? (doc.splitTextToSize(
@@ -323,10 +362,15 @@ export default function ItpPdfExport({ session }: Props) {
                   pageWidth - margin * 2 - 4
                 ) as string[])
               : [];
+
+          // Calculate block height
+          const sigH = 22;
+          const sigW = 70;
+          const sigsWithImg = signatories.filter((s) => s.dataUrl);
           const blockH =
-            7 +
-            6 +
-            (hasSig ? sigH + 3 : 0) +
+            7 + // title line
+            signatories.length * 6 + // one line per signatory (name, role, date)
+            (sigsWithImg.length > 0 ? sigsWithImg.length * (sigH + 3) : 0) +
             (noteLines.length > 0 ? noteLines.length * 4 + 2 : 0) +
             5;
 
@@ -364,27 +408,30 @@ export default function ItpPdfExport({ session }: Props) {
           doc.text(titleLine[0], margin + 14, y + 1);
           y += 7;
 
-          // Meta: date · name · status
-          doc.setFontSize(7);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 116, 139);
-          const metaParts: string[] = [];
-          if (item.signed_off_at) metaParts.push(formatAU(item.signed_off_at));
-          if (item.signed_off_by_name) metaParts.push(item.signed_off_by_name);
-          metaParts.push(item.status === "waived" ? "Waived" : "Signed");
-          doc.text(metaParts.join("  ·  "), margin + 2, y);
-          y += 6;
+          // Signatories
+          for (const sig of signatories) {
+            doc.setFontSize(7);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(100, 116, 139);
+            const parts: string[] = [];
+            if (sig.signed_at) parts.push(formatAU(sig.signed_at));
+            if (sig.name) parts.push(sig.name);
+            if (sig.role) parts.push(roleLabel(sig.role));
+            if (isWaived) parts.push("Waived");
+            else parts.push("Signed");
+            doc.text(parts.join("  ·  "), margin + 2, y);
+            y += 6;
 
-          // Signature image
-          if (hasSig) {
-            const dataUrl = sigMap.get(item.slug)!;
-            doc.setFillColor(255, 255, 255);
-            doc.roundedRect(margin + 2, y, sigW, sigH, 1, 1, "F");
-            doc.addImage(dataUrl, "PNG", margin + 2, y, sigW, sigH);
-            y += sigH + 3;
+            // Signature image
+            if (sig.dataUrl) {
+              doc.setFillColor(255, 255, 255);
+              doc.roundedRect(margin + 2, y, sigW, sigH, 1, 1, "F");
+              doc.addImage(sig.dataUrl, "PNG", margin + 2, y, sigW, sigH);
+              y += sigH + 3;
+            }
           }
 
-          // Notes
+          // Notes (waiver reason)
           if (noteLines.length > 0) {
             doc.setFontSize(7);
             doc.setFont("helvetica", "italic");
