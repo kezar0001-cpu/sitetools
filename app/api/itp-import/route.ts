@@ -1,10 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import * as mammoth from "mammoth";
-import * as XLSX from "xlsx";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+import { getSecret } from "@/lib/server/get-secret";
+import {
+  extractTextFromPdf,
+  extractTextFromDocx,
+  extractTextFromExcel,
+  SUPPORTED_TYPES,
+  EXT_MAP,
+  validateItps,
+  IMPORT_SYSTEM_PROMPT,
+  type GeneratedItp,
+} from "./_lib";
 
 export const runtime = "nodejs";
 export const maxDuration = 120; // allow up to 2 min for large document AI processing
@@ -14,134 +21,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
-
-import { getSecret } from "@/lib/server/get-secret";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type Responsibility = "contractor" | "superintendent" | "third_party";
-
-interface ItpItem {
-  type: "witness" | "hold" | "review";
-  phase?: string;
-  title: string;
-  description: string;
-  reference_standard?: string;
-  responsibility?: Responsibility;
-  records_required?: string;
-  acceptance_criteria?: string;
-}
-
-interface GeneratedItp {
-  task_description: string;
-  items: ItpItem[];
-}
-
-// ---------------------------------------------------------------------------
-// Text extraction helpers
-// ---------------------------------------------------------------------------
-
-async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const data = await pdfParse(buffer);
-  return data.text;
-}
-
-async function extractTextFromDocx(buffer: Buffer): Promise<string> {
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value;
-}
-
-function extractTextFromExcel(buffer: Buffer): string {
-  const workbook = XLSX.read(buffer, { type: "buffer" });
-  const parts: string[] = [];
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
-    parts.push(`--- Sheet: ${sheetName} ---`);
-    const csv = XLSX.utils.sheet_to_csv(sheet);
-    parts.push(csv);
-  }
-  return parts.join("\n\n");
-}
-
-function extractTextFromTxt(buffer: Buffer): string {
-  return buffer.toString("utf-8");
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const VALID_TYPES = ["witness", "hold", "review"];
-const VALID_RESPONSIBILITIES = ["contractor", "superintendent", "third_party"];
-
-function normaliseItem(item: Record<string, unknown>, phase?: string): boolean {
-  if (
-    typeof item !== "object" || item === null ||
-    !VALID_TYPES.includes(item.type as string) ||
-    typeof item.title !== "string" ||
-    typeof item.description !== "string"
-  ) return false;
-  if (phase) item.phase = phase;
-  else if (typeof item.phase !== "string" || !(item.phase as string).trim()) item.phase = undefined;
-  if (typeof item.reference_standard !== "string") item.reference_standard = "";
-  if (!VALID_RESPONSIBILITIES.includes(item.responsibility as string)) item.responsibility = "contractor";
-  if (typeof item.records_required !== "string") item.records_required = "";
-  if (typeof item.acceptance_criteria !== "string") item.acceptance_criteria = "";
-  return true;
-}
-
-function validateItps(raw: unknown): GeneratedItp[] | null {
-  if (!Array.isArray(raw) || raw.length < 1) return null;
-  const first = raw[0] as Record<string, unknown>;
-  if (typeof first !== "object" || first === null) return null;
-
-  // New Phase→Tasks format
-  if ("phase" in first && "tasks" in first) {
-    const result: GeneratedItp[] = [];
-    for (const group of raw) {
-      if (typeof group.phase !== "string" || !Array.isArray(group.tasks)) return null;
-      for (const task of group.tasks) {
-        if (typeof task.task_description !== "string" || !Array.isArray(task.items) || task.items.length < 1) return null;
-        for (const item of task.items) {
-          if (!normaliseItem(item, group.phase)) return null;
-        }
-        result.push({ task_description: task.task_description, items: task.items });
-      }
-    }
-    return result.length > 0 ? result : null;
-  }
-
-  // Legacy flat format
-  for (const itp of raw) {
-    if (
-      typeof itp !== "object" || itp === null ||
-      typeof itp.task_description !== "string" ||
-      !Array.isArray(itp.items) || itp.items.length < 1
-    ) return null;
-    for (const item of itp.items) {
-      if (!normaliseItem(item)) return null;
-    }
-  }
-  return raw as GeneratedItp[];
-}
-
-// ---------------------------------------------------------------------------
-// Supported MIME types
-// ---------------------------------------------------------------------------
-
-const SUPPORTED_TYPES: Record<string, string> = {
-  "application/pdf": "pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-  "application/msword": "docx",
-  "application/octet-stream": "auto", // fallback to extension detection
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-  "application/vnd.ms-excel": "xls",
-  "text/plain": "txt",
-  "text/csv": "csv",
-};
 
 // ---------------------------------------------------------------------------
 // POST handler
@@ -199,8 +78,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
     }
 
-    // Save to DB (same logic as below)
+    // Save to DB
     const createdSessions: Array<{ session: Record<string, unknown>; items: Record<string, unknown>[] }> = [];
+    let failureCount = 0;
     for (const itp of validated) {
       const { data: session, error: sessionErr } = await supabaseAdmin
         .from("itp_sessions")
@@ -213,7 +93,7 @@ export async function POST(req: NextRequest) {
         })
         .select("id, company_id, task_description, created_at, project_id, site_id, status")
         .single();
-      if (sessionErr || !session) continue;
+      if (sessionErr || !session) { failureCount++; continue; }
 
       const rows = itp.items.map((item, idx) => ({
         session_id: session.id,
@@ -231,7 +111,7 @@ export async function POST(req: NextRequest) {
         .from("itp_items")
         .insert(rows)
         .select("id, session_id, slug, type, phase, title, description, sort_order, status, signed_off_at, signed_off_by_name, sign_off_lat, sign_off_lng, reference_standard, responsibility, records_required, acceptance_criteria");
-      if (insertErr || !inserted) continue;
+      if (insertErr || !inserted) { failureCount++; continue; }
 
       createdSessions.push({ session, items: inserted });
 
@@ -252,12 +132,12 @@ export async function POST(req: NextRequest) {
       imported: createdSessions.length,
       total_items: createdSessions.reduce((sum, s) => sum + s.items.length, 0),
       sessions: createdSessions,
+      ...(failureCount > 0 ? { partial_failures: failureCount } : {}),
     });
   }
 
   // ── Original multipart form data path ──
 
-  // Parse multipart form data
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -277,26 +157,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Validate file type
+  // Validate file type — check MIME type and extension
   const fileType = SUPPORTED_TYPES[file.type];
-  if (!fileType) {
-    // Also check by extension as a fallback
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    const extMap: Record<string, string> = {
-      pdf: "pdf",
-      doc: "docx",
-      docx: "docx",
-      xlsx: "xlsx",
-      xls: "xls",
-      txt: "txt",
-      csv: "csv",
-    };
-    if (!ext || !extMap[ext]) {
-      return NextResponse.json(
-        { error: "Unsupported file type. Upload PDF, DOCX, XLSX, or TXT files." },
-        { status: 400 }
-      );
-    }
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if ((!fileType || fileType === "auto") && !EXT_MAP[ext]) {
+    return NextResponse.json(
+      { error: "Unsupported file type. Upload PDF, DOCX, XLSX, or TXT files." },
+      { status: 400 }
+    );
   }
 
   // File size limit: 10 MB
@@ -321,14 +189,10 @@ export async function POST(req: NextRequest) {
   // Read file buffer
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-
-  // Determine effective file type
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   const effectiveType = (fileType && fileType !== "auto") ? fileType : ext;
 
-  // Extract text from all document types
+  // Extract text
   let documentText = "";
-
   try {
     switch (effectiveType) {
       case "pdf":
@@ -343,7 +207,7 @@ export async function POST(req: NextRequest) {
         documentText = extractTextFromExcel(buffer);
         break;
       case "txt":
-        documentText = extractTextFromTxt(buffer);
+        documentText = buffer.toString("utf-8");
         break;
       default:
         return NextResponse.json(
@@ -358,58 +222,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Truncate text to avoid excessive token usage (max ~80K chars)
-  if (documentText.length > 80_000) {
-    documentText = documentText.slice(0, 80_000) + "\n\n[Document truncated]";
-  }
-
-  // Build the Claude prompt
-  const systemPrompt = `You are a senior Australian civil construction Quality Assurance engineer. You analyse specification documents, engineering drawings, and construction documents, then generate structured ITPs organised by work phases.
-
-## Your task
-1. Analyse the uploaded document
-2. Identify the distinct WORK PHASES the project goes through
-3. Under each phase, identify the specific TASKS (inspection activities) that need checking
-
-## Output structure — Phase → Tasks hierarchy
-
-Return a JSON array where each object represents ONE PHASE:
-[
-  {
-    "phase": "Site Establishment",
-    "tasks": [
-      {
-        "task_description": "Erosion and sediment controls",
-        "items": [
-          { "type": "witness", "title": "Install sediment fence", "description": "Verify sediment fence placement per ESCP.", "reference_standard": "Project ESCP", "responsibility": "contractor", "records_required": "ESCP checklist", "acceptance_criteria": "Fence installed per ESCP locations" }
-        ]
-      }
-    ]
-  }
-]
-
-## Rules
-- 3–6 phases in chronological construction order, specific to the document
-- Each task has 4–8 sequential inspection items
-- type: "hold" (mandatory stop at critical quality gates) | "witness" (notification point)
-- title: max 8 words, action-oriented
-- description: one plain sentence
-- reference_standard: specific Australian Standard and clause
-- responsibility: "contractor" | "superintendent" | "third_party"
-- records_required: specific documents produced
-- acceptance_criteria: measurable criterion with tolerance
-- Hold points only at genuinely critical stages
-
-## Australian Standards (use those relevant)
-AS 3600, AS 1379, AS 1012, AS 3610 | AS/NZS 4671 | AS 4100, AS/NZS 1554 | AS 1289, AS 3798 | Austroads AGPT04 | AS 2159 | AS 3700 | AS 3725, AS/NZS 3500, AS 1597 | AS 2876 | AS 1742 | AS 1428 | AS 2870 | AS 4678 | WHS Regulation 2017
-
-Return ONLY a valid JSON array. No markdown, no explanation, no code fences.`;
-
   if (!documentText.trim()) {
     return NextResponse.json(
       { error: "Could not extract any text from this document. The file may be empty, scanned images, or corrupted." },
       { status: 422 }
     );
+  }
+
+  // Truncate to avoid excessive token usage (max ~80K chars)
+  if (documentText.length > 80_000) {
+    documentText = documentText.slice(0, 80_000) + "\n\n[Document truncated]";
   }
 
   const userPrompt = `Analyse the following document and generate ITPs for every distinct construction activity found.
@@ -437,7 +259,7 @@ ${documentText}`;
       {
         model: "claude-sonnet-4-6",
         max_tokens: 8192,
-        system: systemPrompt,
+        system: IMPORT_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
       },
       { signal: controller.signal }
@@ -503,9 +325,9 @@ ${documentText}`;
     session: Record<string, unknown>;
     items: Record<string, unknown>[];
   }> = [];
+  let failureCount = 0;
 
   for (const itp of itps) {
-    // Insert session
     const { data: session, error: sessionErr } = await supabaseAdmin
       .from("itp_sessions")
       .insert({
@@ -522,10 +344,10 @@ ${documentText}`;
 
     if (sessionErr || !session) {
       console.error("Session insert error:", sessionErr);
+      failureCount++;
       continue;
     }
 
-    // Insert items.
     // Slug is omitted — the DB column default generates a random unique value
     // to avoid collisions when multiple sessions share identical item titles.
     const rows = itp.items.map((item, idx) => ({
@@ -550,6 +372,7 @@ ${documentText}`;
 
     if (insertErr || !inserted) {
       console.error("Items insert error:", insertErr);
+      failureCount++;
       continue;
     }
 
@@ -576,5 +399,6 @@ ${documentText}`;
     imported: createdSessions.length,
     total_items: createdSessions.reduce((sum, s) => sum + s.items.length, 0),
     sessions: createdSessions,
+    ...(failureCount > 0 ? { partial_failures: failureCount } : {}),
   });
 }
