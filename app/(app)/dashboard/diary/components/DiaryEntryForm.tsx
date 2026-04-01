@@ -550,7 +550,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
         </div>
         {openSections.has("planned_works") && (
           <div className="px-4 pb-5 border-t border-slate-100 pt-4">
-            <p className="text-xs text-slate-500 mb-2">What's planned for tomorrow — activities, plant needed, hold points</p>
+            <p className="text-xs text-slate-500 mb-2">What&apos;s planned for tomorrow — activities, plant needed, hold points</p>
             <textarea
               rows={5}
               disabled={isLocked}
