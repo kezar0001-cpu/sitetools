@@ -458,6 +458,88 @@ export async function deletePhoto(photo: SiteDiaryPhoto): Promise<void> {
 }
 
 // ─────────────────────────────────────────────
+// SiteSign Integration - Labor Import
+// ─────────────────────────────────────────────
+
+export interface SiteSignLaborEntry {
+  company_name: string;
+  worker_count: number;
+  total_hours: number;
+  workers: Array<{
+    full_name: string;
+    hours: number;
+    signed_in_at: string;
+    signed_out_at: string | null;
+  }>;
+}
+
+/**
+ * Fetch SiteSign visitor records for a site on a specific date,
+ * aggregating workers by company name for diary labor entry.
+ */
+export async function getSiteSignLabor(
+  siteId: string,
+  date: string // ISO date: YYYY-MM-DD
+): Promise<SiteSignLaborEntry[]> {
+  const startOfDay = `${date}T00:00:00`;
+  const endOfDay = `${date}T23:59:59`;
+
+  const { data, error } = await supabase
+    .from("site_visits")
+    .select("company_name, full_name, signed_in_at, signed_out_at")
+    .eq("site_id", siteId)
+    .in("visitor_type", ["Worker", "Subcontractor"])
+    .gte("signed_in_at", startOfDay)
+    .lte("signed_in_at", endOfDay)
+    .order("company_name", { ascending: true });
+
+  if (error) {
+    console.error("[diary/client] getSiteSignLabor error:", error.message);
+    throw error;
+  }
+
+  const visits = data ?? [];
+  if (visits.length === 0) return [];
+
+  // Group by company_name
+  const grouped = new Map<string, typeof visits>();
+  for (const visit of visits) {
+    const key = visit.company_name?.trim() || "Unknown";
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(visit);
+  }
+
+  // Calculate hours and build result
+  const results: SiteSignLaborEntry[] = [];
+  grouped.forEach((companyVisits, company_name) => {
+    let totalHours = 0;
+    const workers = companyVisits.map((v: { full_name: string; signed_in_at: string; signed_out_at: string | null }) => {
+      const signedIn = new Date(v.signed_in_at);
+      const signedOut = v.signed_out_at ? new Date(v.signed_out_at) : null;
+      const hours = signedOut
+        ? Math.round(((signedOut.getTime() - signedIn.getTime()) / (1000 * 60 * 60)) * 10) / 10
+        : 0;
+      totalHours += hours;
+      return {
+        full_name: v.full_name,
+        hours,
+        signed_in_at: v.signed_in_at,
+        signed_out_at: v.signed_out_at,
+      };
+    });
+
+    results.push({
+      company_name,
+      worker_count: workers.length,
+      total_hours: Math.round(totalHours * 10) / 10,
+      workers,
+    });
+  });
+
+  return results;
+}
+
+// ─────────────────────────────────────────────
 // Internal helpers
 // ─────────────────────────────────────────────
 

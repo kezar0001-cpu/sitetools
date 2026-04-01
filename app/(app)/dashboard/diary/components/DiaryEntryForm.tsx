@@ -10,6 +10,8 @@ import {
   rejectDiary,
   submitDiary,
   updateDiary,
+  getSiteSignLabor,
+  type SiteSignLaborEntry,
 } from "@/lib/diary/client";
 import {
   WEATHER_CONDITIONS,
@@ -110,6 +112,26 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
   // Voice to Text hook
   const { isListening, transcript, isSupported: voiceSupported, error: voiceError, startListening, stopListening } = useVoiceToText();
   const [notesValue, setNotesValue] = useState(diary.notes ?? "");
+
+  // SiteSign Labor Import
+  const [siteSignLabor, setSiteSignLabor] = useState<SiteSignLaborEntry[]>([]);
+  const [loadingSiteSign, setLoadingSiteSign] = useState(false);
+  const [siteSignError, setSiteSignError] = useState<string | null>(null);
+  const [showSiteSignDetail, setShowSiteSignDetail] = useState<string | null>(null);
+
+  // Load SiteSign labor on mount if site_id exists
+  useEffect(() => {
+    if (!diary.site_id) return;
+    setLoadingSiteSign(true);
+    setSiteSignError(null);
+    getSiteSignLabor(diary.site_id, diary.date)
+      .then(setSiteSignLabor)
+      .catch((err) => {
+        console.warn("[DiaryEntryForm] Failed to load SiteSign labor:", err);
+        setSiteSignError("Could not load SiteSign records");
+      })
+      .finally(() => setLoadingSiteSign(false));
+  }, [diary.site_id, diary.date]);
 
   // Apply GPS weather when fetched
   useEffect(() => {
@@ -481,6 +503,92 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
               <p className="pt-3 text-sm text-slate-500">
                 Total on site: <span className="font-semibold text-slate-800">{totalWorkers} workers</span>
               </p>
+            )}
+
+            {/* SiteSign Import Section */}
+            {!isLocked && diary.site_id && (
+              <div className="mt-4">
+                {loadingSiteSign ? (
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                    Loading SiteSign records...
+                  </div>
+                ) : siteSignError ? (
+                  <p className="text-xs text-red-600">{siteSignError}</p>
+                ) : siteSignLabor.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                      From SiteSign ({siteSignLabor.length} companies)
+                    </p>
+                    {siteSignLabor.map((entry) => {
+                      const alreadyAdded = diary.labor.some(
+                        (l) => l.trade_or_company.toLowerCase() === entry.company_name.toLowerCase()
+                      );
+                      const avgHours = entry.worker_count > 0 
+                        ? Math.round((entry.total_hours / entry.worker_count) * 10) / 10 
+                        : 0;
+                      return (
+                        <div key={entry.company_name} className="rounded-xl bg-slate-50 border border-slate-200 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 truncate">{entry.company_name}</p>
+                              <p className="text-xs text-slate-500">
+                                {entry.worker_count} workers · {entry.total_hours}h total
+                              </p>
+                            </div>
+                            {alreadyAdded ? (
+                              <span className="text-xs text-emerald-600 font-medium">Added</span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const row = await addLabor(diary.id, {
+                                      trade_or_company: entry.company_name,
+                                      worker_count: entry.worker_count,
+                                      hours_worked: avgHours,
+                                    });
+                                    setDiary((d) => ({ ...d, labor: [...d.labor, row] }));
+                                  } catch (err) {
+                                    console.error("Failed to import from SiteSign:", err);
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-sm font-medium hover:bg-blue-200 transition-colors"
+                              >
+                                Import
+                              </button>
+                            )}
+                          </div>
+                          {showSiteSignDetail === entry.company_name && (
+                            <div className="mt-2 pt-2 border-t border-slate-200 space-y-1">
+                              {entry.workers.map((w, i) => (
+                                <div key={i} className="text-xs text-slate-500 flex justify-between">
+                                  <span>{w.full_name}</span>
+                                  <span>{w.hours}h</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowSiteSignDetail(
+                              showSiteSignDetail === entry.company_name ? null : entry.company_name
+                            )}
+                            className="mt-2 text-xs text-slate-400 hover:text-slate-600"
+                          >
+                            {showSiteSignDetail === entry.company_name ? "Hide details" : "Show details"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">No SiteSign records for this date</p>
+                )}
+              </div>
             )}
 
             {/* Existing rows */}

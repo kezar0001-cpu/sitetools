@@ -115,6 +115,20 @@ export interface AddEquipmentPayload {
   hours_used: number;
 }
 
+// ── SiteSign Integration ──
+
+export interface SiteSignLaborSource {
+  company_name: string;
+  worker_count: number;
+  total_hours: number;
+  workers: Array<{
+    full_name: string;
+    hours: number;
+    signed_in_at: string;
+    signed_out_at: string | null;
+  }>;
+}
+
 // ── Constants ──
 export const WEATHER_CONDITIONS: WeatherCondition[] = [
   "sunny",
