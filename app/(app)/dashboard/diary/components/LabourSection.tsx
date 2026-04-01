@@ -48,11 +48,18 @@ export function LabourSection({
 
   // Load SiteSign labor on mount if site_id exists
   useEffect(() => {
-    if (!diary.site_id) return;
+    console.log("[LabourSection] SiteSign useEffect triggered:", { site_id: diary.site_id, date: diary.date });
+    if (!diary.site_id) {
+      console.log("[LabourSection] No site_id, skipping SiteSign fetch");
+      return;
+    }
     setLoadingSiteSign(true);
     setSiteSignError(null);
     getSiteSignLabor(diary.site_id, diary.date)
-      .then(setSiteSignLabor)
+      .then((data) => {
+        console.log("[LabourSection] SiteSign data received:", data);
+        setSiteSignLabor(data);
+      })
       .catch((err) => {
         console.warn("[LabourSection] Failed to load SiteSign labor:", err);
         setSiteSignError("Could not load SiteSign records");
