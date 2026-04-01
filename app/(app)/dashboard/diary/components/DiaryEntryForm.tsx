@@ -11,6 +11,7 @@ import { EquipmentSection } from "./EquipmentSection";
 import { PhotosSection } from "./PhotosSection";
 import { NotesSection } from "./NotesSection";
 import { ReviewPanel } from "./ReviewPanel";
+import { DiaryProgress } from "./DiaryProgress";
 
 interface Props {
   diary: SiteDiaryFull;
@@ -73,6 +74,9 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
           </p>
         </div>
       )}
+
+      {/* ── Progress Bar ── */}
+      <DiaryProgress diary={diary} />
 
       {/* ── Weather ── */}
       <WeatherSection
