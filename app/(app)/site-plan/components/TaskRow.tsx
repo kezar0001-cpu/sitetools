@@ -49,6 +49,8 @@ interface TaskRowProps {
   onAddBelow?: (node: SitePlanTaskNode) => void;
   /** Opens CreateTaskSheet to insert a child row under this task */
   onAddSubtask?: (node: SitePlanTaskNode) => void;
+  /** Whether this row is currently selected */
+  isSelected?: boolean;
 }
 
 // Distinctive backgrounds per type (phase bg is computed dynamically from phaseIndex)
@@ -172,6 +174,7 @@ export function TaskRow({
   isHighlighted = false,
   onAddBelow,
   onAddSubtask,
+  isSelected = false,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -242,6 +245,7 @@ export function TaskRow({
         }
       }}
       role="treeitem"
+      aria-selected={isSelected}
       aria-expanded={hasChildren ? expanded : undefined}
       tabIndex={0}
       onKeyDown={(e) => {

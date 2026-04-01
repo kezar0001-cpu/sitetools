@@ -107,6 +107,13 @@ export default function CreateItpModal({
     setSelectedSiteId("");
   }, [selectedProjectId]);
 
+  // Cleanup import poll interval on unmount
+  useEffect(() => {
+    return () => {
+      stopImportPoll();
+    };
+  }, []);
+
   function resetForm() {
     setTaskDescription("");
     setPhaseName("");

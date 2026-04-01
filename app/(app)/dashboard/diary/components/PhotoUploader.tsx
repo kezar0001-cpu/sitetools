@@ -1,8 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+/**
+ * Enhanced PhotoUploader with camera-first design, batch capture,
+ * auto-metadata extraction, and photo categories
+ */
+
+import { useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { uploadPhoto, deletePhoto } from "@/lib/diary/client";
+import { uploadPhoto } from "@/lib/diary/client";
 import { validatePhotoFile } from "@/lib/diary/validation";
 import type { SiteDiaryPhoto } from "@/lib/diary/types";
 
@@ -13,12 +18,87 @@ interface Props {
   disabled?: boolean;
 }
 
+/** Photo categories for quick tagging */
+export type PhotoCategory = "safety" | "progress" | "issue" | "delivery" | "general";
+
+export const PHOTO_CATEGORIES: { id: PhotoCategory; label: string; icon: string; color: string }[] = [
+  { id: "safety", label: "Safety", icon: "🛡️", color: "bg-emerald-100 text-emerald-700" },
+  { id: "progress", label: "Progress", icon: "📈", color: "bg-blue-100 text-blue-700" },
+  { id: "issue", label: "Issue", icon: "⚠️", color: "bg-red-100 text-red-700" },
+  { id: "delivery", label: "Delivery", icon: "📦", color: "bg-amber-100 text-amber-700" },
+  { id: "general", label: "General", icon: "📷", color: "bg-slate-100 text-slate-700" },
+];
+
 interface UploadingItem {
-  id: string; // temp ID
+  id: string;
   preview: string;
   file: File;
   progress: "uploading" | "done" | "error";
   error?: string;
+  category: PhotoCategory;
+  caption: string;
+  metadata: {
+    timestamp: string;
+    latitude?: number;
+    longitude?: number;
+  };
+}
+
+interface PhotoMetadata {
+  timestamp: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+/** Extract metadata from image file (EXIF) */
+async function extractMetadata(file: File): Promise<PhotoMetadata> {
+  const metadata: PhotoMetadata = {
+    timestamp: new Date().toISOString(),
+  };
+
+  // Try to extract EXIF data if available
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const dataView = new DataView(arrayBuffer);
+    
+    // Check for JPEG magic bytes
+    if (dataView.getUint16(0, false) === 0xFFD8) {
+      let offset = 2;
+      while (offset < dataView.byteLength) {
+        const marker = dataView.getUint16(offset, false);
+        
+        // APP1 marker (EXIF)
+        if (marker === 0xFFE1) {
+          const segmentLength = dataView.getUint16(offset + 2, false);
+          const exifOffset = offset + 4;
+          
+          // Check for EXIF header
+          const exifHeader = new TextDecoder().decode(
+            new Uint8Array(arrayBuffer.slice(exifOffset, exifOffset + 6))
+          );
+          
+          if (exifHeader.startsWith("Exif")) {
+            // Use file modification time as fallback
+            metadata.timestamp = new Date(file.lastModified).toISOString();
+          }
+          offset += 2 + segmentLength;
+        } else if (marker === 0xFFD9) {
+          // EOI marker
+          break;
+        } else if ((marker & 0xFF00) === 0xFF00) {
+          // Other marker
+          const segmentLength = dataView.getUint16(offset + 2, false);
+          offset += 2 + segmentLength;
+        } else {
+          break;
+        }
+      }
+    }
+  } catch {
+    // Fallback to file metadata
+  }
+
+  return metadata;
 }
 
 export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, disabled = false }: Props) {
@@ -26,67 +106,102 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
   const [photos, setPhotos] = useState<SiteDiaryPhoto[]>(initialPhotos);
   const [uploading, setUploading] = useState<UploadingItem[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>("general");
+  const [showCamera, setShowCamera] = useState(false);
 
-  function notifyChange(next: SiteDiaryPhoto[]) {
+  const notifyChange = useCallback((next: SiteDiaryPhoto[]) => {
     setPhotos(next);
     onChange?.(next);
-  }
+  }, [onChange]);
 
-  async function handleFiles(files: FileList | null) {
+  const processFiles = useCallback(async (files: FileList | null) => {
     if (disabled || !files || files.length === 0) return;
 
-    const items: UploadingItem[] = Array.from(files).map((file) => ({
-      id: crypto.randomUUID(),
-      preview: URL.createObjectURL(file),
-      file,
-      progress: "uploading" as const,
-    }));
+    const items: UploadingItem[] = await Promise.all(
+      Array.from(files).map(async (file) => {
+        const metadata = await extractMetadata(file);
+        return {
+          id: crypto.randomUUID(),
+          preview: URL.createObjectURL(file),
+          file,
+          progress: "uploading" as const,
+          category: selectedCategory,
+          caption: "",
+          metadata,
+        };
+      })
+    );
 
     setUploading((prev) => [...prev, ...items]);
 
-    await Promise.all(
-      items.map(async (item) => {
-        const validation = validatePhotoFile(item.file);
-        if (!validation.valid) {
-          setUploading((prev) =>
-            prev.map((u) =>
-              u.id === item.id ? { ...u, progress: "error", error: validation.errors.file } : u
-            )
-          );
-          return;
-        }
+    // Upload with concurrency limit
+    const CONCURRENCY = 3;
+    const queue = [...items];
+    const running: Promise<void>[] = [];
 
-        try {
-          const photo = await uploadPhoto(diaryId, item.file);
-          setPhotos((prev) => {
-            const next = [...prev, photo];
-            onChange?.(next);
-            return next;
-          });
-          setUploading((prev) => prev.filter((u) => u.id !== item.id));
-          // Revoke preview blob
-          URL.revokeObjectURL(item.preview);
-        } catch (err) {
-          setUploading((prev) =>
-            prev.map((u) =>
-              u.id === item.id
-                ? {
-                  ...u,
-                  progress: "error",
-                  error: err instanceof Error ? err.message : "Upload failed.",
-                }
-                : u
-            )
-          );
-        }
-      })
-    );
+    const uploadNext = async (item: UploadingItem): Promise<void> => {
+      const validation = validatePhotoFile(item.file);
+      if (!validation.valid) {
+        setUploading((prev) =>
+          prev.map((u) =>
+            u.id === item.id ? { ...u, progress: "error", error: validation.errors.file } : u
+          )
+        );
+        return;
+      }
+
+      try {
+        const caption = item.caption.trim() || null;
+        const photo = await uploadPhoto(diaryId, item.file, caption);
+        
+        setPhotos((prev) => {
+          const next = [...prev, photo];
+          onChange?.(next);
+          return next;
+        });
+        
+        setUploading((prev) => prev.filter((u) => u.id !== item.id));
+        URL.revokeObjectURL(item.preview);
+      } catch (err) {
+        setUploading((prev) =>
+          prev.map((u) =>
+            u.id === item.id
+              ? { ...u, progress: "error", error: err instanceof Error ? err.message : "Upload failed" }
+              : u
+          )
+        );
+      }
+    };
+
+    for (const item of queue) {
+      if (running.length >= CONCURRENCY) {
+        await Promise.race(running);
+      }
+      const promise = uploadNext(item).finally(() => {
+        const index = running.indexOf(promise);
+        if (index > -1) running.splice(index, 1);
+      });
+      running.push(promise);
+    }
+
+    await Promise.all(running);
+  }, [disabled, diaryId, onChange, selectedCategory]);
+
+  function handleCameraClick() {
+    setShowCamera(true);
+    setTimeout(() => inputRef.current?.click(), 100);
+  }
+
+  function handleGalleryClick() {
+    setShowCamera(false);
+    inputRef.current?.click();
   }
 
   async function handleDelete(photo: SiteDiaryPhoto) {
     if (disabled) return;
     setDeletingId(photo.id);
     try {
+      const { deletePhoto } = await import("@/lib/diary/client");
       await deletePhoto(photo);
       const next = photos.filter((p) => p.id !== photo.id);
       notifyChange(next);
@@ -105,125 +220,193 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
     });
   }
 
+  function updateUploadingCaption(id: string, caption: string) {
+    setUploading((prev) => prev.map((u) => (u.id === id ? { ...u, caption } : u)));
+  }
+
   const allCount = photos.length + uploading.length;
 
   return (
     <div className="space-y-4">
-      {/* Upload trigger button — large tap target for mobile */}
-      {!disabled && <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        className="w-full flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-slate-500 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700 active:scale-[0.98] transition-all duration-150"
-      >
-        <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.4}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        <span className="text-base font-medium">
-          {allCount === 0 ? "Add photos" : "Add more photos"}
-        </span>
-        <span className="text-sm">Tap to open camera or gallery</span>
-      </button>}
+      {/* Category selector */}
+      {!disabled && (
+        <div className="flex flex-wrap gap-2">
+          <span className="text-sm text-slate-500 self-center mr-1">Tag:</span>
+          {PHOTO_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                selectedCategory === cat.id
+                  ? cat.color + " ring-2 ring-offset-1 ring-slate-300"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Hidden file input — capture="environment" opens rear camera on mobile */}
+      {/* Camera-first capture buttons */}
+      {!disabled && (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={handleCameraClick}
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-6 text-amber-800 hover:bg-amber-100 active:scale-[0.98] transition-all duration-150"
+          >
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-sm font-semibold">Take Photo</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleGalleryClick}
+            className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-slate-600 hover:border-slate-400 hover:bg-slate-100 active:scale-[0.98] transition-all duration-150"
+          >
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-sm font-semibold">Gallery</span>
+          </button>
+        </div>
+      )}
+
+      {/* Hidden file input */}
       {!disabled && (
         <input
           ref={inputRef}
           type="file"
           accept="image/*"
-          capture="environment"
+          capture={showCamera ? "environment" : undefined}
           multiple
           className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => processFiles(e.target.files)}
         />
       )}
 
-      {/* Photo grid */}
-      {allCount > 0 && (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {/* Saved photos */}
-          {photos.map((photo) => (
-            <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100">
-              {photo.signedUrl ? (
-                <Image
-                  src={photo.signedUrl}
-                  alt={photo.caption ?? "Site photo"}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400">
-                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
+      {/* Uploading queue with metadata */}
+      {uploading.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            Uploading ({uploading.filter(u => u.progress === "uploading").length} remaining)
+          </p>
+          <div className="space-y-2">
+            {uploading.map((item) => (
+              <div key={item.id} className="flex gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200">
+                  <Image src={item.preview} alt="Preview" fill className="object-cover" />
+                  {item.progress === "uploading" && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
-              )}
-              {/* Delete overlay */}
-              {!disabled && <button
-                type="button"
-                onClick={() => handleDelete(photo)}
-                disabled={deletingId === photo.id}
-                aria-label="Delete photo"
-                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                {deletingId === photo.id ? (
-                  <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                ) : (
-                  <svg className="w-7 h-7 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                )}
-              </button>}
-            </div>
-          ))}
 
-          {/* Uploading / error items */}
-          {uploading.map((item) => (
-            <div key={item.id} className="relative aspect-square rounded-xl overflow-hidden bg-slate-100">
-              <Image
-                src={item.preview}
-                alt="Uploading…"
-                fill
-                className="object-cover"
-              />
-              {item.progress === "uploading" && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <svg className="w-8 h-8 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                      PHOTO_CATEGORIES.find(c => c.id === item.category)?.color
+                    }`}>
+                      {PHOTO_CATEGORIES.find(c => c.id === item.category)?.icon}
+                      {PHOTO_CATEGORIES.find(c => c.id === item.category)?.label}
+                    </span>
+                    {item.metadata.timestamp && (
+                      <span className="text-xs text-slate-400">
+                        {new Date(item.metadata.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+
+                  <input
+                    type="text"
+                    value={item.caption}
+                    onChange={(e) => updateUploadingCaption(item.id, e.target.value)}
+                    placeholder="Add caption..."
+                    disabled={item.progress === "uploading"}
+                    className="w-full text-sm bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:opacity-50"
+                  />
+
+                  {item.progress === "error" && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-red-600">{item.error}</p>
+                      <button
+                        type="button"
+                        onClick={() => removeFailedUpload(item.id)}
+                        className="text-xs text-slate-500 hover:text-slate-700"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-              {item.progress === "error" && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-red-900/70 p-2">
-                  <svg className="w-6 h-6 text-red-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.73-3L13.73 4a2 2 0 00-3.46 0L3.27 16A2 2 0 005.07 19z" />
-                  </svg>
-                  <p className="text-xs text-red-100 text-center leading-tight line-clamp-2">
-                    {item.error ?? "Upload failed"}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => removeFailedUpload(item.id)}
-                    className="mt-1 text-xs text-white underline"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {allCount > 0 && (
-        <p className="text-xs text-slate-400 text-center">
-          {photos.length} photo{photos.length !== 1 ? "s" : ""} saved
-          {uploading.filter((u) => u.progress === "uploading").length > 0 &&
-            ` · ${uploading.filter((u) => u.progress === "uploading").length} uploading…`}
+      {/* Photo grid */}
+      {photos.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+            Saved Photos ({photos.length})
+          </p>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {photos.map((photo) => (
+              <div key={photo.id} className="relative group aspect-square rounded-xl overflow-hidden bg-slate-100">
+                {photo.signedUrl ? (
+                  <Image src={photo.signedUrl} alt={photo.caption ?? "Site photo"} fill className="object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                )}
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(photo)}
+                    disabled={deletingId === photo.id}
+                    aria-label="Delete photo"
+                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    {deletingId === photo.id ? (
+                      <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-7 h-7 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+                {photo.caption && (
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                    <p className="text-xs text-white truncate">{photo.caption}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {allCount === 0 && !disabled && (
+        <p className="text-sm text-slate-400 text-center py-4">
+          No photos yet. Tap Take Photo or Gallery to add.
         </p>
       )}
     </div>

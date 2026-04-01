@@ -348,7 +348,7 @@ export default function ItpPdfExport({ session }: Props) {
           // Prefer itp_item_signoffs; fall back to legacy signed_off_by_name
           const signatories: { name: string; role: string; signed_at: string; dataUrl?: string }[] =
             itemSigs.length > 0
-              ? itemSigs.map((s) => ({ name: s.name, role: s.role, signed_at: s.signed_at, dataUrl: s.dataUrl }))
+              ? itemSigs.map((s) => ({ name: s.name, role: s.role, signed_at: s.signed_at, dataUrl: s.dataUrl ?? undefined }))
               : item.signed_off_by_name
               ? [{ name: item.signed_off_by_name, role: "", signed_at: item.signed_off_at ?? "", dataUrl: undefined }]
               : [];

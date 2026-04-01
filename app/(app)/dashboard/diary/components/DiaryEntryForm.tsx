@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useState } from "react";
+import { FormEvent, useCallback, useState, useEffect } from "react";
 import {
   addEquipment,
   addLabor,
@@ -25,6 +25,8 @@ import type {
   WeatherCondition,
 } from "@/lib/diary/types";
 import type { CompanyRole } from "@/lib/workspace/types";
+import { useVoiceToText } from "@/hooks/useVoiceToText";
+import { useGPSWeather } from "@/hooks/useGPSWeather";
 import PhotoUploader from "./PhotoUploader";
 
 interface Props {
@@ -101,6 +103,30 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
   const canReview =
     diary.status === "submitted" &&
     (userRole === "owner" || userRole === "admin" || userRole === "manager");
+
+  // GPS Weather hook
+  const { weather: gpsWeather, isLoading: weatherLoading, error: weatherError, fetchWeather } = useGPSWeather();
+
+  // Voice to Text hook
+  const { isListening, transcript, isSupported: voiceSupported, error: voiceError, startListening, stopListening } = useVoiceToText();
+  const [notesValue, setNotesValue] = useState(diary.notes ?? "");
+
+  // Apply GPS weather when fetched
+  useEffect(() => {
+    if (gpsWeather.conditions && !isLocked) {
+      void autosave("weather", async () => {
+        const updated = await updateDiary(diary.id, { weather: gpsWeather });
+        return { ...diary, ...updated };
+      });
+    }
+  }, [gpsWeather.conditions, gpsWeather.temp_min, gpsWeather.temp_max, gpsWeather.wind]);
+
+  // Apply voice transcript to notes
+  useEffect(() => {
+    if (transcript && !isLocked) {
+      setNotesValue(transcript);
+    }
+  }, [transcript]);
 
   // Auto-save helper
   async function autosave(field: string, updater: () => Promise<SiteDiaryFull>) {
@@ -335,6 +361,34 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
         </div>
         {openSections.has("weather") && (
           <div className="px-4 pb-5 space-y-4 border-t border-slate-100">
+            {/* GPS Weather fetch button */}
+            {!isLocked && (
+              <div className="pt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={fetchWeather}
+                  disabled={weatherLoading}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-100 text-sky-700 font-medium hover:bg-sky-200 transition-colors disabled:opacity-60"
+                >
+                  {weatherLoading ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  )}
+                  {weatherLoading ? "Fetching..." : "Use GPS Weather"}
+                </button>
+                {weatherError && (
+                  <span className="text-xs text-red-600">{weatherError}</span>
+                )}
+              </div>
+            )}
+
             {/* Condition picker */}
             <div className="pt-4">
               <p className="text-sm font-medium text-slate-600 mb-2">Conditions</p>
@@ -672,10 +726,49 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
         </div>
         {openSections.has("notes") && (
           <div className="px-4 pb-5 border-t border-slate-100 pt-4">
+            {/* Voice input button */}
+            {!isLocked && voiceSupported && (
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={isListening ? stopListening : startListening}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
+                    isListening
+                      ? "bg-red-100 text-red-700 hover:bg-red-200 animate-pulse"
+                      : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                  }`}
+                >
+                  {isListening ? (
+                    <>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                      </svg>
+                      Stop Recording
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                      Voice Input
+                    </>
+                  )}
+                </button>
+                {voiceError && (
+                  <span className="text-xs text-red-600">{voiceError}</span>
+                )}
+                {isListening && (
+                  <span className="text-xs text-indigo-600 animate-pulse">Listening...</span>
+                )}
+              </div>
+            )}
+
             <textarea
               rows={5}
               disabled={isLocked}
-              defaultValue={diary.notes ?? ""}
+              value={notesValue}
+              onChange={(e) => setNotesValue(e.target.value)}
               onBlur={(e) => handleNotesBlur(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 resize-none disabled:opacity-50"
               placeholder="Site events, issues, instructions, visitors…"
