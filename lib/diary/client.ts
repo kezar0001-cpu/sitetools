@@ -207,6 +207,8 @@ export async function updateDiary(id: string, payload: UpdateDiaryPayload): Prom
   if (payload.site_id !== undefined) updates.site_id = payload.site_id;
   if (payload.date !== undefined) updates.date = payload.date;
   if (payload.notes !== undefined) updates.notes = payload.notes;
+  if (payload.work_completed !== undefined) updates.work_completed = payload.work_completed;
+  if (payload.planned_works !== undefined) updates.planned_works = payload.planned_works;
   if (payload.status !== undefined) updates.status = payload.status;
 
   // Merge weather patch — preserve existing fields not being updated

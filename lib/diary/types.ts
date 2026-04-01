@@ -28,6 +28,8 @@ export interface SiteDiary {
   date: string; // ISO date: "YYYY-MM-DD"
   weather: WeatherSnapshot;
   notes: string | null;
+  work_completed: string | null;
+  planned_works: string | null;
   status: DiaryStatus;
   created_by: string | null;
   created_at: string;
@@ -100,6 +102,8 @@ export interface UpdateDiaryPayload {
   date?: string;
   weather?: Partial<WeatherSnapshot>;
   notes?: string | null;
+  work_completed?: string | null;
+  planned_works?: string | null;
   status?: DiaryStatus;
 }
 

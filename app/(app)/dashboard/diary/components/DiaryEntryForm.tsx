@@ -38,7 +38,7 @@ interface Props {
   userId?: string | null;
 }
 
-type Section = "weather" | "labor" | "equipment" | "photos" | "notes";
+type Section = "weather" | "work_completed" | "planned_works" | "labor" | "equipment" | "photos" | "notes";
 
 // ─── Small helpers ──────────────────────────────────────────────────────────
 
@@ -93,7 +93,7 @@ function FieldError({ msg }: { msg?: string }) {
 export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
   const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set(["weather", "labor"] as Section[])
+    new Set(["weather", "work_completed", "planned_works", "labor"] as Section[])
   );
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
@@ -112,6 +112,8 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
   // Voice to Text hook
   const { isListening, transcript, isSupported: voiceSupported, error: voiceError, startListening, stopListening } = useVoiceToText();
   const [notesValue, setNotesValue] = useState(diary.notes ?? "");
+  const [workCompletedValue, setWorkCompletedValue] = useState(diary.work_completed ?? "");
+  const [plannedWorksValue, setPlannedWorksValue] = useState(diary.planned_works ?? "");
 
   // SiteSign Labor Import
   const [siteSignLabor, setSiteSignLabor] = useState<SiteSignLaborEntry[]>([]);
@@ -207,6 +209,24 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
   function handleNotesBlur(notes: string) {
     void autosave("notes", async () => {
       const updated = await updateDiary(diary.id, { notes: notes.trim() || null });
+      return { ...diary, ...updated };
+    });
+  }
+
+  // ── Work Completed ─────────────────────────────────────────────────────────
+
+  function handleWorkCompletedBlur(value: string) {
+    void autosave("work_completed", async () => {
+      const updated = await updateDiary(diary.id, { work_completed: value.trim() || null });
+      return { ...diary, ...updated };
+    });
+  }
+
+  // ── Planned Works ──────────────────────────────────────────────────────────
+
+  function handlePlannedWorksBlur(value: string) {
+    void autosave("planned_works", async () => {
+      const updated = await updateDiary(diary.id, { planned_works: value.trim() || null });
       return { ...diary, ...updated };
     });
   }
@@ -477,6 +497,72 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
                 placeholder="e.g. 15–20 km/h NW"
               />
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Work Completed ── */}
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4">
+          <SectionHeader
+            title="Work Completed"
+            icon={
+              <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            open={openSections.has("work_completed")}
+            onToggle={() => toggleSection("work_completed")}
+          />
+        </div>
+        {openSections.has("work_completed") && (
+          <div className="px-4 pb-5 border-t border-slate-100 pt-4">
+            <p className="text-xs text-slate-500 mb-2">What was done today — work description, areas covered, milestones reached</p>
+            <textarea
+              rows={5}
+              disabled={isLocked}
+              value={workCompletedValue}
+              onChange={(e) => setWorkCompletedValue(e.target.value)}
+              onBlur={(e) => handleWorkCompletedBlur(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 resize-none disabled:opacity-50"
+              placeholder="Describe the work completed today…"
+            />
+            {saving["work_completed"] && (
+              <p className="mt-1 text-xs text-slate-400">Saving…</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Planned Works ── */}
+      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4">
+          <SectionHeader
+            title="Planned Works"
+            icon={
+              <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            }
+            open={openSections.has("planned_works")}
+            onToggle={() => toggleSection("planned_works")}
+          />
+        </div>
+        {openSections.has("planned_works") && (
+          <div className="px-4 pb-5 border-t border-slate-100 pt-4">
+            <p className="text-xs text-slate-500 mb-2">What's planned for tomorrow — activities, plant needed, hold points</p>
+            <textarea
+              rows={5}
+              disabled={isLocked}
+              value={plannedWorksValue}
+              onChange={(e) => setPlannedWorksValue(e.target.value)}
+              onBlur={(e) => handlePlannedWorksBlur(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-base text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 resize-none disabled:opacity-50"
+              placeholder="Describe the planned work for tomorrow…"
+            />
+            {saving["planned_works"] && (
+              <p className="mt-1 text-xs text-slate-400">Saving…</p>
+            )}
           </div>
         )}
       </div>
