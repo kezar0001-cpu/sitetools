@@ -83,31 +83,39 @@ export async function getDiaries(
 /** Fetch a single diary with all related rows. Photos are returned without signed URLs;
  *  call getDiaryPhotoUrls() separately on the detail view mount to get fresh 7-day signed URLs. */
 export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {
-  const { data, error } = await supabase
-    .from("site_diaries")
-    .select("*")
-    .eq("id", id)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from("site_diaries")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-  if (error) {
-    if (error.code === "PGRST116") return null; // row not found
-    throw error;
+    if (error) {
+      console.error("[diary/client] getDiaryById error:", error.code, error.message);
+      if (error.code === "PGRST116") return null; // row not found
+      throw error;
+    }
+
+    const diary = data as SiteDiary;
+
+    const [labor, equipment] = await Promise.all([
+      getLabor(id),
+      getEquipment(id),
+    ]);
+
+    const photos = await getPhotos(id);
+
+    return {
+      ...diary,
+      weather: (diary.weather as WeatherSnapshot) ?? DEFAULT_WEATHER,
+      labor,
+      equipment,
+      photos,
+    };
+  } catch (err) {
+    console.error("[diary/client] getDiaryById failed:", err instanceof Error ? err.message : err);
+    throw err;
   }
-
-  const diary = data as SiteDiary;
-
-  const [labor, equipment] = await Promise.all([
-    getLabor(id),
-    getEquipment(id),
-  ]);
-
-  return {
-    ...diary,
-    weather: (diary.weather as unknown as WeatherSnapshot) ?? DEFAULT_WEATHER,
-    labor,
-    equipment,
-    photos: [],
-  };
 }
 
 /** Create a new diary entry. */
@@ -398,34 +406,39 @@ export async function getPhotos(diaryId: string): Promise<SiteDiaryPhoto[]> {
  * instead of relying on any cached or bundled URLs.
  */
 export async function getDiaryPhotoUrls(diaryId: string): Promise<SiteDiaryPhoto[]> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl || !token) {
-    // Fall back to client-side signed URL generation if env/auth not available
-    return getPhotos(diaryId);
-  }
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl || !token) {
+      // Fall back to client-side signed URL generation if env/auth not available
+      return getPhotos(diaryId);
+    }
 
-  const res = await fetch(
-    `${supabaseUrl}/functions/v1/get-diary-photo-urls`,
-    {
+    const functionUrl = `${supabaseUrl}/functions/v1/get-diary-photo-urls`;
+
+    const res = await fetch(functionUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ diary_id: diaryId }),
-    }
-  );
+    });
 
-  if (!res.ok) {
-    console.warn("[diary/client] get-diary-photo-urls returned", res.status, "— falling back to client-side generation");
+    if (!res.ok) {
+      console.warn("[diary/client] get-diary-photo-urls returned", res.status, "— falling back to client-side generation");
+      return getPhotos(diaryId);
+    }
+
+    const json = await res.json() as { photos?: SiteDiaryPhoto[] };
+    return json.photos ?? [];
+  } catch (err) {
+    // Network/fetch errors - fall back to client-side generation
+    console.warn("[diary/client] Edge function fetch failed:", err instanceof Error ? err.message : err);
     return getPhotos(diaryId);
   }
-
-  const json = await res.json() as { photos?: SiteDiaryPhoto[] };
-  return json.photos ?? [];
 }
 
 export async function deletePhoto(photo: SiteDiaryPhoto): Promise<void> {
