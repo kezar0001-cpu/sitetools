@@ -1,6 +1,6 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabaseClient";
 import { DEFAULT_WEATHER } from "./types";
-import type {
+import {
   AddEquipmentPayload,
   AddIssuePayload,
   AddLaborPayload,
@@ -15,6 +15,8 @@ import type {
   UpdateDiaryPayload,
   WeatherSnapshot,
 } from "./types";
+import type { Site } from "@/lib/workspace/types";
+import { getSiteById } from "@/lib/workspace/client";
 
 // ─────────────────────────────────────────────
 // Diaries
@@ -439,8 +441,8 @@ export async function getPhotos(diaryId: string): Promise<SiteDiaryPhoto[]> {
 
   const urlMap = new Map<string, string>(
     (signedData ?? [])
-      .filter((s) => s.path !== null)
-      .map((s) => [s.path as string, s.signedUrl])
+      .filter((s: { path: string | null; signedUrl: string }) => s.path !== null)
+      .map((s: { path: string | null; signedUrl: string }) => [s.path as string, s.signedUrl])
   );
 
   return photos.map((p) => ({
@@ -528,42 +530,70 @@ export interface SiteSignLaborEntry {
  */
 export async function getSiteSignLabor(
   siteId: string,
-  date: string // ISO date: YYYY-MM-DD
+  date: string // ISO date: YYYY-MM-DD (local date at site)
 ): Promise<SiteSignLaborEntry[]> {
-  const startOfDay = `${date}T00:00:00`;
-  const endOfDay = `${date}T23:59:59`;
+  // Fetch site to get timezone
+  const site = await getSiteById(siteId);
+  const timezone = site?.timezone || 'Australia/Sydney';
+  
+  // Convert local date to UTC range based on site's timezone
+  // This ensures we query the correct UTC times that correspond to the site's local day
+  const startOfDayLocal = new Date(`${date}T00:00:00`);
+  const endOfDayLocal = new Date(`${date}T23:59:59.999`);
+  
+  // Format as ISO strings for query (these will be interpreted as local times)
+  const startRange = startOfDayLocal.toISOString().slice(0, 10) + 'T00:00:00';
+  const endRange = endOfDayLocal.toISOString().slice(0, 10) + 'T23:59:59';
 
-  console.log("[getSiteSignLabor] Fetching for site:", siteId, "date:", date);
-  console.log("[getSiteSignLabor] Date range:", startOfDay, "to", endOfDay);
+  console.log('[getSiteSignLabor] Site timezone:', timezone, 'Local date:', date);
+  console.log('[getSiteSignLabor] Query range:', startRange, 'to', endRange);
 
   const { data, error } = await supabase
-    .from("site_visits")
-    .select("company_name, full_name, signed_in_at, signed_out_at")
-    .eq("site_id", siteId)
-    .in("visitor_type", ["Worker", "Subcontractor"])
-    .gte("signed_in_at", startOfDay)
-    .lte("signed_in_at", endOfDay)
-    .order("company_name", { ascending: true });
+    .from('site_visits')
+    .select('company_name, full_name, signed_in_at, signed_out_at')
+    .eq('site_id', siteId)
+    .in('visitor_type', ['Worker', 'Subcontractor'])
+    .gte('signed_in_at', startRange)
+    .lte('signed_in_at', endRange)
+    .order('company_name', { ascending: true });
 
   if (error) {
-    console.error("[diary/client] getSiteSignLabor error:", error.message);
+    console.error('[diary/client] getSiteSignLabor error:', error.message);
     throw error;
   }
 
   const visits = data ?? [];
-  console.log("[getSiteSignLabor] Raw visits returned:", visits.length, visits);
+  console.log('[getSiteSignLabor] Raw visits returned:', visits.length, visits);
 
   if (visits.length === 0) return [];
 
+  // Filter to only include visits that fall on the requested local date
+  // by checking the UTC timestamp converted to site's local date
+  const siteDateVisits = visits.filter((v: { signed_in_at: string }) => {
+    const visitDate = new Date(v.signed_in_at);
+    // Format the UTC timestamp as a date string in the site's timezone
+    const visitLocalDate = visitDate.toLocaleDateString('en-AU', { 
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).split('/').reverse().join('-'); // Convert DD/MM/YYYY to YYYY-MM-DD
+    return visitLocalDate === date;
+  });
+
+  console.log('[getSiteSignLabor] Visits on local date:', siteDateVisits.length);
+
+  if (siteDateVisits.length === 0) return [];
+
   // Group by company_name
-  const grouped = new Map<string, typeof visits>();
-  for (const visit of visits) {
-    const key = visit.company_name?.trim() || "Unknown";
+  const grouped = new Map<string, typeof siteDateVisits>();
+  for (const visit of siteDateVisits) {
+    const key = visit.company_name?.trim() || 'Unknown';
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(visit);
   }
 
-  console.log("[getSiteSignLabor] Grouped by company:", grouped.size, "companies");
+  console.log('[getSiteSignLabor] Grouped by company:', grouped.size, 'companies');
 
   // Calculate hours and build result
   const results: SiteSignLaborEntry[] = [];
@@ -592,7 +622,7 @@ export async function getSiteSignLabor(
     });
   });
 
-  console.log("[getSiteSignLabor] Final results:", results);
+  console.log('[getSiteSignLabor] Final results:', results);
   return results;
 }
 

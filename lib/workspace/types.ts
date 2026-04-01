@@ -55,6 +55,8 @@ export interface Site {
   logo_url: string | null;
   /** When false the site is archived and no longer accepts sign-ins. Defaults to true. */
   is_active: boolean;
+  /** IANA timezone identifier (e.g., Australia/Sydney, Australia/Melbourne) */
+  timezone: string | null;
   created_at: string;
 }
 

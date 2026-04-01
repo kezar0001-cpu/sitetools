@@ -627,9 +627,17 @@ export async function updateCompany(
   if (error) throw error;
 }
 
-export async function deleteCompany(companyId: string): Promise<void> {
-  const { error } = await supabase.from("companies").delete().eq("id", companyId);
-  if (error) throw error;
+export async function getSiteById(siteId: string): Promise<Site | null> {
+  const { data, error } = await supabase
+    .from("sites")
+    .select("*")
+    .eq("id", siteId)
+    .single();
+  if (error) {
+    console.error("[workspace/client] getSiteById error:", error.message);
+    return null;
+  }
+  return data as Site;
 }
 
 // Simple wrappers for diary creation modal
