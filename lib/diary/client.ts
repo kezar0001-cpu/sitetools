@@ -2,11 +2,13 @@ import { supabase } from "@/lib/supabase";
 import { DEFAULT_WEATHER } from "./types";
 import type {
   AddEquipmentPayload,
+  AddIssuePayload,
   AddLaborPayload,
   CreateDiaryPayload,
   SiteDiary,
   SiteDiaryEquipment,
   SiteDiaryFull,
+  SiteDiaryIssue,
   SiteDiaryLabor,
   SiteDiaryPhoto,
   SiteDiaryWithCounts,
@@ -98,9 +100,10 @@ export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {
 
     const diary = data as SiteDiary;
 
-    const [labor, equipment] = await Promise.all([
+    const [labor, equipment, issues] = await Promise.all([
       getLabor(id),
       getEquipment(id),
+      getIssues(id),
     ]);
 
     const photos = await getPhotos(id);
@@ -111,6 +114,7 @@ export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {
       labor,
       equipment,
       photos,
+      issues,
     };
   } catch (err) {
     console.error("[diary/client] getDiaryById failed:", err instanceof Error ? err.message : err);
@@ -316,6 +320,49 @@ export async function deleteEquipment(equipmentId: string): Promise<void> {
     .from("site_diary_equipment")
     .delete()
     .eq("id", equipmentId);
+  if (error) throw error;
+}
+
+// ─────────────────────────────────────────────
+// Issues
+// ─────────────────────────────────────────────
+
+export async function getIssues(diaryId: string): Promise<SiteDiaryIssue[]> {
+  const { data, error } = await supabase
+    .from("site_diary_issues")
+    .select("*")
+    .eq("diary_id", diaryId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as SiteDiaryIssue[];
+}
+
+export async function addIssue(
+  diaryId: string,
+  payload: AddIssuePayload
+): Promise<SiteDiaryIssue> {
+  const { data, error } = await supabase
+    .from("site_diary_issues")
+    .insert({
+      diary_id: diaryId,
+      type: payload.type,
+      description: payload.description.trim(),
+      responsible_party: payload.responsible_party?.trim() || null,
+      delay_hours: payload.delay_hours ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiaryIssue;
+}
+
+export async function deleteIssue(issueId: string): Promise<void> {
+  const { error } = await supabase
+    .from("site_diary_issues")
+    .delete()
+    .eq("id", issueId);
   if (error) throw error;
 }
 

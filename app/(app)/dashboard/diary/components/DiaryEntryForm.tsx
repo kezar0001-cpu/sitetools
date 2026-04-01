@@ -12,6 +12,7 @@ import { PhotosSection } from "./PhotosSection";
 import { NotesSection } from "./NotesSection";
 import { ReviewPanel } from "./ReviewPanel";
 import { DiaryProgress } from "./DiaryProgress";
+import { IssuesSection } from "./IssuesSection";
 
 interface Props {
   diary: SiteDiaryFull;
@@ -20,7 +21,7 @@ interface Props {
   userId?: string | null;
 }
 
-type Section = "weather" | "work_completed" | "planned_works" | "labor" | "equipment" | "photos" | "notes";
+type Section = "weather" | "work_completed" | "planned_works" | "labor" | "equipment" | "photos" | "notes" | "issues";
 
 export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
@@ -147,6 +148,15 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
         onUpdate={handleSectionUpdate}
         saving={saving}
         setSaving={setSaving}
+      />
+
+      {/* ── Issues ── */}
+      <IssuesSection
+        diary={diary}
+        isLocked={isLocked}
+        isOpen={openSections.has("issues")}
+        onToggle={() => toggleSection("issues")}
+        onUpdate={handleSectionUpdate}
       />
 
       {/* ── Review Panel (Submit/Approve/Reject) ── */}

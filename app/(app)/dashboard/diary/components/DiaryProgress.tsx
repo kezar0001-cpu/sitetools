@@ -21,9 +21,9 @@ export function DiaryProgress({ diary }: DiaryProgressProps) {
     score += 20;
   }
 
-  // At least 1 equipment row (+15%)
+  // At least 1 equipment row (+10%)
   if (diary.equipment.length > 0) {
-    score += 15;
+    score += 10;
   }
 
   // work_completed text (+20%)
@@ -31,13 +31,18 @@ export function DiaryProgress({ diary }: DiaryProgressProps) {
     score += 20;
   }
 
-  // Photos added (+15%)
+  // Photos added (+10%)
   if (diary.photos.length > 0) {
-    score += 15;
+    score += 10;
   }
 
   // Notes added (+10%)
   if (diary.notes && diary.notes.trim().length > 0) {
+    score += 10;
+  }
+
+  // At least 1 issue tracked (+10%)
+  if (diary.issues.length > 0) {
     score += 10;
   }
 

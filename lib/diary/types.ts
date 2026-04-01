@@ -71,6 +71,19 @@ export interface SiteDiaryPhoto {
   signedUrl?: string;
 }
 
+export type IssueType = "Safety" | "Delay" | "RFI" | "Instruction" | "NCR";
+
+export interface SiteDiaryIssue {
+  id: string;
+  diary_id: string;
+  type: IssueType;
+  description: string;
+  responsible_party: string | null;
+  delay_hours: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Composite / view types ──
 export interface SiteDiaryWithCounts extends SiteDiary {
   total_workers: number;
@@ -83,6 +96,7 @@ export interface SiteDiaryFull extends SiteDiary {
   labor: SiteDiaryLabor[];
   equipment: SiteDiaryEquipment[];
   photos: SiteDiaryPhoto[];
+  issues: SiteDiaryIssue[];
 }
 
 // ── Payload types (for create / update operations) ──
@@ -117,6 +131,13 @@ export interface AddEquipmentPayload {
   equipment_type: string;
   quantity: number;
   hours_used: number;
+}
+
+export interface AddIssuePayload {
+  type: IssueType;
+  description: string;
+  responsible_party?: string | null;
+  delay_hours?: number | null;
 }
 
 // ── SiteSign Integration ──
