@@ -9,7 +9,6 @@ interface DiaryProgressProps {
 export function DiaryProgress({ diary }: DiaryProgressProps) {
   // Calculate completion percentage based on scoring criteria
   let score = 0;
-  const maxScore = 100;
 
   // Weather condition set (+20%)
   if (diary.weather?.conditions) {

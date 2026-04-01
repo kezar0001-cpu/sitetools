@@ -7,7 +7,7 @@ import {
   WEATHER_CONDITION_ICONS,
   WEATHER_CONDITION_LABELS,
 } from "@/lib/diary/types";
-import type { SiteDiaryFull, WeatherSnapshot, WeatherCondition } from "@/lib/diary/types";
+import type { SiteDiaryFull, WeatherCondition } from "@/lib/diary/types";
 import { useGPSWeather } from "@/hooks/useGPSWeather";
 import { SectionHeader } from "./SectionHeader";
 

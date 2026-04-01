@@ -34,20 +34,6 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
   const isLocked = diary.status === "submitted" || diary.status === "approved";
   const isRejected = diary.status === "rejected";
 
-  // Auto-save helper (exposed to children via onUpdate callback pattern)
-  async function autosave(field: string, updater: () => Promise<SiteDiaryFull>) {
-    setSaving((s) => ({ ...s, [field]: true }));
-    try {
-      const updated = await updater();
-      setDiary(updated);
-      onUpdate?.(updated);
-    } catch (err) {
-      console.error("[DiaryEntryForm] autosave error:", err);
-    } finally {
-      setSaving((s) => ({ ...s, [field]: false }));
-    }
-  }
-
   // Wrapper for section updates that syncs local diary state
   const handleSectionUpdate = useCallback((updated: SiteDiaryFull) => {
     setDiary(updated);
