@@ -3,7 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Diagnostic: log missing env vars in development
+if (!supabaseUrl || !supabaseAnonKey) {
+  if (typeof window !== 'undefined') {
+    console.error('[Supabase] Missing environment variables:', {
+      url: supabaseUrl ? 'set' : 'MISSING',
+      key: supabaseAnonKey ? 'set' : 'MISSING',
+    });
+  }
+}
+
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     // iOS Safari (and some other mobile browsers) can time out waiting to
     // acquire a Navigator LockManager lock on the auth token, producing:

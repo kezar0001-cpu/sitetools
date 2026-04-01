@@ -40,13 +40,22 @@ export default function DiaryDetailPage() {
           setError("Diary not found.");
           return;
         }
-        // Load diary content first so the page renders immediately,
-        // then fetch fresh 7-day signed URLs for photos via the Edge Function.
+        // Load diary content first so the page renders immediately
         setDiary(data);
-        const photos = await getDiaryPhotoUrls(diaryId);
-        setDiary((prev) => prev ? { ...prev, photos } : prev);
+        
+        // Fetch fresh 7-day signed URLs for photos via the Edge Function (non-blocking)
+        try {
+          const photos = await getDiaryPhotoUrls(diaryId);
+          setDiary((prev) => prev ? { ...prev, photos } : prev);
+        } catch (photoErr) {
+          console.warn("[DiaryDetailPage] Failed to load photo URLs:", photoErr);
+          // Don't fail the whole page if photos can't load - they have fallback handling
+        }
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Could not load diary."))
+      .catch((err) => {
+        console.error("[DiaryDetailPage] Failed to load diary:", err);
+        setError(err instanceof Error ? err.message : "Could not load diary.");
+      })
       .finally(() => setBusy(false));
   }, [diaryId]);
 

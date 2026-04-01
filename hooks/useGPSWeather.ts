@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * GPS Weather hook for auto-fetching weather based on device location
- * Falls back to manual entry when GPS unavailable
+ * GPS Weather hook using Open-Meteo (free, no API key required)
+ * https://open-meteo.com/
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type { WeatherSnapshot, WeatherCondition } from "@/lib/diary/types";
-import { DEFAULT_WEATHER, WEATHER_CONDITIONS } from "@/lib/diary/types";
+import { DEFAULT_WEATHER } from "@/lib/diary/types";
 
 export interface GPSWeatherState {
   weather: WeatherSnapshot;
@@ -23,42 +23,37 @@ export interface GPSWeatherActions {
   reset: () => void;
 }
 
-// OpenWeatherMap condition mapping to our weather types
-function mapWeatherCondition(owmCondition: string, owmId: number): WeatherCondition {
-  // Thunderstorm
-  if (owmId >= 200 && owmId < 300) return "storm";
-  // Drizzle / Rain
-  if (owmId >= 300 && owmId < 400) return "light-rain";
-  if (owmId >= 500 && owmId < 600) return owmId < 502 ? "light-rain" : "heavy-rain";
-  // Snow
-  if (owmId >= 600 && owmId < 700) return "heavy-rain";
-  // Atmosphere (fog, mist, haze)
-  if (owmId >= 700 && owmId < 800) {
-    if (owmId === 701 || owmId === 721 || owmId === 741) return "fog";
-    if (owmId === 711 || owmId === 731 || owmId === 761) return "windy";
-    return "overcast";
-  }
-  // Clear
-  if (owmId === 800) return "sunny";
-  // Clouds
-  if (owmId > 800 && owmId < 900) {
-    if (owmId === 801 || owmId === 802) return "partly-cloudy";
-    return "overcast";
-  }
-  // Wind
-  if (owmId >= 950 && owmId < 960) return "windy";
-
-  // Fallback to string matching
-  const condition = owmCondition.toLowerCase();
-  if (condition.includes("thunder") || condition.includes("storm")) return "storm";
-  if (condition.includes("heavy rain") || condition.includes("downpour")) return "heavy-rain";
-  if (condition.includes("rain") || condition.includes("drizzle")) return "light-rain";
-  if (condition.includes("snow") || condition.includes("sleet") || condition.includes("hail")) return "heavy-rain";
-  if (condition.includes("fog") || condition.includes("mist")) return "fog";
-  if (condition.includes("wind") || condition.includes("breez")) return "windy";
-  if (condition.includes("overcast") || condition.includes("cloud") && condition.includes("heavy")) return "overcast";
-  if (condition.includes("partly")) return "partly-cloudy";
-  if (condition.includes("clear") || condition.includes("sunny")) return "sunny";
+// WMO Weather interpretation codes (WW)
+// https://open-meteo.com/en/docs
+function mapWeatherCode(code: number): WeatherCondition {
+  // 0: Clear sky
+  if (code === 0) return "sunny";
+  // 1, 2, 3: Mainly clear, partly cloudy, overcast
+  if (code === 1) return "partly-cloudy";
+  if (code === 2) return "partly-cloudy";
+  if (code === 3) return "overcast";
+  // 45, 48: Fog
+  if (code === 45 || code === 48) return "fog";
+  // 51, 53, 55: Drizzle
+  if (code >= 51 && code <= 55) return "light-rain";
+  // 56, 57: Freezing drizzle
+  if (code === 56 || code === 57) return "light-rain";
+  // 61, 63, 65: Rain
+  if (code === 61) return "light-rain";
+  if (code === 63 || code === 65) return "heavy-rain";
+  // 66, 67: Freezing rain
+  if (code === 66 || code === 67) return "heavy-rain";
+  // 71, 73, 75: Snow fall
+  if (code >= 71 && code <= 75) return "heavy-rain";
+  // 77: Snow grains
+  if (code === 77) return "heavy-rain";
+  // 80, 81, 82: Rain showers
+  if (code === 80) return "light-rain";
+  if (code === 81 || code === 82) return "heavy-rain";
+  // 85, 86: Snow showers
+  if (code === 85 || code === 86) return "heavy-rain";
+  // 95, 96, 99: Thunderstorm
+  if (code >= 95) return "storm";
 
   return "partly-cloudy";
 }
@@ -87,14 +82,9 @@ export function useGPSWeather(): GPSWeatherState & GPSWeatherActions {
       const { latitude, longitude } = position.coords;
       setHasLocation(true);
 
-      // Fetch weather from API
-      const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
-      if (!apiKey) {
-        throw new Error("Weather API not configured");
-      }
-
+      // Fetch weather from Open-Meteo (free, no API key needed)
       const response = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=metric&appid=${apiKey}`
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,wind_speed_10m,wind_direction_10m,weather_code&daily=temperature_2m_min,temperature_2m_max&timezone=auto&forecast_days=1`
       );
 
       if (!response.ok) {
@@ -103,34 +93,23 @@ export function useGPSWeather(): GPSWeatherState & GPSWeatherActions {
 
       const data = await response.json();
 
-      // Map to our weather format
-      const conditions = mapWeatherCondition(data.weather?.[0]?.main ?? "", data.weather?.[0]?.id ?? 0);
-      const tempMin = data.main?.temp_min ? Math.round(data.main.temp_min) : null;
-      const tempMax = data.main?.temp_max ? Math.round(data.main.temp_max) : null;
-      const windSpeed = data.wind?.speed ? Math.round(data.wind.speed * 3.6) : null; // m/s to km/h
-      const windDeg = data.wind?.deg;
-      
+      // Extract current weather data
+      const current = data.current;
+      const daily = data.daily;
+
+      // Map to our format
+      const conditions = mapWeatherCode(current?.weather_code ?? 0);
+      const tempMin = daily?.temperature_2m_min?.[0] ? Math.round(daily.temperature_2m_min[0]) : null;
+      const tempMax = daily?.temperature_2m_max?.[0] ? Math.round(daily.temperature_2m_max[0]) : null;
+      const windSpeed = current?.wind_speed_10m ? Math.round(current.wind_speed_10m) : null;
+      const windDeg = current?.wind_direction_10m;
+
       // Format wind string
       let wind: string | null = null;
-      if (windSpeed) {
+      if (windSpeed !== null) {
         const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
         const direction = windDeg ? directions[Math.round(windDeg / 45) % 8] : "";
         wind = `${windSpeed} km/h${direction ? ` ${direction}` : ""}`;
-      }
-
-      // Try to get location name
-      try {
-        const geoResponse = await fetch(
-          `https://api.openweathermap.org/geo/1.0/reverse?lat=${latitude}&lon=${longitude}&limit=1&appid=${apiKey}`
-        );
-        if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
-          if (geoData?.[0]?.name) {
-            setLocationName(geoData[0].name);
-          }
-        }
-      } catch {
-        // Silent fail on reverse geocoding
       }
 
       setWeather({
@@ -142,7 +121,7 @@ export function useGPSWeather(): GPSWeatherState & GPSWeatherActions {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to fetch weather";
       setError(errorMsg);
-      
+
       // Handle specific geolocation errors
       if (err instanceof GeolocationPositionError) {
         if (err.code === err.PERMISSION_DENIED) {

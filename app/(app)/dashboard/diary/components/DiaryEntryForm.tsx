@@ -119,6 +119,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
         return { ...diary, ...updated };
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gpsWeather.conditions, gpsWeather.temp_min, gpsWeather.temp_max, gpsWeather.wind]);
 
   // Apply voice transcript to notes
@@ -126,6 +127,7 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
     if (transcript && !isLocked) {
       setNotesValue(transcript);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transcript]);
 
   // Auto-save helper
