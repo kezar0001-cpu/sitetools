@@ -533,6 +533,9 @@ export async function getSiteSignLabor(
   const startOfDay = `${date}T00:00:00`;
   const endOfDay = `${date}T23:59:59`;
 
+  console.log("[getSiteSignLabor] Fetching for site:", siteId, "date:", date);
+  console.log("[getSiteSignLabor] Date range:", startOfDay, "to", endOfDay);
+
   const { data, error } = await supabase
     .from("site_visits")
     .select("company_name, full_name, signed_in_at, signed_out_at")
@@ -548,6 +551,8 @@ export async function getSiteSignLabor(
   }
 
   const visits = data ?? [];
+  console.log("[getSiteSignLabor] Raw visits returned:", visits.length, visits);
+
   if (visits.length === 0) return [];
 
   // Group by company_name
@@ -557,6 +562,8 @@ export async function getSiteSignLabor(
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(visit);
   }
+
+  console.log("[getSiteSignLabor] Grouped by company:", grouped.size, "companies");
 
   // Calculate hours and build result
   const results: SiteSignLaborEntry[] = [];
@@ -585,6 +592,7 @@ export async function getSiteSignLabor(
     });
   });
 
+  console.log("[getSiteSignLabor] Final results:", results);
   return results;
 }
 
