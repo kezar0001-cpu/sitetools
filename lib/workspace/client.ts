@@ -631,3 +631,12 @@ export async function deleteCompany(companyId: string): Promise<void> {
   const { error } = await supabase.from("companies").delete().eq("id", companyId);
   if (error) throw error;
 }
+
+// Simple wrappers for diary creation modal
+export async function getProjects(companyId: string): Promise<Project[]> {
+  return fetchCompanyProjects(companyId);
+}
+
+export async function getSites(companyId: string): Promise<Site[]> {
+  return fetchCompanySites(companyId);
+}

@@ -7,6 +7,7 @@ import { getDiaries, createDiary } from "@/lib/diary/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryWithCounts } from "@/lib/diary/types";
 import DiaryListCard from "./components/DiaryListCard";
+import { NewDiaryModal } from "./components/NewDiaryModal";
 
 export default function DiaryListPage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function DiaryListPage() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     if (!companyId) return;
@@ -38,10 +40,21 @@ export default function DiaryListPage() {
       router.push(`/dashboard/diary/${todayDiary.id}`);
       return;
     }
+    setShowModal(true);
+  }
+
+  async function handleCreateDiary(projectId: string | null, siteId: string | null) {
+    if (!companyId) return;
     setCreating(true);
     setError(null);
     try {
-      const diary = await createDiary({ company_id: companyId, date: todayIso });
+      const diary = await createDiary({ 
+        company_id: companyId, 
+        project_id: projectId, 
+        site_id: siteId, 
+        date: todayIso 
+      });
+      setShowModal(false);
       router.push(`/dashboard/diary/${diary.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create diary.");
@@ -126,6 +139,15 @@ export default function DiaryListPage() {
             ))}
           </div>
         )}
+
+        {/* New Diary Modal */}
+        <NewDiaryModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onCreate={handleCreateDiary}
+          companyId={companyId ?? ""}
+          isCreating={creating}
+        />
       </div>
     </div>
   );
