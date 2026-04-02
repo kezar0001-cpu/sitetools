@@ -4,5 +4,10 @@
             "path": "/api/cron-nudge",
             "schedule": "0 6 * * *"
         }
-    ]
+    ],
+    "functions": {
+        "app/api/site-docs/generate/route.ts": {
+            "maxDuration": 60
+        }
+    }
 }

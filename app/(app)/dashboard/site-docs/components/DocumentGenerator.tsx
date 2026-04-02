@@ -117,7 +117,13 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
             setGeneratedContent(content);
             setStep("preview");
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to generate document");
+            const errorMessage = err instanceof Error ? err.message : "Failed to generate document";
+            // Provide more helpful error message for timeouts
+            if (errorMessage.toLowerCase().includes("abort") || errorMessage.toLowerCase().includes("timeout")) {
+                setError("Request timed out. The AI is taking longer than expected. Try with shorter notes or try again.");
+            } else {
+                setError(errorMessage);
+            }
             setStep("input");
         }
     }
