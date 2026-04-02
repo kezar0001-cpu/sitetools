@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabase";
 import { DEFAULT_WEATHER } from "./types";
 import {
   AddEquipmentPayload,
@@ -15,7 +15,6 @@ import {
   UpdateDiaryPayload,
   WeatherSnapshot,
 } from "./types";
-import type { Site } from "@/lib/workspace/types";
 import { getSiteById } from "@/lib/workspace/client";
 
 // ─────────────────────────────────────────────
