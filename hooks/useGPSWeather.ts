@@ -58,8 +58,8 @@ function mapWeatherCode(code: number): WeatherCondition {
   return "partly-cloudy";
 }
 
-export function useGPSWeather(): GPSWeatherState & GPSWeatherActions {
-  const [weather, setWeather] = useState<WeatherSnapshot>(DEFAULT_WEATHER);
+export function useGPSWeather(initialWeather?: WeatherSnapshot): GPSWeatherState & GPSWeatherActions {
+  const [weather, setWeather] = useState<WeatherSnapshot>(initialWeather ?? DEFAULT_WEATHER);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasLocation, setHasLocation] = useState(false);
@@ -142,11 +142,11 @@ export function useGPSWeather(): GPSWeatherState & GPSWeatherActions {
   }, []);
 
   const reset = useCallback(() => {
-    setWeather(DEFAULT_WEATHER);
+    setWeather(initialWeather ?? DEFAULT_WEATHER);
     setError(null);
     setHasLocation(false);
     setLocationName(null);
-  }, []);
+  }, [initialWeather]);
 
   return {
     weather,

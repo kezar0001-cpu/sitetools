@@ -30,7 +30,7 @@ export function WeatherSection({
   saving,
   setSaving,
 }: WeatherSectionProps) {
-  const { weather: gpsWeather, isLoading: weatherLoading, error: weatherError, fetchWeather } = useGPSWeather();
+  const { weather: gpsWeather, isLoading: weatherLoading, error: weatherError, fetchWeather } = useGPSWeather(diary.weather);
 
   // Apply GPS weather when fetched
   useEffect(() => {
