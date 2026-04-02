@@ -1,5 +1,7 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { getSecret } from "@/lib/server/get-secret";
 
 export const runtime = "nodejs";
 
@@ -9,61 +11,11 @@ const supabaseAdmin = createClient(
     { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-export async function POST(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { document_type, summary, metadata_override } = body;
+// ---------------------------------------------------------------------------
+// System prompt — Document generation
+// ---------------------------------------------------------------------------
 
-        if (!summary) {
-            return NextResponse.json(
-                { message: "Summary is required" },
-                { status: 400 }
-            );
-        }
-
-        // Verify user is authenticated
-        const authHeader = request.headers.get("authorization");
-        if (!authHeader?.startsWith("Bearer ")) {
-            return NextResponse.json(
-                { message: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-        const token = authHeader.slice(7);
-        const {
-            data: { user },
-            error: authError,
-        } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
-            return NextResponse.json(
-                { message: "Unauthorized" },
-                { status: 401 }
-            );
-        }
-
-        // Get OpenAI API key from environment
-        const apiKey = process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            return NextResponse.json(
-                { message: "AI generation not configured" },
-                { status: 503 }
-            );
-        }
-
-        // Call OpenAI to generate structured content
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${apiKey}`,
-            },
-            body: JSON.stringify({
-                model: "gpt-4o-mini",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are a professional document generator for construction and civil engineering. 
+const DOCUMENT_SYSTEM_PROMPT = `You are a professional document generator for construction and civil engineering. 
 Convert informal meeting notes, incident summaries, or reports into structured professional documents.
 
 Respond ONLY with valid JSON in this exact format:
@@ -91,32 +43,101 @@ Respond ONLY with valid JSON in this exact format:
   ]
 }
 
-Extract and organize all relevant information from the user's input. Use null for any fields not found in the input.`,
-                    },
-                    {
-                        role: "user",
-                        content: summary,
-                    },
-                ],
-                response_format: { type: "json_object" },
-                temperature: 0.3,
-            }),
-        });
+Extract and organize all relevant information from the user's input. Use null for any fields not found in the input.`;
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("OpenAI API error:", errorData);
+export async function POST(request: NextRequest) {
+    try {
+        const body = await request.json();
+        const { document_type, summary, metadata_override } = body;
+
+        if (!summary) {
             return NextResponse.json(
-                { message: "Failed to generate document content" },
-                { status: 502 }
+                { error: "Summary is required." },
+                { status: 400 }
             );
         }
 
-        const aiResponse = await response.json();
-        const generatedContent = JSON.parse(aiResponse.choices[0].message.content);
+        // Verify user is authenticated
+        const authHeader = request.headers.get("authorization");
+        if (!authHeader?.startsWith("Bearer ")) {
+            return NextResponse.json(
+                { error: "Not authenticated." },
+                { status: 401 }
+            );
+        }
+        const token = authHeader.slice(7);
+        const {
+            data: { user },
+            error: authError,
+        } = await supabaseAdmin.auth.getUser(token);
+
+        if (authError || !user) {
+            return NextResponse.json(
+                { error: "Invalid session." },
+                { status: 401 }
+            );
+        }
+
+        // Get Anthropic API key from Supabase secrets
+        const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: "AI service not configured — API key not found." },
+                { status: 500 }
+            );
+        }
+        const anthropic = new Anthropic({ apiKey });
+
+        // Call Claude to generate structured content
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
+        const message = await anthropic.messages.create(
+            {
+                model: "claude-sonnet-4-6",
+                max_tokens: 4096,
+                system: DOCUMENT_SYSTEM_PROMPT,
+                messages: [
+                    {
+                        role: "user",
+                        content: `Document type: ${document_type || "professional document"}\n\n${summary}`,
+                    },
+                ],
+            },
+            { signal: controller.signal }
+        );
+
+        clearTimeout(timeoutId);
+
+        const textBlock = message.content.find((b) => b.type === "text");
+        const responseText = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+
+        // Parse JSON response
+        let generatedContent;
+        try {
+            generatedContent = JSON.parse(responseText);
+        } catch {
+            // Try to extract JSON from markdown code fences
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                try {
+                    generatedContent = JSON.parse(jsonMatch[0]);
+                } catch {
+                    return NextResponse.json(
+                        { error: "Failed to parse AI response. Please try again." },
+                        { status: 422 }
+                    );
+                }
+            } else {
+                return NextResponse.json(
+                    { error: "Failed to parse AI response. Please try again." },
+                    { status: 422 }
+                );
+            }
+        }
 
         // Apply metadata overrides if provided
-        if (metadata_override) {
+        if (metadata_override && generatedContent.metadata) {
             if (metadata_override.project_name) {
                 generatedContent.metadata.project_name = metadata_override.project_name;
             }
@@ -138,9 +159,15 @@ Extract and organize all relevant information from the user's input. Use null fo
             generated_content: generatedContent,
         });
     } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            return NextResponse.json(
+                { error: "Request timed out." },
+                { status: 504 }
+            );
+        }
         console.error("Document generation error:", error);
         return NextResponse.json(
-            { message: error instanceof Error ? error.message : "Internal server error" },
+            { error: error instanceof Error ? error.message : "AI processing failed." },
             { status: 500 }
         );
     }
