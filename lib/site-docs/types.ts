@@ -12,7 +12,11 @@ export type DocumentType =
     | "rfi"
     | "daily-progress"
     | "inspection-checklist"
-    | "toolbox-talk";
+    | "toolbox-talk"
+    | "variation"
+    | "ncr"
+    | "delivery-docket"
+    | "site-instruction";
 
 export type DocumentStatus = "draft" | "final" | "archived";
 
@@ -152,6 +156,10 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
     "daily-progress": "Daily Progress Report",
     "inspection-checklist": "Inspection Checklist",
     "toolbox-talk": "Toolbox Talk Record",
+    variation: "Variation / Change Order",
+    ncr: "Non-Conformance Report",
+    "delivery-docket": "Delivery Docket",
+    "site-instruction": "Site Instruction",
 };
 
 export const DOCUMENT_TYPE_ICONS: Record<DocumentType, string> = {
@@ -163,6 +171,10 @@ export const DOCUMENT_TYPE_ICONS: Record<DocumentType, string> = {
     "daily-progress": "file-text",
     "inspection-checklist": "list-checks",
     "toolbox-talk": "message-square",
+    variation: "file-diff",
+    ncr: "x-circle",
+    "delivery-docket": "truck",
+    "site-instruction": "clipboard",
 };
 
 export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
@@ -174,6 +186,10 @@ export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
     "daily-progress": "slate",
     "inspection-checklist": "indigo",
     "toolbox-talk": "orange",
+    variation: "teal",
+    ncr: "rose",
+    "delivery-docket": "cyan",
+    "site-instruction": "yellow",
 };
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {

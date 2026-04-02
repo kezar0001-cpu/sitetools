@@ -409,6 +409,189 @@ Toolbox Talk Summary:
     default_sections: ["Topic", "Key Points", "Questions", "Actions"],
 };
 
+// ── Variation / Change Order Template ──
+const variationTemplate: DocumentTemplate = {
+    id: "variation",
+    name: "Variation / Change Order",
+    description: "Document scope changes, cost impacts, time impacts, and approval status",
+    icon: "file-diff",
+    color: "teal",
+    prompt_template: `Convert the following variation summary into a professional variation/change order document.
+
+Structure the output as JSON:
+{
+  "metadata": {
+    "document_title": "Variation Order / Change Order",
+    "project_name": "extracted",
+    "location": "affected area",
+    "date": "YYYY-MM-DD",
+    "reference": "VO-XXX or CO-XXX",
+    "prepared_by": "contractor",
+    "organization": "company"
+  },
+  "sections": [
+    { "id": "1", "title": "1. Description of Change", "content": "what is being changed", "order": 1 },
+    { "id": "2", "title": "2. Reason for Variation", "content": "why the change is needed", "order": 2 },
+    { "id": "3", "title": "3. Contract Reference", "content": "clause and drawing refs", "order": 3 },
+    { "id": "4", "title": "4. Cost Impact", "content": "detailed cost breakdown", "order": 4 },
+    { "id": "5", "title": "5. Time Impact", "content": "programme implications", "order": 5 },
+    { "id": "6", "title": "6. Proposed Solution", "content": "how to implement", "order": 6 },
+    { "id": "7", "title": "7. Approval Status", "content": "approvals obtained/pending", "order": 7 }
+  ]
+}
+
+Variation Summary:
+{{SUMMARY}}`,
+    required_fields: [
+        { name: "vo_reference", label: "VO/CO Reference", type: "text", placeholder: "VO-001" },
+        { name: "date_raised", label: "Date Raised", type: "date" },
+        { name: "contract_reference", label: "Contract Reference", type: "text" },
+    ],
+    optional_fields: [
+        { name: "cost_impact", label: "Cost Impact ($)", type: "text" },
+        { name: "time_impact", label: "Time Impact (days)", type: "text" },
+        { name: "status", label: "Status", type: "select", options: ["Draft", "Submitted", "Approved", "Rejected"] },
+    ],
+    default_sections: ["Description", "Reason", "Cost Impact", "Time Impact", "Approval Status"],
+};
+
+// ── Non-Conformance Report (NCR) Template ──
+const ncrTemplate: DocumentTemplate = {
+    id: "ncr",
+    name: "Non-Conformance Report",
+    description: "Quality defects and non-conformances requiring corrective action",
+    icon: "x-circle",
+    color: "rose",
+    prompt_template: `Convert the following NCR summary into a professional non-conformance report.
+
+Structure the output as JSON:
+{
+  "metadata": {
+    "document_title": "Non-Conformance Report",
+    "project_name": "extracted",
+    "location": "where found",
+    "date": "YYYY-MM-DD",
+    "reference": "NCR-XXX",
+    "prepared_by": "quality officer",
+    "organization": "company"
+  },
+  "sections": [
+    { "id": "1", "title": "1. Description of Non-Conformance", "content": "what was found deficient", "order": 1 },
+    { "id": "2", "title": "2. Reference Documents", "content": "specs, drawings, standards violated", "order": 2 },
+    { "id": "3", "title": "3. Extent of Non-Conformance", "content": "how much work affected", "order": 3 },
+    { "id": "4", "title": "4. Immediate Actions", "content": "what was done immediately", "order": 4 },
+    { "id": "5", "title": "5. Proposed Rectification", "content": "how to fix it", "order": 5 },
+    { "id": "6", "title": "6. Preventive Measures", "content": "how to stop recurrence", "order": 6 }
+  ],
+  "actionItems": [
+    { "id": "1", "number": 1, "description": "action to close NCR", "responsible": "Name — Org", "due_date": "YYYY-MM-DD", "status": "open" }
+  ]
+}
+
+NCR Summary:
+{{SUMMARY}}`,
+    required_fields: [
+        { name: "ncr_reference", label: "NCR Reference", type: "text", placeholder: "NCR-001" },
+        { name: "date_raised", label: "Date Raised", type: "date" },
+        { name: "severity", label: "Severity", type: "select", options: ["Minor", "Major", "Critical"] },
+    ],
+    optional_fields: [
+        { name: "specification", label: "Specification/Standard", type: "text" },
+        { name: "drawing_ref", label: "Drawing Reference", type: "text" },
+        { name: "trade_responsible", label: "Trade Responsible", type: "text" },
+    ],
+    default_sections: ["Description", "Reference", "Immediate Actions", "Rectification", "Preventive Measures"],
+};
+
+// ── Delivery Docket Template ──
+const deliveryDocketTemplate: DocumentTemplate = {
+    id: "delivery-docket",
+    name: "Delivery Docket",
+    description: "Materials and goods delivery record with quantities and condition",
+    icon: "truck",
+    color: "cyan",
+    prompt_template: `Convert the following delivery summary into a professional delivery docket.
+
+Structure the output as JSON:
+{
+  "metadata": {
+    "document_title": "Delivery Docket",
+    "project_name": "extracted",
+    "location": "delivery location",
+    "date": "YYYY-MM-DD",
+    "reference": "DD-XXX or supplier ref",
+    "prepared_by": "receiver",
+    "organization": "company"
+  },
+  "sections": [
+    { "id": "1", "title": "1. Supplier Details", "content": "supplier name, contact, order ref", "order": 1 },
+    { "id": "2", "title": "2. Items Delivered", "content: "list of materials with quantities", "order": 2 },
+    { "id": "3", "title": "3. Condition on Arrival", "content: "damage check, packaging condition", "order": 3 },
+    { "id": "4", "title": "4. Storage Location", "content: "where items were stored", "order": 4 },
+    { "id": "5", "title": "5. Discrepancies", "content: "shortages, damages, wrong items", "order": 5 }
+  ]
+}
+
+Delivery Summary:
+{{SUMMARY}}`,
+    required_fields: [
+        { name: "docket_number", label: "Docket Number", type: "text" },
+        { name: "delivery_date", label: "Delivery Date", type: "date" },
+        { name: "supplier", label: "Supplier", type: "text" },
+    ],
+    optional_fields: [
+        { name: "purchase_order", label: "Purchase Order", type: "text" },
+        { name: "carrier", label: "Carrier/Driver", type: "text" },
+        { name: "vehicle_reg", label: "Vehicle Registration", type: "text" },
+    ],
+    default_sections: ["Supplier Details", "Items Delivered", "Condition", "Storage Location"],
+};
+
+// ── Site Instruction Template ──
+const siteInstructionTemplate: DocumentTemplate = {
+    id: "site-instruction",
+    name: "Site Instruction",
+    description: "Engineer or client directions issued to the contractor",
+    icon: "clipboard",
+    color: "yellow",
+    prompt_template: `Convert the following instruction summary into a professional site instruction.
+
+Structure the output as JSON:
+{
+  "metadata": {
+    "document_title": "Site Instruction",
+    "project_name": "extracted",
+    "location": "affected area",
+    "date": "YYYY-MM-DD",
+    "reference": "SI-XXX",
+    "prepared_by": "engineer/client",
+    "organization": "consultant/client"
+  },
+  "sections": [
+    { "id": "1", "title": "1. Instruction Details", "content": "what is required", "order": 1 },
+    { "id": "2", "title": "2. Reason for Instruction", "content": "why it is being issued", "order": 2 },
+    { "id": "3", "title": "3. Reference Documents", "content": "drawings, specs, previous correspondence", "order": 3 },
+    { "id": "4", "title": "4. Contractor's Obligations", "content": "what contractor must do", "order": 4 },
+    { "id": "5", "title": "5. Time for Compliance", "content": "when action must be taken", "order": 5 },
+    { "id": "6", "title": "6. Cost & Time Implications", "content": "contractor to advise if claim arises", "order": 6 }
+  ]
+}
+
+Instruction Summary:
+{{SUMMARY}}`,
+    required_fields: [
+        { name: "si_reference", label: "SI Reference", type: "text", placeholder: "SI-001" },
+        { name: "date_issued", label: "Date Issued", type: "date" },
+        { name: "issued_by", label: "Issued By", type: "text" },
+    ],
+    optional_fields: [
+        { name: "drawing_ref", label: "Drawing Reference", type: "text" },
+        { name: "response_required", label: "Response Required By", type: "date" },
+        { name: "priority", label: "Priority", type: "select", options: ["Routine", "Urgent", "Immediate"] },
+    ],
+    default_sections: ["Instruction Details", "Reason", "Contractor Obligations", "Time for Compliance"],
+};
+
 // ── Template Registry ──
 export const DOCUMENT_TEMPLATES: Record<DocumentType, DocumentTemplate> = {
     "meeting-minutes": meetingMinutesTemplate,
@@ -419,6 +602,10 @@ export const DOCUMENT_TEMPLATES: Record<DocumentType, DocumentTemplate> = {
     "daily-progress": dailyProgressTemplate,
     "inspection-checklist": inspectionChecklistTemplate,
     "toolbox-talk": toolboxTalkTemplate,
+    variation: variationTemplate,
+    ncr: ncrTemplate,
+    "delivery-docket": deliveryDocketTemplate,
+    "site-instruction": siteInstructionTemplate,
 };
 
 export function getTemplate(type: DocumentType): DocumentTemplate {

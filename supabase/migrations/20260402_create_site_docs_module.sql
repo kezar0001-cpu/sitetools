@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS site_documents (
             'rfi',
             'daily-progress',
             'inspection-checklist',
-            'toolbox-talk'
+            'toolbox-talk',
+            'variation',
+            'ncr',
+            'delivery-docket',
+            'site-instruction'
         )
     ),
     
@@ -36,16 +40,22 @@ CREATE TABLE IF NOT EXISTS site_documents (
 );
 
 -- ── Indexes ──
-CREATE INDEX idx_site_documents_company ON site_documents(company_id);
-CREATE INDEX idx_site_documents_project ON site_documents(project_id);
-CREATE INDEX idx_site_documents_type ON site_documents(document_type);
-CREATE INDEX idx_site_documents_status ON site_documents(status);
-CREATE INDEX idx_site_documents_created ON site_documents(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_site_documents_company ON site_documents(company_id);
+CREATE INDEX IF NOT EXISTS idx_site_documents_project ON site_documents(project_id);
+CREATE INDEX IF NOT EXISTS idx_site_documents_type ON site_documents(document_type);
+CREATE INDEX IF NOT EXISTS idx_site_documents_status ON site_documents(status);
+CREATE INDEX IF NOT EXISTS idx_site_documents_created ON site_documents(created_at DESC);
 
 -- ── Enable Row Level Security ──
 ALTER TABLE site_documents ENABLE ROW LEVEL SECURITY;
 
 -- ── RLS Policies ──
+-- Drop existing policies first to make migration idempotent
+DROP POLICY IF EXISTS "Users can view their company documents" ON site_documents;
+DROP POLICY IF EXISTS "Users can create documents in their companies" ON site_documents;
+DROP POLICY IF EXISTS "Users can update their company documents" ON site_documents;
+DROP POLICY IF EXISTS "Users can delete their company documents" ON site_documents;
+
 -- Allow users to view documents from their companies
 CREATE POLICY "Users can view their company documents" 
 ON site_documents FOR SELECT
@@ -80,17 +90,18 @@ USING (
 );
 
 -- Allow users to delete documents from their companies
-CREATE POLICY "Users can delete their company documents" 
+CREATE POLICY "Users can delete their company documents"
 ON site_documents FOR DELETE
 USING (
     EXISTS (
-        SELECT 1 FROM company_memberships 
-        WHERE company_id = site_documents.company_id 
+        SELECT 1 FROM company_memberships
+        WHERE company_id = site_documents.company_id
         AND user_id = auth.uid()
     )
 );
 
 -- ── Updated_at trigger ──
+DROP TRIGGER IF EXISTS site_documents_updated_at ON site_documents;
 CREATE OR REPLACE FUNCTION update_site_documents_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
