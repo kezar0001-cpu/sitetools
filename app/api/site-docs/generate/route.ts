@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
 
         // Verify user is authenticated
         const authHeader = request.headers.get("authorization");
+        console.log("[site-docs/generate] Auth header:", authHeader ? "present" : "missing");
         if (!authHeader?.startsWith("Bearer ")) {
             return NextResponse.json(
                 { error: "Not authenticated." },
@@ -66,10 +67,12 @@ export async function POST(request: NextRequest) {
             );
         }
         const token = authHeader.slice(7);
+        console.log("[site-docs/generate] Token length:", token?.length);
         const {
             data: { user },
             error: authError,
         } = await supabaseAdmin.auth.getUser(token);
+        console.log("[site-docs/generate] Auth result:", user ? "user found" : "no user", authError ? `error: ${authError.message}` : "no error");
 
         if (authError || !user) {
             return NextResponse.json(

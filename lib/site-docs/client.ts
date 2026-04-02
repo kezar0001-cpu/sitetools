@@ -132,6 +132,8 @@ export async function generateDocumentContent(
     // Get Supabase session for auth
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
+    
+    console.log("[site-docs/client] Session:", session ? "found" : "not found", "Token:", token ? `Bearer ${token.substring(0, 20)}...` : "none");
 
     const response = await fetch("/api/site-docs/generate", {
         method: "POST",
