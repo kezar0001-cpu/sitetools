@@ -854,7 +854,7 @@ export async function getSiteSignLabor(
 
   // Filter to only include visits that fall on the requested local date
   // by checking the UTC timestamp converted to site's local date
-  const siteDateVisits = visits.filter((v: { signed_in_at: string }) => {
+  const siteDateVisits = visits.filter((v) => {
     const visitDate = new Date(v.signed_in_at);
     // Format the UTC timestamp as a date string in the site's timezone
     const visitLocalDate = visitDate.toLocaleDateString('en-AU', { 
