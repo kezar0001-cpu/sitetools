@@ -83,6 +83,89 @@ export async function getDiaries(
   })) as SiteDiaryWithCounts[];
 }
 
+/** List diaries grouped by project and site for organized display */
+export async function getDiariesGroupedByProjectSite(
+  companyId: string,
+  projectId?: string | null
+): Promise<{
+  projects: Array<{
+    id: string;
+    name: string;
+    sites: Array<{
+      id: string;
+      name: string;
+      diaries: SiteDiaryWithCounts[];
+    }>;
+    unassignedDiaries: SiteDiaryWithCounts[];
+  }>;
+  unassignedDiaries: SiteDiaryWithCounts[];
+}> {
+  const allDiaries = await getDiaries(companyId, projectId);
+  
+  // Get projects and sites for mapping
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("company_id", companyId);
+    
+  const { data: sites } = await supabase
+    .from("sites")
+    .select("id, name, project_id")
+    .eq("company_id", companyId);
+
+  const projectMap = new Map((projects ?? []).map(p => [p.id, p.name]));
+  const siteMap = new Map((sites ?? []).map(s => [s.id, { name: s.name, project_id: s.project_id }]));
+
+  // Group diaries
+  const projectGroups = new Map<string, SiteDiaryWithCounts[]>();
+  const siteGroups = new Map<string, SiteDiaryWithCounts[]>();
+  const unassignedDiaries: SiteDiaryWithCounts[] = [];
+
+  allDiaries.forEach(diary => {
+    if (diary.project_id && projectMap.has(diary.project_id)) {
+      if (!projectGroups.has(diary.project_id)) {
+        projectGroups.set(diary.project_id, []);
+      }
+      projectGroups.get(diary.project_id)!.push(diary);
+    } else {
+      unassignedDiaries.push(diary);
+    }
+  });
+
+  // Build final structure
+  const result = {
+    projects: Array.from(projectGroups.entries()).map(([projectId, projectDiaries]) => {
+      const siteGroups = new Map<string, SiteDiaryWithCounts[]>();
+      const projectUnassigned: SiteDiaryWithCounts[] = [];
+
+      projectDiaries.forEach(diary => {
+        if (diary.site_id) {
+          if (!siteGroups.has(diary.site_id)) {
+            siteGroups.set(diary.site_id, []);
+          }
+          siteGroups.get(diary.site_id)!.push(diary);
+        } else {
+          projectUnassigned.push(diary);
+        }
+      });
+
+      return {
+        id: projectId,
+        name: projectMap.get(projectId) || 'Unknown Project',
+        sites: Array.from(siteGroups.entries()).map(([siteId, siteDiaries]) => ({
+          id: siteId,
+          name: siteMap.get(siteId)?.name || 'Unknown Site',
+          diaries: siteDiaries
+        })),
+        unassignedDiaries: projectUnassigned
+      };
+    }),
+    unassignedDiaries
+  };
+
+  return result;
+}
+
 /** Fetch a single diary with all related rows. Photos are returned without signed URLs;
  *  call getDiaryPhotoUrls() separately on the detail view mount to get fresh 7-day signed URLs. */
 export async function getDiaryById(id: string): Promise<SiteDiaryFull | null> {

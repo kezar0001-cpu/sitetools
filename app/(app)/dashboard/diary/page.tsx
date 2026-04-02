@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useRouter } from "next/navigation";
-import { getDiaries, createDiary } from "@/lib/diary/client";
+import { getDiaries, createDiary, getDiariesGroupedByProjectSite } from "@/lib/diary/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryWithCounts } from "@/lib/diary/types";
 import DiaryListCard from "./components/DiaryListCard";
 import { NewDiaryModal } from "./components/NewDiaryModal";
+import { DiaryProjectSiteView } from "./components/DiaryProjectSiteView";
+import { DiaryFilters } from "./components/DiaryFilters";
 
 export default function DiaryListPage() {
   const router = useRouter();
@@ -16,19 +18,40 @@ export default function DiaryListPage() {
   const companyId = summary?.activeMembership?.company_id ?? null;
 
   const [diaries, setDiaries] = useState<SiteDiaryWithCounts[]>([]);
+  const [groupedDiaries, setGroupedDiaries] = useState<Awaited<ReturnType<typeof getDiariesGroupedByProjectSite>> | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('grouped');
+  const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
+  const [filterSiteId, setFilterSiteId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadDiaries = async (projectId?: string | null, siteId?: string | null) => {
     if (!companyId) return;
     setBusy(true);
-    getDiaries(companyId)
-      .then(setDiaries)
-      .catch((err) => setError(err?.message ?? (err instanceof Error ? err.message : "Could not load diaries.")))
-      .finally(() => setBusy(false));
-  }, [companyId]);
+    try {
+      if (viewMode === 'grouped') {
+        const grouped = await getDiariesGroupedByProjectSite(companyId, projectId);
+        setGroupedDiaries(grouped);
+        // Also set flat diaries for today's diary check
+        const flat = await getDiaries(companyId, projectId);
+        setDiaries(flat);
+      } else {
+        const flat = await getDiaries(companyId, projectId);
+        setDiaries(flat);
+        setGroupedDiaries(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load diaries.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDiaries(filterProjectId, filterSiteId);
+  }, [companyId, viewMode, filterProjectId, filterSiteId]);
 
   // Check if today's diary already exists
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -61,6 +84,11 @@ export default function DiaryListPage() {
       setCreating(false);
     }
   }
+
+  const handleFilterChange = (projectId: string | null, siteId: string | null) => {
+    setFilterProjectId(projectId);
+    setFilterSiteId(siteId);
+  };
 
   if (wsLoading) {
     return (
@@ -113,6 +141,49 @@ export default function DiaryListPage() {
           {todayDiary ? "Continue Today's Diary" : "Start Today's Diary"}
         </button>
 
+        {/* View Mode Toggle */}
+        <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 p-1">
+          <button
+            onClick={() => setViewMode('grouped')}
+            disabled={busy}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'grouped' 
+                ? 'bg-amber-400 text-slate-900' 
+                : 'text-slate-600 hover:text-slate-900'
+            } disabled:opacity-50`}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              Project & Site
+            </span>
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            disabled={busy}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+              viewMode === 'list' 
+                ? 'bg-amber-400 text-slate-900' 
+                : 'text-slate-600 hover:text-slate-900'
+            } disabled:opacity-50`}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              Simple List
+            </span>
+          </button>
+        </div>
+
+        {/* Filters */}
+        <DiaryFilters
+          companyId={companyId ?? ""}
+          onFilterChange={handleFilterChange}
+          disabled={busy}
+        />
+
         {/* Diary list */}
         {busy ? (
           <div className="space-y-3">
@@ -120,6 +191,8 @@ export default function DiaryListPage() {
               <div key={i} className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
             ))}
           </div>
+        ) : viewMode === 'grouped' && groupedDiaries ? (
+          <DiaryProjectSiteView groupedDiaries={groupedDiaries} />
         ) : diaries.length === 0 ? (
           <EmptyState
             icon="📋"

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getDiaryById, getDiaryPhotoUrls } from "@/lib/diary/client";
+import { getProjects, getSites } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryFull } from "@/lib/diary/types";
+import type { Project, Site } from "@/lib/workspace/types";
 import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/diary/types";
 import DiaryEntryForm from "../components/DiaryEntryForm";
 
@@ -25,10 +27,26 @@ export default function DiaryDetailPage() {
 
   const userRole = summary?.activeMembership?.role ?? null;
   const userId = summary?.userId ?? null;
+  const companyId = summary?.activeMembership?.company_id ?? null;
 
   const [diary, setDiary] = useState<SiteDiaryFull | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Load projects and sites for context
+  useEffect(() => {
+    if (!companyId) return;
+    Promise.all([getProjects(companyId), getSites(companyId)])
+      .then(([projectsData, sitesData]) => {
+        setProjects(projectsData);
+        setSites(sitesData);
+      })
+      .catch((err) => {
+        console.error("Failed to load projects/sites:", err);
+      });
+  }, [companyId]);
 
   useEffect(() => {
     if (!diaryId) return;
@@ -40,10 +58,10 @@ export default function DiaryDetailPage() {
           setError("Diary not found.");
           return;
         }
-        // Load diary content first so the page renders immediately
+        // Load diary content first so page renders immediately
         setDiary(data);
         
-        // Fetch fresh 7-day signed URLs for photos via the Edge Function (non-blocking)
+        // Fetch fresh 7-day signed URLs for photos via Edge Function (non-blocking)
         try {
           const photos = await getDiaryPhotoUrls(diaryId);
           setDiary((prev) => prev ? { ...prev, photos } : prev);
@@ -58,6 +76,14 @@ export default function DiaryDetailPage() {
       })
       .finally(() => setBusy(false));
   }, [diaryId]);
+
+  // Get project and site names for display
+  const projectName = diary?.project_id 
+    ? projects.find(p => p.id === diary.project_id)?.name || 'Unknown Project'
+    : null;
+  const siteName = diary?.site_id
+    ? sites.find(s => s.id === diary.site_id)?.name || 'Unknown Site'
+    : null;
 
   if (wsLoading || busy) {
     return (
@@ -113,6 +139,31 @@ export default function DiaryDetailPage() {
                   {formatDate(diary.date)}
                 </h1>
               </div>
+              {/* Project and Site Context */}
+              {(projectName || siteName) && (
+                <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                  {projectName && (
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      {projectName}
+                    </span>
+                  )}
+                  {projectName && siteName && (
+                    <span className="text-slate-400">•</span>
+                  )}
+                  {siteName && (
+                    <span className="flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {siteName}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {/* Status badge */}
             <span
