@@ -137,7 +137,7 @@ export async function generateDocumentContent(
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to generate document");
+        throw new Error(error.error || "Failed to generate document");
     }
 
     const data = await response.json();
