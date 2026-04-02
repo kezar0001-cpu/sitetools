@@ -845,7 +845,10 @@ export async function getSiteSignLabor(
   }
 
   const visits = data ?? [];
-  console.log('[getSiteSignLabor] Raw visits returned:', visits.length, visits);
+  console.log('[getSiteSignLabor] Raw visits returned:', visits.length);
+  visits.forEach((v, i) => {
+    console.log(`[getSiteSignLabor] Raw[${i}]: ${v.full_name} | ${v.company_name} | ${v.signed_in_at}`);
+  });
 
   if (visits.length === 0) return [];
 
@@ -860,10 +863,12 @@ export async function getSiteSignLabor(
       month: '2-digit',
       day: '2-digit'
     }).split('/').reverse().join('-'); // Convert DD/MM/YYYY to YYYY-MM-DD
-    return visitLocalDate === date;
+    const matches = visitLocalDate === date;
+    console.log(`[getSiteSignLabor] Filter: ${v.full_name} | UTC: ${v.signed_in_at} | Local: ${visitLocalDate} | Target: ${date} | Match: ${matches}`);
+    return matches;
   });
 
-  console.log('[getSiteSignLabor] Visits on local date:', siteDateVisits.length);
+  console.log('[getSiteSignLabor] Visits after date filter:', siteDateVisits.length);
 
   if (siteDateVisits.length === 0) return [];
 
