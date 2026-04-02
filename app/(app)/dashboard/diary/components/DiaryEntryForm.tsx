@@ -43,7 +43,6 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
 
   // Derived state
   const isLocked = diary.status === "completed" || diary.status === "archived";
-  const isDraft = diary.status === "draft";
 
   // Wrapper for section updates that syncs local diary state
   const handleSectionUpdate = useCallback((updated: SiteDiaryFull) => {
