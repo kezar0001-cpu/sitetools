@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Enhanced PhotoUploader with camera-first design, batch capture,
- * auto-metadata extraction, and photo categories
+ * PhotoUploader with unified Add Photo button, modal options,
+ * and camera overlay for location/timestamp
  */
 
 import { useRef, useState, useCallback } from "react";
@@ -101,29 +101,178 @@ async function extractMetadata(file: File): Promise<PhotoMetadata> {
   return metadata;
 }
 
+/** Get current geolocation */
+function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation not supported"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000,
+    });
+  });
+}
+
+/** Reverse geocode coordinates to address using OpenStreetMap Nominatim */
+async function getAddressFromCoordinates(lat: number, lon: number): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+      { headers: { "User-Agent": "SiteSign Diary App" } }
+    );
+    if (!response.ok) return null;
+    const data = await response.json();
+    // Return display name or formatted address
+    return data.display_name || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Add timestamp and location overlay to image using canvas */
+async function addOverlayToImage(
+  file: File,
+  timestamp: string,
+  address?: string | null
+): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+
+      // Format timestamp
+      const dateStr = new Date(timestamp).toLocaleString("en-AU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      // Draw overlay background at bottom
+      const padding = 20;
+      const lineHeight = 30;
+      const textHeight = address ? lineHeight * 2 + padding : lineHeight + padding;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+      ctx.fillRect(0, canvas.height - textHeight - padding, canvas.width, textHeight + padding);
+
+      // Draw text
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 24px system-ui, -apple-system, sans-serif";
+      ctx.textBaseline = "bottom";
+      
+      // Timestamp
+      ctx.fillText(dateStr, padding, canvas.height - padding - (address ? lineHeight : 0));
+      
+      // Address (truncated if too long)
+      if (address) {
+        ctx.font = "18px system-ui, -apple-system, sans-serif";
+        // Truncate address to fit canvas width
+        let displayAddress = address;
+        const maxWidth = canvas.width - padding * 2;
+        while (ctx.measureText(displayAddress).width > maxWidth && displayAddress.length > 3) {
+          displayAddress = displayAddress.slice(0, -4) + "...";
+        }
+        ctx.fillText(displayAddress, padding, canvas.height - padding);
+      }
+
+      // Convert to blob
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Could not create blob from canvas"));
+          return;
+        }
+        // Create new file with overlay
+        const newFile = new File([blob], file.name, { type: file.type });
+        resolve(newFile);
+      }, file.type, 0.95);
+    };
+    img.onerror = () => reject(new Error("Could not load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, disabled = false }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState<SiteDiaryPhoto[]>(initialPhotos);
   const [uploading, setUploading] = useState<UploadingItem[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<PhotoCategory>("general");
-  const [showCamera, setShowCamera] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [captureMode, setCaptureMode] = useState<"camera" | "gallery" | null>(null);
 
   const notifyChange = useCallback((next: SiteDiaryPhoto[]) => {
     setPhotos(next);
     onChange?.(next);
   }, [onChange]);
 
-  const processFiles = useCallback(async (files: FileList | null) => {
+  const processFiles = useCallback(async (files: FileList | null, withOverlay: boolean = false) => {
     if (disabled || !files || files.length === 0) return;
+
+    let position: GeolocationPosition | null = null;
+    let address: string | null = null;
+    
+    // Get geolocation if using camera with overlay
+    if (withOverlay) {
+      try {
+        position = await getCurrentPosition();
+        // Reverse geocode to get address
+        if (position) {
+          address = await getAddressFromCoordinates(
+            position.coords.latitude,
+            position.coords.longitude
+          );
+        }
+      } catch {
+        // Continue without location if geolocation fails
+      }
+    }
 
     const items: UploadingItem[] = await Promise.all(
       Array.from(files).map(async (file) => {
-        const metadata = await extractMetadata(file);
+        let processedFile = file;
+        const timestamp = new Date().toISOString();
+        
+        // Add overlay for camera captures
+        if (withOverlay) {
+          try {
+            processedFile = await addOverlayToImage(
+              file,
+              timestamp,
+              address
+            );
+          } catch {
+            // Fallback to original file if overlay fails
+          }
+        }
+
+        const metadata = await extractMetadata(processedFile);
+        // Use captured timestamp for camera, file metadata for gallery
+        if (withOverlay) {
+          metadata.timestamp = timestamp;
+          if (position) {
+            metadata.latitude = position.coords.latitude;
+            metadata.longitude = position.coords.longitude;
+          }
+        }
+
         return {
           id: crypto.randomUUID(),
-          preview: URL.createObjectURL(file),
-          file,
+          preview: URL.createObjectURL(processedFile),
+          file: processedFile,
           progress: "uploading" as const,
           category: selectedCategory,
           caption: "",
@@ -133,6 +282,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
     );
 
     setUploading((prev) => [...prev, ...items]);
+    setShowModal(false);
 
     // Upload with concurrency limit
     const CONCURRENCY = 3;
@@ -188,13 +338,23 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
   }, [disabled, diaryId, onChange, selectedCategory]);
 
   function handleCameraClick() {
-    setShowCamera(true);
-    setTimeout(() => inputRef.current?.click(), 100);
+    setCaptureMode("camera");
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.capture = "environment";
+        inputRef.current.click();
+      }
+    }, 100);
   }
 
   function handleGalleryClick() {
-    setShowCamera(false);
-    inputRef.current?.click();
+    setCaptureMode("gallery");
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.removeAttribute("capture");
+        inputRef.current.click();
+      }
+    }, 100);
   }
 
   async function handleDelete(photo: SiteDiaryPhoto) {
@@ -250,32 +410,19 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
         </div>
       )}
 
-      {/* Camera-first capture buttons */}
+      {/* Single Add Photo button */}
       {!disabled && (
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={handleCameraClick}
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-6 text-amber-800 hover:bg-amber-100 active:scale-[0.98] transition-all duration-150"
-          >
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="text-sm font-semibold">Take Photo</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleGalleryClick}
-            className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-slate-600 hover:border-slate-400 hover:bg-slate-100 active:scale-[0.98] transition-all duration-150"
-          >
-            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span className="text-sm font-semibold">Gallery</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-5 text-amber-800 hover:bg-amber-100 active:scale-[0.98] transition-all duration-150"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="font-semibold">Add Photo</span>
+        </button>
       )}
 
       {/* Hidden file input */}
@@ -284,11 +431,52 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
           ref={inputRef}
           type="file"
           accept="image/*"
-          capture={showCamera ? "environment" : undefined}
           multiple
           className="hidden"
-          onChange={(e) => processFiles(e.target.files)}
+          onChange={(e) => processFiles(e.target.files, captureMode === "camera")}
         />
+      )}
+
+      {/* Photo Options Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Add Photo</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleCameraClick}
+                className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-amber-400 bg-amber-50 px-4 py-6 text-amber-800 hover:bg-amber-100 active:scale-[0.98] transition-all"
+              >
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-sm font-semibold">Camera</span>
+                <span className="text-xs text-amber-600">With location</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleGalleryClick}
+                className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-slate-600 hover:border-slate-400 hover:bg-slate-100 active:scale-[0.98] transition-all"
+              >
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-sm font-semibold">Gallery</span>
+                <span className="text-xs text-slate-400">Upload images</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="mt-4 w-full py-3 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Uploading queue with metadata */}
@@ -406,7 +594,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
 
       {allCount === 0 && !disabled && (
         <p className="text-sm text-slate-400 text-center py-4">
-          No photos yet. Tap Take Photo or Gallery to add.
+          No photos yet. Tap Add Photo to get started.
         </p>
       )}
     </div>

@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { addIssue, deleteIssue } from "@/lib/diary/client";
 import type { SiteDiaryFull, SiteDiaryIssue, IssueType } from "@/lib/diary/types";
+import { useVoiceToText } from "@/hooks/useVoiceToText";
 import { SectionHeader } from "./SectionHeader";
 
 const ISSUE_TYPES: IssueType[] = ["Safety", "Delay", "RFI", "Instruction", "NCR"];
@@ -48,6 +49,16 @@ export function IssuesSection({
   const [issueErrors, setIssueErrors] = useState<Record<string, string>>({});
   const [addingIssue, setAddingIssue] = useState(false);
   const [deletingIssueId, setDeletingIssueId] = useState<string | null>(null);
+
+  const { isListening, transcript, isSupported: voiceSupported, error: voiceError, startListening, stopListening } = useVoiceToText();
+
+  // Apply voice transcript to issue description
+  useEffect(() => {
+    if (transcript && !isLocked) {
+      setIssueForm((prev) => ({ ...prev, description: transcript }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcript]);
 
   function validateIssueForm() {
     const errors: Record<string, string> = {};
@@ -232,6 +243,44 @@ export function IssuesSection({
 
               {/* Description */}
               <div>
+                {/* Voice input button */}
+                {voiceSupported && (
+                  <div className="mb-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={isListening ? stopListening : startListening}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-colors ${
+                        isListening
+                          ? "bg-red-100 text-red-700 hover:bg-red-200 animate-pulse"
+                          : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                      }`}
+                    >
+                      {isListening ? (
+                        <>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                          </svg>
+                          Stop Recording
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                          Voice Input
+                        </>
+                      )}
+                    </button>
+                    {voiceError && (
+                      <span className="text-xs text-red-600">{voiceError}</span>
+                    )}
+                    {isListening && (
+                      <span className="text-xs text-indigo-600 animate-pulse">Listening...</span>
+                    )}
+                  </div>
+                )}
+
                 <textarea
                   rows={3}
                   value={issueForm.description}

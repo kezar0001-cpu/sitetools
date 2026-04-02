@@ -508,6 +508,165 @@ export async function deletePhoto(photo: SiteDiaryPhoto): Promise<void> {
 }
 
 // ─────────────────────────────────────────────
+// Equipment Catalog & AI Parsing
+// ─────────────────────────────────────────────
+
+import type { EquipmentCatalog, ParsedEquipment } from "./types";
+
+/** Fetch company's equipment catalog for memory/reuse feature */
+export async function getEquipmentCatalog(companyId: string): Promise<EquipmentCatalog[]> {
+  const { data, error } = await supabase
+    .from("equipment_catalog")
+    .select("*")
+    .eq("company_id", companyId)
+    .order("equipment_type", { ascending: true });
+
+  if (error) {
+    console.error("[diary/client] getEquipmentCatalog error:", error.message);
+    throw error;
+  }
+  return (data ?? []) as EquipmentCatalog[];
+}
+
+/** Add equipment to company catalog */
+export async function addEquipmentCatalog(
+  companyId: string,
+  equipment: Omit<EquipmentCatalog, "id" | "company_id" | "created_at" | "updated_at">
+): Promise<EquipmentCatalog> {
+  const { data, error } = await supabase
+    .from("equipment_catalog")
+    .upsert({
+      company_id: companyId,
+      equipment_type: equipment.equipment_type.trim(),
+      default_quantity: equipment.default_quantity ?? 1,
+      default_hours: equipment.default_hours ?? 8,
+      category: equipment.category?.trim() || null,
+    }, { onConflict: "company_id,equipment_type" })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[diary/client] addEquipmentCatalog error:", error.message);
+    throw error;
+  }
+  return data as EquipmentCatalog;
+}
+
+/** Delete equipment from catalog */
+export async function deleteEquipmentCatalog(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("equipment_catalog")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Parse natural language equipment input using rule-based AI
+ * Examples:
+ * - "30t excavator, 2 units, 8 hours" → { equipment_type: "30t Excavator", quantity: 2, hours_used: 8 }
+ * - "concrete mixer 5 hours" → { equipment_type: "Concrete Mixer", quantity: 1, hours_used: 5 }
+ * - "3 dump trucks" → { equipment_type: "Dump Truck", quantity: 3, hours_used: 8 }
+ */
+export function parseNaturalLanguageEquipment(input: string): ParsedEquipment[] {
+  const results: ParsedEquipment[] = [];
+  
+  // Split by common separators (comma, semicolon, newline, "and")
+  const items = input.split(/[,;\n]|\band\b/i).map(s => s.trim()).filter(Boolean);
+  
+  for (const item of items) {
+    const parsed = parseSingleEquipment(item);
+    if (parsed) {
+      results.push(parsed);
+    }
+  }
+  
+  return results;
+}
+
+/** Parse a single equipment item from natural language */
+function parseSingleEquipment(input: string): ParsedEquipment | null {
+  if (!input || input.length < 2) return null;
+  
+  let equipment_type = input;
+  let quantity = 1;
+  let hours_used = 8; // Default hours
+  let category: string | null = null;
+  
+  // Extract hours - patterns: "X hours", "X hrs", "X hr", "Xh"
+  const hoursMatch = input.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/i);
+  if (hoursMatch) {
+    hours_used = parseFloat(hoursMatch[1]);
+    equipment_type = equipment_type.replace(hoursMatch[0], "").trim();
+  }
+  
+  // Extract quantity - patterns: "X units", "X qty", number at start
+  const qtyUnitMatch = input.match(/(\d+)\s*(?:units?|qty|quantity|pcs?|pieces?)\b/i);
+  if (qtyUnitMatch) {
+    quantity = parseInt(qtyUnitMatch[1], 10);
+    equipment_type = equipment_type.replace(qtyUnitMatch[0], "").trim();
+  } else {
+    // Check for number at the very start (e.g., "3 excavators")
+    const startNumMatch = equipment_type.match(/^(\d+)\s+/);
+    if (startNumMatch) {
+      quantity = parseInt(startNumMatch[1], 10);
+      equipment_type = equipment_type.replace(startNumMatch[0], "").trim();
+    }
+  }
+  
+  // Clean up equipment type
+  equipment_type = equipment_type
+    .replace(/\s+/g, " ") // Normalize spaces
+    .replace(/^(?:of|with)\s+/i, "") // Remove leading "of" or "with"
+    .trim();
+  
+  // Capitalize first letter of each word
+  equipment_type = equipment_type.replace(/\b\w/g, c => c.toUpperCase());
+  
+  // Detect category based on keywords
+  const lowerType = equipment_type.toLowerCase();
+  if (/excavator|dozer|bulldozer|loader|grader|compactor|roller|crane|plant/i.test(lowerType)) {
+    category = "Plant";
+  } else if (/truck|ute|van|vehicle|car|forklift/i.test(lowerType)) {
+    category = "Vehicle";
+  } else if (/mixer|pump|generator|compressor|saw|drill|tool/i.test(lowerType)) {
+    category = "Equipment";
+  }
+  
+  if (!equipment_type) return null;
+  
+  return {
+    equipment_type,
+    quantity,
+    hours_used,
+    category,
+  };
+}
+
+/**
+ * Update existing equipment entry
+ */
+export async function updateEquipment(
+  id: string,
+  updates: Partial<Pick<SiteDiaryEquipment, "equipment_type" | "quantity" | "hours_used">>
+): Promise<SiteDiaryEquipment> {
+  const { data, error } = await supabase
+    .from("site_diary_equipment")
+    .update({
+      ...updates,
+    })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[diary/client] updateEquipment error:", error.message);
+    throw error;
+  }
+  return data as SiteDiaryEquipment;
+}
+
+// ─────────────────────────────────────────────
 // SiteSign Integration - Labor Import
 // ─────────────────────────────────────────────
 

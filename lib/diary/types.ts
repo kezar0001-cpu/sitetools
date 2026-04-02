@@ -60,6 +60,26 @@ export interface SiteDiaryEquipment {
   created_at: string;
 }
 
+// ── Equipment Catalog for AI-powered equipment management ──
+export interface EquipmentCatalog {
+  id: string;
+  company_id: string;
+  equipment_type: string;
+  default_quantity: number;
+  default_hours: number;
+  category: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Parsed equipment from natural language input ──
+export interface ParsedEquipment {
+  equipment_type: string;
+  quantity: number;
+  hours_used: number;
+  category?: string | null;
+}
+
 export interface SiteDiaryPhoto {
   id: string;
   diary_id: string;
