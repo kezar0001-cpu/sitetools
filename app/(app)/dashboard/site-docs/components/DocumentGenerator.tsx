@@ -44,8 +44,15 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
         if (saved) {
             try {
                 const draft = JSON.parse(saved);
-                if (draft.summaryInput) setSummaryInput(draft.summaryInput);
-                if (draft.metadata) setMetadata(draft.metadata);
+                // Load all saved fields without truthy checks (allow empty strings)
+                setSummaryInput(draft.summaryInput ?? "");
+                setMetadata(draft.metadata ?? {
+                    project_name: "",
+                    location: "",
+                    date: new Date().toISOString().split("T")[0],
+                    prepared_by: summary?.profile?.full_name || "",
+                    organization: summary?.activeMembership?.companies?.name || "",
+                });
                 if (draft.generatedContent) setGeneratedContent(draft.generatedContent);
                 if (draft.step === "preview") setStep("preview");
             } catch {
