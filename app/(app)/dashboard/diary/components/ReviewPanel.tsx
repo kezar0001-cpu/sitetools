@@ -12,11 +12,11 @@ interface ReviewPanelProps {
 }
 
 export function ReviewPanel({ diary, userRole, onUpdate }: ReviewPanelProps) {
-  const isApproved = diary.status === "approved";
-  const isRejected = diary.status === "rejected";
-  const canSubmit = diary.status === "draft" || diary.status === "rejected";
+  const isCompleted = diary.status === "completed";
+  const isDraft = diary.status === "draft";
+  const canSubmit = diary.status === "draft";
   const canReview =
-    diary.status === "submitted" &&
+    diary.status === "draft" &&
     (userRole === "owner" || userRole === "admin" || userRole === "manager");
 
   const [submitting, setSubmitting] = useState(false);
@@ -97,13 +97,13 @@ export function ReviewPanel({ diary, userRole, onUpdate }: ReviewPanelProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             )}
-            {isRejected ? "Resubmit for Review" : "Submit for Review"}
+            {isDraft ? "Resubmit for Review" : "Submit for Review"}
           </button>
         </div>
       )}
 
       {/* ── Pending review indicator (submitted, not an admin reviewer) ── */}
-      {diary.status === "submitted" && !canReview && (
+      {false && !canReview && (
         <div className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-700 font-semibold">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -192,12 +192,12 @@ export function ReviewPanel({ diary, userRole, onUpdate }: ReviewPanelProps) {
       )}
 
       {/* ── Approved indicator ── */}
-      {isApproved && (
+      {isCompleted && (
         <div className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          Diary Approved
+          Diary Completed
         </div>
       )}
     </>
