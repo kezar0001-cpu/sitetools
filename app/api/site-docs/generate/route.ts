@@ -82,13 +82,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Get Anthropic API key from Supabase secrets
+        console.log("[site-docs/generate] Fetching API key...");
         const apiKey = await getSecret("ANTHROPIC_API_KEY", supabaseAdmin);
+        console.log("[site-docs/generate] API key:", apiKey ? "found" : "NOT FOUND");
         if (!apiKey) {
             return NextResponse.json(
                 { error: "AI service not configured — API key not found." },
                 { status: 500 }
             );
         }
+        
+        console.log("[site-docs/generate] Calling Claude...");
         const anthropic = new Anthropic({ apiKey });
 
         // Call Claude to generate structured content
@@ -112,26 +116,33 @@ export async function POST(request: NextRequest) {
 
         clearTimeout(timeoutId);
 
+        console.log("[site-docs/generate] Claude response received, parsing...");
         const textBlock = message.content.find((b) => b.type === "text");
         const responseText = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
+        console.log("[site-docs/generate] Response length:", responseText.length);
 
         // Parse JSON response
         let generatedContent;
         try {
             generatedContent = JSON.parse(responseText);
-        } catch {
+            console.log("[site-docs/generate] JSON parsed successfully");
+        } catch (parseError) {
+            console.log("[site-docs/generate] Initial JSON parse failed, trying fallback...");
             // Try to extract JSON from markdown code fences
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 try {
                     generatedContent = JSON.parse(jsonMatch[0]);
+                    console.log("[site-docs/generate] Fallback JSON parse succeeded");
                 } catch {
+                    console.log("[site-docs/generate] Fallback JSON parse failed");
                     return NextResponse.json(
                         { error: "Failed to parse AI response. Please try again." },
                         { status: 422 }
                     );
                 }
             } else {
+                console.log("[site-docs/generate] No JSON object found in response");
                 return NextResponse.json(
                     { error: "Failed to parse AI response. Please try again." },
                     { status: 422 }
