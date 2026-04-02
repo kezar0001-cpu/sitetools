@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { FileText, Plus, FolderOpen } from "lucide-react";
+import { FileText, FolderOpen } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { getAllTemplates, getTemplate } from "@/lib/site-docs/templates";
-import type { DocumentType, DocumentTemplate } from "@/lib/site-docs/types";
+import { getAllTemplates } from "@/lib/site-docs/templates";
+import type { DocumentTemplate } from "@/lib/site-docs/types";
 import { DocumentGenerator } from "./components/DocumentGenerator";
 import { TemplateCard } from "./components/TemplateCard";
 import { RecentDocuments } from "./components/RecentDocuments";
@@ -13,7 +12,6 @@ import { RecentDocuments } from "./components/RecentDocuments";
 // ── Main Dashboard ──
 
 export default function SiteDocsPage() {
-    const router = useRouter();
     const { loading, summary } = useWorkspace({
         requireAuth: true,
         requireCompany: true,

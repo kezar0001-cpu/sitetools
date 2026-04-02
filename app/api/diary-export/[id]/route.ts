@@ -74,26 +74,26 @@ export async function GET(
 
   if (format === "docx") {
     // For DOCX, return HTML with Word-specific meta tags that Word can open
-    const html = generateDiaryHTML(exportData, true);
+    const html = generateDiaryHTML(exportData);
     return new NextResponse(html, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="site-diary-${data.date}.doc"`,
+        "Content-Disposition": `attachment; filename="site-diary-${exportData.date}.doc"`,
       },
     });
   }
 
   // Default: PDF (return HTML for browser print-to-PDF)
-  const html = generateDiaryHTML(exportData, false);
+  const html = generateDiaryHTML(exportData);
   return new NextResponse(html, {
     headers: {
       "Content-Type": "text/html",
-      "Content-Disposition": `attachment; filename="site-diary-${data.date}.html"`,
+      "Content-Disposition": `attachment; filename="site-diary-${exportData.date}.html"`,
     },
   });
 }
 
-function generateDiaryHTML(data: Record<string, unknown>, isDocx = false): string {
+function generateDiaryHTML(data: Record<string, unknown>): string {
   const formatDate = (date: string) => new Date(date).toLocaleDateString("en-AU", {
     weekday: "long",
     year: "numeric",
@@ -103,38 +103,47 @@ function generateDiaryHTML(data: Record<string, unknown>, isDocx = false): strin
 
   const laborRows = ((data.labor as unknown[]) || [])
     .map(
-      (l: { trade_or_company: string; worker_count: number; hours_worked: number }) => `
+      (l: unknown) => {
+        const item = l as { trade_or_company: string; worker_count: number; hours_worked: number };
+        return `
         <tr>
-          <td>${l.trade_or_company}</td>
-          <td>${l.worker_count}</td>
-          <td>${l.hours_worked}h</td>
+          <td>${item.trade_or_company}</td>
+          <td>${item.worker_count}</td>
+          <td>${item.hours_worked}h</td>
         </tr>
-      `
+      `;
+      }
     )
     .join("");
 
   const equipmentRows = ((data.equipment as unknown[]) || [])
     .map(
-      (e: { equipment_type: string; quantity: number; hours_used: number }) => `
+      (e: unknown) => {
+        const item = e as { equipment_type: string; quantity: number; hours_used: number };
+        return `
         <tr>
-          <td>${e.equipment_type}</td>
-          <td>${e.quantity}</td>
-          <td>${e.hours_used}h</td>
+          <td>${item.equipment_type}</td>
+          <td>${item.quantity}</td>
+          <td>${item.hours_used}h</td>
         </tr>
-      `
+      `;
+      }
     )
     .join("");
 
   const issueRows = ((data.issues as unknown[]) || [])
     .map(
-      (i: { type: string; description: string; responsible_party: string | null; delay_hours: number | null }) => `
+      (i: unknown) => {
+        const item = i as { type: string; description: string; responsible_party: string | null; delay_hours: number | null };
+        return `
         <tr>
-          <td><strong>${i.type}</strong></td>
-          <td>${i.description}</td>
-          <td>${i.responsible_party || "-"}</td>
-          <td>${i.delay_hours ? i.delay_hours + "h" : "-"}</td>
+          <td><strong>${item.type}</strong></td>
+          <td>${item.description}</td>
+          <td>${item.responsible_party || "-"}</td>
+          <td>${item.delay_hours ? item.delay_hours + "h" : "-"}</td>
         </tr>
-      `
+      `;
+      }
     )
     .join("");
 

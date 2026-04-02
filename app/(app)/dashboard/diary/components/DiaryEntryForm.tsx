@@ -24,7 +24,7 @@ interface Props {
 type Section = "weather" | "work_completed" | "planned_works" | "labor" | "equipment" | "photos" | "notes" | "issues";
 type OptionalSection = "equipment" | "photos" | "notes" | "issues";
 
-export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole }: Props) {
+export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
   // Essential sections open by default - these are needed daily
   const [openSections, setOpenSections] = useState<Set<Section>>(
@@ -64,14 +64,6 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
     setVisibleOptional((prev) => new Set(Array.from(prev).concat(section)));
     // Also open the section when adding it
     setOpenSections((prev) => new Set(Array.from(prev).concat(section)));
-  }
-
-  function removeOptionalSection(section: OptionalSection) {
-    setVisibleOptional((prev) => {
-      const next = new Set(prev);
-      next.delete(section);
-      return next;
-    });
   }
 
   return (

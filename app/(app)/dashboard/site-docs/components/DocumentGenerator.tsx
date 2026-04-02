@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ArrowLeft, Sparkles, FileText, Download, Save, Loader2 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { fetchCompanyProjects } from "@/lib/workspace/client";
 import { generateDocumentContent, createDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
 import { getTemplatePrompt } from "@/lib/site-docs/templates";
 import type { DocumentTemplate, GeneratedContent, SiteDocument } from "@/lib/site-docs/types";
@@ -15,7 +14,7 @@ interface DocumentGeneratorProps {
     onComplete: () => void;
 }
 
-export function DocumentGenerator({ template, companyId, onCancel, onComplete }: DocumentGeneratorProps) {
+export function DocumentGenerator({ template, companyId, onCancel }: DocumentGeneratorProps) {
     const { summary } = useWorkspace();
     const [step, setStep] = useState<"input" | "generating" | "preview" | "saving">("input");
     const [summaryInput, setSummaryInput] = useState("");

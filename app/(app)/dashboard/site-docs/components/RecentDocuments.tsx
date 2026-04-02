@@ -1,17 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { FileText, ChevronRight } from "lucide-react";
 import { fetchCompanyDocuments } from "@/lib/site-docs/client";
-import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_ICONS, DOCUMENT_TYPE_COLORS, DOCUMENT_STATUS_BADGE, type SiteDocument, type DocumentType } from "@/lib/site-docs/types";
+import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_COLORS, DOCUMENT_STATUS_BADGE, type SiteDocument, type DocumentType } from "@/lib/site-docs/types";
 
 interface RecentDocumentsProps {
     companyId: string;
 }
-
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-    "file-text": FileText,
-};
 
 const colorMap: Record<string, string> = {
     blue: "bg-blue-100 text-blue-600",
@@ -22,17 +18,17 @@ const colorMap: Record<string, string> = {
     slate: "bg-slate-100 text-slate-600",
     indigo: "bg-indigo-100 text-indigo-600",
     orange: "bg-orange-100 text-orange-600",
+    teal: "bg-teal-100 text-teal-600",
+    rose: "bg-rose-100 text-rose-600",
+    cyan: "bg-cyan-100 text-cyan-600",
+    yellow: "bg-yellow-100 text-yellow-600",
 };
 
 export function RecentDocuments({ companyId }: RecentDocumentsProps) {
     const [documents, setDocuments] = useState<SiteDocument[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadDocuments();
-    }, [companyId]);
-
-    async function loadDocuments() {
+    const loadDocuments = useCallback(async () => {
         setLoading(true);
         try {
             const docs = await fetchCompanyDocuments(companyId, { limit: 5 });
@@ -42,7 +38,11 @@ export function RecentDocuments({ companyId }: RecentDocumentsProps) {
         } finally {
             setLoading(false);
         }
-    }
+    }, [companyId]);
+
+    useEffect(() => {
+        loadDocuments();
+    }, [loadDocuments]);
 
     if (loading) {
         return (

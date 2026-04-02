@@ -125,10 +125,11 @@ export async function GET(
     }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function generateHTML(title: string, content: any): string {
     const { metadata, sections, actionItems, attendees, signatories } = content;
 
-    const sectionsHtml = sections?.map((section: any) => `
+    const sectionsHtml = sections?.map((section: { title: string; content?: string }) => `
         <div class="section">
             <h2>${section.title}</h2>
             <p>${section.content?.replace(/\n/g, "<br>") || ""}</p>
@@ -140,7 +141,7 @@ function generateHTML(title: string, content: any): string {
             <h2>Attendees</h2>
             <table>
                 <tr><th>Name</th><th>Organization</th><th>Role</th><th>Present</th></tr>
-                ${attendees.map((a: any) => `
+                ${attendees.map((a: { name: string; organization?: string; role?: string; present?: boolean }) => `
                     <tr>
                         <td>${a.name}</td>
                         <td>${a.organization || "—"}</td>
@@ -157,7 +158,7 @@ function generateHTML(title: string, content: any): string {
             <h2>Action Items</h2>
             <table>
                 <tr><th>#</th><th>Action</th><th>Responsible</th><th>Due</th><th>Status</th></tr>
-                ${actionItems.map((item: any) => `
+                ${actionItems.map((item: { number: number; description: string; responsible?: string; due_date?: string; status: string }) => `
                     <tr>
                         <td>${item.number}</td>
                         <td>${item.description}</td>
@@ -175,7 +176,7 @@ function generateHTML(title: string, content: any): string {
             <h2>Sign-off</h2>
             <table>
                 <tr><th>Name</th><th>Organization</th><th>Signature</th><th>Date</th></tr>
-                ${signatories.map((s: any) => `
+                ${signatories.map((s: { name: string; organization?: string }) => `
                     <tr>
                         <td>${s.name}</td>
                         <td>${s.organization || "—"}</td>
