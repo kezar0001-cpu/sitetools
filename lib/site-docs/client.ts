@@ -129,9 +129,16 @@ export async function finalizeDocument(documentId: string): Promise<SiteDocument
 export async function generateDocumentContent(
     payload: GenerateDocumentPayload
 ): Promise<GeneratedContent> {
+    // Get Supabase session for auth
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     const response = await fetch("/api/site-docs/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
     });
 
@@ -150,11 +157,16 @@ export async function exportDocument(
     documentId: string,
     format: "pdf" | "docx" | "html"
 ): Promise<Blob> {
-    const response = await fetch(`/api/site-docs/export/${documentId}?format=${format}`);
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    const response = await fetch(`/api/site-docs/export/${documentId}?format=${format}`, {
+        headers: token ? { "Authorization": `Bearer ${token}` } : undefined,
+    });
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Export failed");
+        throw new Error(error.error || "Export failed");
     }
 
     return response.blob();
