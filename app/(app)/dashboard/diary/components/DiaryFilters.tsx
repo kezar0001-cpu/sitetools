@@ -6,15 +6,17 @@ import type { Project, Site } from "@/lib/workspace/types";
 
 interface DiaryFiltersProps {
   companyId: string;
-  onFilterChange: (projectId: string | null, siteId: string | null) => void;
+  onFilterChange: (projectId: string | null, siteId: string | null, showArchived: boolean) => void;
   disabled?: boolean;
+  showArchived?: boolean;
 }
 
-export function DiaryFilters({ companyId, onFilterChange, disabled = false }: DiaryFiltersProps) {
+export function DiaryFilters({ companyId, onFilterChange, disabled = false, showArchived = false }: DiaryFiltersProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
+  const [showArchivedLocal, setShowArchivedLocal] = useState<boolean>(showArchived);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function DiaryFilters({ companyId, onFilterChange, disabled = false }: Di
     
     const newProjectId = projectId || null;
     const newSiteId = null; // Reset site filter when project changes
-    onFilterChange(newProjectId, newSiteId);
+    onFilterChange(newProjectId, newSiteId, showArchivedLocal);
   };
 
   // Handle site change
@@ -52,17 +54,24 @@ export function DiaryFilters({ companyId, onFilterChange, disabled = false }: Di
     
     const newProjectId = selectedProjectId || null;
     const newSiteId = siteId || null;
-    onFilterChange(newProjectId, newSiteId);
+    onFilterChange(newProjectId, newSiteId, showArchivedLocal);
+  };
+
+  // Handle archived toggle
+  const handleArchivedChange = (show: boolean) => {
+    setShowArchivedLocal(show);
+    onFilterChange(selectedProjectId || null, selectedSiteId || null, show);
   };
 
   // Clear all filters
   const handleClearFilters = () => {
     setSelectedProjectId("");
     setSelectedSiteId("");
-    onFilterChange(null, null);
+    setShowArchivedLocal(false);
+    onFilterChange(null, null, false);
   };
 
-  const hasActiveFilters = selectedProjectId || selectedSiteId;
+  const hasActiveFilters = selectedProjectId || selectedSiteId || showArchivedLocal;
 
   if (loading) {
     return (
@@ -160,8 +169,34 @@ export function DiaryFilters({ companyId, onFilterChange, disabled = false }: Di
               </button>
             </span>
           )}
+          {showArchivedLocal && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-slate-100 text-slate-700">
+              Archived only
+              <button
+                onClick={() => handleArchivedChange(false)}
+                className="ml-1 hover:text-slate-900"
+                aria-label="Remove archived filter"
+              >
+                ×
+              </button>
+            </span>
+          )}
         </div>
       )}
+
+      {/* Archived Toggle */}
+      <div className="mt-4 pt-4 border-t border-slate-100">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showArchivedLocal}
+            onChange={(e) => handleArchivedChange(e.target.checked)}
+            disabled={disabled}
+            className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400 disabled:opacity-50"
+          />
+          <span className="text-sm text-slate-700">Show archived diaries</span>
+        </label>
+      </div>
     </div>
   );
 }

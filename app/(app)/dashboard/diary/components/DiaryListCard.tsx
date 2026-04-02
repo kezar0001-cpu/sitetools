@@ -28,10 +28,14 @@ export default function DiaryListCard({ diary }: Props) {
   const weatherLabel = WEATHER_CONDITION_LABELS[diary.weather?.conditions] ?? "—";
   const statusLabel = DIARY_STATUS_LABELS[diary.status] ?? diary.status;
   const statusBadge = DIARY_STATUS_BADGE[diary.status] ?? "bg-slate-100 text-slate-500 border-slate-200";
+  
+  const isArchived = diary.status === "archived";
 
   return (
     <Link href={`/dashboard/diary/${diary.id}`}>
-      <div className="group flex items-start gap-4 rounded-2xl bg-white border border-slate-200 p-4 shadow-sm hover:border-amber-400 hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer">
+      <div className={`group flex items-start gap-4 rounded-2xl bg-white border p-4 shadow-sm hover:border-amber-400 hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer ${
+        isArchived ? "border-slate-200 opacity-75" : "border-slate-200"
+      }`}>
         {/* Date block */}
         <div className="flex-shrink-0 flex flex-col items-center justify-center bg-slate-100 rounded-xl w-14 h-14 group-hover:bg-amber-50 transition-colors">
           <span className="text-xs font-medium text-slate-500 leading-none">

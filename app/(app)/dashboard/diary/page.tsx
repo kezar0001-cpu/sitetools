@@ -26,8 +26,14 @@ export default function DiaryListPage() {
   const [viewMode, setViewMode] = useState<'list' | 'grouped'>('grouped');
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
   const [filterSiteId, setFilterSiteId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState<boolean>(false);
 
-  const loadDiaries = async (projectId?: string | null, siteId?: string | null) => {
+  // Filter diaries based on archived status
+  const filteredDiaries = showArchived 
+    ? diaries 
+    : diaries.filter(d => d.status !== 'archived');
+
+  const loadDiaries = async (projectId?: string | null, siteId?: string | null, includeArchived?: boolean) => {
     if (!companyId) return;
     setBusy(true);
     try {
@@ -50,8 +56,8 @@ export default function DiaryListPage() {
   };
 
   useEffect(() => {
-    loadDiaries(filterProjectId, filterSiteId);
-  }, [companyId, viewMode, filterProjectId, filterSiteId]);
+    loadDiaries(filterProjectId, filterSiteId, showArchived);
+  }, [companyId, viewMode, filterProjectId, filterSiteId, showArchived]);
 
   // Check if today's diary already exists
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -85,9 +91,10 @@ export default function DiaryListPage() {
     }
   }
 
-  const handleFilterChange = (projectId: string | null, siteId: string | null) => {
+  const handleFilterChange = (projectId: string | null, siteId: string | null, archived: boolean) => {
     setFilterProjectId(projectId);
     setFilterSiteId(siteId);
+    setShowArchived(archived);
   };
 
   if (wsLoading) {
@@ -182,6 +189,7 @@ export default function DiaryListPage() {
           companyId={companyId ?? ""}
           onFilterChange={handleFilterChange}
           disabled={busy}
+          showArchived={showArchived}
         />
 
         {/* Diary list */}
@@ -192,22 +200,25 @@ export default function DiaryListPage() {
             ))}
           </div>
         ) : viewMode === 'grouped' && groupedDiaries ? (
-          <DiaryProjectSiteView groupedDiaries={groupedDiaries} />
-        ) : diaries.length === 0 ? (
+          <DiaryProjectSiteView 
+            groupedDiaries={groupedDiaries} 
+            showArchived={showArchived}
+          />
+        ) : filteredDiaries.length === 0 ? (
           <EmptyState
             icon="📋"
-            title="No diaries yet."
-            description="Tap 'Start Today's Diary' above to log your first entry."
+            title={showArchived ? "No archived diaries." : "No diaries yet."}
+            description={showArchived ? "No archived diaries match your filters." : "Tap 'Start Today's Diary' above to log your first entry."}
             className="py-16"
           />
         ) : (
           <div className="space-y-3">
-            {diaries.length > 0 && (
+            {filteredDiaries.length > 0 && (
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wide px-1">
-                Recent entries
+                {showArchived ? 'Archived entries' : 'Recent entries'}
               </p>
             )}
-            {diaries.map((diary) => (
+            {filteredDiaries.map((diary) => (
               <DiaryListCard key={diary.id} diary={diary} />
             ))}
           </div>

@@ -287,6 +287,48 @@ export async function rejectDiary(id: string, note: string): Promise<SiteDiary> 
   return data as SiteDiary;
 }
 
+/** Archive a diary entry (soft archive by changing status). */
+export async function archiveDiary(id: string): Promise<SiteDiary> {
+  const { data, error } = await supabase
+    .from("site_diaries")
+    .update({
+      status: "archived",
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiary;
+}
+
+/** Restore an archived diary to draft status. */
+export async function restoreDiary(id: string): Promise<SiteDiary> {
+  const { data, error } = await supabase
+    .from("site_diaries")
+    .update({
+      status: "draft",
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiary;
+}
+
+/** Delete a diary entry permanently (admin/owner only). 
+ * This will cascade delete all related records (labor, equipment, photos, issues).
+ */
+export async function deleteDiary(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("site_diaries")
+    .delete()
+    .eq("id", id);
+  
+  if (error) throw error;
+}
+
 /** Update an existing diary entry. */
 export async function updateDiary(id: string, payload: UpdateDiaryPayload): Promise<SiteDiary> {
   const updates: Record<string, unknown> = {};

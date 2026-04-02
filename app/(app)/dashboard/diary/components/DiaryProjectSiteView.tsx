@@ -18,11 +18,22 @@ interface DiaryProjectSiteViewProps {
     }>;
     unassignedDiaries: SiteDiaryWithCounts[];
   };
+  showArchived?: boolean;
 }
 
-export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewProps) {
+export function DiaryProjectSiteView({ groupedDiaries, showArchived = false }: DiaryProjectSiteViewProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
+
+  // Filter function for diaries
+  const shouldShowDiary = (diary: SiteDiaryWithCounts) => {
+    return showArchived || diary.status !== 'archived';
+  };
+
+  // Filter diaries in a list
+  const filterDiaries = (diaries: SiteDiaryWithCounts[]) => {
+    return showArchived ? diaries : diaries.filter(d => d.status !== 'archived');
+  };
 
   const toggleProject = (projectId: string) => {
     setExpandedProjects(prev => {
@@ -48,18 +59,21 @@ export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewPro
     });
   };
 
+  // Calculate total visible diary count
   const totalDiaryCount = 
-    groupedDiaries.unassignedDiaries.length +
+    filterDiaries(groupedDiaries.unassignedDiaries).length +
     groupedDiaries.projects.reduce((acc, project) => 
-      acc + project.unassignedDiaries.length + 
-      project.sites.reduce((siteAcc, site) => siteAcc + site.diaries.length, 0), 0
+      acc + filterDiaries(project.unassignedDiaries).length + 
+      project.sites.reduce((siteAcc, site) => siteAcc + filterDiaries(site.diaries).length, 0), 0
     );
 
   if (totalDiaryCount === 0) {
     return (
       <div className="text-center py-8">
         <div className="text-4xl mb-2">📋</div>
-        <p className="text-slate-600">No diaries found for the selected filters.</p>
+        <p className="text-slate-600">
+          {showArchived ? "No archived diaries found." : "No diaries found for the selected filters."}
+        </p>
       </div>
     );
   }
@@ -67,7 +81,7 @@ export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewPro
   return (
     <div className="space-y-4">
       {/* Unassigned Diaries (not linked to any project) */}
-      {groupedDiaries.unassignedDiaries.length > 0 && (
+      {filterDiaries(groupedDiaries.unassignedDiaries).length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <button
             onClick={() => toggleProject('unassigned')}
@@ -84,13 +98,13 @@ export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewPro
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
               <span className="font-medium text-slate-900">Unassigned Diaries</span>
-              <span className="text-sm text-slate-500">({groupedDiaries.unassignedDiaries.length})</span>
+              <span className="text-sm text-slate-500">({filterDiaries(groupedDiaries.unassignedDiaries).length})</span>
             </div>
           </button>
           
           {expandedProjects.has('unassigned') && (
             <div className="border-t border-slate-200">
-              {groupedDiaries.unassignedDiaries.map((diary) => (
+              {filterDiaries(groupedDiaries.unassignedDiaries).map((diary) => (
                 <div key={diary.id} className="border-b border-slate-100 last:border-b-0">
                   <DiaryListCard diary={diary} />
                 </div>
@@ -119,7 +133,7 @@ export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewPro
               </svg>
               <span className="font-medium text-slate-900">{project.name}</span>
               <span className="text-sm text-slate-500">
-                ({project.unassignedDiaries.length + project.sites.reduce((acc, site) => acc + site.diaries.length, 0)} diaries)
+                ({filterDiaries(project.unassignedDiaries).length + project.sites.reduce((acc, site) => acc + filterDiaries(site.diaries).length, 0)} diaries)
               </span>
             </div>
           </button>
@@ -127,14 +141,14 @@ export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewPro
           {expandedProjects.has(project.id) && (
             <div className="border-t border-slate-200">
               {/* Project-level unassigned diaries */}
-              {project.unassignedDiaries.length > 0 && (
+              {filterDiaries(project.unassignedDiaries).length > 0 && (
                 <div className="border-b border-slate-100">
                   <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
                     <span className="text-sm font-medium text-amber-800">
-                      Project Diaries ({project.unassignedDiaries.length})
+                      Project Diaries ({filterDiaries(project.unassignedDiaries).length})
                     </span>
                   </div>
-                  {project.unassignedDiaries.map((diary) => (
+                  {filterDiaries(project.unassignedDiaries).map((diary) => (
                     <div key={diary.id} className="border-b border-slate-100 last:border-b-0">
                       <DiaryListCard diary={diary} />
                     </div>
@@ -160,13 +174,13 @@ export function DiaryProjectSiteView({ groupedDiaries }: DiaryProjectSiteViewPro
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                       </svg>
                       <span className="text-sm font-medium text-slate-700">{site.name}</span>
-                      <span className="text-xs text-slate-500">({site.diaries.length})</span>
+                      <span className="text-xs text-slate-500">({filterDiaries(site.diaries).length})</span>
                     </div>
                   </button>
 
                   {expandedSites.has(site.id) && (
                     <div className="border-t border-slate-100">
-                      {site.diaries.map((diary) => (
+                      {filterDiaries(site.diaries).map((diary) => (
                         <div key={diary.id} className="border-b border-slate-100 last:border-b-0">
                           <DiaryListCard diary={diary} />
                         </div>

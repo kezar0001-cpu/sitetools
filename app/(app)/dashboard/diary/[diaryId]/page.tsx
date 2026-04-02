@@ -10,6 +10,7 @@ import type { SiteDiaryFull } from "@/lib/diary/types";
 import type { Project, Site } from "@/lib/workspace/types";
 import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/diary/types";
 import DiaryEntryForm from "../components/DiaryEntryForm";
+import { DiaryActions } from "../components/DiaryActions";
 
 function formatDate(iso: string): string {
   const d = new Date(iso + "T00:00:00");
@@ -165,12 +166,20 @@ export default function DiaryDetailPage() {
                 </div>
               )}
             </div>
-            {/* Status badge */}
-            <span
-              className={`flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${statusBadge}`}
-            >
-              {statusLabel}
-            </span>
+            {/* Status badge and Actions */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`flex-shrink-0 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${statusBadge}`}
+              >
+                {statusLabel}
+              </span>
+              <DiaryActions
+                diary={diary}
+                userRole={userRole}
+                userId={userId}
+                onUpdate={(updated) => setDiary(prev => prev ? { ...prev, ...updated } : prev)}
+              />
+            </div>
           </div>
         </div>
 
