@@ -12,7 +12,8 @@ export type ModuleId =
     | "inspections"
     | "plant-checks"
     | "incidents"
-    | "timesheets";
+    | "timesheets"
+    | "site-docs";
 
 export type ModuleVisibility = "primary" | "secondary" | "roadmap" | "internal";
 
@@ -114,16 +115,16 @@ export const MODULES: BuildstateModule[] = [
         color: "red",
     },
     {
-        id: "timesheets",
-        name: "Labour & Timesheets",
-        tagline: "Track hours, dockets, and labour costs across crews",
+        id: "site-docs",
+        name: "SiteDocs",
+        tagline: "Convert text summaries into professional documents",
         description:
-            "Record daily labour hours by crew and task. Generate timesheet summaries, track day-work dockets, and export for payroll or cost reporting.",
-        icon: "clock",
-        status: "coming-soon",
-        visibility: "roadmap",
-        href: "/dashboard/timesheets",
-        color: "teal",
+            "Paste your informal notes and let AI structure them into professional meeting minutes, incident reports, corrective action reports, and more. Export to PDF or Word.",
+        icon: "file-text",
+        status: "live",
+        visibility: "primary",
+        href: "/dashboard/site-docs",
+        color: "cyan",
     },
 ];
 
