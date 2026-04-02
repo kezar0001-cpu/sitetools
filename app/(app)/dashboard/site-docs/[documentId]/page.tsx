@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Download, FileText, Loader2, Trash2 } from "lucide-react";
-import { useSummary } from "@/lib/summary";
+import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchDocument, deleteDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type SiteDocument } from "@/lib/site-docs/types";
 
 export default function DocumentDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const summary = useSummary();
+    const { summary } = useWorkspace();
     const [document, setDocument] = useState<SiteDocument | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ArrowLeft, Sparkles, FileText, Download, Save, Loader2 } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { generateDocumentContent, createDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
@@ -14,10 +14,6 @@ interface DocumentGeneratorProps {
     onComplete: () => void;
 }
 
-// localStorage key generator
-const getStorageKey = (companyId: string, templateId: string) => 
-    `sitedocs_draft_${companyId}_${templateId}`;
-
 export function DocumentGenerator({ template, companyId, onCancel }: DocumentGeneratorProps) {
     const { summary } = useWorkspace();
     const [step, setStep] = useState<"input" | "generating" | "preview" | "saving">("input");
@@ -26,79 +22,15 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [document, setDocument] = useState<SiteDocument | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
-    const [isLoaded, setIsLoaded] = useState(false);
-    const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
 
-    // Metadata form state
+    // Metadata form state - initialize fresh each time (no persistence)
     const [metadata, setMetadata] = useState({
         project_name: "",
         location: "",
         date: new Date().toISOString().split("T")[0],
-        prepared_by: "",
-        organization: "",
+        prepared_by: summary?.profile?.full_name || "",
+        organization: summary?.activeMembership?.companies?.name || "",
     });
-
-    // Load draft from localStorage on mount
-    useEffect(() => {
-        const storageKey = getStorageKey(companyId, template.id);
-        const saved = localStorage.getItem(storageKey);
-        console.log("[DocumentGenerator] Loading from localStorage:", storageKey, saved ? "found" : "not found");
-        
-        if (saved) {
-            try {
-                const draft = JSON.parse(saved);
-                console.log("[DocumentGenerator] Draft loaded:", { step: draft.step, hasSummary: !!draft.summaryInput, hasMetadata: !!draft.metadata });
-                
-                setSummaryInput(draft.summaryInput ?? "");
-                setMetadata(draft.metadata ?? {
-                    project_name: "",
-                    location: "",
-                    date: new Date().toISOString().split("T")[0],
-                    prepared_by: summary?.profile?.full_name || "",
-                    organization: summary?.activeMembership?.companies?.name || "",
-                });
-                if (draft.generatedContent) setGeneratedContent(draft.generatedContent);
-                if (draft.step === "preview") setStep("preview");
-                setHasLoadedFromStorage(true);
-            } catch (e) {
-                console.error("[DocumentGenerator] Failed to parse draft:", e);
-            }
-        } else {
-            // No saved draft - initialize with workspace defaults
-            setMetadata({
-                project_name: "",
-                location: "",
-                date: new Date().toISOString().split("T")[0],
-                prepared_by: summary?.profile?.full_name || "",
-                organization: summary?.activeMembership?.companies?.name || "",
-            });
-        }
-        setIsLoaded(true);
-    }, [companyId, template.id, summary?.profile?.full_name, summary?.activeMembership?.companies?.name]);
-
-    // Auto-save to localStorage when form changes
-    useEffect(() => {
-        if (!isLoaded || !hasLoadedFromStorage) {
-            console.log("[DocumentGenerator] Skipping save - not ready", { isLoaded, hasLoadedFromStorage });
-            return;
-        }
-        const storageKey = getStorageKey(companyId, template.id);
-        const draft = {
-            summaryInput,
-            metadata,
-            generatedContent,
-            step,
-            savedAt: new Date().toISOString(),
-        };
-        console.log("[DocumentGenerator] Saving to localStorage:", storageKey, { summaryLength: summaryInput.length, step });
-        localStorage.setItem(storageKey, JSON.stringify(draft));
-    }, [summaryInput, metadata, generatedContent, step, companyId, template.id, isLoaded, hasLoadedFromStorage]);
-
-    // Clear draft when document is saved
-    const clearDraft = () => {
-        const storageKey = getStorageKey(companyId, template.id);
-        localStorage.removeItem(storageKey);
-    };
 
     async function handleGenerate() {
         if (!summaryInput.trim()) return;
@@ -144,7 +76,6 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
             });
 
             setDocument(doc);
-            clearDraft(); // Clear localStorage after successful save
             setStep("preview");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to save document");
