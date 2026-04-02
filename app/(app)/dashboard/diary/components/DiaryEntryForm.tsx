@@ -42,8 +42,8 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   // Derived state
-  const isLocked = diary.status === "submitted" || diary.status === "approved";
-  const isRejected = diary.status === "rejected";
+  const isLocked = diary.status === "completed" || diary.status === "archived";
+  const isDraft = diary.status === "draft";
 
   // Wrapper for section updates that syncs local diary state
   const handleSectionUpdate = useCallback((updated: SiteDiaryFull) => {
@@ -68,17 +68,6 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate }: Props)
 
   return (
     <div className="space-y-1">
-      {/* ── Rejection notice (shown to author when diary was rejected) ── */}
-      {isRejected && diary.rejection_note && (
-        <div className="rounded-2xl bg-red-50 border border-red-200 px-4 py-4">
-          <p className="text-sm font-semibold text-red-700 mb-1">Changes requested</p>
-          <p className="text-sm text-red-600 whitespace-pre-wrap">{diary.rejection_note}</p>
-          <p className="mt-2 text-xs text-red-500">
-            Address the feedback above, then resubmit for review.
-          </p>
-        </div>
-      )}
-
       {/* ── Progress Bar ── */}
       <DiaryProgress diary={diary} />
 
