@@ -867,15 +867,18 @@ export async function getSiteSignLabor(
 
   if (siteDateVisits.length === 0) return [];
 
-  // Group by company_name
+  // Group by company_name (normalized to lowercase)
   const grouped = new Map<string, typeof siteDateVisits>();
   for (const visit of siteDateVisits) {
-    const key = visit.company_name?.trim() || 'Unknown';
+    const key = (visit.company_name?.trim() || 'Unknown').toLowerCase();
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(visit);
   }
 
   console.log('[getSiteSignLabor] Grouped by company:', grouped.size, 'companies');
+  grouped.forEach((visits, company) => {
+    console.log(`[getSiteSignLabor] Company "${company}": ${visits.length} visits`, visits.map(v => v.full_name));
+  });
 
   // Calculate hours and build result
   const results: SiteSignLaborEntry[] = [];
