@@ -118,7 +118,6 @@ export async function getDiariesGroupedByProjectSite(
 
   // Group diaries
   const projectGroups = new Map<string, SiteDiaryWithCounts[]>();
-  const siteGroups = new Map<string, SiteDiaryWithCounts[]>();
   const unassignedDiaries: SiteDiaryWithCounts[] = [];
 
   allDiaries.forEach(diary => {

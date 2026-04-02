@@ -26,8 +26,6 @@ export function WorkCompletedSection({
   setSaving,
 }: WorkCompletedSectionProps) {
   const [workCompletedValue, setWorkCompletedValue] = useState(diary.work_completed ?? "");
-  const [addingWork, setAddingWork] = useState(false);
-  const [deletingWorkId, setDeletingWorkId] = useState<string | null>(null);
 
   const { isListening, transcript, isSupported: voiceSupported, error: voiceError, startListening, stopListening } = useVoiceToText();
 
@@ -36,7 +34,7 @@ export function WorkCompletedSection({
     if (transcript && !isLocked) {
       setWorkCompletedValue(transcript);
     }
-  }, [transcript]);
+  }, [transcript, isLocked]);
 
   async function autosave(field: string, updater: () => Promise<SiteDiaryFull>) {
     setSaving((s) => ({ ...s, [field]: true }));

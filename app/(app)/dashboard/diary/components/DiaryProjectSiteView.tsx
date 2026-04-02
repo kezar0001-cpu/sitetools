@@ -25,11 +25,6 @@ export function DiaryProjectSiteView({ groupedDiaries, showArchived = false }: D
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [expandedSites, setExpandedSites] = useState<Set<string>>(new Set());
 
-  // Filter function for diaries
-  const shouldShowDiary = (diary: SiteDiaryWithCounts) => {
-    return showArchived || diary.status !== 'archived';
-  };
-
   // Filter diaries in a list
   const filterDiaries = (diaries: SiteDiaryWithCounts[]) => {
     return showArchived ? diaries : diaries.filter(d => d.status !== 'archived');

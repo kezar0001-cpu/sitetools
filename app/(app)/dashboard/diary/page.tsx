@@ -33,7 +33,7 @@ export default function DiaryListPage() {
     ? diaries 
     : diaries.filter(d => d.status !== 'archived');
 
-  const loadDiaries = async (projectId?: string | null, siteId?: string | null, includeArchived?: boolean) => {
+  const loadDiaries = async (projectId?: string | null) => {
     if (!companyId) return;
     setBusy(true);
     try {
@@ -56,7 +56,10 @@ export default function DiaryListPage() {
   };
 
   useEffect(() => {
-    loadDiaries(filterProjectId, filterSiteId, showArchived);
+    if (!companyId) return;
+    setBusy(true);
+    loadDiaries(filterProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, viewMode, filterProjectId, filterSiteId, showArchived]);
 
   // Check if today's diary already exists

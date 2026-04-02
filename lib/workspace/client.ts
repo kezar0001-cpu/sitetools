@@ -648,3 +648,13 @@ export async function getProjects(companyId: string): Promise<Project[]> {
 export async function getSites(companyId: string): Promise<Site[]> {
   return fetchCompanySites(companyId);
 }
+
+/** Delete a company permanently (owner only) */
+export async function deleteCompany(companyId: string): Promise<void> {
+  const { error } = await supabase
+    .from("companies")
+    .delete()
+    .eq("id", companyId);
+  
+  if (error) throw error;
+}
