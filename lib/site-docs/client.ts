@@ -203,6 +203,10 @@ function getReferencePrefix(type: DocumentType): string {
         "daily-progress": "DPR",
         "inspection-checklist": "INSP",
         "toolbox-talk": "TBT",
+        variation: "VO",
+        ncr: "NCR",
+        "delivery-docket": "DD",
+        "site-instruction": "SI",
     };
     return prefixes[type];
 }
