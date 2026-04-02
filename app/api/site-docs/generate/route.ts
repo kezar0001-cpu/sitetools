@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         try {
             generatedContent = JSON.parse(responseText);
             console.log("[site-docs/generate] JSON parsed successfully");
-        } catch (parseError) {
+        } catch {
             console.log("[site-docs/generate] Initial JSON parse failed, trying fallback...");
             // Try to extract JSON from markdown code fences
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
