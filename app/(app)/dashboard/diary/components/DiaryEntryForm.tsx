@@ -10,7 +10,7 @@ import { LabourSection } from "./LabourSection";
 import { EquipmentSection } from "./EquipmentSection";
 import { PhotosSection } from "./PhotosSection";
 import { NotesSection } from "./NotesSection";
-import { ReviewPanel } from "./ReviewPanel";
+import { CompleteExportPanel } from "./CompleteExportPanel";
 import { DiaryProgress } from "./DiaryProgress";
 import { IssuesSection } from "./IssuesSection";
 
@@ -61,9 +61,9 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
   }
 
   function addOptionalSection(section: OptionalSection) {
-    setVisibleOptional((prev) => new Set([...prev, section]));
+    setVisibleOptional((prev) => new Set(Array.from(prev).concat(section)));
     // Also open the section when adding it
-    setOpenSections((prev) => new Set([...prev, section]));
+    setOpenSections((prev) => new Set(Array.from(prev).concat(section)));
   }
 
   function removeOptionalSection(section: OptionalSection) {
@@ -235,10 +235,9 @@ export default function DiaryEntryForm({ diary: initialDiary, onUpdate, userRole
         </div>
       )}
 
-      {/* ── Review Panel (Submit/Approve/Reject) ── */}
-      <ReviewPanel
+      {/* ── Complete & Export Panel ── */}
+      <CompleteExportPanel
         diary={diary}
-        userRole={userRole}
         onUpdate={handleSectionUpdate}
       />
     </div>

@@ -301,6 +301,23 @@ export async function archiveDiary(id: string): Promise<SiteDiary> {
   return data as SiteDiary;
 }
 
+/** Complete a diary entry - locks it and sets auto-archive date. */
+export async function completeDiary(id: string): Promise<SiteDiary> {
+  const { data, error } = await supabase
+    .from("site_diaries")
+    .update({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      auto_archive_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as SiteDiary;
+}
+
 /** Restore an archived diary to draft status. */
 export async function restoreDiary(id: string): Promise<SiteDiary> {
   const { data, error } = await supabase

@@ -1,5 +1,5 @@
 // ── Enums ──
-export type DiaryStatus = "draft" | "submitted" | "approved" | "rejected" | "archived";
+export type DiaryStatus = "draft" | "completed" | "archived";
 
 export type WeatherCondition =
   | "sunny"
@@ -34,12 +34,10 @@ export interface SiteDiary {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  // Approval workflow
-  submitted_at: string | null;
-  submitted_by: string | null;
-  approved_at: string | null;
-  approved_by: string | null;
-  rejection_note: string | null;
+  // Completion workflow
+  completed_at: string | null;
+  completed_by: string | null;
+  auto_archive_at: string | null;
 }
 
 export interface SiteDiaryLabor {
@@ -217,17 +215,13 @@ export const DEFAULT_WEATHER: WeatherSnapshot = {
 
 export const DIARY_STATUS_LABELS: Record<DiaryStatus, string> = {
   draft: "Draft",
-  submitted: "Pending Review",
-  approved: "Approved",
-  rejected: "Rejected",
+  completed: "Completed",
   archived: "Archived",
 };
 
 /** Tailwind class sets for each status badge */
 export const DIARY_STATUS_BADGE: Record<DiaryStatus, string> = {
   draft: "bg-amber-50 text-amber-700 border-amber-200",
-  submitted: "bg-blue-50 text-blue-700 border-blue-200",
-  approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  rejected: "bg-red-50 text-red-700 border-red-200",
+  completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   archived: "bg-slate-100 text-slate-600 border-slate-300",
 };
