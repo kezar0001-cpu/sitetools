@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
         // Call Claude to generate structured content
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30_000);
+        const timeoutId = setTimeout(() => controller.abort(), 55_000);
 
         const message = await anthropic.messages.create(
             {
