@@ -1,11 +1,11 @@
 /**
- * Offline persistence layer for SiteDiary
+ * Offline persistence layer for SiteCapture
  * Uses IndexedDB to queue mutations when offline and sync when restored
  */
 
 import type { AddEquipmentPayload, AddLaborPayload, CreateDiaryPayload, UpdateDiaryPayload } from "./types";
 
-const DB_NAME = "site-diary-offline";
+const DB_NAME = "site-capture-offline";
 const DB_VERSION = 1;
 const QUEUE_STORE = "mutation-queue";
 const DRAFT_STORE = "draft-diaries";

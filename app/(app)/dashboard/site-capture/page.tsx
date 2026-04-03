@@ -110,9 +110,8 @@ export default function SiteCaptureHubPage() {
 
   useEffect(() => {
     if (!companyId) return;
-    setBusy(true);
     loadDiaries(filterProjectId, filterSiteId);
-  }, [companyId, loadDiaries, filterProjectId, filterSiteId, showArchived]);
+  }, [companyId, loadDiaries, filterProjectId, filterSiteId]);
 
   function handleNewEntry(formType: FormType) {
     setSelectedFormType(formType);
