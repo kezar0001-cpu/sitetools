@@ -19,7 +19,6 @@ import { TaskRow } from "../components/TaskRow";
 import { TaskListHeader } from "../components/TaskListHeader";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
-import { InlineTaskInput } from "../components/InlineTaskInput";
 import { ImportPanel } from "../components/ImportPanel";
 import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
 import type { TaskFilter } from "../components/SitePlanToolbar";
@@ -31,6 +30,7 @@ import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
 import { GanttChart } from "../components/GanttChart";
+import { InlineTaskCreateRow } from "../components/InlineTaskCreateRow";
 import { SitePlanMobileView } from "../components/SitePlanMobileView";
 import type { MobileTab } from "../components/SitePlanMobileView";
 import { QueryProvider } from "@/components/QueryProvider";
@@ -129,7 +129,7 @@ const DESKTOP_ROW_HEIGHT = 40; // px — fixed row height for FixedSizeList
 
 type TaskListItem =
   | { kind: "task"; node: SitePlanTaskNode; taskIndex: number }
-  | { kind: "add_task"; phaseId: string; phaseNode: SitePlanTaskNode }
+  | { kind: "add_row_trigger" }
   | { kind: "inline_input"; parentId: string | null; type: TaskType; sortOrder: number };
 
 interface VirtualRowData {
@@ -146,16 +146,28 @@ interface VirtualRowData {
   handleCheck: (node: SitePlanTaskNode, checked: boolean) => void;
   hiddenColumns: Set<string>;
   /** Opens CreateTaskSheet for the "+ Add Task" affordance inside phase rows (desktop) */
-  openDesktopSheet: (type: TaskType, parentId: string | null, sortOrder: number) => void;
-  /** Row-level: open sheet to insert sibling below */
+  openBottomInlineRow: () => void;
+  /** Row-level: insert sibling below */
   onRowAddBelow: (node: SitePlanTaskNode) => void;
   /** Row-level: open sheet to insert child */
   onRowAddSubtask: (node: SitePlanTaskNode) => void;
   projectId: string;
-  setInlineInput: (v: null) => void;
-  inlineAfterIndex: number;
-  inlineParentId: string | null;
-  inlineType: TaskType;
+  setInlineInput: (v: {
+    type: TaskType;
+    parentId: string | null;
+    afterIndex: number;
+    afterTaskId: string | null;
+  } | null | ((prev: {
+    type: TaskType;
+    parentId: string | null;
+    afterIndex: number;
+    afterTaskId: string | null;
+  } | null) => {
+    type: TaskType;
+    parentId: string | null;
+    afterIndex: number;
+    afterTaskId: string | null;
+  } | null)) => void;
   highlightedTaskIds: Set<string>;
   selectedRowIds: Set<string>;
   onRowNumberClick: (node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -163,6 +175,7 @@ interface VirtualRowData {
   columnWidths: Record<string, number>;
   selectedTaskId: string | null;
   onHoverTask: (taskId: string | null) => void;
+  lastTaskIndex: number;
 }
 
 /** Rendered for every visible row in the FixedSizeList. Defined outside the page component so
@@ -181,14 +194,11 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
     checkedIds,
     handleCheck,
     hiddenColumns,
-    openDesktopSheet,
+    openBottomInlineRow,
     onRowAddBelow,
     onRowAddSubtask,
     projectId,
     setInlineInput,
-    inlineAfterIndex,
-    inlineParentId,
-    inlineType,
     highlightedTaskIds,
     selectedRowIds,
     onRowNumberClick,
@@ -196,6 +206,7 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
     columnWidths,
     selectedTaskId,
     onHoverTask,
+    lastTaskIndex,
   } = data;
 
   // Placeholder row inserted when isUsingPlaceholder is true
@@ -203,14 +214,20 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
 
   const item = listItems[index];
 
-  if (item.kind === "add_task") {
+  if (item.kind === "add_row_trigger") {
     return (
       <div style={style} className="overflow-hidden">
         <button
-          onClick={() => openDesktopSheet("task", item.phaseId, item.phaseNode.children.length)}
-          className="w-full h-full text-left pl-16 py-2 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 hidden md:flex items-center border-b border-slate-100"
+          onClick={openBottomInlineRow}
+          className="w-full h-full text-left pl-10 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 hidden md:flex items-center border-b border-slate-100"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              openBottomInlineRow();
+            }
+          }}
         >
-          + Add Task
+          + Add Row
         </button>
       </div>
     );
@@ -219,11 +236,21 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
   if (item.kind === "inline_input") {
     return (
       <div style={style} className="overflow-hidden">
-        <InlineTaskInput
+        <InlineTaskCreateRow
           projectId={projectId}
-          contextParentId={inlineParentId}
-          contextType={inlineType}
-          sortOrder={inlineAfterIndex}
+          parentId={item.parentId}
+          type={item.type}
+          sortOrder={item.sortOrder}
+          hiddenColumns={hiddenColumns}
+          columnWidths={columnWidths}
+          autoFocusName={true}
+          onCreated={(created) => {
+            setInlineInput((prev) => prev ? {
+              ...prev,
+              afterTaskId: created.id,
+              afterIndex: prev.afterIndex + 1,
+            } : prev);
+          }}
           onCancel={() => setInlineInput(null)}
         />
       </div>
@@ -268,6 +295,8 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
             isSelected={selectedTaskId === node.id}
             onHoverStart={(taskId) => onHoverTask(taskId)}
             onHoverEnd={() => onHoverTask(null)}
+            isLastVisibleRow={item.taskIndex === lastTaskIndex}
+            onEnterAddBelow={openBottomInlineRow}
           />
         </div>
       )}
@@ -586,19 +615,32 @@ function ProjectDetailInner() {
     setLastSelectedRowNumber(rowNumber);
   }, [lastSelectedRowNumber, visibleRows, setSelectedTask]);
 
-  /** Add a new row at the same indent level as the currently selected row, directly below it.
-   *  On desktop this opens CreateTaskSheet; mobile uses InlineTaskInput via startInlineAdd. */
-  const handleAddRow = useCallback(() => {
-    const type: TaskType = selectedTask?.type ?? "task";
-    const parentId = selectedTask?.parent_id ?? null;
-    const selectedIdx = selectedTask
-      ? visibleRows.findIndex((r) => r.id === selectedTask.id)
-      : -1;
-    const sortOrder = selectedIdx >= 0 ? selectedIdx + 1 : tasks?.length ?? 0;
-    const parentNode = parentId ? flatTasks.find((t) => t.id === parentId) ?? null : null;
-    openCreateSheet(type, parentId, sortOrder, parentNode);
+  const resolveSelectedPhase = useCallback(() => {
+    if (!selectedTask) return null;
+    if (selectedTask.type === "phase") return selectedTask;
+    let cursor: SitePlanTaskNode | undefined = selectedTask;
+    while (cursor?.parent_id) {
+      const parent = flatTasks.find((t) => t.id === cursor?.parent_id);
+      if (!parent) break;
+      if (parent.type === "phase") return parent;
+      cursor = parent;
+    }
+    return null;
+  }, [selectedTask, flatTasks]);
+
+  const openBottomInlineRow = useCallback(() => {
+    const selectedPhase = resolveSelectedPhase();
+    const parentId = selectedPhase?.id ?? null;
+    const type: TaskType = parentId ? "task" : "phase";
+    const sortOrder = visibleRows.filter((row) => row.parent_id === parentId).length;
+    setInlineInput({
+      type,
+      parentId,
+      afterIndex: sortOrder,
+      afterTaskId: visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].id : null,
+    });
     setSelectedTask(null);
-  }, [selectedTask, tasks, visibleRows, flatTasks, setSelectedTask, openCreateSheet]);
+  }, [resolveSelectedPhase, visibleRows, setSelectedTask]);
 
   /** Row "+" → "Add task below": insert sibling with same type & parent, after the row's subtree */
   const handleRowAddBelow = useCallback((node: SitePlanTaskNode) => {
@@ -612,9 +654,14 @@ function ProjectDetailInner() {
       if (row.type === "phase" && node.type !== "phase") break;
       lastIdx = i;
     }
-    const parentNode = node.parent_id ? flatTasks.find((t) => t.id === node.parent_id) ?? null : null;
-    openCreateSheet(node.type, node.parent_id, lastIdx + 1, parentNode);
-  }, [visibleRows, flatTasks, openCreateSheet]);
+    setInlineInput({
+      type: node.type,
+      parentId: node.parent_id,
+      afterIndex: lastIdx + 1,
+      afterTaskId: visibleRows[lastIdx]?.id ?? node.id,
+    });
+    setSelectedTask(null);
+  }, [visibleRows, setSelectedTask]);
 
   /** Row "+" → "Add subtask": insert first/next child under this node */
   const handleRowAddSubtask = useCallback((node: SitePlanTaskNode) => {
@@ -832,10 +879,6 @@ function ProjectDetailInner() {
     let taskIndex = 0;
     for (const node of visibleRows) {
       items.push({ kind: "task", node, taskIndex: taskIndex++ });
-      // "Add Task" affordance after each expanded phase
-      if (node.type === "phase" && (allExpanded || expandedIds.has(node.id))) {
-        items.push({ kind: "add_task", phaseId: node.id, phaseNode: node });
-      }
       // Inline input inserted after its target row
       if (inlineInput?.afterTaskId === node.id) {
         items.push({
@@ -846,8 +889,19 @@ function ProjectDetailInner() {
         });
       }
     }
+    if (visibleRows.length > 0) {
+      items.push({ kind: "add_row_trigger" });
+      if (inlineInput && inlineInput.afterTaskId === null) {
+        items.push({
+          kind: "inline_input",
+          parentId: inlineInput.parentId,
+          type: inlineInput.type,
+          sortOrder: inlineInput.afterIndex,
+        });
+      }
+    }
     return items;
-  }, [visibleRows, allExpanded, expandedIds, inlineInput]);
+  }, [visibleRows, inlineInput]);
 
   /** Called by DelayLogDialog when a cascade delay impacts successor tasks */
   const handleDelayImpact = useCallback((affectedTaskIds: string[]) => {
@@ -898,14 +952,11 @@ function ProjectDetailInner() {
     checkedIds,
     handleCheck,
     hiddenColumns,
-    openDesktopSheet: openCreateSheet,
+    openBottomInlineRow,
     onRowAddBelow: handleRowAddBelow,
     onRowAddSubtask: handleRowAddSubtask,
     projectId,
     setInlineInput,
-    inlineAfterIndex: inlineInput?.afterIndex ?? 0,
-    inlineParentId: inlineInput?.parentId ?? null,
-    inlineType: inlineInput?.type ?? "task",
     highlightedTaskIds,
     selectedRowIds,
     onRowNumberClick: handleRowNumberClick,
@@ -913,12 +964,13 @@ function ProjectDetailInner() {
     columnWidths,
     selectedTaskId,
     onHoverTask: setHoveredTaskId,
+    lastTaskIndex: visibleRows.length - 1,
   }), [
     listItems, allExpanded, expandedIds, toggleExpand, handleSelect,
     setDelayTask, delayCountMap, phaseIndexMap, editMode, checkedIds,
-    handleCheck, hiddenColumns, openCreateSheet, handleRowAddBelow,
-    handleRowAddSubtask, projectId, inlineInput, highlightedTaskIds,
-    selectedRowIds, handleRowNumberClick, handleUpdateTaskInline, columnWidths, selectedTaskId,
+    handleCheck, hiddenColumns, openBottomInlineRow, handleRowAddBelow,
+    handleRowAddSubtask, projectId, highlightedTaskIds,
+    selectedRowIds, handleRowNumberClick, handleUpdateTaskInline, columnWidths, selectedTaskId, visibleRows.length,
   ]);
 
   /** Track desktop list container height for FixedSizeList */
@@ -1184,15 +1236,6 @@ function ProjectDetailInner() {
                   </Droppable>
                 </div>
 
-                {/* Desktop: "Add Phase" opens CreateTaskSheet */}
-                {visibleRows.length > 0 && (
-                  <button
-                    onClick={handleAddRow}
-                    className="shrink-0 w-full text-left pl-10 py-2.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 border-b border-slate-100 min-h-[36px]"
-                  >
-                    + Add Row
-                  </button>
-                )}
               </div>
 
               {/* ── Mobile: dedicated site tracking tabs (< md) ── */}
@@ -1270,7 +1313,7 @@ function ProjectDetailInner() {
         </div>
       )}
 
-      {/* Desktop task creation sheet — single primary creation path on md+ */}
+      {/* Desktop task creation sheet */}
       {createSheetState && (
         <div className="hidden md:block">
           <CreateTaskSheet

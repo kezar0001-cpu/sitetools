@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Plus, Folder } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
@@ -57,6 +57,8 @@ interface TaskRowProps {
   columnWidths?: Record<string, number>;
   onHoverStart?: (taskId: string) => void;
   onHoverEnd?: () => void;
+  isLastVisibleRow?: boolean;
+  onEnterAddBelow?: () => void;
 }
 
 // Distinctive backgrounds per type (phase bg is computed dynamically from phaseIndex)
@@ -187,6 +189,8 @@ export function TaskRow({
   columnWidths,
   onHoverStart,
   onHoverEnd,
+  isLastVisibleRow = false,
+  onEnterAddBelow,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -278,29 +282,9 @@ export function TaskRow({
     else setActiveCell(null);
   };
 
-  // Row-level add menu (desktop only)
-  const [showAddMenu, setShowAddMenu] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
-  const plusButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!showAddMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (plusButtonRef.current && !plusButtonRef.current.contains(e.target as Node)) {
-        setShowAddMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [showAddMenu]);
-
   const handlePlusClick = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
-    if (plusButtonRef.current) {
-      const rect = plusButtonRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 2, left: rect.left });
-    }
-    setShowAddMenu((v) => !v);
+    onAddBelow?.(node);
   };
 
   return (
@@ -319,6 +303,11 @@ export function TaskRow({
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
+          if (isLastVisibleRow && onEnterAddBelow) {
+            e.preventDefault();
+            onEnterAddBelow();
+            return;
+          }
           onSelect(node);
         } else if (e.key === " ") {
           e.preventDefault();
@@ -466,46 +455,13 @@ export function TaskRow({
         {!editMode && (onAddBelow || onAddSubtask) && (
           <div className="relative shrink-0 self-center hidden md:block ml-1">
             <button
-              ref={plusButtonRef}
               onClick={handlePlusClick}
-              className={`rounded p-0.5 flex items-center justify-center min-w-[20px] min-h-[20px] transition-opacity ${isPhase ? "text-white/50 hover:text-white hover:bg-white/15" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200"} ${showAddMenu ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus:opacity-100"}`}
+              className={`rounded p-0.5 flex items-center justify-center min-w-[20px] min-h-[20px] transition-opacity ${isPhase ? "text-white/50 hover:text-white hover:bg-white/15" : "text-slate-400 hover:text-slate-600 hover:bg-slate-200"} opacity-0 group-hover:opacity-100 focus:opacity-100`}
               aria-label="Add task"
-              title="Add task…"
+              title="Add task below"
             >
               <Plus className="h-3 w-3" />
             </button>
-
-            {showAddMenu && dropdownPos && (
-              <div
-                style={{ position: "fixed", top: dropdownPos.top, left: dropdownPos.left }}
-                className="z-[9999] bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px]"
-              >
-                {onAddBelow && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAddMenu(false);
-                      onAddBelow(node);
-                    }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 text-left"
-                  >
-                    Add task below
-                  </button>
-                )}
-                {onAddSubtask && node.type !== "subtask" && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowAddMenu(false);
-                      onAddSubtask(node);
-                    }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 text-left"
-                  >
-                    Add subtask
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         )}
       </div>
