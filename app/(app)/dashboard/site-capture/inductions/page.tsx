@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { getDiaries } from "@/lib/site-capture/client";
 import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
-import { FORM_TYPE_CONFIG, DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
+import { DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
 
 interface InductionEntry extends SiteDiaryWithCounts {
   induction_data?: SiteInductionData;
