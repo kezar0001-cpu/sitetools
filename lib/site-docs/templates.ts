@@ -276,51 +276,6 @@ RFI Summary:
     default_sections: ["Reference", "Issue Description", "Interpretation", "Proposed Solution", "Information Requested"],
 };
 
-// ── Daily Progress Report Template ──
-const dailyProgressTemplate: DocumentTemplate = {
-    id: "daily-progress",
-    name: "Daily Progress Report",
-    description: "Construction daily report with work completed, labour, equipment, and issues",
-    icon: "file-text",
-    color: "slate",
-    prompt_template: `Convert the following daily summary into a professional daily progress report.
-
-Structure the output as JSON:
-{
-  "metadata": {
-    "document_title": "Daily Progress Report",
-    "project_name": "extracted",
-    "location": "site",
-    "date": "YYYY-MM-DD",
-    "reference": "DPR-XXX",
-    "prepared_by": "supervisor",
-    "organization": "contractor"
-  },
-  "sections": [
-    { "id": "1", "title": "1. Weather Conditions", "content": "am/pm conditions", "order": 1 },
-    { "id": "2", "title": "2. Work Completed Today", "content: "areas and quantities", "order": 2 },
-    { "id": "3", "title": "3. Labour on Site", "content: "trade breakdown", "order": 3 },
-    { "id": "4", "title": "4. Plant & Equipment", "content: "equipment used", "order": 4 },
-    { "id": "5", "title": "5. Materials Delivered", "content: "deliveries today", "order": 5 },
-    { "id": "6", "title": "6. Issues & Delays", "content: "problems encountered", "order": 6 },
-    { "id": "7", "title": "7. Work Planned Tomorrow", "content: "next shift plan", "order": 7 },
-    { "id": "8", "title": "8. Instructions Received", "content: "engineer/client instructions", "order": 8 }
-  ]
-}
-
-Daily Summary:
-{{SUMMARY}}`,
-    required_fields: [
-        { name: "report_date", label: "Report Date", type: "date" },
-        { name: "weather", label: "Weather", type: "text" },
-    ],
-    optional_fields: [
-        { name: "shift", label: "Shift", type: "select", options: ["Day", "Night", "Day & Night"] },
-        { name: "total_workers", label: "Total Workers", type: "text" },
-    ],
-    default_sections: ["Weather", "Work Completed", "Labour", "Equipment", "Issues", "Plan for Tomorrow"],
-};
-
 // ── Inspection Checklist Template ──
 const inspectionChecklistTemplate: DocumentTemplate = {
     id: "inspection-checklist",
@@ -503,50 +458,6 @@ NCR Summary:
     default_sections: ["Description", "Reference", "Immediate Actions", "Rectification", "Preventive Measures"],
 };
 
-// ── Delivery Docket Template ──
-const deliveryDocketTemplate: DocumentTemplate = {
-    id: "delivery-docket",
-    name: "Delivery Docket",
-    description: "Materials and goods delivery record with quantities and condition",
-    icon: "truck",
-    color: "cyan",
-    prompt_template: `Convert the following delivery summary into a professional delivery docket.
-
-Structure the output as JSON:
-{
-  "metadata": {
-    "document_title": "Delivery Docket",
-    "project_name": "extracted",
-    "location": "delivery location",
-    "date": "YYYY-MM-DD",
-    "reference": "DD-XXX or supplier ref",
-    "prepared_by": "receiver",
-    "organization": "company"
-  },
-  "sections": [
-    { "id": "1", "title": "1. Supplier Details", "content": "supplier name, contact, order ref", "order": 1 },
-    { "id": "2", "title": "2. Items Delivered", "content: "list of materials with quantities", "order": 2 },
-    { "id": "3", "title": "3. Condition on Arrival", "content: "damage check, packaging condition", "order": 3 },
-    { "id": "4", "title": "4. Storage Location", "content: "where items were stored", "order": 4 },
-    { "id": "5", "title": "5. Discrepancies", "content: "shortages, damages, wrong items", "order": 5 }
-  ]
-}
-
-Delivery Summary:
-{{SUMMARY}}`,
-    required_fields: [
-        { name: "docket_number", label: "Docket Number", type: "text" },
-        { name: "delivery_date", label: "Delivery Date", type: "date" },
-        { name: "supplier", label: "Supplier", type: "text" },
-    ],
-    optional_fields: [
-        { name: "purchase_order", label: "Purchase Order", type: "text" },
-        { name: "carrier", label: "Carrier/Driver", type: "text" },
-        { name: "vehicle_reg", label: "Vehicle Registration", type: "text" },
-    ],
-    default_sections: ["Supplier Details", "Items Delivered", "Condition", "Storage Location"],
-};
-
 // ── Site Instruction Template ──
 const siteInstructionTemplate: DocumentTemplate = {
     id: "site-instruction",
@@ -599,12 +510,10 @@ export const DOCUMENT_TEMPLATES: Record<DocumentType, DocumentTemplate> = {
     "corrective-action": correctiveActionTemplate,
     "safety-report": safetyReportTemplate,
     rfi: rfiTemplate,
-    "daily-progress": dailyProgressTemplate,
     "inspection-checklist": inspectionChecklistTemplate,
     "toolbox-talk": toolboxTalkTemplate,
     variation: variationTemplate,
     ncr: ncrTemplate,
-    "delivery-docket": deliveryDocketTemplate,
     "site-instruction": siteInstructionTemplate,
 };
 

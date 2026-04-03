@@ -214,12 +214,10 @@ function getReferencePrefix(type: DocumentType): string {
         "corrective-action": "CAR",
         "safety-report": "SAF",
         rfi: "RFI",
-        "daily-progress": "DPR",
         "inspection-checklist": "INSP",
         "toolbox-talk": "TBT",
         variation: "VO",
         ncr: "NCR",
-        "delivery-docket": "DD",
         "site-instruction": "SI",
     };
     return prefixes[type];

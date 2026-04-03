@@ -17,12 +17,10 @@ const DOCUMENT_THEMES: Record<DocumentType, { primary: string; secondary: string
     "corrective-action": { primary: "#c05621", secondary: "#9c4221", accent: "#fbd38d", headerBg: "#7c341f", headerText: "#ffffff" },
     "safety-report": { primary: "#276749", secondary: "#22543d", accent: "#9ae6b4", headerBg: "#1c4532", headerText: "#ffffff" },
     rfi: { primary: "#553c9a", secondary: "#44337a", accent: "#d6bcfa", headerBg: "#3c2a6e", headerText: "#ffffff" },
-    "daily-progress": { primary: "#2d3748", secondary: "#4a5568", accent: "#a0aec0", headerBg: "#1a202c", headerText: "#ffffff" },
     "inspection-checklist": { primary: "#434190", secondary: "#3730a3", accent: "#a3bffa", headerBg: "#312e81", headerText: "#ffffff" },
     "toolbox-talk": { primary: "#c05621", secondary: "#9c4221", accent: "#fbd38d", headerBg: "#7c341f", headerText: "#ffffff" },
     variation: { primary: "#285e61", secondary: "#234e52", accent: "#81e6d9", headerBg: "#1a3c3f", headerText: "#ffffff" },
     ncr: { primary: "#b83280", secondary: "#97266d", accent: "#fbb6ce", headerBg: "#702459", headerText: "#ffffff" },
-    "delivery-docket": { primary: "#0987a0", secondary: "#086f83", accent: "#9decfa", headerBg: "#065666", headerText: "#ffffff" },
     "site-instruction": { primary: "#d69e2e", secondary: "#b7791f", accent: "#fefcbf", headerBg: "#975a16", headerText: "#ffffff" },
 };
 
@@ -152,12 +150,10 @@ function generateThemedHTML(title: string, content: any, docType: DocumentType, 
         "corrective-action": "CORRECTIVE ACTION REPORT",
         "safety-report": "SAFETY REPORT",
         rfi: "REQUEST FOR INFORMATION",
-        "daily-progress": "DAILY PROGRESS REPORT",
         "inspection-checklist": "INSPECTION CHECKLIST",
         "toolbox-talk": "TOOLBOX TALK RECORD",
         variation: "VARIATION / CHANGE ORDER",
         ncr: "NON-CONFORMANCE REPORT",
-        "delivery-docket": "DELIVERY DOCKET",
         "site-instruction": "SITE INSTRUCTION",
     };
     
