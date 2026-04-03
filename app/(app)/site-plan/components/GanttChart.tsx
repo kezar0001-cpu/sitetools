@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import type { RefObject } from "react";
 import {
   Calendar,
 } from "lucide-react";
@@ -48,12 +49,15 @@ interface GanttChartProps {
   showDependencies?: boolean;
   showCriticalPath?: boolean;
   selectedTaskId?: string | null;
+  hoveredTaskId?: string | null;
   onTaskClick?: (task: SitePlanTask) => void;
   onDoubleClick?: (task: SitePlanTask) => void;
   onDateChange?: (task: SitePlanTask, start_date: string, end_date: string) => void;
   onLogDelay?: (task: SitePlanTask) => void;
   canEdit?: boolean;
   todayTrigger?: number;
+  scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  onVerticalScroll?: (scrollTop: number) => void;
 }
 
 // ─── Constants ──────────────────────────────────────────────
@@ -218,11 +222,14 @@ export function GanttChart({
   showDependencies: showDeps = true,
   showCriticalPath = false,
   selectedTaskId,
+  hoveredTaskId,
   onTaskClick,
   onDoubleClick,
   onDateChange,
   canEdit = true,
   todayTrigger,
+  scrollContainerRef,
+  onVerticalScroll,
 }: GanttChartProps) {
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
@@ -340,6 +347,21 @@ export function GanttChart({
     if (todayTrigger === undefined) return;
     scrollToToday();
   }, [todayTrigger, scrollToToday]);
+
+  useEffect(() => {
+    if (!selectedTaskId || !timelineRef.current) return;
+    const selectedIndex = flatTasks.findIndex((task) => task.id === selectedTaskId);
+    if (selectedIndex < 0) return;
+    const selectedNode = flatTasks[selectedIndex];
+    const startDate = new Date(selectedNode.start_date);
+    const barX = getBarX(startDate, rangeStart, totalDays, totalTimelineWidth);
+
+    timelineRef.current.scrollTo({
+      top: selectedIndex * ROW_HEIGHT,
+      left: Math.max(0, barX - 120),
+      behavior: "smooth",
+    });
+  }, [selectedTaskId, flatTasks, rangeStart, totalDays, totalTimelineWidth]);
 
   // useUpdateTask for resize-end drag (called directly without parent callback)
   const updateTask = useUpdateTask();
@@ -492,9 +514,17 @@ export function GanttChart({
 
         {/* Right panel — scrollable SVG timeline */}
         <div
-          ref={timelineRef}
+          ref={(el) => {
+            timelineRef.current = el;
+            if (scrollContainerRef) {
+              scrollContainerRef.current = el;
+            }
+          }}
           className="flex-1 overflow-auto"
-          onScroll={(e) => setHeaderOffsetY(e.currentTarget.scrollTop)}
+          onScroll={(e) => {
+            setHeaderOffsetY(e.currentTarget.scrollTop);
+            onVerticalScroll?.(e.currentTarget.scrollTop);
+          }}
         >
           <svg
             width={totalTimelineWidth}
@@ -566,6 +596,16 @@ export function GanttChart({
             {/* Row dividers */}
             {flatTasks.map((node, i) => (
               <g key={`row-${node.id}`}>
+                {hoveredTaskId === node.id && (
+                  <rect
+                    x={0}
+                    y={HEADER_HEIGHT + i * ROW_HEIGHT}
+                    width={totalTimelineWidth}
+                    height={ROW_HEIGHT}
+                    fill="#dbeafe"
+                    fillOpacity={0.3}
+                  />
+                )}
                 {(selectedTaskId === node.id || selectedBar?.id === node.id) && (
                   <rect
                     x={0}

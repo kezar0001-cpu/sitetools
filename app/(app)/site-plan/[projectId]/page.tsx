@@ -31,7 +31,7 @@ import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
 import { GanttChart } from "../components/GanttChart";
-import { MilestoneTimeline } from "../components/MilestoneTimeline";
+import { SitePlanMobileView } from "../components/SitePlanMobileView";
 import { QueryProvider } from "@/components/QueryProvider";
 import { supabase } from "@/lib/supabase";
 
@@ -160,6 +160,8 @@ interface VirtualRowData {
   onRowNumberClick: (node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => void;
   onUpdateTaskInline: (taskId: string, updates: Partial<SitePlanTaskNode>) => void;
   columnWidths: Record<string, number>;
+  selectedTaskId: string | null;
+  onHoverTask: (taskId: string | null) => void;
 }
 
 /** Rendered for every visible row in the FixedSizeList. Defined outside the page component so
@@ -191,6 +193,8 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
     onRowNumberClick,
     onUpdateTaskInline,
     columnWidths,
+    selectedTaskId,
+    onHoverTask,
   } = data;
 
   // Placeholder row inserted when isUsingPlaceholder is true
@@ -260,6 +264,9 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
             onRowNumberClick={onRowNumberClick}
             onUpdateTask={onUpdateTaskInline}
             columnWidths={columnWidths}
+            isSelected={selectedTaskId === node.id}
+            onHoverStart={(taskId) => onHoverTask(taskId)}
+            onHoverEnd={() => onHoverTask(null)}
           />
         </div>
       )}
@@ -396,8 +403,8 @@ function ProjectDetailInner() {
   // Derive selected task from URL
   const taskIdParam = searchParams.get("task");
 
-  // Find selected task from URL param or local state
-  const [selectedTaskLocal, setSelectedTaskLocal] = useState<SitePlanTaskNode | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(taskIdParam);
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   const [showImport, setShowImport] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
@@ -416,6 +423,9 @@ function ProjectDetailInner() {
   // ─── Virtual list state ──────────────────────────────────────
   const desktopContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<FixedSizeList<VirtualRowData>>(null);
+  const leftScrollRef = useRef<HTMLDivElement | null>(null);
+  const rightScrollRef = useRef<HTMLDivElement | null>(null);
+  const isSyncingScrollRef = useRef(false);
   const [desktopListHeight, setDesktopListHeight] = useState(500);
   const [stickyPhaseNode, setStickyPhaseNode] = useState<SitePlanTaskNode | null>(null);
 
@@ -485,17 +495,19 @@ function ProjectDetailInner() {
     setCreateSheetState({ type, parentId, sortOrder, parentNode });
   }, []);
 
-  // Resolve selected task: prefer URL param, fall back to local state
+  useEffect(() => {
+    setSelectedTaskId(taskIdParam);
+  }, [taskIdParam]);
+
+  // Resolve selected task from single selectedTaskId state
   const selectedTask = useMemo(() => {
-    if (taskIdParam && flatTasks.length > 0) {
-      return flatTasks.find((t) => t.id === taskIdParam) ?? selectedTaskLocal;
-    }
-    return selectedTaskLocal;
-  }, [taskIdParam, flatTasks, selectedTaskLocal]);
+    if (!selectedTaskId || flatTasks.length === 0) return null;
+    return flatTasks.find((t) => t.id === selectedTaskId) ?? null;
+  }, [selectedTaskId, flatTasks]);
 
   const setSelectedTask = useCallback(
     (task: SitePlanTaskNode | null) => {
-      setSelectedTaskLocal(task);
+      setSelectedTaskId(task?.id ?? null);
       updateSearchParams({ task: task?.id ?? null });
     },
     [updateSearchParams]
@@ -898,12 +910,14 @@ function ProjectDetailInner() {
     onRowNumberClick: handleRowNumberClick,
     onUpdateTaskInline: handleUpdateTaskInline,
     columnWidths,
+    selectedTaskId,
+    onHoverTask: setHoveredTaskId,
   }), [
     listItems, allExpanded, expandedIds, toggleExpand, handleSelect,
     setDelayTask, delayCountMap, phaseIndexMap, editMode, checkedIds,
     handleCheck, hiddenColumns, openCreateSheet, handleRowAddBelow,
     handleRowAddSubtask, projectId, inlineInput, highlightedTaskIds,
-    selectedRowIds, handleRowNumberClick, handleUpdateTaskInline, columnWidths,
+    selectedRowIds, handleRowNumberClick, handleUpdateTaskInline, columnWidths, selectedTaskId,
   ]);
 
   /** Track desktop list container height for FixedSizeList */
@@ -938,6 +952,40 @@ function ProjectDetailInner() {
     const idx = listItems.findIndex((item) => item.kind === "inline_input");
     if (idx >= 0) listRef.current.scrollToItem(idx, "smart");
   }, [inlineInput, listItems]);
+
+  useEffect(() => {
+    if (!selectedTaskId || !leftScrollRef.current) return;
+    const selectedIndex = visibleRows.findIndex((row) => row.id === selectedTaskId);
+    if (selectedIndex < 0) return;
+    leftScrollRef.current.scrollTo({
+      top: selectedIndex * DESKTOP_ROW_HEIGHT,
+      behavior: "smooth",
+    });
+  }, [selectedTaskId, visibleRows]);
+
+  useEffect(() => {
+    const leftEl = leftScrollRef.current;
+    if (!leftEl) return;
+    const onLeftScroll = () => {
+      if (isSyncingScrollRef.current || !rightScrollRef.current) return;
+      isSyncingScrollRef.current = true;
+      rightScrollRef.current.scrollTop = leftEl.scrollTop;
+      requestAnimationFrame(() => {
+        isSyncingScrollRef.current = false;
+      });
+    };
+    leftEl.addEventListener("scroll", onLeftScroll, { passive: true });
+    return () => leftEl.removeEventListener("scroll", onLeftScroll);
+  }, [desktopListHeight, listItems.length]);
+
+  const handleRightPanelScroll = useCallback((scrollTop: number) => {
+    if (isSyncingScrollRef.current || !leftScrollRef.current) return;
+    isSyncingScrollRef.current = true;
+    leftScrollRef.current.scrollTop = scrollTop;
+    requestAnimationFrame(() => {
+      isSyncingScrollRef.current = false;
+    });
+  }, []);
 
   /** Handle FixedSizeList scroll — update sticky phase banner without re-rendering items */
   const handleVirtualScroll = useCallback(
@@ -1016,7 +1064,7 @@ function ProjectDetailInner() {
         >
           {/* Left pane: task list (hidden on desktop in gantt-only view) */}
           <div className={`flex flex-col min-w-0 ${
-            desktopView !== "list" ? "md:hidden" : ""
+            desktopView === "gantt" ? "md:hidden" : ""
           } flex-1`}>
           {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
           <div className="flex-1 flex flex-col min-h-0">
@@ -1120,7 +1168,10 @@ function ProjectDetailInner() {
                         height={desktopListHeight}
                         itemCount={listItems.length + (snapshot.isUsingPlaceholder ? 1 : 0)}
                         itemSize={DESKTOP_ROW_HEIGHT}
-                        outerRef={provided.innerRef}
+                        outerRef={(el) => {
+                          provided.innerRef(el);
+                          leftScrollRef.current = el;
+                        }}
                         itemData={rowData}
                         onScroll={handleVirtualScroll}
                         width="100%"
@@ -1171,9 +1222,12 @@ function ProjectDetailInner() {
                   zoom={zoom}
                   showDependencies={showDeps}
                   showCriticalPath={showCriticalPath}
-                  selectedTaskId={selectedTask?.id ?? null}
+                  selectedTaskId={selectedTaskId}
+                  hoveredTaskId={hoveredTaskId}
                   onTaskClick={handleGanttTaskClick}
                   todayTrigger={todayTrigger}
+                  scrollContainerRef={rightScrollRef}
+                  onVerticalScroll={handleRightPanelScroll}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full w-full text-slate-400 text-sm">
