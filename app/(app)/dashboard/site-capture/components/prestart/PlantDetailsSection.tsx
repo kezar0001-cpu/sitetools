@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import type { PlantDetails } from "@/lib/site-capture/types";
 import type { Project, Site } from "@/lib/workspace/types";
-import { SectionHeader } from "./SectionHeader";
+import { SectionHeader } from "../SectionHeader";
 
 interface PlantDetailsSectionProps {
   details: PlantDetails;

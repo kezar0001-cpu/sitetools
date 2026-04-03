@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { SectionHeader } from "./SectionHeader";
+import { SectionHeader } from "../SectionHeader";
 import type { WorkerDetails } from "@/lib/site-capture/induction-types";
 
 interface WorkerDetailsSectionProps {
