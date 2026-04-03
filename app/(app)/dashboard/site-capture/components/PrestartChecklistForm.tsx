@@ -87,7 +87,7 @@ export default function PrestartChecklistForm({
 
   // Default open sections - essential sections open by default
   const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set(["plantDetails", "checklistItems"])
+    new Set<Section>(["plantDetails", "checklistItems"])
   );
 
   const isLocked = checklist.status === "completed" || checklist.status === "archived";

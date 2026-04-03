@@ -19,7 +19,6 @@ export function WorkerDetailsSection({
   isOpen,
   onToggle,
   onUpdate,
-  saving = {},
 }: WorkerDetailsSectionProps) {
   const [localDetails, setLocalDetails] = useState(workerDetails);
 
