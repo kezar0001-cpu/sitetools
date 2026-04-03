@@ -5,7 +5,9 @@ interface SectionHeaderProps {
   icon: React.ReactNode;
   open: boolean;
   onToggle: () => void;
-  badge?: number;
+  badge?: React.ReactNode;
+  badgeClass?: string;
+  required?: boolean;
 }
 
 export function SectionHeader({
@@ -14,6 +16,8 @@ export function SectionHeader({
   open,
   onToggle,
   badge,
+  badgeClass,
+  required = false,
 }: SectionHeaderProps) {
   return (
     <button
@@ -24,8 +28,9 @@ export function SectionHeader({
       <span className="flex items-center gap-2 font-semibold text-slate-700">
         {icon}
         {title}
-        {badge != null && badge > 0 && (
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+        {required && <span className="text-red-500">*</span>}
+        {badge != null && badge !== false && (
+          <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-xs font-bold ${badgeClass ?? "bg-amber-100 text-amber-700"}`}>
             {badge}
           </span>
         )}
