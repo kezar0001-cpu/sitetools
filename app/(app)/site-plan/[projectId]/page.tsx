@@ -2,15 +2,14 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
-import { ChevronLeft, Plus } from "lucide-react";
+import { Plus, BarChart3, ListTodo } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import { FixedSizeList } from "react-window";
 import type { ListChildComponentProps } from "react-window";
 import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
-import { useSitePlanTasks, useUpdateTask, useReorderTask, useSetTaskPredecessors } from "@/hooks/useSitePlanTasks";
-import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
+import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { computeWorkProgress } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
@@ -31,11 +30,10 @@ import { AddTaskFAB } from "../components/AddTaskFAB";
 import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
-import { GanttWrapper } from "../components/GanttWrapper";
-import { SitePlanMobileView, type MobileTab } from "../components/SitePlanMobileView";
+import { GanttChart } from "../components/GanttChart";
+import { MilestoneTimeline } from "../components/MilestoneTimeline";
 import { QueryProvider } from "@/components/QueryProvider";
-import { downloadCsv } from "@/lib/csvExporter";
-import { downloadMsProjectXml } from "@/lib/msProjectExporter";
+import { supabase } from "@/lib/supabase";
 
 // ─── Undo/Redo stack ────────────────────────────────────────
 
@@ -282,11 +280,9 @@ function ProjectDetailInner() {
   const { data: tasks, isLoading, refetch } = useSitePlanTasks(projectId);
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
-  const setTaskPredecessors = useSetTaskPredecessors();
-  const { data: baselines } = useSitePlanBaselines(projectId);
 
   const { data: delayLogs } = useProjectDelayLogs(projectId);
-  const { pushUndo, undo, redo, canUndo, canRedo, undoLabel, redoLabel } = useUndoRedo(updateTask);
+  const { pushUndo } = useUndoRedo(updateTask);
 
   // Compute delay count per task
   const delayCountMap = useMemo(() => {
@@ -329,15 +325,9 @@ function ProjectDetailInner() {
     [updateSearchParams]
   );
 
-  // Desktop view mode (URL param): list | gantt | split (default: list)
+  // Desktop view mode (URL param): list | gantt | split (default: split)
   const viewParam = searchParams.get("view");
-  const desktopView = (viewParam === "gantt" || viewParam === "split" ? viewParam : "list") as "list" | "gantt" | "split";
-  const handleViewChange = useCallback(
-    (v: "list" | "gantt" | "split") => {
-      updateSearchParams({ view: v === "list" ? null : v });
-    },
-    [updateSearchParams]
-  );
+  const desktopView = (viewParam === "list" || viewParam === "gantt" || viewParam === "split" ? viewParam : "split") as "list" | "gantt" | "split";
 
   // Derive filter from URL search params
   const filter = useMemo<TaskFilter>(() => {
@@ -388,7 +378,6 @@ function ProjectDetailInner() {
     allExpanded,
     mobileExpandedIds,
     toggleExpand,
-    toggleAll,
     toggleMobileExpand,
   } = useTaskTree(tasks, {
     initialExpandedIds: expandedIdsParam
@@ -412,14 +401,17 @@ function ProjectDetailInner() {
 
   const [showImport, setShowImport] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
+  const [zoom, setZoom] = useState<"day" | "week" | "month" | "quarter">("week");
+  const [showDeps, setShowDeps] = useState(true);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
+  const [todayTrigger, setTodayTrigger] = useState(0);
+  const [projectName, setProjectName] = useState("");
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  const [editMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // ─── Virtual list state ──────────────────────────────────────
   const desktopContainerRef = useRef<HTMLDivElement>(null);
@@ -470,6 +462,25 @@ function ProjectDetailInner() {
     parentNode?: SitePlanTaskNode | null;
   } | null>(null);
 
+  useEffect(() => {
+    if (project?.name) setProjectName(project.name);
+  }, [project?.name]);
+
+  const handleProjectNameSave = useCallback(
+    async (name: string) => {
+      const prev = projectName;
+      setProjectName(name);
+      const { error } = await supabase.from("projects").update({ name }).eq("id", projectId);
+      if (error) {
+        setProjectName(prev);
+        toast.error("Couldn't rename project");
+        return;
+      }
+      toast.success("Project renamed");
+    },
+    [projectId, projectName]
+  );
+
   const openCreateSheet = useCallback((type: TaskType, parentId: string | null, sortOrder: number, parentNode?: SitePlanTaskNode | null) => {
     setCreateSheetState({ type, parentId, sortOrder, parentNode });
   }, []);
@@ -489,17 +500,6 @@ function ProjectDetailInner() {
     },
     [updateSearchParams]
   );
-
-  // Toggle edit mode — clear selections on exit
-  const handleToggleEditMode = useCallback(() => {
-    setEditMode((prev) => {
-      if (prev) {
-        setCheckedIds(new Set());
-        setSelectedTask(null);
-      }
-      return !prev;
-    });
-  }, [setSelectedTask]);
 
   // Check/uncheck a task — in edit mode this is "select for bulk action"
   const handleCheck = useCallback(
@@ -608,16 +608,6 @@ function ProjectDetailInner() {
     const childType: TaskType = node.type === "phase" ? "task" : "subtask";
     openCreateSheet(childType, node.id, node.children.length, node);
   }, [openCreateSheet]);
-
-  const handleExportCsv = useCallback(() => {
-    const slug = (project?.name ?? "siteplan").replace(/\s+/g, "_");
-    downloadCsv(visibleRows, `${slug}.csv`);
-  }, [visibleRows, project]);
-
-  const handleExportMsProject = useCallback(() => {
-    const slug = (project?.name ?? "siteplan").replace(/\s+/g, "_");
-    downloadMsProjectXml(visibleRows, `${slug}.xml`);
-  }, [visibleRows, project]);
 
   const handleFABAdd = (type: TaskType) => {
     setInlineInput({
@@ -736,34 +726,6 @@ function ProjectDetailInner() {
     });
     indentTask(selectedTask.id, newType, grandparentId);
   }, [selectedTask, flatTasks, projectId, pushUndo, indentTask]);
-
-  // ─── Link / Unlink ────────────────────────────────────────
-
-  const handleLinkTasks = () => {
-    if (!selectedTask) return;
-    setShowLinkDialog(true);
-  };
-
-  const handleUnlinkTask = () => {
-    if (!selectedTask) return;
-    setTaskPredecessors.mutate({
-      taskId: selectedTask.id,
-      predecessorIds: [],
-      projectId,
-    });
-  };
-
-  // ─── Fullscreen ───────────────────────────────────────────
-
-  const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen?.();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen?.();
-      setIsFullscreen(false);
-    }
-  }, []);
 
   // Gantt task click — open edit panel
   const handleGanttTaskClick = useCallback(
@@ -1011,63 +973,42 @@ function ProjectDetailInner() {
 
   return (
     <>
-      <div
-        ref={containerRef}
-        className={`relative flex h-full flex-col bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
-      >
-        {/* Project header */}
-        <div className="px-4 py-2 border-b border-slate-200 bg-white shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/site-plan")}
-              className="p-1.5 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] md:min-w-[32px] md:min-h-[32px] flex items-center justify-center"
-            >
-              <ChevronLeft className="h-4 w-4 text-slate-400" />
-            </button>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-sm font-bold text-slate-900 truncate">
-                {project?.name ?? "Loading..."}
-              </h1>
-            </div>
-            <span className="text-xs font-semibold text-slate-600 tabular-nums">
-              {overallProgress}%
-            </span>
-          </div>
-          <div className="mt-1">
-            <ProgressBar value={overallProgress} />
-          </div>
-        </div>
-
+      <div className="relative flex h-full flex-col bg-white">
         {/* Toolbar */}
         <SitePlanToolbar
-          canUndo={canUndo}
-          canRedo={canRedo}
-          onUndo={undo}
-          onRedo={redo}
-          undoLabel={undoLabel}
-          redoLabel={redoLabel}
-          allExpanded={allExpanded}
-          onToggleAll={toggleAll}
-          selectedTask={selectedTask}
-          onIndent={handleIndent}
-          onOutdent={handleOutdent}
-          onLinkTasks={handleLinkTasks}
-          onUnlinkTask={handleUnlinkTask}
-          filter={filter}
-          onFilterChange={setFilter}
-          onImport={() => setShowImport(true)}
-          onExportCsv={handleExportCsv}
-          onExportMsProject={handleExportMsProject}
-          onAddRow={handleAddRow}
-          onSaveBaseline={() => setShowBaselines(true)}
-          baselineCount={baselines?.length ?? 0}
-          editMode={editMode}
-          onToggleEditMode={handleToggleEditMode}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={toggleFullscreen}
-          view={desktopView}
-          onViewChange={handleViewChange}
+          projectName={projectName || project?.name || "Loading..."}
+          onProjectNameSave={handleProjectNameSave}
+          zoom={zoom}
+          setZoom={setZoom}
+          showDeps={showDeps}
+          setShowDeps={setShowDeps}
+          showCriticalPath={showCriticalPath}
+          setShowCriticalPath={setShowCriticalPath}
+          onOpenBaseline={() => setShowBaselines(true)}
+          onOpenImport={() => setShowImport(true)}
+          onToday={() => setTodayTrigger((v) => v + 1)}
         />
+        <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-1.5">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-slate-600 tabular-nums">{overallProgress}%</span>
+            <div className="flex-1">
+              <ProgressBar value={overallProgress} />
+            </div>
+            <button
+              className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
+              onClick={() =>
+                updateSearchParams({ view: mobileView === "timeline" ? null : "timeline" })
+              }
+              title={mobileView === "timeline" ? "Switch to list view" : "Switch to timeline view"}
+            >
+              {mobileView === "timeline" ? (
+                <ListTodo className="h-4 w-4 text-slate-500" />
+              ) : (
+                <BarChart3 className="h-4 w-4 text-slate-500" />
+              )}
+            </button>
+          </div>
+        </div>
 
         {/* Panes area: horizontal layout for task list and/or Gantt */}
         <div
@@ -1225,7 +1166,15 @@ function ProjectDetailInner() {
           {desktopView !== "list" && (
             <div className="hidden md:flex flex-1 min-w-0 overflow-hidden">
               {!isLoading && tasks && tasks.length > 0 ? (
-                <GanttWrapper tasks={tasks} onTaskClick={handleGanttTaskClick} />
+                <GanttChart
+                  tasks={tasks}
+                  zoom={zoom}
+                  showDependencies={showDeps}
+                  showCriticalPath={showCriticalPath}
+                  selectedTaskId={selectedTask?.id ?? null}
+                  onTaskClick={handleGanttTaskClick}
+                  todayTrigger={todayTrigger}
+                />
               ) : (
                 <div className="flex items-center justify-center h-full w-full text-slate-400 text-sm">
                   {isLoading ? "Loading..." : "Add tasks to see the Gantt chart."}
