@@ -25,8 +25,6 @@ export default function SiteInspectionForm({
   diary: initialDiary, 
   onUpdate, 
   onSubmit,
-  userRole,
-  userId 
 }: SiteInspectionFormProps) {
   // Cast diary to SiteInspectionFull - the data should be loaded from the parent
   const [diary, setDiary] = useState<SiteInspectionFull>(initialDiary as SiteInspectionFull);
@@ -36,7 +34,6 @@ export default function SiteInspectionForm({
     new Set(["inspectionDetails", "inspectionItems", "defects", "observations", "outcome", "signOff"])
   );
   
-  const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Derived state
@@ -57,10 +54,10 @@ export default function SiteInspectionForm({
   );
 
   // Wrapper for section updates that syncs local diary state
-  const handleSectionUpdate = useCallback((updated: SiteDiaryFull) => {
-    setDiary(updated as SiteInspectionFull);
-    onUpdate?.(updated);
-  }, [onUpdate]);
+  const handleSectionUpdate = useCallback((_updated: SiteDiaryFull) => {
+    // This function is currently not used but kept for potential future use
+    // The form uses more specific handlers like handleItemsChange, handleDefectsChange etc.
+  }, []);
 
   function toggleSection(section: Section) {
     setOpenSections((prev) => {

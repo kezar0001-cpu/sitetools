@@ -8,7 +8,7 @@ import { getProjects, getSites } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { Project, Site } from "@/lib/workspace/types";
-import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE, FORM_TYPE_CONFIG } from "@/lib/site-capture/types";
+import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
 import type { FormType, PrestartChecklistFull, ToolboxTalkFull } from "@/lib/site-capture/types";
 import DiaryEntryForm from "../components/DiaryEntryForm";
 import PrestartChecklistForm from "../components/PrestartChecklistForm";
@@ -263,7 +263,6 @@ export default function DiaryDetailPage() {
               <ToolboxEntryForm
                 diary={diary as ToolboxTalkFull}
                 onUpdate={(updated) => setDiary(updated)}
-                userRole={userRole}
                 userId={userId}
               />
             );

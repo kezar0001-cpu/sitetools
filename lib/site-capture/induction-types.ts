@@ -1,7 +1,7 @@
 // Site Induction Types Extension
 // This extends the site-capture types with induction-specific data structures
 
-import type { SiteDiaryFull, SiteDiary } from "./types";
+import type { SiteDiaryFull } from "./types";
 
 // ── Site Induction Data ──
 

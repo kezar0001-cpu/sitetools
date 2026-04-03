@@ -6,7 +6,6 @@ import type {
   ChecklistCategory,
   ChecklistStatus,
   ChecklistDefect,
-  DefectSeverity,
 } from "@/lib/site-capture/types";
 import { SectionHeader } from "../SectionHeader";
 
@@ -93,19 +92,6 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = CHECKLIST_CATEGORIES.flatMap(
       defectNote: null,
     }))
 );
-
-function getStatusColor(status: ChecklistStatus): string {
-  switch (status) {
-    case "pass":
-      return "bg-emerald-500 border-emerald-500";
-    case "fail":
-      return "bg-red-500 border-red-500";
-    case "na":
-      return "bg-slate-300 border-slate-300";
-    default:
-      return "bg-slate-200 border-slate-200";
-  }
-}
 
 function getStatusLabel(status: ChecklistStatus): string {
   switch (status) {

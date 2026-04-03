@@ -5,9 +5,7 @@ import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { CompanyRole } from "@/lib/workspace/types";
 import {
   SiteInductionData,
-  DEFAULT_INDUCTION_DATA,
   parseInductionData,
-  isInductionComplete,
 } from "@/lib/site-capture/induction-types";
 import { WorkerDetailsSection } from "./induction/WorkerDetailsSection";
 import { HazardAcknowledgementSection } from "./induction/HazardAcknowledgementSection";
@@ -37,7 +35,7 @@ export default function InductionEntryForm({ diary: initialDiary, onUpdate }: Pr
   const [openSections, setOpenSections] = useState<Set<Section>>(
     new Set(["workerDetails", "hazardAcknowledgement", "siteRules", "emergencyProcedures", "declaration"])
   );
-  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [saving] = useState<Record<string, boolean>>({});
 
   // Parse induction data from diary.form_data or use defaults
   const inductionData = parseInductionData(

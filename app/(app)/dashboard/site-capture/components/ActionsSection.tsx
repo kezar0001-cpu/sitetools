@@ -73,7 +73,7 @@ export function ActionsSection({ diary, isLocked, isOpen, onToggle, onUpdate }: 
     } finally {
       setAddingId(null);
     }
-  }, [formData, diary.id, diary, actions, onUpdate, addingId]);
+  }, [formData, diary, actions, onUpdate, addingId]);
 
   const handleDeleteAction = useCallback(async (id: string) => {
     setDeletingId(id);
@@ -103,7 +103,6 @@ export function ActionsSection({ diary, isLocked, isOpen, onToggle, onUpdate }: 
     }
   }, [actions, diary, onUpdate]);
 
-  const openCount = actions.filter((a) => a.status === "open" || a.status === "in_progress").length;
   const completedCount = actions.filter((a) => a.status === "completed").length;
 
   return (

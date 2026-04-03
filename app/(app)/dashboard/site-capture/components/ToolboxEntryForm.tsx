@@ -16,13 +16,12 @@ import { ToolboxProgress } from "./ToolboxProgress";
 interface Props {
   diary: ToolboxTalkFull;
   onUpdate?: (updated: ToolboxTalkFull) => void;
-  userRole?: CompanyRole | null;
   userId?: string | null;
 }
 
 type Section = "talkDetails" | "content" | "attendees" | "actions" | "photos" | "signOff";
 
-export default function ToolboxEntryForm({ diary: initialDiary, onUpdate, userRole, userId }: Props) {
+export default function ToolboxEntryForm({ diary: initialDiary, onUpdate, userId }: Props) {
   const [diary, setDiary] = useState<ToolboxTalkFull>(initialDiary);
   const [openSections, setOpenSections] = useState<Set<Section>>(
     new Set(["talkDetails", "content", "attendees"] as Section[])

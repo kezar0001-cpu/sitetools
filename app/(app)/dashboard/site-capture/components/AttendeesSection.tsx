@@ -86,7 +86,7 @@ export function AttendeesSection({ diary, isLocked, isOpen, onToggle, onUpdate }
     } finally {
       setAddingId(null);
     }
-  }, [formData, diary.id, diary, attendees, onUpdate, addingId]);
+  }, [formData, diary, attendees, onUpdate, addingId]);
 
   const handleDeleteAttendee = useCallback(async (id: string) => {
     setDeletingId(id);
@@ -172,7 +172,7 @@ export function AttendeesSection({ diary, isLocked, isOpen, onToggle, onUpdate }
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                   </svg>
                 )}
-                Import from today's labour ({importAvailable.labor_count} entries)
+                Import from today&apos;s labour ({importAvailable.labor_count} entries)
               </button>
               {importError && (
                 <p className="mt-2 text-xs text-red-600">{importError}</p>

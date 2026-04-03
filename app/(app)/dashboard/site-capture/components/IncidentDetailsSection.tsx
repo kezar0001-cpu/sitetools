@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { SectionHeader } from "./SectionHeader";
 import type { SiteDiaryFull } from "@/lib/site-capture/types";
-import { PhotoUploader } from "./PhotoUploader";
 import { useVoiceToText } from "@/hooks/useVoiceToText";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";

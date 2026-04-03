@@ -2,14 +2,12 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type {
-  PrestartChecklistData,
   PrestartChecklistFull,
   PlantDetails,
   ChecklistItem,
   ChecklistDefect,
   OperatorDeclaration,
   SupervisorSignOff,
-  DiaryStatus,
 } from "@/lib/site-capture/types";
 import type { Project, Site } from "@/lib/workspace/types";
 import type { CompanyRole } from "@/lib/workspace/types";
@@ -18,7 +16,6 @@ import { ChecklistItemsSection } from "./prestart/ChecklistItemsSection";
 import { DefectsSection } from "./prestart/DefectsSection";
 import { OperatorDeclarationSection } from "./prestart/OperatorDeclarationSection";
 import { SupervisorSignOffSection } from "./prestart/SupervisorSignOffSection";
-import { SectionHeader } from "./SectionHeader";
 
 interface PrestartChecklistFormProps {
   checklist: PrestartChecklistFull;
@@ -85,7 +82,6 @@ export default function PrestartChecklistForm({
   projects,
   sites,
   userRole,
-  userId,
 }: PrestartChecklistFormProps) {
   const [checklist, setChecklist] = useState<PrestartChecklistFull>(initialChecklist);
 

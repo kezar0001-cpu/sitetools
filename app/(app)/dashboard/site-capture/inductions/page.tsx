@@ -4,9 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { getDiaries, getDiariesGroupedByProjectSite } from "@/lib/site-capture/client";
+import { getDiaries } from "@/lib/site-capture/client";
 import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
-import type { SiteInductionData } from "@/lib/site-capture/induction-types";
 import { FORM_TYPE_CONFIG, DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
 
 interface InductionEntry extends SiteDiaryWithCounts {
@@ -25,7 +24,6 @@ export default function InductionRegisterPage() {
   const companyId = summary?.activeMembership?.company_id ?? null;
 
   const [entries, setEntries] = useState<InductionEntry[]>([]);
-  const [projectGroups, setProjectGroups] = useState<ProjectGroup[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCompletedOnly, setShowCompletedOnly] = useState(false);

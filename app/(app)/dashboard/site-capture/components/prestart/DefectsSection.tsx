@@ -42,7 +42,6 @@ export function DefectsSection({
 }: DefectsSectionProps) {
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedDefectId, setSelectedDefectId] = useState<string | null>(null);
 
   function updateDefect(
     defectId: string,

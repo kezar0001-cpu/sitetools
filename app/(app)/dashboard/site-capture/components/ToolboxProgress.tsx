@@ -16,19 +16,15 @@ export function ToolboxProgress({ diary }: Props) {
     data.conducted_by_name,
   ];
   const requiredCompleted = requiredFields.filter(Boolean).length;
-  const requiredProgress = Math.round((requiredCompleted / requiredFields.length) * 100);
 
   const hasAttendees = diary.attendees.length > 0;
   const signedAttendees = diary.attendees.filter(a => a.signature_data || a.signed_on_paper).length;
-  const attendanceProgress = hasAttendees
-    ? Math.round((signedAttendees / diary.attendees.length) * 100)
-    : 0;
 
   const isPresenterSigned = !!data.presenter_signature;
 
   // Overall completion
   const overallSteps = [
-    requiredProgress === 100, // Details complete
+    requiredCompleted === requiredFields.length, // Details complete
     hasAttendees, // Has attendees
     signedAttendees === diary.attendees.length && hasAttendees, // All attendees signed
     isPresenterSigned, // Presenter signed
@@ -72,10 +68,10 @@ export function ToolboxProgress({ diary }: Props) {
       {/* Checklist */}
       <div className="mt-3 space-y-1">
         <div className="flex items-center gap-2 text-xs">
-          <svg className={`w-4 h-4 ${requiredProgress === 100 ? "text-emerald-500" : "text-slate-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className={`w-4 h-4 ${requiredCompleted === requiredFields.length ? "text-emerald-500" : "text-slate-300"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          <span className={requiredProgress === 100 ? "text-slate-700" : "text-slate-400"}>
+          <span className={requiredCompleted === requiredFields.length ? "text-slate-700" : "text-slate-400"}>
             Talk details complete
           </span>
         </div>

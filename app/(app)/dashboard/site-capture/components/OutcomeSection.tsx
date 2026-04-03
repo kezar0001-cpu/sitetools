@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { SectionHeader } from "./SectionHeader";
-import type {
-  SiteDiaryFull,
-  InspectionOutcome,
+import {
   INSPECTION_OUTCOMES,
   INSPECTION_OUTCOME_BADGES,
-  InspectionOutcomeData,
 } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionOutcomeData } from "@/lib/site-capture/types";
 
 interface OutcomeSectionProps {
   diary: SiteDiaryFull;
@@ -28,13 +26,18 @@ export function OutcomeSection({
   onOutcomeChange,
   failCount = 0,
 }: OutcomeSectionProps) {
-  const safeOutcome = outcome || {
-    result: "Approved",
-    comments: "",
-    re_inspection_trigger: false,
-    next_inspection_type: null,
-    next_inspection_due_date: null,
-  };
+  // Use useMemo to stabilize safeOutcome and prevent dependency churn
+  const safeOutcome = useMemo(
+    () =>
+      outcome || {
+        result: "Approved",
+        comments: "",
+        re_inspection_trigger: false,
+        next_inspection_type: null,
+        next_inspection_due_date: null,
+      },
+    [outcome]
+  );
 
   const updateField = useCallback(
     <K extends keyof InspectionOutcomeData>(key: K, value: InspectionOutcomeData[K]) => {

@@ -29,9 +29,6 @@ export function DeclarationSection({
   onToggle,
   isComplete = false,
 }: DeclarationSectionProps) {
-  const [isDrawingPreparer, setIsDrawingPreparer] = useState(false);
-  const [isDrawingReviewer, setIsDrawingReviewer] = useState(false);
-
   function handleUpdate(updates: Partial<Declaration>) {
     onUpdate({ ...declaration, ...updates });
   }
