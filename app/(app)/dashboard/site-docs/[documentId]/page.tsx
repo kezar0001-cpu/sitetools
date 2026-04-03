@@ -388,7 +388,15 @@ export default function DocumentDetailPage() {
                     <DocumentPreview
                         content={document.generated_content}
                         template={{ id: document.document_type, name: typeLabel, description: "", icon: "", color: "", prompt_template: "", required_fields: [], optional_fields: [], default_sections: [] }}
-                        editable={false}
+                        editable={true}
+                        documentId={document.id}
+                        onChange={(newContent) => {
+                            setDocument(prev => prev ? {
+                                ...prev,
+                                generated_content: newContent,
+                                updated_at: new Date().toISOString()
+                            } : null);
+                        }}
                     />
                 )}
 
