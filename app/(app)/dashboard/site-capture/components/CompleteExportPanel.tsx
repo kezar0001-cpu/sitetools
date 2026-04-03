@@ -2,14 +2,23 @@
 
 import { useState } from "react";
 import { completeDiary } from "@/lib/site-capture/client";
-import type { SiteDiaryFull } from "@/lib/site-capture/types";
 
-interface CompleteExportPanelProps {
-  diary: SiteDiaryFull;
-  onUpdate: (updated: SiteDiaryFull) => void;
+type CompletableDiary = {
+  id: string;
+  status: string;
+  date: string;
+  auto_archive_at?: string | null;
+};
+
+interface CompleteExportPanelProps<TDiary extends CompletableDiary> {
+  diary: TDiary;
+  onUpdate: (updated: TDiary) => void;
 }
 
-export function CompleteExportPanel({ diary, onUpdate }: CompleteExportPanelProps) {
+export function CompleteExportPanel<TDiary extends CompletableDiary>({
+  diary,
+  onUpdate,
+}: CompleteExportPanelProps<TDiary>) {
   const isCompleted = diary.status === "completed";
   const canComplete = diary.status === "draft" || diary.status === "archived";
 
@@ -24,7 +33,7 @@ export function CompleteExportPanel({ diary, onUpdate }: CompleteExportPanelProp
     setCompleteError(null);
     try {
       const updated = await completeDiary(diary.id);
-      const next = { ...diary, ...updated };
+      const next = { ...diary, ...updated } as TDiary;
       onUpdate(next);
       setShowExportOptions(true);
     } catch (err) {

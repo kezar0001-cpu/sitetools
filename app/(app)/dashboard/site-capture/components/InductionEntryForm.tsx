@@ -35,7 +35,6 @@ export default function InductionEntryForm({ diary: initialDiary, onUpdate }: Pr
   const [openSections, setOpenSections] = useState<Set<Section>>(
     new Set<Section>(["workerDetails", "hazardAcknowledgement", "siteRules", "emergencyProcedures", "declaration"])
   );
-  const [saving] = useState<Record<string, boolean>>({});
 
   // Parse induction data from diary.form_data or use defaults
   const inductionData = parseInductionData(
@@ -95,7 +94,6 @@ export default function InductionEntryForm({ diary: initialDiary, onUpdate }: Pr
         onUpdate={(workerDetails) =>
           handleSectionUpdate({ ...inductionData, workerDetails })
         }
-        saving={saving}
       />
 
       {/* ── Hazard Acknowledgement ── */}

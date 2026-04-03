@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { ToolboxTalkFull, ToolboxTalkData, SiteDiaryPhoto } from "@/lib/site-capture/types";
+import type { ToolboxTalkFull, ToolboxTalkData } from "@/lib/site-capture/types";
 import { updateToolboxTalkData } from "@/lib/site-capture/client";
 import { TalkDetailsSection } from "./TalkDetailsSection";
 import { ContentSection } from "./ContentSection";
@@ -49,12 +49,6 @@ export default function ToolboxEntryForm({ diary: initialDiary, onUpdate, userId
     } finally {
       setSaving((prev) => ({ ...prev, talkDetails: false }));
     }
-  }, [diary, onUpdate]);
-
-  const handlePhotosUpdate = useCallback((photos: SiteDiaryPhoto[]) => {
-    const updated = { ...diary, photos };
-    setDiary(updated);
-    onUpdate?.(updated);
   }, [diary, onUpdate]);
 
   function toggleSection(section: Section) {
@@ -112,7 +106,7 @@ export default function ToolboxEntryForm({ diary: initialDiary, onUpdate, userId
           isLocked={isLocked}
           isOpen={openSections.has("photos")}
           onToggle={() => toggleSection("photos")}
-          onUpdate={handlePhotosUpdate}
+          onUpdate={handleSectionUpdate}
         />
       )}
 
