@@ -26,12 +26,11 @@ const DOC_TYPE_LABELS: Record<DocumentType, string> = {
     "site-instruction": "SITE INSTRUCTION",
 };
 
-export async function GET(
-    request: NextRequest,
-    { params }: { params: Promise<{ documentId: string }> }
-) {
+export async function GET(request: NextRequest) {
     try {
-        const { documentId } = await params;
+        // Get documentId from query parameter
+        const { searchParams } = new URL(request.url);
+        const documentId = searchParams.get("id");
 
         if (!documentId) {
             return NextResponse.json(
