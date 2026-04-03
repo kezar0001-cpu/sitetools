@@ -53,6 +53,7 @@ interface GanttChartProps {
   onDateChange?: (task: SitePlanTask, start_date: string, end_date: string) => void;
   onLogDelay?: (task: SitePlanTask) => void;
   canEdit?: boolean;
+  todayTrigger?: number;
 }
 
 // ─── Constants ──────────────────────────────────────────────
@@ -221,6 +222,7 @@ export function GanttChart({
   onDoubleClick,
   onDateChange,
   canEdit = true,
+  todayTrigger,
 }: GanttChartProps) {
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
@@ -333,6 +335,11 @@ export function GanttChart({
     const timer = setTimeout(scrollToToday, 100);
     return () => clearTimeout(timer);
   }, [scrollToToday]);
+
+  useEffect(() => {
+    if (todayTrigger === undefined) return;
+    scrollToToday();
+  }, [todayTrigger, scrollToToday]);
 
   // useUpdateTask for resize-end drag (called directly without parent callback)
   const updateTask = useUpdateTask();
