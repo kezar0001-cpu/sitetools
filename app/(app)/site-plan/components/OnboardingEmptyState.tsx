@@ -246,13 +246,14 @@ export function SitePlanOnboardingEmptyState() {
       await hierarchicalImport.mutateAsync({ projectId: project.id, tasks });
 
       // 3. Invalidate project list so it refreshes when the user navigates back
-      qc.invalidateQueries({ queryKey: sitePlanKeys.projectList(companyId) });
+      await qc.invalidateQueries({ queryKey: sitePlanKeys.projectList(companyId) });
 
       // 4. Navigate into the new project
       router.push(`/site-plan/${project.id}`);
     } catch (err) {
       console.error("Failed to create project from template:", err);
       toast.error("Failed to create project — please try again");
+    } finally {
       setIsCreating(false);
     }
   }

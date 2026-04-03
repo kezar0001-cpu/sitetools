@@ -70,7 +70,10 @@ export function CreateTaskSheet({
     <>
       <div
         className="fixed inset-0 bg-black/20 z-40"
-        onClick={onClose}
+        onClick={() => {
+          if (create.isPending) return;
+          onClose();
+        }}
       />
 
       <div
@@ -87,6 +90,8 @@ export function CreateTaskSheet({
           </h3>
           <button
             onClick={onClose}
+            aria-label="Close create task sheet"
+            disabled={create.isPending}
             className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <X className="h-4 w-4" />

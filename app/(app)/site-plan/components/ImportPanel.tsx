@@ -3,6 +3,7 @@
 import { Fragment, useState, useRef } from "react";
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, AlertCircle, Check, FileSpreadsheet, ChevronLeft, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 import type { ImportedRow, TaskType } from "@/types/siteplan";
 import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
 import type { HierarchicalTask } from "@/hooks/useSitePlanTasks";
@@ -409,9 +410,15 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
     hierarchicalImport.mutate(
       { projectId, tasks },
       {
-        onSuccess: () => setStage("done"),
-        onError: (err) =>
-          setError(err instanceof Error ? err.message : "Import failed"),
+        onSuccess: () => {
+          toast.success(`Imported ${rows.length} task${rows.length === 1 ? "" : "s"}`);
+          setStage("done");
+        },
+        onError: (err) => {
+          const message = err instanceof Error ? err.message : "Import failed";
+          setError(message);
+          toast.error(message);
+        },
       }
     );
   };
@@ -469,9 +476,9 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
             <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-md font-medium">
               {rows.length} tasks from {format}
             </span>
-            {phaseSummary.map((phase) => (
+            {phaseSummary.map((phase, phaseIdx) => (
               <span
-                key={phase.name}
+                key={`${phase.name}-${phase.count}-${phaseIdx}`}
                 className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-md"
               >
                 {phase.name}: {phase.count}
