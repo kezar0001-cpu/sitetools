@@ -102,16 +102,6 @@ export default function SiteCaptureHubPage() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const todayDiary = diaries.find((d) => d.date === todayIso && ((d as { form_type?: FormType }).form_type ?? 'daily-diary') === 'daily-diary');
 
-  async function handleStartToday() {
-    if (!companyId) return;
-    if (todayDiary) {
-      router.push(`/dashboard/site-capture/${todayDiary.id}`);
-      return;
-    }
-    setSelectedFormType("daily-diary");
-    setShowModal(true);
-  }
-
   function handleNewEntry(formType: FormType) {
     setSelectedFormType(formType);
     setShowModal(true);

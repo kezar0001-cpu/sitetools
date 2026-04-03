@@ -1,6 +1,6 @@
 "use client";
 
-import { FORM_TYPE_CONFIG, type FormType } from "@/lib/site-capture/types";
+import { type FormType } from "@/lib/site-capture/types";
 
 type FilterTab = "all" | FormType;
 
