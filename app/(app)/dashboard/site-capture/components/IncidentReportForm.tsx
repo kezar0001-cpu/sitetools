@@ -132,7 +132,7 @@ export default function IncidentReportForm({
 
   // All sections open by default for incident report
   const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set([
+    new Set<Section>([
       "incidentDetails",
       "personsInvolved",
       "witnesses",
@@ -150,13 +150,14 @@ export default function IncidentReportForm({
   const isHighSeverity = incidentDetails.incidentType && HIGH_SEVERITY_TYPES.includes(incidentDetails.incidentType);
 
   // Check if declaration is complete
-  const isDeclarationComplete =
+  const isDeclarationComplete = !!(
     declaration.preparedBy &&
     declaration.preparerSignature &&
     declaration.preparedDate &&
     declaration.reviewedBy &&
     declaration.reviewerSignature &&
-    declaration.reviewedDate;
+    declaration.reviewedDate
+  );
 
   // Wrapper for section updates that syncs local diary state
   const handleSectionUpdate = useCallback(

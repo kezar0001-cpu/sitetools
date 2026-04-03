@@ -2,13 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { SectionHeader } from "./SectionHeader";
-import type {
-  SiteDiaryFull,
-  InspectionDetails,
-  InspectionType,
-  INSPECTION_TYPES,
-  INSPECTION_TYPE_LABELS,
-} from "@/lib/site-capture/types";
+import { INSPECTION_TYPES, INSPECTION_TYPE_LABELS } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionDetails, InspectionType } from "@/lib/site-capture/types";
 import type { Project, Site } from "@/lib/workspace/types";
 
 interface InspectionDetailsSectionProps {

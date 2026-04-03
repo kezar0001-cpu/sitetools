@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import type { ToolboxTalkFull, ToolboxTalkData, SiteDiaryPhoto } from "@/lib/site-capture/types";
-import type { CompanyRole } from "@/lib/workspace/types";
 import { updateToolboxTalkData } from "@/lib/site-capture/client";
 import { TalkDetailsSection } from "./TalkDetailsSection";
 import { ContentSection } from "./ContentSection";

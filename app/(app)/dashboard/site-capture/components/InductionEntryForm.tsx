@@ -33,7 +33,7 @@ type Section =
 export default function InductionEntryForm({ diary: initialDiary, onUpdate }: Props) {
   const [diary, setDiary] = useState<SiteDiaryFull>(initialDiary);
   const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set(["workerDetails", "hazardAcknowledgement", "siteRules", "emergencyProcedures", "declaration"])
+    new Set<Section>(["workerDetails", "hazardAcknowledgement", "siteRules", "emergencyProcedures", "declaration"])
   );
   const [saving] = useState<Record<string, boolean>>({});
 

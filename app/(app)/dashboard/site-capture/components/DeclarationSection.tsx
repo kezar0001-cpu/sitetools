@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { SectionHeader } from "./SectionHeader";
 
 export interface Declaration {
