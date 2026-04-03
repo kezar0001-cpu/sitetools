@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect, Fragment } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
-import { ChevronLeft, Plus, BarChart3, ListTodo } from "lucide-react";
+import { ChevronLeft, Plus } from "lucide-react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import type { DropResult } from "@hello-pangea/dnd";
 import { FixedSizeList } from "react-window";
@@ -16,7 +16,7 @@ import { computeWorkProgress } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
 import { useTaskTree } from "@/hooks/useTaskTree";
 import { useTaskFiltering } from "@/hooks/useTaskFiltering";
-import { TaskRow, MobileTaskCard } from "../components/TaskRow";
+import { TaskRow } from "../components/TaskRow";
 import { TaskListHeader } from "../components/TaskListHeader";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
@@ -32,7 +32,7 @@ import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
 import { GanttWrapper } from "../components/GanttWrapper";
-import { MilestoneTimeline } from "../components/MilestoneTimeline";
+import { SitePlanMobileView, type MobileTab } from "../components/SitePlanMobileView";
 import { QueryProvider } from "@/components/QueryProvider";
 import { downloadCsv } from "@/lib/csvExporter";
 import { downloadMsProjectXml } from "@/lib/msProjectExporter";
@@ -279,7 +279,7 @@ function ProjectDetailInner() {
   const projectId = params.projectId as string;
 
   const { data: project } = useSitePlanProject(projectId);
-  const { data: tasks, isLoading } = useSitePlanTasks(projectId);
+  const { data: tasks, isLoading, refetch } = useSitePlanTasks(projectId);
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
   const setTaskPredecessors = useSetTaskPredecessors();
@@ -316,8 +316,18 @@ function ProjectDetailInner() {
     [searchParams, pathname, router]
   );
 
-  // Mobile view mode: "timeline" shows MilestoneTimeline, anything else shows task list
-  const mobileView = searchParams.get("view") === "timeline" ? "timeline" : "list";
+  const mobileTab = (
+    searchParams.get("mobileTab") === "today" ||
+    searchParams.get("mobileTab") === "gantt"
+      ? searchParams.get("mobileTab")
+      : "all"
+  ) as MobileTab;
+  const handleMobileTabChange = useCallback(
+    (nextTab: MobileTab) => {
+      updateSearchParams({ mobileTab: nextTab === "all" ? null : nextTab });
+    },
+    [updateSearchParams]
+  );
 
   // Desktop view mode (URL param): list | gantt | split (default: list)
   const viewParam = searchParams.get("view");
@@ -514,6 +524,12 @@ function ProjectDetailInner() {
     tree,
     expandedIds,
     allExpanded,
+    filter
+  );
+  const { visibleRows: mobileRows } = useTaskFiltering(
+    tree,
+    new Set<string>(),
+    true,
     filter
   );
 
@@ -1016,20 +1032,6 @@ function ProjectDetailInner() {
             <span className="text-xs font-semibold text-slate-600 tabular-nums">
               {overallProgress}%
             </span>
-            {/* Mobile view toggle: switch between task list and MilestoneTimeline */}
-            <button
-              className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
-              onClick={() =>
-                updateSearchParams({ view: mobileView === "timeline" ? null : "timeline" })
-              }
-              title={mobileView === "timeline" ? "Switch to list view" : "Switch to timeline view"}
-            >
-              {mobileView === "timeline" ? (
-                <ListTodo className="h-4 w-4 text-slate-500" />
-              ) : (
-                <BarChart3 className="h-4 w-4 text-slate-500" />
-              )}
-            </button>
           </div>
           <div className="mt-1">
             <ProgressBar value={overallProgress} />
@@ -1200,86 +1202,20 @@ function ProjectDetailInner() {
                 )}
               </div>
 
-              {/* ── Mobile: MilestoneTimeline (timeline view) or MobileTaskCard list (< md) ── */}
-              {mobileView === "timeline" ? (
-                <div className="md:hidden flex-1 min-h-0 flex flex-col">
-                  <MilestoneTimeline
-                    tasks={tasks ?? []}
-                    onTaskClick={handleGanttTaskClick}
-                  />
-                </div>
-              ) : (
-                <div className="md:hidden flex-1 overflow-auto pb-20">
-                  <Droppable droppableId="task-list-mobile">
-                    {(droppableProvided) => (
-                      <div
-                        ref={droppableProvided.innerRef}
-                        {...droppableProvided.droppableProps}
-                      >
-                        {visibleRows.map((node, idx) => (
-                          <Fragment key={node.id}>
-                            <Draggable
-                              draggableId={`m-${node.id}`}
-                              index={idx}
-                            >
-                              {(dragProvided, dragSnapshot) => (
-                                <div
-                                  ref={dragProvided.innerRef}
-                                  {...dragProvided.draggableProps}
-                                >
-                                  <MobileTaskCard
-                                    node={node}
-                                    onSelect={handleSelect}
-                                    onLogDelay={(t) => setDelayTask(t)}
-                                    delayCount={delayCountMap.get(node.id) ?? 0}
-                                    mobileExpanded={mobileExpandedIds.has(node.id)}
-                                    onToggleMobileExpand={() =>
-                                      toggleMobileExpand(node.id)
-                                    }
-                                    dragHandleProps={dragProvided.dragHandleProps}
-                                    isDragging={dragSnapshot.isDragging}
-                                    isHighlighted={highlightedTaskIds.has(node.id)}
-                                  />
-                                </div>
-                              )}
-                            </Draggable>
-
-                            {inlineInput?.afterTaskId === node.id && (
-                              <InlineTaskInput
-                                projectId={projectId}
-                                contextParentId={inlineInput.parentId}
-                                contextType={inlineInput.type}
-                                sortOrder={inlineInput.afterIndex}
-                                onCancel={() => setInlineInput(null)}
-                              />
-                            )}
-                          </Fragment>
-                        ))}
-                        {droppableProvided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-
-                  {inlineInput && !inlineInput.afterTaskId && (
-                    <InlineTaskInput
-                      projectId={projectId}
-                      contextParentId={inlineInput.parentId}
-                      contextType={inlineInput.type}
-                      sortOrder={inlineInput.afterIndex}
-                      onCancel={() => setInlineInput(null)}
-                    />
-                  )}
-
-                  {!inlineInput && visibleRows.length > 0 && (
-                    <button
-                      onClick={() => startInlineAdd("phase")}
-                      className="w-full text-left pl-10 py-2.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 border-b border-slate-100 min-h-[36px]"
-                    >
-                      + Add Phase
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* ── Mobile: dedicated site tracking tabs (< md) ── */}
+              <SitePlanMobileView
+                projectId={projectId}
+                tasks={tasks ?? []}
+                rows={mobileRows}
+                activeTab={mobileTab}
+                onTabChange={handleMobileTabChange}
+                onSelectTask={handleSelect}
+                onLogDelay={(task) => setDelayTask(task)}
+                mobileExpandedIds={mobileExpandedIds}
+                onToggleMobileExpand={toggleMobileExpand}
+                delayCountMap={delayCountMap}
+                refetch={refetch}
+              />
             </DragDropContext>
           )}
           </div>
@@ -1385,7 +1321,7 @@ function ProjectDetailInner() {
       )}
 
       <AddTaskFAB onAdd={handleFABAdd} currentType={selectedTask?.type ?? "task"} />
-      <SitePlanBottomNav projectId={projectId} />
+      <SitePlanBottomNav activeTab={mobileTab} onTabChange={handleMobileTabChange} />
     </div>
     </>
   );

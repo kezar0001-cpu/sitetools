@@ -616,6 +616,7 @@ interface MobileTaskCardProps {
   onSelect: (task: SitePlanTaskNode) => void;
   onLogDelay?: (task: SitePlanTaskNode) => void;
   onUpdateProgress?: (task: SitePlanTaskNode) => void;
+  onProgressTap?: (task: SitePlanTaskNode) => void;
   delayCount?: number;
   mobileExpanded: boolean;
   onToggleMobileExpand: () => void;
@@ -629,6 +630,7 @@ export function MobileTaskCard({
   onSelect,
   onLogDelay,
   onUpdateProgress,
+  onProgressTap,
   delayCount = 0,
   mobileExpanded,
   onToggleMobileExpand,
@@ -769,7 +771,14 @@ export function MobileTaskCard({
           </div>
 
           {/* Progress bar */}
-          <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onProgressTap?.(node);
+            }}
+            className="mt-2 flex w-full items-center gap-2 min-h-[44px]"
+          >
             <ProgressBar value={displayProgress} className="flex-1" />
             <span
               className={`text-xs font-semibold tabular-nums shrink-0 ${
@@ -782,7 +791,7 @@ export function MobileTaskCard({
             >
               {displayProgress}%
             </span>
-          </div>
+          </button>
         </button>
 
         {/* Expand/collapse toggle */}
