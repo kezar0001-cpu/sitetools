@@ -6,7 +6,7 @@ import {
   INSPECTION_OUTCOMES,
   INSPECTION_OUTCOME_BADGES,
 } from "@/lib/site-capture/types";
-import type { SiteDiaryFull, InspectionOutcomeData } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionOutcomeData, InspectionType } from "@/lib/site-capture/types";
 
 interface OutcomeSectionProps {
   diary: SiteDiaryFull;
@@ -27,14 +27,13 @@ export function OutcomeSection({
   failCount = 0,
 }: OutcomeSectionProps) {
   // Use useMemo to stabilize safeOutcome and prevent dependency churn
-  const safeOutcome = useMemo(
+  const safeOutcome = useMemo<InspectionOutcomeData>(
     () =>
-      outcome || {
-        result: "Approved",
+      outcome ?? {
+        outcome: "Approved" as const,
         comments: "",
-        re_inspection_trigger: false,
         next_inspection_type: null,
-        next_inspection_due_date: null,
+        next_inspection_date: null,
       },
     [outcome]
   );
@@ -48,14 +47,13 @@ export function OutcomeSection({
 
   // Auto-suggest re-inspection based on failures
   useEffect(() => {
-    if (failCount > 0 && safeOutcome.result === "Approved") {
-      updateField("result", "Re-inspection Required");
-      updateField("re_inspection_trigger", true);
+    if (failCount > 0 && safeOutcome.outcome === "Approved") {
+      updateField("outcome", "Re-inspection Required");
     }
-  }, [failCount, safeOutcome.result, updateField]);
+  }, [failCount, safeOutcome.outcome, updateField]);
 
   const requiresFollowUp =
-    safeOutcome.result === "Not Approved" || safeOutcome.result === "Re-inspection Required";
+    safeOutcome.outcome === "Not Approved" || safeOutcome.outcome === "Re-inspection Required";
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -69,8 +67,8 @@ export function OutcomeSection({
           }
           open={isOpen}
           onToggle={onToggle}
-          badge={safeOutcome.result}
-          badgeClass={INSPECTION_OUTCOME_BADGES[safeOutcome.result]}
+          badge={safeOutcome.outcome}
+          badgeClass={INSPECTION_OUTCOME_BADGES[safeOutcome.outcome]}
         />
       </div>
       {isOpen && (
@@ -84,13 +82,12 @@ export function OutcomeSection({
                   key={result}
                   onClick={() => {
                     if (!isLocked) {
-                      updateField("result", result);
-                      updateField("re_inspection_trigger", result === "Not Approved" || result === "Re-inspection Required");
+                      updateField("outcome", result);
                     }
                   }}
                   disabled={isLocked}
                   className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    safeOutcome.result === result
+                    safeOutcome.outcome === result
                       ? INSPECTION_OUTCOME_BADGES[result]
                       : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -129,7 +126,7 @@ export function OutcomeSection({
                   <label className="block text-xs font-medium text-slate-700 mb-1">Next Inspection Type</label>
                   <select
                     value={safeOutcome.next_inspection_type || ""}
-                    onChange={(e) => updateField("next_inspection_type", e.target.value || null)}
+                    onChange={(e) => updateField("next_inspection_type", (e.target.value || null) as InspectionType | null)}
                     disabled={isLocked}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:opacity-50"
                   >
@@ -149,8 +146,8 @@ export function OutcomeSection({
                   <label className="block text-xs font-medium text-slate-700 mb-1">Due Date</label>
                   <input
                     type="date"
-                    value={safeOutcome.next_inspection_due_date || ""}
-                    onChange={(e) => updateField("next_inspection_due_date", e.target.value || null)}
+                    value={safeOutcome.next_inspection_date || ""}
+                    onChange={(e) => updateField("next_inspection_date", e.target.value || null)}
                     disabled={isLocked}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:opacity-50"
                   />
@@ -166,7 +163,7 @@ export function OutcomeSection({
           )}
 
           {/* Approval summary */}
-          {safeOutcome.result === "Approved" && (
+          {safeOutcome.outcome === "Approved" && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
               <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
