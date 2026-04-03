@@ -7,20 +7,20 @@ interface Props {
 }
 
 export function ToolboxProgress({ diary }: Props) {
-  const data = diary.toolbox_talk_data ?? {};
+  const data = diary.toolbox_talk_data;
   
   // Calculate progress
   const requiredFields = [
-    data.topic_title,
-    data.talk_date,
-    data.conducted_by_name,
+    data?.topic_title,
+    data?.talk_date,
+    data?.conducted_by_name,
   ];
   const requiredCompleted = requiredFields.filter(Boolean).length;
 
   const hasAttendees = diary.attendees.length > 0;
   const signedAttendees = diary.attendees.filter(a => a.signature_data || a.signed_on_paper).length;
 
-  const isPresenterSigned = !!data.presenter_signature;
+  const isPresenterSigned = !!data?.presenter_signature;
 
   // Overall completion
   const overallSteps = [

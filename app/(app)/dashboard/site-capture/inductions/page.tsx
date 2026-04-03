@@ -8,6 +8,7 @@ import { getDiaries } from "@/lib/site-capture/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
 import { DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
+import type { SiteInductionData } from "@/lib/site-capture/induction-types";
 
 interface InductionEntry extends SiteDiaryWithCounts {
   induction_data?: SiteInductionData;
@@ -74,6 +75,7 @@ export default function InductionRegisterPage() {
     if (!companyId) return;
 
     async function loadData() {
+      if (!companyId) return;
       setBusy(true);
       setError(null);
       try {

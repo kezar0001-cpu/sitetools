@@ -146,11 +146,11 @@ export function SupervisorSignOffSection({
     });
   }, [hasSignature, supervisorName, decision, conditions, onUpdate]);
 
-  const isComplete = signOff?.signature && signOff?.supervisorName;
+  const isComplete = Boolean(signOff?.signature && signOff?.supervisorName);
   const showConditionsField = decision === "cleared-with-conditions";
 
   // Check if the section is effectively locked (no permission or already signed)
-  const effectiveLocked = isLocked || !canSignOff || (signOff?.signature && isComplete);
+  const effectiveLocked = isLocked || !canSignOff || Boolean(signOff?.signature && isComplete);
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">

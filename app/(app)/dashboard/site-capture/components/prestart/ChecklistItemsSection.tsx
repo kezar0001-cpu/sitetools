@@ -153,7 +153,11 @@ export function ChecklistItemsSection({
 
     // Auto-open defect note field if fail
     if (status === "fail") {
-      setOpenDefectNotes((prev) => new Set([...prev, itemId]));
+      setOpenDefectNotes((prev) => {
+        const next = new Set(prev);
+        next.add(itemId);
+        return next;
+      });
     } else {
       setOpenDefectNotes((prev) => {
         const next = new Set(prev);

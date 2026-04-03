@@ -1,27 +1,32 @@
 "use client";
 
 import { useCallback } from "react";
-import type { SiteDiaryFull, SiteDiaryPhoto } from "@/lib/site-capture/types";
+import type { SiteDiaryPhoto } from "@/lib/site-capture/types";
 import { SectionHeader } from "./SectionHeader";
 import PhotoUploader from "./PhotoUploader";
 
-interface PhotosSectionProps {
-  diary: SiteDiaryFull;
+type DiaryWithPhotos = {
+  id: string;
+  photos: SiteDiaryPhoto[];
+};
+
+interface PhotosSectionProps<TDiary extends DiaryWithPhotos> {
+  diary: TDiary;
   isLocked: boolean;
   isOpen: boolean;
   onToggle: () => void;
-  onUpdate: (updated: SiteDiaryFull) => void;
+  onUpdate: (updated: TDiary) => void;
 }
 
-export function PhotosSection({
+export function PhotosSection<TDiary extends DiaryWithPhotos>({
   diary,
   isLocked,
   isOpen,
   onToggle,
   onUpdate,
-}: PhotosSectionProps) {
+}: PhotosSectionProps<TDiary>) {
   const handlePhotosChange = useCallback((photos: SiteDiaryPhoto[]) => {
-    onUpdate({ ...diary, photos });
+    onUpdate({ ...diary, photos } as TDiary);
   }, [diary, onUpdate]);
 
   return (
