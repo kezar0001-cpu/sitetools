@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import type { DocumentType, DocumentStatus } from "@/lib/site-docs/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -41,18 +42,18 @@ export async function GET(
     try {
         const { documentId } = await params;
         const { searchParams } = new URL(request.url);
-        const format = searchParams.get("format") || "pdf";
+        const format = searchParams.get("format") || "html";
 
         if (!documentId) {
             return NextResponse.json(
-                { message: "Document ID is required" },
+                { error: "Document ID is required" },
                 { status: 400 }
             );
         }
 
-        if (!["pdf", "docx", "html"].includes(format)) {
+        if (!["html", "pdf"].includes(format)) {
             return NextResponse.json(
-                { message: "Invalid format. Use pdf, docx, or html" },
+                { error: "Invalid format. Use html or pdf" },
                 { status: 400 }
             );
         }
@@ -61,10 +62,11 @@ export async function GET(
         const authHeader = request.headers.get("authorization");
         if (!authHeader?.startsWith("Bearer ")) {
             return NextResponse.json(
-                { message: "Unauthorized" },
+                { error: "Unauthorized - missing token" },
                 { status: 401 }
             );
         }
+
         const token = authHeader.slice(7);
         const {
             data: { user },
@@ -73,7 +75,7 @@ export async function GET(
 
         if (authError || !user) {
             return NextResponse.json(
-                { message: "Unauthorized" },
+                { error: "Unauthorized - invalid token" },
                 { status: 401 }
             );
         }
@@ -86,56 +88,78 @@ export async function GET(
             .single();
 
         if (docError || !document) {
+            console.error("[site-docs/export] Document not found:", documentId, docError);
             return NextResponse.json(
-                { message: "Document not found" },
+                { error: "Document not found" },
                 { status: 404 }
             );
         }
 
         // Verify user has access to this document
-        const { data: membership } = await supabaseAdmin
+        const { data: membership, error: membershipError } = await supabaseAdmin
             .from("company_memberships")
             .select("id")
             .eq("company_id", document.company_id)
             .eq("user_id", user.id)
             .single();
 
-        if (!membership) {
+        if (membershipError || !membership) {
             return NextResponse.json(
-                { message: "Access denied" },
+                { error: "Access denied" },
                 { status: 403 }
             );
         }
 
-        // Generate document content based on format
+        // Generate document content
         const content = document.generated_content;
         const docType = document.document_type as DocumentType;
         const docStatus = document.status as DocumentStatus;
         const company = document.company as { name?: string; abn?: string; address?: string };
-        const filename = `${document.title.replace(/[^a-zA-Z0-9]/g, "_")}.${format}`;
 
+        // Generate HTML content
         const html = generateThemedHTML(document.title, content, docType, docStatus, company);
 
         if (format === "html") {
+            // Return as downloadable HTML file
+            const safeTitle = document.title.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "_").substring(0, 50);
+            const filename = `${safeTitle}.html`;
+            
             return new NextResponse(html, {
                 headers: {
-                    "Content-Type": "text/html",
+                    "Content-Type": "text/html; charset=utf-8",
                     "Content-Disposition": `attachment; filename="${filename}"`,
                 },
             });
         }
 
-        // For PDF and DOCX, return HTML that can be printed/saved
-        return new NextResponse(html, {
+        // PDF format: return print-ready HTML that opens in new window
+        // Client will trigger print dialog for "Save as PDF"
+        const safeTitle = document.title.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "_").substring(0, 50);
+        
+        // Add print-trigger script for PDF mode
+        const printReadyHtml = html.replace(
+            "</body>",
+            `
+<script>
+    // Auto-trigger print after a short delay to ensure styles load
+    setTimeout(() => {
+        window.print();
+    }, 500);
+</script>
+</body>`
+        );
+
+        return new NextResponse(printReadyHtml, {
             headers: {
-                "Content-Type": "text/html",
-                "Content-Disposition": format === "pdf" ? `inline; filename="${filename}"` : `attachment; filename="${filename.replace(".docx", ".html")}"`,
+                "Content-Type": "text/html; charset=utf-8",
+                "Content-Disposition": `inline; filename="${safeTitle}.html"`,
             },
         });
+
     } catch (error) {
-        console.error("Document export error:", error);
+        console.error("[site-docs/export] Error:", error);
         return NextResponse.json(
-            { message: error instanceof Error ? error.message : "Internal server error" },
+            { error: error instanceof Error ? error.message : "Export failed" },
             { status: 500 }
         );
     }
