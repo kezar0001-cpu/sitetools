@@ -108,6 +108,7 @@ export default function SiteCaptureHubPage() {
     setCreating(true);
     setError(null);
     try {
+      const todayIso = new Date().toISOString().slice(0, 10);
       const diary = await createDiary({ 
         company_id: companyId, 
         project_id: projectId, 
