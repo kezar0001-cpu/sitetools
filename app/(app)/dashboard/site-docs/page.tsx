@@ -7,7 +7,7 @@ import { getAllTemplates } from "@/lib/site-docs/templates";
 import type { DocumentTemplate } from "@/lib/site-docs/types";
 import { DocumentGenerator } from "./components/DocumentGenerator";
 import { TemplateCard } from "./components/TemplateCard";
-import { RecentDocuments } from "./components/RecentDocuments";
+import { DocumentsLibrary } from "./components/DocumentsLibrary";
 
 // ── Main Dashboard ──
 
@@ -67,8 +67,8 @@ export default function SiteDocsPage() {
                     </p>
                 </div>
 
-                {/* Recent Documents */}
-                <RecentDocuments companyId={activeCompanyId} />
+                {/* Documents Library */}
+                <DocumentsLibrary companyId={activeCompanyId} />
 
                 {/* Template Selection */}
                 <div className="mt-10">

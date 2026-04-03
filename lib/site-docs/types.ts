@@ -16,7 +16,7 @@ export type DocumentType =
     | "ncr"
     | "site-instruction";
 
-export type DocumentStatus = "draft" | "final" | "archived";
+export type DocumentStatus = "draft" | "shared" | "finalised";
 
 // ── Core Document Entity ──
 export interface SiteDocument {
@@ -71,6 +71,7 @@ export interface ActionItem {
     responsible: string | null;
     due_date: string | null;
     status: "open" | "in-progress" | "closed";
+    updated_at?: string;
 }
 
 export interface Attendee {
@@ -186,12 +187,12 @@ export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
     draft: "Draft",
-    final: "Final",
-    archived: "Archived",
+    shared: "Shared for Review",
+    finalised: "Finalised",
 };
 
 export const DOCUMENT_STATUS_BADGE: Record<DocumentStatus, string> = {
     draft: "bg-amber-50 text-amber-700 border-amber-200",
-    final: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    archived: "bg-slate-100 text-slate-600 border-slate-300",
+    shared: "bg-blue-50 text-blue-700 border-blue-200",
+    finalised: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };

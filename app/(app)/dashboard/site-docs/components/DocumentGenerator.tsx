@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, Sparkles, FileText, Download, Save, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Sparkles, FileText, Download, Save, Loader2, Mic, MicOff } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { generateDocumentContent, createDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
+import { getProjects } from "@/lib/workspace/client";
+import type { Project } from "@/lib/workspace/types";
 import { getTemplatePrompt } from "@/lib/site-docs/templates";
 import type { DocumentTemplate, GeneratedContent, SiteDocument } from "@/lib/site-docs/types";
 import { DocumentPreview } from "./DocumentPreview";
+import { useVoiceToText } from "@/hooks/useVoiceToText";
 
 interface DocumentGeneratorProps {
     template: DocumentTemplate;
@@ -22,7 +25,37 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [generatedContent, setGeneratedContent] = useState<GeneratedContent | null>(null);
     const [document, setDocument] = useState<SiteDocument | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+    const [projectSearch, setProjectSearch] = useState("");
+    const [loadingProjects, setLoadingProjects] = useState(false);
+
+    // Load projects for dropdown
+    useEffect(() => {
+        async function loadProjects() {
+            setLoadingProjects(true);
+            try {
+                const projectsList = await getProjects(companyId);
+                setProjects(projectsList);
+            } catch (err) {
+                console.error("Failed to load projects:", err);
+            } finally {
+                setLoadingProjects(false);
+            }
+        }
+        loadProjects();
+    }, [companyId]);
+    const { isListening, isSupported, transcript, startListening, stopListening } = useVoiceToText();
+
+    // Append transcript to summaryInput when voice recognition updates
+    useEffect(() => {
+        if (transcript) {
+            setSummaryInput(prev => {
+                const separator = prev && !prev.endsWith(' ') && !prev.endsWith('\n') ? ' ' : '';
+                return prev + separator + transcript;
+            });
+        }
+    }, [transcript]);
 
     // Metadata form state - initialize fresh each time (no persistence)
     const [metadata, setMetadata] = useState({
@@ -74,6 +107,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
                 title: generatedContent.metadata.document_title || `${template.name} — ${new Date().toLocaleDateString()}`,
                 summary_input: summaryInput,
                 generated_content: generatedContent,
+                project_id: selectedProjectId,
             });
 
             setDocument(doc);
@@ -151,13 +185,45 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
-                                <input
-                                    type="date"
-                                    value={metadata.date}
-                                    onChange={(e) => setMetadata({ ...metadata, date: e.target.value })}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Link to Project</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={projectSearch}
+                                        onChange={(e) => setProjectSearch(e.target.value)}
+                                        placeholder="Search projects..."
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    {projectSearch && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                                            {loadingProjects ? (
+                                                <div className="p-2 text-sm text-slate-500">Loading...</div>
+                                            ) : projects.filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase())).length === 0 ? (
+                                                <div className="p-2 text-sm text-slate-500">No projects found</div>
+                                            ) : (
+                                                projects
+                                                    .filter(p => p.name.toLowerCase().includes(projectSearch.toLowerCase()))
+                                                    .map(p => (
+                                                        <button
+                                                            key={p.id}
+                                                            onClick={() => {
+                                                                setSelectedProjectId(p.id);
+                                                                setProjectSearch(p.name);
+                                                            }}
+                                                            className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
+                                                        >
+                                                            {p.name}
+                                                        </button>
+                                                    ))
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                {selectedProjectId && (
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Selected: {projects.find(p => p.id === selectedProjectId)?.name}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -167,10 +233,11 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
                         <label className="block text-sm font-medium text-slate-700 mb-2">
                             Your Summary / Notes
                         </label>
-                        <textarea
-                            value={summaryInput}
-                            onChange={(e) => setSummaryInput(e.target.value)}
-                            placeholder={`Paste your informal notes here. Include:
+                        <div className="relative">
+                            <textarea
+                                value={summaryInput}
+                                onChange={(e) => setSummaryInput(e.target.value)}
+                                placeholder={`Paste your informal notes here. Include:
 • Who was there (names, companies, roles)
 • What was discussed
 • Decisions made
@@ -178,8 +245,37 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
 • Any issues or concerns raised
 
 The AI will convert this into a professional ${template.name.toLowerCase()}.`}
-                            className="w-full h-80 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"
-                        />
+                                className={`w-full h-80 px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm transition-all ${
+                                    isListening
+                                        ? 'border-red-500 ring-2 ring-red-200 animate-pulse'
+                                        : 'border-slate-300'
+                                }`}
+                            />
+                            {isSupported && (
+                                <button
+                                    type="button"
+                                    onClick={isListening ? stopListening : startListening}
+                                    className={`absolute bottom-3 right-3 p-2 rounded-full transition-colors ${
+                                        isListening
+                                            ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                    title={isListening ? 'Stop recording' : 'Start voice recording'}
+                                >
+                                    {isListening ? (
+                                        <MicOff className="h-5 w-5" />
+                                    ) : (
+                                        <Mic className="h-5 w-5" />
+                                    )}
+                                </button>
+                            )}
+                        </div>
+                        {isListening && (
+                            <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                                Listening... Speak now
+                            </p>
+                        )}
                         <div className="mt-4 flex items-center justify-between">
                             <p className="text-sm text-slate-500">
                                 {summaryInput.length} characters

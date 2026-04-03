@@ -94,7 +94,7 @@ export async function updateDocument(
     }
     if (updates.status !== undefined) {
         updateData.status = updates.status;
-        if (updates.status === "final") {
+        if (updates.status === "finalised") {
             updateData.finalized_at = new Date().toISOString();
         }
     }
@@ -121,7 +121,7 @@ export async function deleteDocument(documentId: string): Promise<void> {
 }
 
 export async function finalizeDocument(documentId: string): Promise<SiteDocument> {
-    return updateDocument(documentId, { status: "final" });
+    return updateDocument(documentId, { status: "finalised" });
 }
 
 // ── AI Generation ──
@@ -318,7 +318,7 @@ export async function regenerateDocument(
 export async function updateActionItemStatus(
     documentId: string,
     itemId: string,
-    status: "open" | "in-progress" | "completed"
+    status: "open" | "in-progress" | "closed"
 ): Promise<{ updated_at: string }> {
     // First, fetch the current document
     const { data: doc, error: fetchError } = await supabase
