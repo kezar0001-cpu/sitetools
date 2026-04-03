@@ -9,9 +9,6 @@ import {
 } from "react";
 import {
   Calendar,
-  X,
-  Share2,
-  GitBranch,
 } from "lucide-react";
 import type {
   SitePlanTask,
@@ -42,13 +39,15 @@ import {
 // ─── Types ──────────────────────────────────────────────────
 
 type ZoomLevel = "day" | "week" | "month" | "quarter";
-type ViewFilter = "programme" | "today";
 
 interface GanttChartProps {
   tasks: SitePlanTask[];
   baselines?: SitePlanTask[];
   delayLogs?: SitePlanDelayLog[];
+  zoom: ZoomLevel;
   showDependencies?: boolean;
+  showCriticalPath?: boolean;
+  selectedTaskId?: string | null;
   onTaskClick?: (task: SitePlanTask) => void;
   onDoubleClick?: (task: SitePlanTask) => void;
   onDateChange?: (task: SitePlanTask, start_date: string, end_date: string) => void;
@@ -59,7 +58,7 @@ interface GanttChartProps {
 // ─── Constants ──────────────────────────────────────────────
 
 const ROW_HEIGHT = 40;
-const HEADER_HEIGHT = 50;
+const HEADER_HEIGHT = 56;
 
 const ZOOM_COLUMN_WIDTH: Record<ZoomLevel, number> = {
   day: 40,
@@ -214,16 +213,15 @@ export function GanttChart({
   tasks,
   baselines,
   delayLogs,
-  showDependencies: initialShowDeps = true,
+  zoom,
+  showDependencies: showDeps = true,
+  showCriticalPath = false,
+  selectedTaskId,
   onTaskClick,
   onDoubleClick,
   onDateChange,
   canEdit = true,
 }: GanttChartProps) {
-  const [zoom, setZoom] = useState<ZoomLevel>("week");
-  const [viewFilter] = useState<ViewFilter>("programme");
-  const [showDeps, setShowDeps] = useState(initialShowDeps);
-  const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
   const [arrowTooltip, setArrowTooltip] = useState<{
@@ -237,8 +235,7 @@ export function GanttChart({
     y: number;
     task: SitePlanTask;
   } | null>(null);
-  const [expandedPhases] = useState<Set<string>>(new Set());
-  const [allExpanded] = useState(true);
+  const [headerOffsetY, setHeaderOffsetY] = useState(0);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // Build delay count map
@@ -282,37 +279,7 @@ export function GanttChart({
 
   // Build tree and flatten
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
-  const flatTasks = useMemo(() => {
-    const flat = flattenTree(tree);
-
-    // Apply view filter
-    if (viewFilter === "today") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return flat.filter((t) => {
-        const start = new Date(t.start_date);
-        const end = new Date(t.end_date);
-        // Active today or overdue
-        return (start <= today && end >= today) || (end < today && t.progress < 100);
-      });
-    }
-
-    // Apply expand/collapse for phases
-    if (allExpanded) return flat;
-    const result: SitePlanTaskNode[] = [];
-    const collapsedParents = new Set<string>();
-    for (const node of flat) {
-      if (collapsedParents.has(node.parent_id ?? "")) {
-        collapsedParents.add(node.id);
-        continue;
-      }
-      result.push(node);
-      if (node.type === "phase" && !expandedPhases.has(node.id)) {
-        collapsedParents.add(node.id);
-      }
-    }
-    return result;
-  }, [tree, viewFilter, allExpanded, expandedPhases]);
+  const flatTasks = useMemo(() => flattenTree(tree), [tree]);
 
   // Date range (padded by 7 days on each side)
   const { rangeStart, rangeEnd, totalDays } = useMemo(() => {
@@ -346,8 +313,11 @@ export function GanttChart({
   const svgHeight = flatTasks.length * ROW_HEIGHT;
 
   // Today marker position
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }, []);
   const todayX = getBarX(today, rangeStart, totalDays, totalTimelineWidth);
 
   // Scroll to today
@@ -363,54 +333,6 @@ export function GanttChart({
     const timer = setTimeout(scrollToToday, 100);
     return () => clearTimeout(timer);
   }, [scrollToToday]);
-
-  // Pinch-to-zoom on mobile
-  useEffect(() => {
-    const el = timelineRef.current;
-    if (!el) return;
-
-    let initialPinchDistance = 0;
-    let startZoom = zoom;
-    const zoomOrder: ZoomLevel[] = ["day", "week", "month", "quarter"];
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
-        startZoom = zoom;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && initialPinchDistance > 0) {
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        const currentDistance = Math.sqrt(dx * dx + dy * dy);
-        const ratio = currentDistance / initialPinchDistance;
-
-        const currentIdx = zoomOrder.indexOf(startZoom);
-        if (ratio > 1.5 && currentIdx > 0) {
-          setZoom(zoomOrder[currentIdx - 1]);
-          initialPinchDistance = currentDistance;
-          startZoom = zoomOrder[currentIdx - 1];
-        } else if (ratio < 0.67 && currentIdx < zoomOrder.length - 1) {
-          setZoom(zoomOrder[currentIdx + 1]);
-          initialPinchDistance = currentDistance;
-          startZoom = zoomOrder[currentIdx + 1];
-        }
-        e.preventDefault();
-      }
-    };
-
-    el.addEventListener("touchstart", handleTouchStart, { passive: false });
-    el.addEventListener("touchmove", handleTouchMove, { passive: false });
-
-    return () => {
-      el.removeEventListener("touchstart", handleTouchStart);
-      el.removeEventListener("touchmove", handleTouchMove);
-    };
-  }, [zoom]);
 
   // useUpdateTask for resize-end drag (called directly without parent callback)
   const updateTask = useUpdateTask();
@@ -526,7 +448,7 @@ export function GanttChart({
 
   // Bar click handler — select bar for visual highlight and open TaskEditPanel immediately
   const handleBarClick = (task: SitePlanTask) => {
-    setSelectedBar((prev) => (prev?.id === task.id ? null : task));
+    setSelectedBar(task);
     onTaskClick?.(task);
   };
 
@@ -535,79 +457,28 @@ export function GanttChart({
     onDoubleClick?.(task);
   };
 
+  useEffect(() => {
+    if (!showDeps) {
+      setSelectedDep(null);
+    }
+  }, [showDeps]);
+
+  const isTodayColumn = useCallback((colDate: Date) => {
+    if (zoom === "day") {
+      return daysBetween(colDate, today) === 0;
+    }
+    if (zoom === "week") {
+      return startOfWeek(new Date(colDate)).getTime() === startOfWeek(new Date(today)).getTime();
+    }
+    if (zoom === "month") {
+      return colDate.getMonth() === today.getMonth() && colDate.getFullYear() === today.getFullYear();
+    }
+    return startOfQuarter(new Date(colDate)).getTime() === startOfQuarter(new Date(today)).getTime();
+  }, [today, zoom]);
+
   return (
     <ComponentErrorBoundary>
     <div className="flex flex-col h-full bg-white">
-      {/* Controls bar */}
-      <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-slate-200 bg-slate-50 flex-shrink-0 overflow-x-auto">
-        {/* Zoom buttons */}
-        <span className="text-[10px] font-medium text-slate-400 uppercase mr-1 hidden md:inline">Zoom</span>
-        {(["day", "week", "month", "quarter"] as ZoomLevel[]).map((z) => (
-          <button
-            key={z}
-            onClick={() => setZoom(z)}
-            className={`px-2 py-1 text-[11px] font-medium rounded capitalize min-h-[28px] transition-colors ${
-              zoom === z
-                ? "bg-blue-100 text-blue-700"
-                : "text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            {z.charAt(0).toUpperCase() + z.slice(1)}
-          </button>
-        ))}
-
-        <div className="w-px h-4 bg-slate-200 mx-1" />
-
-        {/* Show Dependencies toggle */}
-        <button
-          onClick={() => {
-            setShowDeps((v) => !v);
-            if (showDeps) setSelectedDep(null);
-          }}
-          title={showDeps ? "Hide dependency arrows" : "Show dependency arrows"}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded min-h-[28px] transition-colors ${
-            showDeps
-              ? "bg-blue-100 text-blue-700 border border-blue-200"
-              : "text-slate-500 hover:bg-slate-200 border border-transparent"
-          }`}
-        >
-          <Share2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Show Dependencies</span>
-          <span className="sm:hidden">Deps</span>
-        </button>
-
-        <div className="w-px h-4 bg-slate-200 mx-1" />
-
-        {/* Critical Path toggle */}
-        <button
-          onClick={() => setShowCriticalPath((v) => !v)}
-          title={showCriticalPath ? "Hide critical path" : "Show critical path"}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded min-h-[28px] transition-colors ${
-            showCriticalPath
-              ? "bg-red-100 text-red-700 border border-red-300"
-              : "text-slate-500 hover:bg-slate-200 border border-transparent"
-          }`}
-        >
-          <GitBranch className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Critical Path</span>
-          <span className="sm:hidden">CP</span>
-        </button>
-
-        {/* Clear selected dependency */}
-        {selectedDep && (
-          <>
-            <div className="w-px h-4 bg-slate-200 mx-1" />
-            <button
-              onClick={() => setSelectedDep(null)}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-500 hover:bg-slate-200 rounded min-h-[28px]"
-            >
-              <X className="h-3 w-3" />
-              Clear selection
-            </button>
-          </>
-        )}
-      </div>
-
       {/* Main split pane */}
       <div className="flex flex-1 overflow-hidden relative">
       {/* Left panel removed */}
@@ -616,6 +487,7 @@ export function GanttChart({
         <div
           ref={timelineRef}
           className="flex-1 overflow-auto"
+          onScroll={(e) => setHeaderOffsetY(e.currentTarget.scrollTop)}
         >
           <svg
             width={totalTimelineWidth}
@@ -638,12 +510,12 @@ export function GanttChart({
               </g>
             ))}
 
-            {/* Top header row (months/years) */}
+            {/* Top header row (sticky: year/quarter/month) */}
             {topHeaders.map((h, i) => (
               <g key={`top-${i}`}>
                 <rect
                   x={h.x}
-                  y={0}
+                  y={headerOffsetY}
                   width={h.width}
                   height={HEADER_HEIGHT / 2}
                   fill="#f1f5f9"
@@ -652,7 +524,7 @@ export function GanttChart({
                 />
                 <text
                   x={h.x + h.width / 2}
-                  y={HEADER_HEIGHT / 4 + 4}
+                  y={headerOffsetY + HEADER_HEIGHT / 4 + 4}
                   textAnchor="middle"
                   className="fill-slate-600 text-[10px] font-semibold"
                 >
@@ -666,18 +538,18 @@ export function GanttChart({
               <g key={`col-${i}`}>
                 <rect
                   x={col.x}
-                  y={HEADER_HEIGHT / 2}
+                  y={headerOffsetY + HEADER_HEIGHT / 2}
                   width={col.width}
                   height={HEADER_HEIGHT / 2}
-                  fill="#f8fafc"
+                  fill={isTodayColumn(col.date) ? "#dbeafe" : "#f8fafc"}
                   stroke="#e2e8f0"
                   strokeWidth={0.5}
                 />
                 <text
                   x={col.x + col.width / 2}
-                  y={HEADER_HEIGHT / 2 + HEADER_HEIGHT / 4 + 3}
+                  y={headerOffsetY + HEADER_HEIGHT / 2 + HEADER_HEIGHT / 4 + 3}
                   textAnchor="middle"
-                  className="fill-slate-500 text-[9px]"
+                  className={isTodayColumn(col.date) ? "fill-blue-700 text-[9px] font-semibold" : "fill-slate-500 text-[9px]"}
                 >
                   {col.label}
                 </text>
@@ -685,16 +557,26 @@ export function GanttChart({
             ))}
 
             {/* Row dividers */}
-            {flatTasks.map((_, i) => (
-              <line
-                key={`row-${i}`}
-                x1={0}
-                y1={HEADER_HEIGHT + (i + 1) * ROW_HEIGHT}
-                x2={totalTimelineWidth}
-                y2={HEADER_HEIGHT + (i + 1) * ROW_HEIGHT}
-                stroke="#e2e8f0"
-                strokeWidth={0.5}
-              />
+            {flatTasks.map((node, i) => (
+              <g key={`row-${node.id}`}>
+                {(selectedTaskId === node.id || selectedBar?.id === node.id) && (
+                  <rect
+                    x={0}
+                    y={HEADER_HEIGHT + i * ROW_HEIGHT}
+                    width={totalTimelineWidth}
+                    height={ROW_HEIGHT}
+                    fill="#eff6ff"
+                  />
+                )}
+                <line
+                  x1={0}
+                  y1={HEADER_HEIGHT + (i + 1) * ROW_HEIGHT}
+                  x2={totalTimelineWidth}
+                  y2={HEADER_HEIGHT + (i + 1) * ROW_HEIGHT}
+                  stroke="#e2e8f0"
+                  strokeWidth={0.5}
+                />
+              </g>
             ))}
 
             {/* Today marker */}
@@ -704,10 +586,9 @@ export function GanttChart({
                 y1={0}
                 x2={todayX}
                 y2={svgHeight + HEADER_HEIGHT}
-                stroke="#ef4444"
-                strokeWidth={1.5}
-                strokeDasharray="6,4"
-                opacity={0.7}
+                stroke="#2563eb"
+                strokeWidth={2}
+                opacity={0.9}
               />
             )}
 
@@ -758,10 +639,10 @@ export function GanttChart({
 
               // If this bar is being dragged, override positions
               const isDragging = dragState?.task.id === node.id;
-              const effectiveBarX = isDragging
+              const effectiveBarX = isDragging && dragState?.mode === "resize-end"
                 ? getBarX(dragState!.currentStartDate, rangeStart, totalDays, totalTimelineWidth)
                 : barX;
-              const effectiveBarEndX = isDragging
+              const effectiveBarEndX = isDragging && dragState?.mode === "resize-end"
                 ? getBarX(dragState!.currentEndDate, rangeStart, totalDays, totalTimelineWidth)
                 : barEndX;
               const effectiveBarWidth = isDragging
@@ -782,7 +663,13 @@ export function GanttChart({
               const mCy = barY + barHeight / 2;
               const mR = Math.min(barHeight / 2 - 1, 10);
 
-              const isSelected = selectedBar?.id === node.id;
+              const isSelected = selectedTaskId
+                ? selectedTaskId === node.id
+                : selectedBar?.id === node.id;
+
+              const showInsideLabel = !isMilestone && barWidth > 60;
+              const labelX = isMilestone ? mCx + mR + 8 : (showInsideLabel ? barX + 8 : barEndX + 8);
+              const labelY = barY + barHeight / 2 + 4;
 
               return (
                 <g
@@ -836,30 +723,27 @@ export function GanttChart({
                         />
                       )}
                     </>
-                  ) : /* Phase summary bar (diamond ends) */
+                  ) : /* Phase summary bar style */
                   isPhase ? (
                     <>
-                      <rect
-                        x={barX}
-                        y={barY + barHeight / 2 - 2}
-                        width={barWidth}
-                        height={4}
-                        fill="#334155"
-                        rx={1}
+                      <line
+                        x1={barX}
+                        y1={barY + 4}
+                        x2={barEndX}
+                        y2={barY + 4}
+                        stroke="#111827"
+                        strokeWidth={3}
                         onMouseEnter={(e) => handleBarMouseEnter(e, taskData)}
                         onMouseMove={handleBarMouseMove}
                         onMouseLeave={handleBarMouseLeave}
                       />
-                      {/* Start diamond */}
-                      <polygon
-                        points={`${barX},${barY + barHeight / 2} ${barX + 5},${barY + barHeight / 2 - 5} ${barX + 10},${barY + barHeight / 2} ${barX + 5},${barY + barHeight / 2 + 5}`}
-                        fill="#334155"
-                        style={{ pointerEvents: "none" }}
-                      />
-                      {/* End diamond */}
-                      <polygon
-                        points={`${barEndX - 10},${barY + barHeight / 2} ${barEndX - 5},${barY + barHeight / 2 - 5} ${barEndX},${barY + barHeight / 2} ${barEndX - 5},${barY + barHeight / 2 + 5}`}
-                        fill="#334155"
+                      <line
+                        x1={barX}
+                        y1={barY + barHeight - 4}
+                        x2={barEndX}
+                        y2={barY + barHeight - 4}
+                        stroke="#111827"
+                        strokeWidth={3}
                         style={{ pointerEvents: "none" }}
                       />
                     </>
@@ -879,6 +763,23 @@ export function GanttChart({
                         onMouseLeave={handleBarMouseLeave}
                         style={canEdit ? { cursor: isDragging ? "grabbing" : "grab" } : undefined}
                       />
+                      {dragState?.mode === "move" && isDragging && (
+                        <rect
+                          x={getBarX(dragState.currentStartDate, rangeStart, totalDays, totalTimelineWidth)}
+                          y={barY}
+                          width={Math.max(
+                            4,
+                            getBarX(dragState.currentEndDate, rangeStart, totalDays, totalTimelineWidth) -
+                              getBarX(dragState.currentStartDate, rangeStart, totalDays, totalTimelineWidth)
+                          )}
+                          height={barHeight}
+                          fill={colors.progress}
+                          opacity={0.35}
+                          rx={4}
+                          stroke="#0f172a"
+                          strokeDasharray="4,2"
+                        />
+                      )}
 
                       {/* Progress fill */}
                       {node.progress > 0 && (
@@ -976,6 +877,15 @@ export function GanttChart({
                       )}
                     </>
                   )}
+
+                  <text
+                    x={labelX}
+                    y={labelY}
+                    textAnchor={isMilestone || !showInsideLabel ? "start" : "start"}
+                    className={showInsideLabel ? "fill-white text-[10px] font-semibold pointer-events-none" : "fill-slate-700 text-[10px] pointer-events-none"}
+                  >
+                    {node.name}
+                  </text>
 
                   {/* Baseline bar (thin grey line below main bar) */}
                   {baseline && !isPhase && (
