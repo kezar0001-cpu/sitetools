@@ -25,30 +25,6 @@ const DOC_TYPE_LABELS: Record<DocumentType, string> = {
     "site-instruction": "SITE INSTRUCTION",
 };
 
-// Color themes for each document type
-const DOCUMENT_THEMES: Record<DocumentType, { primary: string; secondary: string; accent: string; headerBg: string; headerText: string }> = {
-    "meeting-minutes": { primary: "#1e3a5f", secondary: "#2c5282", accent: "#ed8936", headerBg: "#1e3a5f", headerText: "#ffffff" },
-    "incident-report": { primary: "#c53030", secondary: "#9b2c2c", accent: "#feb2b2", headerBg: "#742a2a", headerText: "#ffffff" },
-    "corrective-action": { primary: "#c05621", secondary: "#9c4221", accent: "#fbd38d", headerBg: "#7c341f", headerText: "#ffffff" },
-    "safety-report": { primary: "#276749", secondary: "#22543d", accent: "#9ae6b4", headerBg: "#1c4532", headerText: "#ffffff" },
-    rfi: { primary: "#553c9a", secondary: "#44337a", accent: "#d6bcfa", headerBg: "#3c2a6e", headerText: "#ffffff" },
-    "inspection-checklist": { primary: "#434190", secondary: "#3730a3", accent: "#a3bffa", headerBg: "#312e81", headerText: "#ffffff" },
-    "toolbox-talk": { primary: "#c05621", secondary: "#9c4221", accent: "#fbd38d", headerBg: "#7c341f", headerText: "#ffffff" },
-    variation: { primary: "#285e61", secondary: "#234e52", accent: "#81e6d9", headerBg: "#1a3c3f", headerText: "#ffffff" },
-    ncr: { primary: "#b83280", secondary: "#97266d", accent: "#fbb6ce", headerBg: "#702459", headerText: "#ffffff" },
-    "site-instruction": { primary: "#d69e2e", secondary: "#b7791f", accent: "#fefcbf", headerBg: "#975a16", headerText: "#ffffff" },
-};
-
-// Status badge colors
-const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-    open: { bg: "#fffaf0", text: "#c05621", border: "#ed8936" },
-    closed: { bg: "#f0fff4", text: "#276749", border: "#48bb78" },
-    "in-progress": { bg: "#ebf8ff", text: "#2b6cb0", border: "#4299e1" },
-    pending: { bg: "#faf5ff", text: "#6b46c1", border: "#9f7aea" },
-    draft: { bg: "#fffaf0", text: "#c05621", border: "#ed8936" },
-    final: { bg: "#f0fff4", text: "#276749", border: "#48bb78" },
-};
-
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ documentId: string }> }
@@ -124,7 +100,10 @@ export async function GET(
 
         const safeTitle = document.title.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "_").substring(0, 50);
 
-        return new NextResponse(pdfBuffer, {
+        // Convert ArrayBuffer to Uint8Array for NextResponse
+        const pdfBytes = new Uint8Array(pdfBuffer);
+
+        return new NextResponse(pdfBytes, {
             headers: {
                 "Content-Type": "application/pdf",
                 "Content-Disposition": `attachment; filename="${safeTitle}.pdf"`,
@@ -141,7 +120,7 @@ export async function GET(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function generatePDF(title: string, content: any, docType: DocumentType, status: DocumentStatus, company: { name?: string; abn?: string; address?: string } | null): Uint8Array {
+function generatePDF(title: string, content: any, docType: DocumentType, status: DocumentStatus, company: { name?: string; abn?: string; address?: string } | null): ArrayBuffer {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;

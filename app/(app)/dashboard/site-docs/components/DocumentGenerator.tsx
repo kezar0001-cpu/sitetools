@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Sparkles, FileText, Download, Save, Loader2, Mic, MicOff } from "lucide-react";
+import { ArrowLeft, Sparkles, Download, Save, Loader2, Mic, MicOff } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { generateDocumentContent, createDocument, exportDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
