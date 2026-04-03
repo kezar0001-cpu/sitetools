@@ -3,13 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getDiaryById, getDiaryPhotoUrls } from "@/lib/site-capture/client";
+import { getDiaryById, getDiaryPhotoUrls, getToolboxTalkById } from "@/lib/site-capture/client";
 import { getProjects, getSites } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { Project, Site } from "@/lib/workspace/types";
-import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
+import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE, FORM_TYPE_CONFIG } from "@/lib/site-capture/types";
+import type { FormType, PrestartChecklistFull, ToolboxTalkFull } from "@/lib/site-capture/types";
 import DiaryEntryForm from "../components/DiaryEntryForm";
+import PrestartChecklistForm from "../components/PrestartChecklistForm";
+import InductionEntryForm from "../components/InductionEntryForm";
+import IncidentReportForm from "../components/IncidentReportForm";
+import ToolboxEntryForm from "../components/ToolboxEntryForm";
 import { DiaryActions } from "../components/DiaryActions";
 
 function formatDate(iso: string): string {
@@ -30,7 +35,7 @@ export default function DiaryDetailPage() {
   const userId = summary?.userId ?? null;
   const companyId = summary?.activeMembership?.company_id ?? null;
 
-  const [diary, setDiary] = useState<SiteDiaryFull | null>(null);
+  const [diary, setDiary] = useState<SiteDiaryFull | ToolboxTalkFull | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [busy, setBusy] = useState(true);
@@ -53,12 +58,31 @@ export default function DiaryDetailPage() {
     if (!diaryId) return;
     setBusy(true);
 
+    // First, try to get the diary to check its form_type
     getDiaryById(diaryId)
-      .then(async (data) => {
-        if (!data) {
+      .then(async (diaryData) => {
+        if (!diaryData) {
           setError("Diary not found.");
           return;
         }
+
+        // Check if this is a toolbox talk
+        const formType = (diaryData as { form_type?: string }).form_type;
+        
+        let data: SiteDiaryFull | ToolboxTalkFull;
+        
+        if (formType === 'toolbox-talk') {
+          // Load full toolbox talk data with attendees and actions
+          const toolboxData = await getToolboxTalkById(diaryId);
+          if (!toolboxData) {
+            setError("Toolbox talk not found.");
+            return;
+          }
+          data = toolboxData;
+        } else {
+          data = diaryData;
+        }
+        
         // Load diary content first so page renders immediately
         setDiary(data);
         
@@ -183,13 +207,102 @@ export default function DiaryDetailPage() {
           </div>
         </div>
 
-        {/* The entry form */}
-        <DiaryEntryForm
-          diary={diary}
-          onUpdate={setDiary}
-          userRole={userRole}
-          userId={userId}
-        />
+        {/* The entry form - conditional based on form_type */}
+        {(() => {
+          const formType = (diary as { form_type?: FormType }).form_type ?? 'daily-diary';
+          
+          if (formType === 'prestart-checklist') {
+            // Convert diary data to prestart checklist format
+            const prestartData: PrestartChecklistFull = {
+              id: diary.id,
+              companyId: diary.company_id,
+              formType: 'prestart-checklist',
+              status: diary.status,
+              plantDetails: {
+                equipmentType: '',
+                makeModel: '',
+                regoOrId: '',
+                operatorName: '',
+                date: diary.date,
+                siteId: diary.site_id,
+                projectId: diary.project_id,
+              },
+              checklistItems: [],
+              defects: [],
+              operatorDeclaration: null,
+              supervisorSignOff: null,
+              createdAt: diary.created_at,
+              updatedAt: diary.updated_at,
+              completedAt: diary.completed_at,
+              completedBy: diary.completed_by,
+              hasUnclearedCriticalDefects: false,
+            };
+            
+            return (
+              <PrestartChecklistForm
+                checklist={prestartData}
+                onUpdate={(updated) => {
+                  // Map prestart updates back to diary format
+                  setDiary(prev => prev ? {
+                    ...prev,
+                    status: updated.status,
+                    completed_at: updated.completedAt,
+                    completed_by: updated.completedBy,
+                  } : prev);
+                }}
+                projects={projects}
+                sites={sites}
+                userRole={userRole}
+                userId={userId}
+              />
+            );
+          }
+          
+          if (formType === 'toolbox-talk') {
+            return (
+              <ToolboxEntryForm
+                diary={diary as ToolboxTalkFull}
+                onUpdate={(updated) => setDiary(updated)}
+                userRole={userRole}
+                userId={userId}
+              />
+            );
+          }
+
+          if (formType === 'site-induction') {
+            return (
+              <InductionEntryForm
+                diary={diary}
+                onUpdate={setDiary}
+                userRole={userRole}
+                userId={userId}
+              />
+            );
+          }
+
+          if (formType === 'incident-report') {
+            return (
+              <IncidentReportForm
+                diary={diary}
+                onUpdate={setDiary}
+                userRole={userRole}
+                userId={userId}
+                projects={projects}
+                sites={sites}
+              />
+            );
+          }
+          
+          // Default: Daily Diary form
+          return (
+            <DiaryEntryForm
+              diary={diary}
+              onUpdate={setDiary}
+              userRole={userRole}
+              userId={userId}
+            />
+          );
+        })()}
       </div>
     </div>
   );

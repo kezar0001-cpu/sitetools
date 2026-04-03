@@ -4,6 +4,8 @@ import {
   AddEquipmentPayload,
   AddIssuePayload,
   AddLaborPayload,
+  AddAttendeePayload,
+  AddToolboxActionPayload,
   CreateDiaryPayload,
   SiteDiary,
   SiteDiaryEquipment,
@@ -12,7 +14,13 @@ import {
   SiteDiaryLabor,
   SiteDiaryPhoto,
   SiteDiaryWithCounts,
+  ToolboxTalkAttendee,
+  ToolboxTalkAction,
+  ToolboxTalkData,
+  ToolboxTalkFull,
+  UpdateAttendeePayload,
   UpdateDiaryPayload,
+  UpdateToolboxActionPayload,
   WeatherSnapshot,
 } from "./types";
 import { getSiteById } from "@/lib/workspace/client";
@@ -954,4 +962,264 @@ function countAggregate(value: unknown): number {
     return typeof v === "number" ? v : Number(v) || 0;
   }
   return typeof value === "number" ? value : Number(value) || 0;
+}
+
+// ─────────────────────────────────────────────
+// Toolbox Talk Functions
+// ─────────────────────────────────────────────
+
+export async function getToolboxTalkById(id: string): Promise<ToolboxTalkFull | null> {
+  try {
+    const { data: diary, error: diaryError } = await supabase
+      .from("site_diaries")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (diaryError) {
+      if (diaryError.code === "PGRST116") return null;
+      throw diaryError;
+    }
+
+    const [attendees, actions, photos] = await Promise.all([
+      getToolboxAttendees(id),
+      getToolboxActions(id),
+      getPhotos(id),
+    ]);
+
+    return {
+      ...diary,
+      toolbox_talk_data: diary.toolbox_talk_data as ToolboxTalkData | null,
+      attendees,
+      actions,
+      photos,
+    } as ToolboxTalkFull;
+  } catch (err) {
+    console.error("[client] getToolboxTalkById failed:", err);
+    throw err;
+  }
+}
+
+export async function getToolboxAttendees(diaryId: string): Promise<ToolboxTalkAttendee[]> {
+  const { data, error } = await supabase
+    .from("toolbox_talk_attendees")
+    .select("*")
+    .eq("diary_id", diaryId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as ToolboxTalkAttendee[];
+}
+
+export async function addToolboxAttendee(
+  diaryId: string,
+  payload: AddAttendeePayload
+): Promise<ToolboxTalkAttendee> {
+  const { data, error } = await supabase
+    .from("toolbox_talk_attendees")
+    .insert({
+      diary_id: diaryId,
+      name: payload.name,
+      company: payload.company,
+      trade: payload.trade ?? null,
+      signature_data: payload.signature_data ?? null,
+      signed_on_paper: payload.signed_on_paper ?? false,
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as ToolboxTalkAttendee;
+}
+
+export async function updateToolboxAttendee(
+  id: string,
+  payload: UpdateAttendeePayload
+): Promise<ToolboxTalkAttendee> {
+  const { data, error } = await supabase
+    .from("toolbox_talk_attendees")
+    .update({
+      ...(payload.name !== undefined && { name: payload.name }),
+      ...(payload.company !== undefined && { company: payload.company }),
+      ...(payload.trade !== undefined && { trade: payload.trade }),
+      ...(payload.signature_data !== undefined && { signature_data: payload.signature_data }),
+      ...(payload.signed_on_paper !== undefined && { signed_on_paper: payload.signed_on_paper }),
+      ...(payload.signed_at !== undefined && { signed_at: payload.signed_at }),
+    })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as ToolboxTalkAttendee;
+}
+
+export async function deleteToolboxAttendee(id: string): Promise<void> {
+  const { error } = await supabase.from("toolbox_talk_attendees").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function getToolboxActions(diaryId: string): Promise<ToolboxTalkAction[]> {
+  const { data, error } = await supabase
+    .from("toolbox_talk_actions")
+    .select("*")
+    .eq("diary_id", diaryId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as ToolboxTalkAction[];
+}
+
+export async function addToolboxAction(
+  diaryId: string,
+  payload: AddToolboxActionPayload
+): Promise<ToolboxTalkAction> {
+  const { data, error } = await supabase
+    .from("toolbox_talk_actions")
+    .insert({
+      diary_id: diaryId,
+      description: payload.description,
+      assigned_to: payload.assigned_to ?? null,
+      due_date: payload.due_date ?? null,
+      status: "open",
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as ToolboxTalkAction;
+}
+
+export async function updateToolboxAction(
+  id: string,
+  payload: UpdateToolboxActionPayload
+): Promise<ToolboxTalkAction> {
+  const updateData: Record<string, unknown> = {};
+  if (payload.description !== undefined) updateData.description = payload.description;
+  if (payload.assigned_to !== undefined) updateData.assigned_to = payload.assigned_to;
+  if (payload.due_date !== undefined) updateData.due_date = payload.due_date;
+  if (payload.status !== undefined) {
+    updateData.status = payload.status;
+    if (payload.status === "completed") {
+      updateData.completed_at = new Date().toISOString();
+      const { data: { user } } = await supabase.auth.getUser();
+      updateData.completed_by = user?.id ?? null;
+    } else {
+      updateData.completed_at = null;
+      updateData.completed_by = null;
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("toolbox_talk_actions")
+    .update(updateData)
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as ToolboxTalkAction;
+}
+
+export async function deleteToolboxAction(id: string): Promise<void> {
+  const { error } = await supabase.from("toolbox_talk_actions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function updateToolboxTalkData(
+  diaryId: string,
+  data: Partial<ToolboxTalkData>
+): Promise<ToolboxTalkData> {
+  const { data: result, error } = await supabase
+    .from("site_diaries")
+    .select("toolbox_talk_data")
+    .eq("id", diaryId)
+    .single();
+
+  if (error) throw error;
+
+  const current = (result?.toolbox_talk_data as ToolboxTalkData | null) ?? {} as ToolboxTalkData;
+  const merged = { ...current, ...data };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("site_diaries")
+    .update({ toolbox_talk_data: merged })
+    .eq("id", diaryId)
+    .select("toolbox_talk_data")
+    .single();
+
+  if (updateError) throw updateError;
+  return updated.toolbox_talk_data as ToolboxTalkData;
+}
+
+/** Import attendees from a daily diary's labour records */
+export async function importAttendeesFromDiary(
+  targetDiaryId: string,
+  sourceDiaryId: string
+): Promise<ToolboxTalkAttendee[]> {
+  // Get labour records from source diary
+  const { data: labor, error } = await supabase
+    .from("site_diary_labor")
+    .select("trade_or_company, worker_count")
+    .eq("diary_id", sourceDiaryId);
+
+  if (error) throw error;
+  if (!labor || labor.length === 0) return [];
+
+  // Create attendees from labour (one per company/trade)
+  const attendees: ToolboxTalkAttendee[] = [];
+  for (const record of labor) {
+    const row = await addToolboxAttendee(targetDiaryId, {
+      name: `${record.trade_or_company} Representative`,
+      company: record.trade_or_company,
+      trade: record.trade_or_company,
+      signed_on_paper: false,
+    });
+    attendees.push(row);
+  }
+
+  return attendees;
+}
+
+/** Find a daily diary for the same project/site/date */
+export async function findDailyDiaryForImport(
+  companyId: string,
+  projectId: string | null,
+  siteId: string | null,
+  date: string
+): Promise<{ id: string; labor_count: number } | null> {
+  const query = supabase
+    .from("site_diaries")
+    .select("id, labor:labor(count)")
+    .eq("company_id", companyId)
+    .eq("form_type", "daily-diary")
+    .eq("date", date);
+
+  if (projectId) {
+    query.eq("project_id", projectId);
+  } else {
+    query.is("project_id", null);
+  }
+
+  if (siteId) {
+    query.eq("site_id", siteId);
+  } else {
+    query.is("site_id", null);
+  }
+
+  const { data, error } = await query.single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null; // No rows
+    throw error;
+  }
+
+  if (!data) return null;
+
+  // Parse the labor count from the nested array result
+  const laborCount = Array.isArray(data.labor) && data.labor.length > 0
+    ? (data.labor[0] as { count: number }).count ?? 0
+    : 0;
+
+  return { id: data.id, labor_count: laborCount };
 }
