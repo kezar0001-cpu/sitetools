@@ -155,10 +155,7 @@ export async function generateDocumentContent(
 
 // ── Export ──
 
-export async function exportDocument(
-    documentId: string,
-    format: "html" | "pdf"
-): Promise<void> {
+export async function exportDocument(documentId: string): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
 
@@ -166,7 +163,7 @@ export async function exportDocument(
         throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`/api/site-docs/export/${documentId}?format=${format}`, {
+    const response = await fetch(`/api/site-docs/export/${documentId}`, {
         headers: { "Authorization": `Bearer ${token}` },
     });
 
@@ -176,24 +173,10 @@ export async function exportDocument(
     }
 
     const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-
-    if (format === "pdf") {
-        // Open print-ready HTML in new window
-        // The HTML contains a script that auto-triggers print dialog
-        const newWindow = window.open(url, "_blank");
-        if (!newWindow) {
-            // If popup blocked, fallback to download
-            downloadBlob(blob, "document.html");
-        }
-        // Clean up URL object after a delay (give window time to load)
-        setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-    } else {
-        // HTML format: direct download
-        const filename = response.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] || "document.html";
-        downloadBlob(blob, filename);
-        window.URL.revokeObjectURL(url);
-    }
+    const contentDisposition = response.headers.get("Content-Disposition");
+    const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || "document.pdf";
+    
+    downloadBlob(blob, filename);
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {

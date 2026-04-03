@@ -139,7 +139,7 @@ export default function DocumentDetailPage() {
     const [document, setDocument] = useState<SiteDocument | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [exporting, setExporting] = useState<"html" | "pdf" | null>(null);
+    const [exporting, setExporting] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     
@@ -200,16 +200,16 @@ export default function DocumentDetailPage() {
         }
     }, [document?.project_id, summary?.activeMembership?.company_id]);
 
-    async function handleExport(format: "html" | "pdf") {
+    async function handleExport() {
         if (!document) return;
 
-        setExporting(format);
+        setExporting(true);
         try {
-            await exportDocument(document.id, format);
+            await exportDocument(document.id);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
         } finally {
-            setExporting(null);
+            setExporting(false);
         }
     }
 
@@ -350,23 +350,11 @@ export default function DocumentDetailPage() {
                             Regenerate
                         </button>
                         <button
-                            onClick={() => handleExport("html")}
-                            disabled={exporting !== null}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                            {exporting === "html" ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Download className="h-4 w-4" />
-                            )}
-                            HTML
-                        </button>
-                        <button
-                            onClick={() => handleExport("pdf")}
-                            disabled={exporting !== null}
+                            onClick={handleExport}
+                            disabled={exporting}
                             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
-                            {exporting === "pdf" ? (
+                            {exporting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <Download className="h-4 w-4" />

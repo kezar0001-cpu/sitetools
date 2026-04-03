@@ -29,7 +29,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [projectSearch, setProjectSearch] = useState("");
     const [loadingProjects, setLoadingProjects] = useState(false);
-    const [exporting, setExporting] = useState<"html" | "pdf" | null>(null);
+    const [exporting, setExporting] = useState(false);
 
     // Load projects for dropdown
     useEffect(() => {
@@ -119,20 +119,20 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
         }
     }
 
-    async function handleExport(format: "html" | "pdf") {
+    async function handleExport() {
         if (!document) {
             // Save first if not saved
             await handleSave();
         }
         if (!document?.id) return;
 
-        setExporting(format);
+        setExporting(true);
         try {
-            await exportDocument(document.id, format);
+            await exportDocument(document.id);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
         } finally {
-            setExporting(null);
+            setExporting(false);
         }
     }
 
@@ -337,28 +337,16 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                     </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => handleExport("pdf")}
-                            disabled={exporting !== null}
+                            onClick={handleExport}
+                            disabled={exporting}
                             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
-                            {exporting === "pdf" ? (
+                            {exporting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <Download className="h-4 w-4" />
                             )}
                             PDF
-                        </button>
-                        <button
-                            onClick={() => handleExport("html")}
-                            disabled={exporting !== null}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                            {exporting === "html" ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <FileText className="h-4 w-4" />
-                            )}
-                            HTML
                         </button>
                         {!document && (
                             <button

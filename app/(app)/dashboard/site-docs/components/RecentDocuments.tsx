@@ -102,10 +102,10 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
     const colorClass = colorMap[color];
     const statusClass = DOCUMENT_STATUS_BADGE[document.status];
 
-    const handleExport = async (e: React.MouseEvent, format: "html" | "pdf") => {
+    const handleExport = async (e: React.MouseEvent) => {
         e.stopPropagation();
         try {
-            await exportDocument(document.id, format);
+            await exportDocument(document.id);
         } catch (err) {
             console.error("Export failed:", err);
             alert("Export failed. Please try again.");
@@ -148,7 +148,7 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
                 {/* Action buttons - visible on hover */}
                 <div className="hidden group-hover:flex items-center gap-1">
                     <button
-                        onClick={(e) => handleExport(e, "pdf")}
+                        onClick={handleExport}
                         className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700"
                         title="Export PDF"
                     >
