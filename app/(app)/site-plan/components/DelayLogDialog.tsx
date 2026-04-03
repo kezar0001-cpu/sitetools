@@ -106,6 +106,7 @@ export function DelayLogDialog({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close delay log dialog"
             className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <X className="h-5 w-5 text-slate-400" />
@@ -234,13 +235,13 @@ export function DelayLogDialog({
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleDelete(log)}
-                              className="px-2 py-1 text-xs text-white bg-red-600 rounded min-h-[28px]"
+                              className="px-2 py-1 text-xs text-white bg-red-600 rounded min-h-[44px]"
                             >
                               Confirm
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(null)}
-                              className="px-2 py-1 text-xs text-slate-500 min-h-[28px]"
+                              className="px-2 py-1 text-xs text-slate-500 min-h-[44px]"
                             >
                               Cancel
                             </button>
@@ -248,7 +249,8 @@ export function DelayLogDialog({
                         ) : (
                           <button
                             onClick={() => setConfirmDeleteId(log.id)}
-                            className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-red-500 min-w-[32px] min-h-[32px] flex items-center justify-center"
+                            aria-label="Delete delay log"
+                            className="p-1.5 rounded hover:bg-slate-100 text-slate-400 hover:text-red-500 min-w-[44px] min-h-[44px] flex items-center justify-center"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Link2 } from "lucide-react";
+import { toast } from "sonner";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { SitePlanTaskNode } from "@/types/siteplan";
 import {
@@ -30,11 +31,10 @@ export function LinkTasksDialog({
   );
 
   // Sync once the query resolves (handles first render before data arrives)
-  const [initialised, setInitialised] = useState(false);
-  if (!isLoading && !initialised) {
-    setInitialised(true);
+  useEffect(() => {
+    if (isLoading) return;
     setSelectedIds(existingRows.map((r) => r.predecessor_id));
-  }
+  }, [existingRows, isLoading]);
 
   // Available tasks to link (exclude self)
   const otherTasks = allTasks.filter((t) => t.id !== task.id);
@@ -42,17 +42,6 @@ export function LinkTasksDialog({
   const togglePred = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
-
-  const handleSave = () => {
-    setTaskPredecessors.mutate(
-      {
-        taskId: task.id,
-        predecessorIds: selectedIds,
-        projectId: task.project_id,
-      },
-      { onSuccess: () => onClose() }
     );
   };
 
@@ -77,7 +66,8 @@ export function LinkTasksDialog({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 min-w-[36px] min-h-[36px] flex items-center justify-center"
+            aria-label="Close link predecessors dialog"
+            className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <X className="h-4 w-4 text-slate-400" />
           </button>
@@ -155,14 +145,36 @@ export function LinkTasksDialog({
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="px-3 py-2 text-sm text-slate-600 hover:text-slate-700 min-h-[36px]"
+              disabled={setTaskPredecessors.isPending}
+              className="px-3 py-2 text-sm text-slate-600 hover:text-slate-700 min-h-[44px] disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={handleSave}
+              onClick={() =>
+                setTaskPredecessors.mutate(
+                  {
+                    taskId: task.id,
+                    predecessorIds: selectedIds,
+                    projectId: task.project_id,
+                  },
+                  {
+                    onSuccess: () => {
+                      toast.success("Predecessors saved");
+                      onClose();
+                    },
+                    onError: (err) => {
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : "Failed to save predecessors",
+                      );
+                    },
+                  },
+                )
+              }
               disabled={setTaskPredecessors.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg min-h-[36px]"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg min-h-[44px]"
             >
               {setTaskPredecessors.isPending ? "Saving..." : "Save"}
             </button>

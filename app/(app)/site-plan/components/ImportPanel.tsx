@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { Fragment, useState, useRef } from "react";
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, AlertCircle, Check, FileSpreadsheet, ChevronLeft, TriangleAlert } from "lucide-react";
 import type { ImportedRow, TaskType } from "@/types/siteplan";
@@ -457,6 +457,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
             </h3>
             <button
               onClick={onClose}
+              aria-label="Close import panel"
               className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="h-4 w-4" />
@@ -508,9 +509,8 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                 {rows.slice(0, 50).map((row, i) => {
                   const rowWarnings = warnings[i]?.messages ?? [];
                   return (
-                    <>
+                    <Fragment key={`row-fragment-${i}`}>
                       <tr
-                        key={`row-${i}`}
                         className={`border-t border-slate-100 ${rowWarnings.length > 0 ? "bg-amber-50/50" : ""}`}
                       >
                         <td
@@ -532,7 +532,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                         <td className="px-3 py-2">{row.responsible || "—"}</td>
                       </tr>
                       {rowWarnings.length > 0 && (
-                        <tr key={`warn-${i}`} className="bg-amber-50/50">
+                        <tr className="bg-amber-50/50">
                           <td
                             colSpan={6}
                             className="px-3 pb-2"
@@ -552,7 +552,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
                 {rows.length > 50 && (
@@ -604,6 +604,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
           </h3>
           <button
             onClick={onClose}
+            aria-label="Close import panel"
             className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <X className="h-4 w-4" />

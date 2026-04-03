@@ -118,7 +118,11 @@ export function BaselineDialog({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-2">
-              <button onClick={goBack} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+              <button
+                onClick={goBack}
+                aria-label="Back to baseline list"
+                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px]"
+              >
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <GitCompare className="h-4 w-4 text-slate-500" />
@@ -128,7 +132,8 @@ export function BaselineDialog({
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-slate-100 min-w-[36px] min-h-[36px] flex items-center justify-center"
+              aria-label="Close baseline dialog"
+              className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="h-4 w-4 text-slate-400" />
             </button>
@@ -263,7 +268,11 @@ export function BaselineDialog({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <button onClick={goBack} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+              <button
+                onClick={goBack}
+                aria-label="Back to baseline comparison"
+                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px]"
+              >
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <RotateCcw className="h-4 w-4 text-slate-500" />
@@ -273,7 +282,8 @@ export function BaselineDialog({
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-slate-100 min-w-[36px] min-h-[36px] flex items-center justify-center"
+              aria-label="Close baseline dialog"
+              className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               <X className="h-4 w-4 text-slate-400" />
             </button>
@@ -370,7 +380,8 @@ export function BaselineDialog({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-slate-100 min-w-[36px] min-h-[36px] flex items-center justify-center"
+            aria-label="Close baseline dialog"
+            className="p-2 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <X className="h-4 w-4 text-slate-400" />
           </button>
@@ -420,22 +431,25 @@ export function BaselineDialog({
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => openCompare(b)}
+                    aria-label="Compare baseline with current schedule"
                     title="Compare with current"
-                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded min-w-[32px] min-h-[32px] flex items-center justify-center"
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
                   >
                     <GitCompare className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => openRestoreConfirm(b)}
+                    aria-label="Restore from baseline"
                     title="Restore to this baseline"
-                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded min-w-[32px] min-h-[32px] flex items-center justify-center"
+                    className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => deleteBaseline.mutate({ id: b.id, projectId })}
+                    aria-label="Delete baseline"
                     title="Delete baseline"
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded min-w-[32px] min-h-[32px] flex items-center justify-center"
+                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
