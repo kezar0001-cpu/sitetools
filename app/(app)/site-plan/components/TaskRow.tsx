@@ -55,6 +55,8 @@ interface TaskRowProps {
   onRowNumberClick?: (node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => void;
   onUpdateTask?: (taskId: string, updates: Partial<SitePlanTaskNode>) => void;
   columnWidths?: Record<string, number>;
+  onHoverStart?: (taskId: string) => void;
+  onHoverEnd?: () => void;
 }
 
 // Distinctive backgrounds per type (phase bg is computed dynamically from phaseIndex)
@@ -183,6 +185,8 @@ export function TaskRow({
   onRowNumberClick,
   onUpdateTask,
   columnWidths,
+  onHoverStart,
+  onHoverEnd,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -198,7 +202,7 @@ export function TaskRow({
   const displayStatus = phaseStats?.status ?? node.status;
 
   const phaseBg = PHASE_BG_COLORS[phaseIndex % PHASE_BG_COLORS.length];
-  const isRowSelected = selectedRowIds.has(node.id);
+  const isRowSelected = isSelected || selectedRowIds.has(node.id);
   const bg = isDragging ? "bg-blue-50" : isHighlighted ? "bg-yellow-100" : isRowSelected ? "bg-blue-50" : isPhase ? phaseBg : rowBg[node.type] ?? "bg-white";
   const text = isDragging ? "text-slate-900" : isHighlighted ? "text-slate-900" : rowText[node.type];
   const borderColor = isPhase ? "border-white/10" : isRowSelected ? "border-blue-100" : "border-slate-200";
@@ -331,6 +335,8 @@ export function TaskRow({
           (next as HTMLElement)?.focus();
         }
       }}
+      onMouseEnter={() => onHoverStart?.(node.id)}
+      onMouseLeave={() => onHoverEnd?.()}
     >
       {/* Checkbox (edit mode) or Drag handle */}
       {editMode ? (
