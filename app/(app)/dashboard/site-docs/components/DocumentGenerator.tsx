@@ -29,6 +29,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [projectSearch, setProjectSearch] = useState("");
     const [loadingProjects, setLoadingProjects] = useState(false);
+    const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
 
     // Load projects for dropdown
     useEffect(() => {

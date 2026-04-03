@@ -145,8 +145,8 @@ export default function DocumentDetailPage() {
     
     // Regenerate state
     const [regenerateDrawerOpen, setRegenerateDrawerOpen] = useState(false);
+    const [regenerateSummary, setRegenerateSummary] = useState("");
     const [project, setProject] = useState<Project | null>(null);
-    const [loadingProject, setLoadingProject] = useState(false);
     const [regenerating, setRegenerating] = useState(false);
 
     const documentId = params.documentId as string;
@@ -185,21 +185,20 @@ export default function DocumentDetailPage() {
                 setProject(null);
                 return;
             }
-            setLoadingProject(true);
+            const companyId = summary?.activeMembership?.company_id;
+            if (!companyId) return;
             try {
-                const projects = await getProjects(summary!.activeCompanyId!);
+                const projects = await getProjects(companyId);
                 const foundProject = projects.find(p => p.id === document.project_id);
                 setProject(foundProject || null);
             } catch (err) {
                 console.error("Failed to load project:", err);
-            } finally {
-                setLoadingProject(false);
             }
         }
-        if (document && summary?.activeCompanyId) {
+        if (document && summary?.activeMembership?.company_id) {
             fetchProject();
         }
-    }, [document?.project_id, summary?.activeCompanyId]);
+    }, [document?.project_id, summary?.activeMembership?.company_id]);
 
     async function handleExport(format: "pdf" | "docx") {
         if (!document) return;
