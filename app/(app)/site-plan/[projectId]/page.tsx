@@ -16,7 +16,8 @@ import { computeWorkProgress } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
 import { useTaskTree } from "@/hooks/useTaskTree";
 import { useTaskFiltering } from "@/hooks/useTaskFiltering";
-import { TaskRow, TaskListHeader, MobileTaskCard } from "../components/TaskRow";
+import { TaskRow, MobileTaskCard } from "../components/TaskRow";
+import { TaskListHeader } from "../components/TaskListHeader";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
 import { InlineTaskInput } from "../components/InlineTaskInput";
@@ -157,6 +158,10 @@ interface VirtualRowData {
   inlineParentId: string | null;
   inlineType: TaskType;
   highlightedTaskIds: Set<string>;
+  selectedRowIds: Set<string>;
+  onRowNumberClick: (node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => void;
+  onUpdateTaskInline: (taskId: string, updates: Partial<SitePlanTaskNode>) => void;
+  columnWidths: Record<string, number>;
 }
 
 /** Rendered for every visible row in the FixedSizeList. Defined outside the page component so
@@ -184,6 +189,10 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
     inlineParentId,
     inlineType,
     highlightedTaskIds,
+    selectedRowIds,
+    onRowNumberClick,
+    onUpdateTaskInline,
+    columnWidths,
   } = data;
 
   // Placeholder row inserted when isUsingPlaceholder is true
@@ -249,6 +258,10 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
             isHighlighted={highlightedTaskIds.has(node.id)}
             onAddBelow={onRowAddBelow}
             onAddSubtask={onRowAddSubtask}
+            selectedRowIds={selectedRowIds}
+            onRowNumberClick={onRowNumberClick}
+            onUpdateTask={onUpdateTaskInline}
+            columnWidths={columnWidths}
           />
         </div>
       )}
@@ -406,6 +419,19 @@ function ProjectDetailInner() {
 
   // Column visibility state
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    name: 300,
+    dur: 90,
+    start: 110,
+    finish: 110,
+    pred: 120,
+    pct: 90,
+    status: 120,
+    delays: 80,
+    assigned: 140,
+  });
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [lastSelectedRowNumber, setLastSelectedRowNumber] = useState<number | null>(null);
   const handleToggleColumn = useCallback((col: string) => {
     setHiddenColumns((prev) => {
       const next = new Set(prev);
@@ -413,6 +439,9 @@ function ProjectDetailInner() {
       else next.add(col);
       return next;
     });
+  }, []);
+  const handleColumnResize = useCallback((col: string, width: number) => {
+    setColumnWidths((prev) => ({ ...prev, [col]: width }));
   }, []);
 
   // Inline input state (mobile only after refactor)
@@ -501,6 +530,32 @@ function ProjectDetailInner() {
       setInlineInput(null);
     }
   }, [editMode, handleCheck, checkedIds, setSelectedTask]);
+
+  const handleUpdateTaskInline = useCallback((taskId: string, updates: Partial<SitePlanTaskNode>) => {
+    updateTask.mutate({ id: taskId, projectId, updates });
+  }, [updateTask, projectId]);
+
+  const handleRowNumberClick = useCallback((node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    setSelectedTask(node);
+    setInlineInput(null);
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (e.shiftKey && lastSelectedRowNumber !== null) {
+        next.clear();
+        const start = Math.min(lastSelectedRowNumber, rowNumber);
+        const end = Math.max(lastSelectedRowNumber, rowNumber);
+        visibleRows.slice(start - 1, end).forEach((r) => next.add(r.id));
+      } else if (e.metaKey || e.ctrlKey) {
+        if (next.has(node.id)) next.delete(node.id);
+        else next.add(node.id);
+      } else {
+        next.clear();
+        next.add(node.id);
+      }
+      return next;
+    });
+    setLastSelectedRowNumber(rowNumber);
+  }, [lastSelectedRowNumber, visibleRows, setSelectedTask]);
 
   /** Add a new row at the same indent level as the currently selected row, directly below it.
    *  On desktop this opens CreateTaskSheet; mobile uses InlineTaskInput via startInlineAdd. */
@@ -861,14 +916,34 @@ function ProjectDetailInner() {
     inlineParentId: inlineInput?.parentId ?? null,
     inlineType: inlineInput?.type ?? "task",
     highlightedTaskIds,
+    selectedRowIds,
+    onRowNumberClick: handleRowNumberClick,
+    onUpdateTaskInline: handleUpdateTaskInline,
+    columnWidths,
   }), [
     listItems, allExpanded, expandedIds, toggleExpand, handleSelect,
     setDelayTask, delayCountMap, phaseIndexMap, editMode, checkedIds,
     handleCheck, hiddenColumns, openCreateSheet, handleRowAddBelow,
     handleRowAddSubtask, projectId, inlineInput, highlightedTaskIds,
+    selectedRowIds, handleRowNumberClick, handleUpdateTaskInline, columnWidths,
   ]);
 
   /** Track desktop list container height for FixedSizeList */
+  useEffect(() => {
+    const raw = localStorage.getItem("siteplan-col-widths");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      setColumnWidths((prev) => ({ ...prev, ...parsed }));
+    } catch {
+      // Ignore invalid local storage values.
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("siteplan-col-widths", JSON.stringify(columnWidths));
+  }, [columnWidths]);
+
   useEffect(() => {
     const el = desktopContainerRef.current;
     if (!el) return;
@@ -1050,6 +1125,8 @@ function ProjectDetailInner() {
                 <TaskListHeader
                   hiddenColumns={hiddenColumns}
                   onToggleColumn={handleToggleColumn}
+                  columnWidths={columnWidths}
+                  onColumnResize={handleColumnResize}
                 />
 
                 {/* Sticky phase context banner — shown when a phase header has scrolled off-screen */}
@@ -1084,6 +1161,10 @@ function ProjectDetailInner() {
                               isDragging={true}
                               phaseIndex={phaseIndexMap.get(srcNode.id) ?? 0}
                               hiddenColumns={hiddenColumns}
+                              selectedRowIds={selectedRowIds}
+                              onRowNumberClick={handleRowNumberClick}
+                              onUpdateTask={handleUpdateTaskInline}
+                              columnWidths={columnWidths}
                             />
                           )}
                         </div>
@@ -1111,10 +1192,10 @@ function ProjectDetailInner() {
                 {/* Desktop: "Add Phase" opens CreateTaskSheet */}
                 {visibleRows.length > 0 && (
                   <button
-                    onClick={() => openCreateSheet("phase", null, tasks?.length ?? 0)}
+                    onClick={handleAddRow}
                     className="shrink-0 w-full text-left pl-10 py-2.5 text-xs text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 border-b border-slate-100 min-h-[36px]"
                   >
-                    + Add Phase
+                    + Add Row
                   </button>
                 )}
               </div>

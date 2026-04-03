@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Columns, Plus } from "lucide-react";
+import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Plus, Folder } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
 import type { DraggableProvided } from "@hello-pangea/dnd";
@@ -51,6 +51,10 @@ interface TaskRowProps {
   onAddSubtask?: (node: SitePlanTaskNode) => void;
   /** Whether this row is currently selected */
   isSelected?: boolean;
+  selectedRowIds?: Set<string>;
+  onRowNumberClick?: (node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<SitePlanTaskNode>) => void;
+  columnWidths?: Record<string, number>;
 }
 
 // Distinctive backgrounds per type (phase bg is computed dynamically from phaseIndex)
@@ -175,6 +179,10 @@ export function TaskRow({
   onAddBelow,
   onAddSubtask,
   isSelected = false,
+  selectedRowIds = new Set(),
+  onRowNumberClick,
+  onUpdateTask,
+  columnWidths,
 }: TaskRowProps) {
   const hasChildren = node.children.length > 0;
   const isPhase = node.type === "phase";
@@ -190,9 +198,10 @@ export function TaskRow({
   const displayStatus = phaseStats?.status ?? node.status;
 
   const phaseBg = PHASE_BG_COLORS[phaseIndex % PHASE_BG_COLORS.length];
-  const bg = isDragging ? "bg-blue-50" : isHighlighted ? "bg-yellow-100" : isPhase ? phaseBg : rowBg[node.type] ?? "bg-white";
+  const isRowSelected = selectedRowIds.has(node.id);
+  const bg = isDragging ? "bg-blue-50" : isHighlighted ? "bg-yellow-100" : isRowSelected ? "bg-blue-50" : isPhase ? phaseBg : rowBg[node.type] ?? "bg-white";
   const text = isDragging ? "text-slate-900" : isHighlighted ? "text-slate-900" : rowText[node.type];
-  const borderColor = isPhase ? "border-white/10" : "border-slate-200";
+  const borderColor = isPhase ? "border-white/10" : isRowSelected ? "border-blue-100" : "border-slate-200";
   const dateCls = isPhase
     ? "text-white/70 tabular-nums"
     : "text-slate-500 tabular-nums";
@@ -208,6 +217,62 @@ export function TaskRow({
     : "";
 
   const show = (col: string) => !hiddenColumns.has(col);
+  const colW = (col: string, fallback: number) => columnWidths?.[col] ?? fallback;
+  const editableOrder = ["name", "start", "finish", "dur", "pct", "assigned"] as const;
+  const [activeCell, setActiveCell] = useState<(typeof editableOrder)[number] | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const canEdit = (col: (typeof editableOrder)[number]) => {
+    if (isPhase && (col === "start" || col === "finish" || col === "dur" || col === "pct")) return false;
+    return true;
+  };
+  const getCellValue = (col: (typeof editableOrder)[number]) => {
+    if (col === "name") return node.name;
+    if (col === "start") return displayStartDate;
+    if (col === "finish") return displayEndDate;
+    if (col === "dur") return String(node.duration_days);
+    if (col === "pct") return String(displayProgress);
+    return node.assigned_to || node.responsible || "";
+  };
+  const startEdit = (col: (typeof editableOrder)[number]) => {
+    if (!canEdit(col)) return;
+    setActiveCell(col);
+    setEditValue(getCellValue(col));
+  };
+  const moveCell = (col: (typeof editableOrder)[number], reverse = false) => {
+    const idx = editableOrder.indexOf(col);
+    const nextIdx = reverse ? idx - 1 : idx + 1;
+    const next = editableOrder[nextIdx];
+    if (next && canEdit(next)) startEdit(next);
+    else setActiveCell(null);
+  };
+  const commitEdit = (col: (typeof editableOrder)[number], moveNext = false, reverse = false) => {
+    if (!onUpdateTask) {
+      setActiveCell(null);
+      return;
+    }
+    const trimmed = editValue.trim();
+    if (col === "name" && trimmed && trimmed !== node.name) onUpdateTask(node.id, { name: trimmed });
+    if (col === "start" && trimmed && trimmed !== node.start_date) onUpdateTask(node.id, { start_date: trimmed });
+    if (col === "finish" && trimmed && trimmed !== node.end_date) onUpdateTask(node.id, { end_date: trimmed });
+    if (col === "dur") {
+      const days = Number(trimmed);
+      if (!Number.isNaN(days) && days > 0 && days !== node.duration_days) {
+        const start = new Date(node.start_date);
+        const end = new Date(start);
+        end.setDate(start.getDate() + days - 1);
+        onUpdateTask(node.id, { end_date: end.toISOString().slice(0, 10) });
+      }
+    }
+    if (col === "pct") {
+      const pct = Number(trimmed);
+      if (!Number.isNaN(pct) && pct >= 0 && pct <= 100 && pct !== node.progress) onUpdateTask(node.id, { progress: Math.round(pct) });
+    }
+    if (col === "assigned" && trimmed !== (node.assigned_to || node.responsible || "")) onUpdateTask(node.id, { assigned_to: trimmed || null });
+
+    if (moveNext) moveCell(col, reverse);
+    else setActiveCell(null);
+  };
 
   // Row-level add menu (desktop only)
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -236,7 +301,7 @@ export function TaskRow({
 
   return (
     <div
-      className={`group hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${accentBorder} ${stickyStyle} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
+      className={`group hidden md:flex items-stretch border-b cursor-pointer transition-colors min-h-[40px] ${bg} ${borderColor} ${accentBorder} ${stickyStyle} ${isRowSelected && !isPhase ? "border-l-2 border-l-blue-500" : ""} ${isDragging ? "shadow-lg ring-2 ring-blue-400 z-50" : ""} ${!isPhase && !isDragging ? "hover:bg-slate-100" : ""}`}
       onClick={(e) => {
         if (editMode && e.shiftKey) {
           onCheck?.(node, !isChecked);
@@ -292,16 +357,27 @@ export function TaskRow({
       )}
 
       {/* WBS code */}
-      <div className={`w-8 shrink-0 text-center text-[10px] tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-400" : "border-slate-200 text-slate-400"}`}>
-        {node.wbs_code || rowNumber}
-      </div>
+      <button
+        className={`sticky left-0 z-[4] w-10 shrink-0 text-center text-[10px] tabular-nums border-r flex items-center justify-center ${isPhase ? "border-slate-700 text-slate-300 bg-slate-800" : isRowSelected ? "border-blue-200 text-blue-700 bg-blue-50" : "border-slate-200 text-slate-400 bg-white"}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRowNumberClick?.(node, rowNumber, e);
+        }}
+      >
+        {rowNumber}
+      </button>
 
       {/* Task Name — nesting guides + expand chevron */}
-      <div className={`flex items-start min-w-[80px] flex-1 border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+      <div
+        className={`flex items-start min-w-[120px] border-r px-1 py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}
+        style={{ width: colW("name", 300) }}
+        onClick={(e) => { e.stopPropagation(); startEdit("name"); }}
+      >
         {/* Vertical nesting guide lines */}
         <NestingGuides depth={indentLevel} />
 
-        {/* Expand/collapse or milestone diamond */}
+        <div style={{ width: `${indentLevel * 20}px` }} className="shrink-0" />
+        {/* Expand/collapse or milestone/task type icon */}
         {node.type === "milestone" ? (
           <span
             className="w-5 shrink-0 mr-1 flex items-center justify-center text-amber-500 text-xs leading-none"
@@ -309,6 +385,8 @@ export function TaskRow({
           >
             ◆
           </span>
+        ) : isPhase ? (
+          <Folder className={`h-3.5 w-3.5 shrink-0 mr-1 mt-0.5 ${isPhase ? "text-white/80" : "text-slate-500"}`} />
         ) : hasChildren ? (
           <button
             onClick={(e) => {
@@ -324,22 +402,40 @@ export function TaskRow({
               <ChevronRight className={`h-3.5 w-3.5 ${isPhase ? "text-white/70" : "text-slate-500"}`} />
             )}
           </button>
+        ) : node.type === "task" ? (
+          <span className={`w-5 shrink-0 mr-1 text-xs ${isPhase ? "text-white/80" : "text-slate-500"}`}>-</span>
         ) : (
           <span className="w-5 shrink-0 mr-1" />
         )}
 
-        {/* Name — wraps to multiple lines */}
-        <span
-          className={`break-words min-w-0 ${text} ${
-            isPhase
-              ? "font-bold text-sm tracking-wide uppercase"
-              : isSubtask
-                ? "text-xs font-light text-slate-400"
-                : "text-xs font-medium"
-          }`}
-        >
-          {node.name}
-        </span>
+        {/* Name — inline editable */}
+        {activeCell === "name" ? (
+          <input
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={() => commitEdit("name")}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitEdit("name", true); }
+              else if (e.key === "Tab") { e.preventDefault(); commitEdit("name", true, e.shiftKey); }
+              else if (e.key === "Escape") { e.preventDefault(); setActiveCell(null); }
+            }}
+            className="w-full min-w-0 text-xs border border-blue-300 rounded px-1 py-0.5"
+          />
+        ) : (
+          <span
+            className={`break-words min-w-0 ${text} ${
+              isPhase
+                ? "font-bold text-sm tracking-wide uppercase"
+                : isSubtask
+                  ? "text-xs font-light text-slate-400"
+                  : "text-xs font-medium"
+            }`}
+          >
+            {node.name}
+          </span>
+        )}
 
         {/* Phase inline mini progress bar */}
         {isPhase && (
@@ -410,50 +506,54 @@ export function TaskRow({
 
       {/* Duration */}
       {show("dur") && (
-        <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+        <div
+          className={`shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}
+          style={{ width: colW("dur", 90) }}
+          onClick={(e) => { e.stopPropagation(); startEdit("dur"); }}
+        >
+          {activeCell === "dur" ? <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => commitEdit("dur")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit("dur", true); } else if (e.key === "Tab") { e.preventDefault(); commitEdit("dur", true, e.shiftKey); } else if (e.key === "Escape") { e.preventDefault(); setActiveCell(null); } }} className="w-[64px] text-xs border border-blue-300 rounded px-1 py-0.5 text-center" /> : (
           <span className={isPhase ? "font-bold text-white" : isSubtask ? "text-slate-400" : "text-slate-600"}>
             {node.duration_days}d
           </span>
+          )}
         </div>
       )}
 
       {/* Start Date */}
       {show("start") && (
-        <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-          <span className={dateCls}>
-            {formatDate(displayStartDate)}
-          </span>
+        <div className={`shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`} style={{ width: colW("start", 110) }} onClick={(e) => { e.stopPropagation(); startEdit("start"); }}>
+          {activeCell === "start" ? <input type="date" autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => commitEdit("start")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit("start", true); } else if (e.key === "Tab") { e.preventDefault(); commitEdit("start", true, e.shiftKey); } else if (e.key === "Escape") { e.preventDefault(); setActiveCell(null); } }} className="w-[108px] text-xs border border-blue-300 rounded px-1 py-0.5" /> : <span className={dateCls}>{formatDate(displayStartDate)}</span>}
         </div>
       )}
 
       {/* End Date */}
       {show("finish") && (
-        <div className={`w-20 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
-          <span className={isPhase ? "text-white/80 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>
-            {formatDate(displayEndDate)}
-          </span>
+        <div className={`shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`} style={{ width: colW("finish", 110) }} onClick={(e) => { e.stopPropagation(); startEdit("finish"); }}>
+          {activeCell === "finish" ? <input type="date" autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => commitEdit("finish")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit("finish", true); } else if (e.key === "Tab") { e.preventDefault(); commitEdit("finish", true, e.shiftKey); } else if (e.key === "Escape") { e.preventDefault(); setActiveCell(null); } }} className="w-[108px] text-xs border border-blue-300 rounded px-1 py-0.5" /> : <span className={isPhase ? "text-white/80 font-semibold tabular-nums" : node.status === "delayed" ? "text-red-600 tabular-nums" : dateCls}>{formatDate(displayEndDate)}</span>}
         </div>
       )}
 
       {/* Predecessors — desktop only */}
       {show("pred") && (
-        <div className={`hidden lg:flex w-24 shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-white/10 text-white/60" : "border-slate-200 text-slate-500"}`}>
+        <div className={`hidden lg:flex shrink-0 text-center text-xs border-r py-1.5 items-center justify-center px-1 ${isPhase ? "border-white/10 text-white/60" : "border-slate-200 text-slate-500"}`} style={{ width: colW("pred", 120) }}>
           <span className="break-words min-w-0">{node.predecessors || ""}</span>
         </div>
       )}
 
       {/* % Complete */}
       {show("pct") && (
-        <div className={`w-16 shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+        <div className={`shrink-0 text-center text-xs border-r py-1.5 flex items-center justify-center ${isPhase ? "border-slate-700" : "border-slate-200"}`} style={{ width: colW("pct", 90) }} onClick={(e) => { e.stopPropagation(); startEdit("pct"); }}>
+          {activeCell === "pct" ? <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => commitEdit("pct")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit("pct", true); } else if (e.key === "Tab") { e.preventDefault(); commitEdit("pct", true, e.shiftKey); } else if (e.key === "Escape") { e.preventDefault(); setActiveCell(null); } }} className="w-[64px] text-xs border border-blue-300 rounded px-1 py-0.5 text-center" /> : (
           <span className={isPhase ? "font-bold text-white tabular-nums" : node.progress >= 100 ? "text-green-600 font-semibold tabular-nums" : "text-slate-600 tabular-nums"}>
             {displayProgress}%
           </span>
+          )}
         </div>
       )}
 
       {/* Status badge — visible on lg+ as a pill, dot on mobile */}
       {show("status") && (
-        <div className={`hidden lg:flex w-24 shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+        <div className={`hidden lg:flex shrink-0 items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`} style={{ width: colW("status", 120) }}>
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-tight ${isPhase ? statusBadgePhase[displayStatus] : statusBadgeCls[node.status]}`}
           >
@@ -465,7 +565,7 @@ export function TaskRow({
 
       {/* Delay badge + log action */}
       {show("delays") && (
-        <div className={`w-12 shrink-0 flex items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`}>
+        <div className={`shrink-0 flex items-center justify-center border-r py-1.5 ${isPhase ? "border-slate-700" : "border-slate-200"}`} style={{ width: colW("delays", 80) }}>
           {delayCount > 0 ? (
             <button
               onClick={(e) => {
@@ -495,216 +595,10 @@ export function TaskRow({
 
       {/* Assigned To — desktop only */}
       {show("assigned") && (
-        <div className={`hidden lg:flex w-24 shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-white/60" : "text-slate-500"}`}>
-          <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>
+        <div className={`hidden lg:flex shrink-0 text-xs py-1.5 items-center justify-center px-1 ${isPhase ? "text-white/60" : "text-slate-500"}`} style={{ width: colW("assigned", 140) }} onClick={(e) => { e.stopPropagation(); startEdit("assigned"); }}>
+          {activeCell === "assigned" ? <input autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)} onBlur={() => commitEdit("assigned")} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitEdit("assigned", true); } else if (e.key === "Tab") { e.preventDefault(); commitEdit("assigned", true, e.shiftKey); } else if (e.key === "Escape") { e.preventDefault(); setActiveCell(null); } }} className="w-full text-xs border border-blue-300 rounded px-1 py-0.5" /> : <span className="break-words min-w-0 text-center">{node.assigned_to || node.responsible || ""}</span>}
         </div>
       )}
-    </div>
-  );
-}
-
-// ─── Column visibility context menu ─────────────────────────
-
-function ColumnMenu({
-  hiddenColumns,
-  onToggleColumn,
-  onClose,
-}: {
-  hiddenColumns: Set<string>;
-  onToggleColumn: (col: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-slate-200 rounded-lg shadow-lg p-2 min-w-[180px]">
-        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-2 py-1 mb-1">
-          Show / Hide Columns
-        </div>
-        {COLUMN_DEFS.map((col) => (
-          <button
-            key={col.id}
-            onClick={() => onToggleColumn(col.id)}
-            className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded"
-          >
-            <span
-              className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                !hiddenColumns.has(col.id)
-                  ? "bg-blue-600 border-blue-600 text-white"
-                  : "border-slate-300"
-              }`}
-            >
-              {!hiddenColumns.has(col.id) && (
-                <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
-                  <path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </span>
-            {col.label}
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
-/** Column header matching MS Project spreadsheet style */
-export function TaskListHeader({
-  hiddenColumns = new Set(),
-  onToggleColumn,
-}: {
-  hiddenColumns?: Set<string>;
-  onToggleColumn?: (col: string) => void;
-}) {
-  const [showMenu, setShowMenu] = useState(false);
-
-  const show = (col: string) => !hiddenColumns.has(col);
-
-  // Click a column header to hide it; show tooltip hint
-  const handleColClick = (col: string) => {
-    onToggleColumn?.(col);
-  };
-
-  const handleContextMenu = (e: React.MouseEvent, col: string) => {
-    e.preventDefault();
-    // Right-click opens the full column menu
-    setShowMenu(true);
-    void col;
-  };
-
-  const colHeaderCls = "shrink-0 text-center py-1.5 border-r border-slate-300 cursor-pointer select-none hover:bg-slate-200 transition-colors group relative";
-
-  return (
-    <div
-      className="hidden md:flex items-center border-b-2 border-slate-300 bg-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider min-h-[32px] sticky top-0 z-10"
-      onContextMenu={(e) => { e.preventDefault(); setShowMenu(true); }}
-    >
-      {/* Drag handle spacer */}
-      <div className="w-7 shrink-0" />
-
-      {/* Row # */}
-      <div className="w-8 shrink-0 text-center border-r border-slate-300 py-1.5">
-        #
-      </div>
-
-      {/* Task Name — not hideable */}
-      <div className="flex-1 min-w-[80px] px-2 py-1.5 border-r border-slate-300">
-        Task Name
-      </div>
-
-      {/* Duration */}
-      {show("dur") && (
-        <div
-          className={`w-16 ${colHeaderCls}`}
-          onClick={() => handleColClick("dur")}
-          onContextMenu={(e) => handleContextMenu(e, "dur")}
-          title="Click to hide"
-        >
-          Dur.
-        </div>
-      )}
-
-      {/* Start Date */}
-      {show("start") && (
-        <div
-          className={`w-20 ${colHeaderCls}`}
-          onClick={() => handleColClick("start")}
-          onContextMenu={(e) => handleContextMenu(e, "start")}
-          title="Click to hide"
-        >
-          Start
-        </div>
-      )}
-
-      {/* End Date */}
-      {show("finish") && (
-        <div
-          className={`w-20 ${colHeaderCls}`}
-          onClick={() => handleColClick("finish")}
-          onContextMenu={(e) => handleContextMenu(e, "finish")}
-          title="Click to hide"
-        >
-          Finish
-        </div>
-      )}
-
-      {/* Predecessors */}
-      {show("pred") && (
-        <div
-          className={`hidden lg:block w-24 ${colHeaderCls}`}
-          onClick={() => handleColClick("pred")}
-          onContextMenu={(e) => handleContextMenu(e, "pred")}
-          title="Click to hide"
-        >
-          Pred.
-        </div>
-      )}
-
-      {/* % Complete */}
-      {show("pct") && (
-        <div
-          className={`w-16 ${colHeaderCls}`}
-          onClick={() => handleColClick("pct")}
-          onContextMenu={(e) => handleContextMenu(e, "pct")}
-          title="Click to hide"
-        >
-          %
-        </div>
-      )}
-
-      {/* Status */}
-      {show("status") && (
-        <div
-          className={`hidden lg:block w-24 ${colHeaderCls}`}
-          onClick={() => handleColClick("status")}
-          onContextMenu={(e) => handleContextMenu(e, "status")}
-          title="Click to hide"
-        >
-          Status
-        </div>
-      )}
-
-      {/* Delays */}
-      {show("delays") && (
-        <div
-          className={`w-12 ${colHeaderCls}`}
-          onClick={() => handleColClick("delays")}
-          onContextMenu={(e) => handleContextMenu(e, "delays")}
-          title="Click to hide"
-        >
-          Delays
-        </div>
-      )}
-
-      {/* Assigned To */}
-      {show("assigned") && (
-        <div
-          className={`hidden lg:block w-24 ${colHeaderCls} border-r-0`}
-          onClick={() => handleColClick("assigned")}
-          onContextMenu={(e) => handleContextMenu(e, "assigned")}
-          title="Click to hide"
-        >
-          Assigned
-        </div>
-      )}
-
-      {/* Column visibility toggle button */}
-      <div className="relative shrink-0 ml-auto">
-        <button
-          onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}
-          title="Show/hide columns"
-          className="p-1.5 hover:bg-slate-200 rounded flex items-center justify-center text-slate-400 hover:text-slate-600"
-        >
-          <Columns className="h-3.5 w-3.5" />
-        </button>
-        {showMenu && (
-          <ColumnMenu
-            hiddenColumns={hiddenColumns}
-            onToggleColumn={(col) => { onToggleColumn?.(col); }}
-            onClose={() => setShowMenu(false)}
-          />
-        )}
-      </div>
     </div>
   );
 }
