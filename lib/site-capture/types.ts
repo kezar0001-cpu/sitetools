@@ -294,3 +294,160 @@ export const DIARY_STATUS_BADGE: Record<DiaryStatus, string> = {
   completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
   archived: "bg-slate-100 text-slate-600 border-slate-300",
 };
+
+// ── Activity Form Config System ──
+
+export type SectionKey =
+  | "weather"
+  | "workCompleted"
+  | "plannedWorks"
+  | "labour"
+  | "equipment"
+  | "issues"
+  | "photos"
+  | "notes"
+  | "plantDetails"
+  | "checklistItems"
+  | "workerDetails"
+  | "hazardAcknowledgement"
+  | "siteRules"
+  | "emergencyProcedures"
+  | "talkDetails"
+  | "attendees"
+  | "incidentDetails"
+  | "witnesses"
+  | "immediateActions"
+  | "inspectionItems"
+  | "defectsFound"
+  | "signOff";
+
+export interface ActivityFormConfig {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // lucide icon name
+  colour: string; // tailwind colour token
+  sections: SectionKey[];
+  requiredSections: SectionKey[];
+  outputDocumentTypes: string[]; // maps to SiteDocs template IDs
+  pdfTemplate: string; // template name for PDF export
+}
+
+export const ACTIVITY_FORM_CONFIGS: Record<FormType, ActivityFormConfig> = {
+  "daily-diary": {
+    id: "daily-diary",
+    name: "Daily Diary",
+    description: "Record daily site activities, weather, labour, equipment and progress",
+    icon: "book-open",
+    colour: "sky",
+    sections: [
+      "weather",
+      "workCompleted",
+      "plannedWorks",
+      "labour",
+      "equipment",
+      "issues",
+      "photos",
+      "notes",
+    ],
+    requiredSections: ["weather", "workCompleted"],
+    outputDocumentTypes: ["site-diary-pdf", "site-diary-csv"],
+    pdfTemplate: "daily-diary-standard",
+  },
+  "prestart-checklist": {
+    id: "prestart-checklist",
+    name: "Prestart Checklist",
+    description: "Safety checks and hazard assessment before starting work",
+    icon: "clipboard-check",
+    colour: "emerald",
+    sections: [
+      "checklistItems",
+      "hazardAcknowledgement",
+      "plantDetails",
+      "workerDetails",
+      "photos",
+      "signOff",
+    ],
+    requiredSections: ["checklistItems", "signOff"],
+    outputDocumentTypes: ["prestart-pdf", "prestart-csv"],
+    pdfTemplate: "prestart-checklist-standard",
+  },
+  "site-induction": {
+    id: "site-induction",
+    name: "Site Induction",
+    description: "Worker onboarding with safety briefings and site rules acknowledgment",
+    icon: "users",
+    colour: "violet",
+    sections: [
+      "workerDetails",
+      "siteRules",
+      "emergencyProcedures",
+      "hazardAcknowledgement",
+      "photos",
+      "signOff",
+    ],
+    requiredSections: ["workerDetails", "siteRules", "signOff"],
+    outputDocumentTypes: ["induction-pdf", "induction-csv"],
+    pdfTemplate: "site-induction-standard",
+  },
+  "toolbox-talk": {
+    id: "toolbox-talk",
+    name: "Toolbox Talk",
+    description: "Team safety meetings and topic briefings with attendance tracking",
+    icon: "message-square",
+    colour: "amber",
+    sections: [
+      "talkDetails",
+      "attendees",
+      "hazardAcknowledgement",
+      "photos",
+      "signOff",
+    ],
+    requiredSections: ["talkDetails", "attendees"],
+    outputDocumentTypes: ["toolbox-talk-pdf", "toolbox-talk-csv"],
+    pdfTemplate: "toolbox-talk-standard",
+  },
+  "incident-report": {
+    id: "incident-report",
+    name: "Incident Report",
+    description: "Report and document workplace incidents, near-misses, or injuries",
+    icon: "alert-triangle",
+    colour: "red",
+    sections: [
+      "incidentDetails",
+      "witnesses",
+      "immediateActions",
+      "photos",
+      "notes",
+      "signOff",
+    ],
+    requiredSections: ["incidentDetails"],
+    outputDocumentTypes: ["incident-pdf", "incident-csv"],
+    pdfTemplate: "incident-report-standard",
+  },
+  "site-inspection": {
+    id: "site-inspection",
+    name: "Site Inspection",
+    description: "Quality and safety inspections with checklists and defect tracking",
+    icon: "search-check",
+    colour: "cyan",
+    sections: [
+      "inspectionItems",
+      "defectsFound",
+      "photos",
+      "notes",
+      "signOff",
+    ],
+    requiredSections: ["inspectionItems"],
+    outputDocumentTypes: ["inspection-pdf", "inspection-csv"],
+    pdfTemplate: "site-inspection-standard",
+  },
+};
+
+export function getAllFormTypes(): FormType[] {
+  return Object.keys(ACTIVITY_FORM_CONFIGS) as FormType[];
+}
+
+export function getFormConfig(id: string): ActivityFormConfig | undefined {
+  return ACTIVITY_FORM_CONFIGS[id as FormType];
+}
