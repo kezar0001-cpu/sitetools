@@ -1,46 +1,41 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { ListTodo, BarChart3 } from "lucide-react";
+import { CheckSquare, ListTodo, BarChart3 } from "lucide-react";
 
 interface SitePlanBottomNavProps {
-  projectId: string;
+  activeTab: "today" | "all" | "gantt";
+  onTabChange: (tab: "today" | "all" | "gantt") => void;
 }
 
-export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  // "timeline" view param means the Gantt/timeline tab is active
-  const isTimeline = searchParams.get("view") === "timeline";
-  // Treat /gantt path (legacy redirect) or view=timeline as gantt tab active
-  const activeTab = isTimeline || pathname.includes("/gantt") ? "gantt" : "plan";
-
+export function SitePlanBottomNav({ activeTab, onTabChange }: SitePlanBottomNavProps) {
   const tabs = [
     {
-      id: "plan",
-      label: "Plan",
-      icon: ListTodo,
-      href: `/site-plan/${projectId}`,
+      id: "today" as const,
+      label: "Today",
+      icon: CheckSquare,
     },
     {
-      id: "gantt",
+      id: "all" as const,
+      label: "All Tasks",
+      icon: ListTodo,
+    },
+    {
+      id: "gantt" as const,
       label: "Gantt",
       icon: BarChart3,
-      href: `/site-plan/${projectId}?view=timeline`,
     },
   ];
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 md:hidden safe-area-pb">
       <div className="flex items-center justify-around h-16">
-        {tabs.map(({ id, label, icon: Icon, href }) => {
+        {tabs.map(({ id, label, icon: Icon }) => {
           const active = id === activeTab;
           return (
-            <Link
+            <button
               key={id}
-              href={href}
+              type="button"
+              onClick={() => onTabChange(id)}
               className={`flex flex-col items-center justify-center flex-1 h-full min-w-[44px] gap-0.5 transition-colors ${
                 active
                   ? "text-blue-600"
@@ -54,7 +49,7 @@ export function SitePlanBottomNav({ projectId }: SitePlanBottomNavProps) {
               {active && (
                 <span className="absolute bottom-1 w-1 h-1 rounded-full bg-blue-600" />
               )}
-            </Link>
+            </button>
           );
         })}
       </div>
