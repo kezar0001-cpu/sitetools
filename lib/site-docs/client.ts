@@ -163,7 +163,7 @@ export async function exportDocument(documentId: string): Promise<void> {
         throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`/api/site-docs/export?id=${encodeURIComponent(documentId)}`, {
+    const response = await fetch(`/api/site-docs/export/${documentId}`, {
         headers: { "Authorization": `Bearer ${token}` },
     });
 

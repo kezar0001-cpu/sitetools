@@ -9,7 +9,7 @@
         "app/api/site-docs/generate/route.ts": {
             "maxDuration": 60
         },
-        "app/api/site-docs/export/route.ts": {
+        "app/api/site-docs/export/[documentId]/route.ts": {
             "maxDuration": 30
         }
     },

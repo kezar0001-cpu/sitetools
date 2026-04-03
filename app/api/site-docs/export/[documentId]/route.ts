@@ -4,8 +4,6 @@ import { jsPDF } from "jspdf";
 import type { DocumentType, DocumentStatus } from "@/lib/site-docs/types";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,21 +24,15 @@ const DOC_TYPE_LABELS: Record<DocumentType, string> = {
     "site-instruction": "SITE INSTRUCTION",
 };
 
-export async function GET(request: NextRequest) {
+export async function GET(
+    req: NextRequest,
+    { params }: { params: { documentId: string } }
+) {
     try {
-        // Get documentId from query parameter
-        const { searchParams } = new URL(request.url);
-        const documentId = searchParams.get("id");
-
-        if (!documentId) {
-            return NextResponse.json(
-                { error: "Document ID is required" },
-                { status: 400 }
-            );
-        }
+        const { documentId } = params;
 
         // Verify user is authenticated
-        const authHeader = request.headers.get("authorization");
+        const authHeader = req.headers.get("authorization");
         if (!authHeader?.startsWith("Bearer ")) {
             return NextResponse.json(
                 { error: "Unauthorized - missing token" },
