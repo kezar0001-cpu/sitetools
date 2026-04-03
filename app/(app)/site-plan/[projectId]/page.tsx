@@ -30,7 +30,7 @@ import { AddTaskFAB } from "../components/AddTaskFAB";
 import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
-import { GanttChart } from "../components/GanttChart";
+import { GanttWrapper } from "../components/GanttWrapper";
 import { MilestoneTimeline } from "../components/MilestoneTimeline";
 import { QueryProvider } from "@/components/QueryProvider";
 import { downloadCsv } from "@/lib/csvExporter";
@@ -397,15 +397,12 @@ function ProjectDetailInner() {
   const [editMode, setEditMode] = useState(false);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const containerRef = useRef<HTMLDivElement>(null);
-  const panesRef = useRef<HTMLDivElement>(null);
-  const [leftPaneWidth, setLeftPaneWidth] = useState(45);
 
   // ─── Virtual list state ──────────────────────────────────────
   const desktopContainerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<FixedSizeList<VirtualRowData>>(null);
   const [desktopListHeight, setDesktopListHeight] = useState(500);
   const [stickyPhaseNode, setStickyPhaseNode] = useState<SitePlanTaskNode | null>(null);
-  const [isResizing, setIsResizing] = useState(false);
 
   // Column visibility state
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
@@ -697,17 +694,6 @@ function ProjectDetailInner() {
     }
   }, []);
 
-  // Gantt date drag handler
-  const handleGanttDateChange = useCallback(
-    (task: SitePlanTask, start_date: string, end_date: string) => {
-      updateTask.mutate(
-        { id: task.id, projectId, updates: { start_date, end_date } },
-        { onSuccess: () => toast.success("Dates updated") }
-      );
-    },
-    [updateTask, projectId]
-  );
-
   // Gantt task click — open edit panel
   const handleGanttTaskClick = useCallback(
     (task: SitePlanTask) => {
@@ -928,41 +914,12 @@ function ProjectDetailInner() {
     [listItems]
   );
 
-  const handleDragResizer = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-    
-    // Create handlers that capture the document's mouse events
-    const handleMouseMove = (mouseEvent: MouseEvent) => {
-      if (!panesRef.current) return;
-      const rect = panesRef.current.getBoundingClientRect();
-      const newWidthPercent = ((mouseEvent.clientX - rect.left) / rect.width) * 100;
-      // Constrain between 20% and 80%
-      setLeftPaneWidth(Math.min(Math.max(newWidthPercent, 20), 80));
-    };
-    
-    const handleMouseUp = () => {
-      setIsResizing(false);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
-    };
-    
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
-  }, []);
-
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
 
   return (
     <>
-      <style>{`
-        @media (min-width: 768px) {
-          .desktop-pane-split-left { width: ${leftPaneWidth}% !important; flex: none !important; }
-          .desktop-pane-split-right { width: ${100 - leftPaneWidth}% !important; flex: none !important; }
-        }
-      `}</style>
       <div
         ref={containerRef}
         className={`relative flex h-full flex-col bg-white ${isFullscreen ? "fixed inset-0 z-[100]" : ""}`}
@@ -1037,15 +994,12 @@ function ProjectDetailInner() {
 
         {/* Panes area: horizontal layout for task list and/or Gantt */}
         <div
-          ref={panesRef}
-          className={`relative flex flex-1 min-h-0 ${isResizing ? "cursor-col-resize" : ""}`}
+          className="relative flex flex-1 min-h-0"
         >
           {/* Left pane: task list (hidden on desktop in gantt-only view) */}
           <div className={`flex flex-col min-w-0 ${
-            desktopView === "gantt" ? "md:hidden" : ""
-          } ${
-            desktopView === "split" ? "desktop-pane-split-left" : "flex-1"
-          } ${isResizing ? "pointer-events-none select-none" : ""}`}>
+            desktopView !== "list" ? "md:hidden" : ""
+          } flex-1`}>
           {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
           <div className="flex-1 flex flex-col min-h-0">
           {isLoading ? (
@@ -1250,43 +1204,16 @@ function ProjectDetailInner() {
           </div>
           </div>
 
-          {/* Splitter (split view, desktop only) */}
-          {desktopView === "split" && (
-            <div
-              className="hidden md:block w-1 hover:w-1.5 bg-slate-200 hover:bg-blue-400 cursor-col-resize active:bg-blue-500 transition-colors z-[60] shrink-0"
-              onMouseDown={handleDragResizer}
-              title="Drag to resize panes"
-            />
-          )}
-
-          {/* Right pane: Gantt chart (gantt or split view, desktop only) */}
+          {/* Desktop synchronized split-pane view */}
           {desktopView !== "list" && (
-            <div
-              className={`hidden md:flex flex-col ${
-                desktopView === "split"
-                  ? "border-l border-slate-200 desktop-pane-split-right"
-                  : "flex-1"
-              } ${isResizing ? "pointer-events-none select-none" : ""}`}
-              style={{ minWidth: 0 }}
-            >
-              <div className="flex-1 overflow-hidden relative">
-                {!isLoading && tasks && tasks.length > 0 ? (
-                  <GanttChart
-                    tasks={tasks}
-                    baselines={baselines?.[0]?.snapshot}
-                    delayLogs={delayLogs}
-                    onTaskClick={handleGanttTaskClick}
-                    onDoubleClick={handleGanttTaskClick}
-                    onDateChange={handleGanttDateChange}
-                    onLogDelay={(t) => setDelayTask(t as SitePlanTaskNode)}
-                    canEdit={!editMode}
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                    {isLoading ? "Loading..." : "Add tasks to see the Gantt chart."}
-                  </div>
-                )}
-              </div>
+            <div className="hidden md:flex flex-1 min-w-0 overflow-hidden">
+              {!isLoading && tasks && tasks.length > 0 ? (
+                <GanttWrapper tasks={tasks} onTaskClick={handleGanttTaskClick} />
+              ) : (
+                <div className="flex items-center justify-center h-full w-full text-slate-400 text-sm">
+                  {isLoading ? "Loading..." : "Add tasks to see the Gantt chart."}
+                </div>
+              )}
             </div>
           )}
 
@@ -1294,11 +1221,7 @@ function ProjectDetailInner() {
           {selectedTask && !editMode && (
             <div
               className="hidden md:block absolute right-0 top-0 bottom-0 z-20"
-              style={
-                desktopView === "split"
-                  ? { width: `${100 - leftPaneWidth}%` }
-                  : { width: "min(400px, 40vw)" }
-              }
+              style={{ width: "min(400px, 40vw)" }}
             >
               <TaskEditPanel
                 task={selectedTask}
