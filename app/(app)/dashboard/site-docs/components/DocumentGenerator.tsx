@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Sparkles, FileText, Download, Save, Loader2, Mic, MicOff } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { generateDocumentContent, createDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
+import { generateDocumentContent, createDocument, exportDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
 import { getTemplatePrompt } from "@/lib/site-docs/templates";
@@ -29,7 +29,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
     const [projectSearch, setProjectSearch] = useState("");
     const [loadingProjects, setLoadingProjects] = useState(false);
-    const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
+    const [exporting, setExporting] = useState<"html" | "pdf" | null>(null);
 
     // Load projects for dropdown
     useEffect(() => {
@@ -119,7 +119,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
         }
     }
 
-    async function handleExport(format: "pdf" | "docx") {
+    async function handleExport(format: "html" | "pdf") {
         if (!document) {
             // Save first if not saved
             await handleSave();
@@ -128,8 +128,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
 
         setExporting(format);
         try {
-            const blob = await exportDocument(document.id, format);
-            downloadBlob(blob, `${document.title}.${format}`);
+            await exportDocument(document.id, format);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
         } finally {
@@ -350,16 +349,16 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                             PDF
                         </button>
                         <button
-                            onClick={() => handleExport("docx")}
+                            onClick={() => handleExport("html")}
                             disabled={exporting !== null}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
-                            {exporting === "docx" ? (
+                            {exporting === "html" ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <FileText className="h-4 w-4" />
                             )}
-                            Word
+                            HTML
                         </button>
                         {!document && (
                             <button
