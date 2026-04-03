@@ -98,10 +98,6 @@ export default function SiteCaptureHubPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, viewMode, filterProjectId, filterSiteId, showArchived]);
 
-  // Check if today's diary already exists (only for daily-diary type)
-  const todayIso = new Date().toISOString().slice(0, 10);
-  const todayDiary = diaries.find((d) => d.date === todayIso && ((d as { form_type?: FormType }).form_type ?? 'daily-diary') === 'daily-diary');
-
   function handleNewEntry(formType: FormType) {
     setSelectedFormType(formType);
     setShowModal(true);
