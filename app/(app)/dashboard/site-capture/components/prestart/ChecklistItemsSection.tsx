@@ -131,7 +131,7 @@ export function ChecklistItemsSection({
     if (items.length === 0) {
       onUpdate(DEFAULT_CHECKLIST, defects);
     }
-  }, []);
+  }, [items.length, onUpdate, defects]);
 
   // Sync with parent
   useEffect(() => {

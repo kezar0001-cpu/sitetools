@@ -2,10 +2,7 @@
 
 import { useRef, useState, useCallback } from "react";
 import { SectionHeader } from "./SectionHeader";
-import type {
-  SiteDiaryFull,
-  InspectionSignOff,
-} from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionSignOff } from "@/lib/site-capture/types";
 import SignatureCanvas from "react-signature-canvas";
 
 interface SiteInspectionSignOffSectionProps {
@@ -26,37 +23,37 @@ export function SiteInspectionSignOffSection({
 }: SiteInspectionSignOffSectionProps) {
   const inspectorRef = useRef<SignatureCanvas>(null);
   const clientRef = useRef<SignatureCanvas>(null);
-  const [inspectorName, setInspectorName] = useState(signOff?.inspector_name || "");
-  const [clientName, setClientName] = useState(signOff?.client_rep_name || "");
-  const [date, setDate] = useState(signOff?.date || new Date().toISOString().split("T")[0]);
+  const [inspectorName, setInspectorName] = useState(signOff?.client_representative_name || "");
+  const [clientName, setClientName] = useState(signOff?.client_representative_name || "");
+  const [date, setDate] = useState(signOff?.sign_off_date || new Date().toISOString().split("T")[0]);
 
   const handleSaveInspector = useCallback(() => {
     if (inspectorRef.current && !inspectorRef.current.isEmpty()) {
       const signatureData = inspectorRef.current.toDataURL();
       onSignOffChange({
-        inspector_name: inspectorName,
         inspector_signature: signatureData,
-        client_rep_name: clientName,
-        client_rep_signature: signOff?.client_rep_signature || null,
-        date,
-        submitted_at: new Date().toISOString(),
+        inspector_signed_at: new Date().toISOString(),
+        client_representative_name: clientName || inspectorName || null,
+        client_representative_signature: signOff?.client_representative_signature || null,
+        client_representative_signed_at: signOff?.client_representative_signed_at || null,
+        sign_off_date: date,
       });
     }
-  }, [inspectorName, clientName, date, signOff?.client_rep_signature, onSignOffChange]);
+  }, [inspectorName, clientName, date, signOff?.client_representative_signature, signOff?.client_representative_signed_at, onSignOffChange]);
 
   const handleSaveClient = useCallback(() => {
     if (clientRef.current && !clientRef.current.isEmpty()) {
       const signatureData = clientRef.current.toDataURL();
       onSignOffChange({
-        inspector_name: inspectorName,
         inspector_signature: signOff?.inspector_signature || null,
-        client_rep_name: clientName,
-        client_rep_signature: signatureData,
-        date,
-        submitted_at: new Date().toISOString(),
+        inspector_signed_at: signOff?.inspector_signed_at || null,
+        client_representative_name: clientName || inspectorName || null,
+        client_representative_signature: signatureData,
+        client_representative_signed_at: new Date().toISOString(),
+        sign_off_date: date,
       });
     }
-  }, [inspectorName, clientName, date, signOff?.inspector_signature, onSignOffChange]);
+  }, [inspectorName, clientName, date, signOff?.inspector_signature, signOff?.inspector_signed_at, onSignOffChange]);
 
   const handleClearInspector = () => {
     inspectorRef.current?.clear();
@@ -66,7 +63,7 @@ export function SiteInspectionSignOffSection({
     clientRef.current?.clear();
   };
 
-  const isComplete = !!(signOff?.inspector_name && signOff?.inspector_signature && signOff?.date);
+  const isComplete = !!(signOff?.inspector_signature && signOff?.sign_off_date);
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
@@ -95,7 +92,7 @@ export function SiteInspectionSignOffSection({
               onChange={(e) => {
                 setDate(e.target.value);
                 if (signOff) {
-                  onSignOffChange({ ...signOff, date: e.target.value });
+                  onSignOffChange({ ...signOff, sign_off_date: e.target.value });
                 }
               }}
               disabled={isLocked}
@@ -177,16 +174,16 @@ export function SiteInspectionSignOffSection({
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 mb-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 disabled:opacity-50"
             />
 
-            {signOff?.client_rep_signature ? (
+            {signOff?.client_representative_signature ? (
               <div className="relative">
                 <img
-                  src={signOff.client_rep_signature}
+                  src={signOff.client_representative_signature}
                   alt="Client signature"
                   className="w-full h-32 bg-white border border-slate-200 rounded-lg object-contain"
                 />
                 {!isLocked && (
                   <button
-                    onClick={() => onSignOffChange({ ...signOff, client_rep_signature: null })}
+                    onClick={() => onSignOffChange({ ...signOff, client_representative_signature: null })}
                     className="absolute top-2 right-2 p-1.5 bg-white rounded-lg shadow text-slate-500 hover:text-red-500 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

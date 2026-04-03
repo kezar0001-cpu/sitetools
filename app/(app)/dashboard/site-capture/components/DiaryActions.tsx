@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SiteDiaryFull } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, ToolboxTalkFull } from "@/lib/site-capture/types";
 import { archiveDiary, restoreDiary, deleteDiary } from "@/lib/site-capture/client";
 
 interface DiaryActionsProps {
-  diary: SiteDiaryFull;
+  diary: SiteDiaryFull | ToolboxTalkFull;
   userRole: string | null;
   userId: string | null;
-  onUpdate: (diary: SiteDiaryFull) => void;
+  onUpdate: (diary: SiteDiaryFull | ToolboxTalkFull) => void;
 }
 
 export function DiaryActions({ diary, userRole, userId, onUpdate }: DiaryActionsProps) {

@@ -2,15 +2,12 @@
 
 import { useState, useCallback } from "react";
 import { SectionHeader } from "./SectionHeader";
-import type {
-  SiteDiaryFull,
-  InspectionItem,
-  InspectionItemResult,
+import {
   INSPECTION_ITEM_RESULTS,
   INSPECTION_RESULT_BADGES,
-  InspectionType,
   DEFAULT_INSPECTION_CHECKLISTS,
 } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionItem, InspectionItemResult, InspectionType } from "@/lib/site-capture/types";
 
 interface InspectionItemsSectionProps {
   diary: SiteDiaryFull;

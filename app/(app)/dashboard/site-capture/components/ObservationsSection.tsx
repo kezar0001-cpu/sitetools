@@ -222,21 +222,21 @@ export function ObservationsSection({
                 <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 space-y-3">
                   <input
                     type="text"
-                    value={newObservation.description}
+                    value={newObservation.description ?? ""}
                     onChange={(e) => setNewObservation({ ...newObservation, description: e.target.value })}
                     placeholder="Observation description *"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
                   <input
                     type="text"
-                    value={newObservation.reference}
+                    value={newObservation.reference ?? ""}
                     onChange={(e) => setNewObservation({ ...newObservation, reference: e.target.value })}
                     placeholder="Reference (optional)"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <select
-                      value={newObservation.priority}
+                      value={newObservation.priority ?? "medium"}
                       onChange={(e) => setNewObservation({ ...newObservation, priority: e.target.value as "low" | "medium" | "high" })}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                     >
@@ -246,7 +246,7 @@ export function ObservationsSection({
                     </select>
                     <input
                       type="date"
-                      value={newObservation.due_date}
+                      value={newObservation.due_date ?? ""}
                       onChange={(e) => setNewObservation({ ...newObservation, due_date: e.target.value })}
                       placeholder="Due date"
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
@@ -254,14 +254,14 @@ export function ObservationsSection({
                   </div>
                   <input
                     type="text"
-                    value={newObservation.action_required}
+                    value={newObservation.action_required ?? ""}
                     onChange={(e) => setNewObservation({ ...newObservation, action_required: e.target.value })}
                     placeholder="Action required"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
                   />
                   <input
                     type="text"
-                    value={newObservation.assigned_to}
+                    value={newObservation.assigned_to ?? ""}
                     onChange={(e) => setNewObservation({ ...newObservation, assigned_to: e.target.value })}
                     placeholder="Assigned to"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"

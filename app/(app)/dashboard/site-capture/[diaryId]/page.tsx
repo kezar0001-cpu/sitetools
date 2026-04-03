@@ -271,7 +271,7 @@ export default function DiaryDetailPage() {
           if (formType === 'site-induction') {
             return (
               <InductionEntryForm
-                diary={diary}
+                diary={diary as SiteDiaryFull}
                 onUpdate={setDiary}
                 userRole={userRole}
                 userId={userId}
@@ -282,7 +282,7 @@ export default function DiaryDetailPage() {
           if (formType === 'incident-report') {
             return (
               <IncidentReportForm
-                diary={diary}
+                diary={diary as SiteDiaryFull}
                 onUpdate={setDiary}
                 userRole={userRole}
                 userId={userId}
@@ -295,7 +295,7 @@ export default function DiaryDetailPage() {
           // Default: Daily Diary form
           return (
             <DiaryEntryForm
-              diary={diary}
+              diary={diary as SiteDiaryFull}
               onUpdate={setDiary}
               userRole={userRole}
               userId={userId}

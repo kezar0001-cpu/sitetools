@@ -198,7 +198,7 @@ export default function DocumentDetailPage() {
         if (document && summary?.activeMembership?.company_id) {
             fetchProject();
         }
-    }, [document?.project_id, summary?.activeMembership?.company_id]);
+    }, [document, document?.project_id, summary?.activeMembership?.company_id]);
 
     async function handleExport() {
         if (!document) return;
