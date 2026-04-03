@@ -2,13 +2,11 @@
 
 import { useState } from "react";
 import { SectionHeader } from "./SectionHeader";
-import type {
-  SiteDiaryFull,
-  InspectionDefect,
-  InspectionSeverity,
+import {
   INSPECTION_SEVERITIES,
   INSPECTION_SEVERITY_BADGES,
 } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionDefect, InspectionSeverity } from "@/lib/site-capture/types";
 
 interface DefectsFoundSectionProps {
   diary: SiteDiaryFull;
@@ -225,21 +223,21 @@ export function DefectsFoundSection({
                 <div className="p-3 rounded-xl border border-red-200 bg-red-50 space-y-3">
                   <input
                     type="text"
-                    value={newDefect.description}
+                    value={newDefect.description ?? ""}
                     onChange={(e) => setNewDefect({ ...newDefect, description: e.target.value })}
                     placeholder="Defect description *"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
                   />
                   <input
                     type="text"
-                    value={newDefect.location}
+                    value={newDefect.location ?? ""}
                     onChange={(e) => setNewDefect({ ...newDefect, location: e.target.value })}
                     placeholder="Location"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
                   />
                   <div className="grid grid-cols-2 gap-2">
                     <select
-                      value={newDefect.severity}
+                      value={newDefect.severity ?? "minor"}
                       onChange={(e) => setNewDefect({ ...newDefect, severity: e.target.value as InspectionSeverity })}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
                     >
@@ -251,7 +249,7 @@ export function DefectsFoundSection({
                     </select>
                     <input
                       type="date"
-                      value={newDefect.due_date}
+                      value={newDefect.due_date ?? ""}
                       onChange={(e) => setNewDefect({ ...newDefect, due_date: e.target.value })}
                       placeholder="Due date"
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
@@ -259,14 +257,14 @@ export function DefectsFoundSection({
                   </div>
                   <input
                     type="text"
-                    value={newDefect.rectification_required}
+                    value={newDefect.rectification_required ?? ""}
                     onChange={(e) => setNewDefect({ ...newDefect, rectification_required: e.target.value })}
                     placeholder="Rectification required"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"
                   />
                   <input
                     type="text"
-                    value={newDefect.assigned_to}
+                    value={newDefect.assigned_to ?? ""}
                     onChange={(e) => setNewDefect({ ...newDefect, assigned_to: e.target.value })}
                     placeholder="Assigned to"
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400"

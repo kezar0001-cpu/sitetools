@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import type { SiteDiaryFull, SiteInspectionFull, InspectionItem, InspectionItemResult, InspectionDefect, InspectionObservation, InspectionOutcomeData, InspectionSignOff } from "@/lib/site-capture/types";
+import type { SiteDiaryFull, InspectionDetails, InspectionItem, InspectionItemResult, InspectionDefect, InspectionObservation, InspectionOutcomeData, InspectionSignOff } from "@/lib/site-capture/types";
 import type { CompanyRole } from "@/lib/workspace/types";
 import { InspectionDetailsSection } from "./InspectionDetailsSection";
 import { InspectionItemsSection } from "./InspectionItemsSection";
@@ -20,6 +20,14 @@ interface SiteInspectionFormProps {
 }
 
 type Section = "inspectionDetails" | "inspectionItems" | "defects" | "observations" | "outcome" | "signOff";
+type InspectionDiary = SiteDiaryFull & {
+  site_inspection_data?: InspectionDetails | null;
+  inspection_items?: InspectionItem[];
+  inspection_defects?: InspectionDefect[];
+  inspection_observations?: InspectionObservation[];
+  inspection_outcome?: InspectionOutcomeData | null;
+  inspection_sign_off?: InspectionSignOff | null;
+};
 
 export default function SiteInspectionForm({ 
   diary: initialDiary, 
@@ -27,11 +35,11 @@ export default function SiteInspectionForm({
   onSubmit,
 }: SiteInspectionFormProps) {
   // Cast diary to SiteInspectionFull - the data should be loaded from the parent
-  const [diary, setDiary] = useState<SiteInspectionFull>(initialDiary as SiteInspectionFull);
+  const [diary, setDiary] = useState<InspectionDiary>(initialDiary as InspectionDiary);
   
   // All sections open by default for inspection form
   const [openSections, setOpenSections] = useState<Set<Section>>(
-    new Set(["inspectionDetails", "inspectionItems", "defects", "observations", "outcome", "signOff"])
+    new Set<Section>(["inspectionDetails", "inspectionItems", "defects", "observations", "outcome", "signOff"])
   );
   
   const [submitting, setSubmitting] = useState(false);
@@ -52,12 +60,6 @@ export default function SiteInspectionForm({
     inspectionItems.filter(item => item.result === "Fail").length,
     [inspectionItems]
   );
-
-  // Wrapper for section updates that syncs local diary state
-  const handleSectionUpdate = useCallback((_updated: SiteDiaryFull) => {
-    // This function is currently not used but kept for potential future use
-    // The form uses more specific handlers like handleItemsChange, handleDefectsChange etc.
-  }, []);
 
   function toggleSection(section: Section) {
     setOpenSections((prev) => {
@@ -128,11 +130,10 @@ export default function SiteInspectionForm({
   const handleItemResultChange = useCallback((itemId: string, result: InspectionItemResult) => {
     // This is called when a result changes - defects/observations are handled in handleItemsChange
     // But we might want to auto-update outcome based on failures
-    if (result === "Fail" && outcome?.result === "Approved") {
+    if (result === "Fail" && outcome?.outcome === "Approved") {
       const updatedOutcome: InspectionOutcomeData = {
         ...outcome,
-        result: "Re-inspection Required",
-        re_inspection_trigger: true,
+        outcome: "Re-inspection Required",
       };
       setDiary(prev => ({ ...prev, inspection_outcome: updatedOutcome }));
     }
@@ -171,10 +172,9 @@ export default function SiteInspectionForm({
     return !!(
       inspectionData?.inspection_type &&
       inspectionItems.length > 0 &&
-      outcome?.result &&
-      signOff?.inspector_name &&
+      outcome?.outcome &&
       signOff?.inspector_signature &&
-      signOff?.date
+      signOff?.sign_off_date
     );
   }, [inspectionData, inspectionItems.length, outcome, signOff]);
 
@@ -201,7 +201,7 @@ export default function SiteInspectionForm({
         isLocked={isLocked}
         isOpen={openSections.has("inspectionDetails")}
         onToggle={() => toggleSection("inspectionDetails")}
-        details={inspectionData || null}
+        details={inspectionData || undefined}
         onDetailsChange={(details) => {
           const updatedDiary = { ...diary, site_inspection_data: details };
           setDiary(updatedDiary);
@@ -216,7 +216,7 @@ export default function SiteInspectionForm({
         isOpen={openSections.has("inspectionItems")}
         onToggle={() => toggleSection("inspectionItems")}
         items={inspectionItems}
-        inspectionType={inspectionData?.inspection_type || "custom"}
+        inspectionType={inspectionData?.inspection_type || "Routine"}
         onItemsChange={handleItemsChange}
         onResultChange={handleItemResultChange}
       />
@@ -306,16 +306,15 @@ export default function SiteInspectionForm({
                 <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
                   {!inspectionData?.inspection_type && <li>Select an inspection type</li>}
                   {inspectionItems.length === 0 && <li>Add at least one inspection item</li>}
-                  {!outcome?.result && <li>Set the inspection outcome</li>}
-                  {!signOff?.inspector_name && <li>Enter inspector name</li>}
+                  {!outcome?.outcome && <li>Set the inspection outcome</li>}
                   {!signOff?.inspector_signature && <li>Add inspector signature</li>}
-                  {!signOff?.date && <li>Set inspection date</li>}
+                  {!signOff?.sign_off_date && <li>Set inspection date</li>}
                 </ul>
               </div>
             )}
 
             {/* Follow-up warning */}
-            {outcome?.result === "Not Approved" || outcome?.result === "Re-inspection Required" ? (
+            {outcome?.outcome === "Not Approved" || outcome?.outcome === "Re-inspection Required" ? (
               <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
                 <p className="text-sm text-blue-800">
                   <span className="font-medium">Note:</span> A follow-up inspection record will be automatically created 
