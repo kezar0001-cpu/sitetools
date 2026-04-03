@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { FileText, ChevronRight, Download, Trash2, Search, Filter, Calendar, ArrowUpDown, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { fetchCompanyDocuments, deleteDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
+import { fetchCompanyDocuments, deleteDocument, exportDocument } from "@/lib/site-docs/client";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_COLORS, DOCUMENT_STATUS_BADGE, type SiteDocument, type DocumentType } from "@/lib/site-docs/types";
 
 interface DocumentsLibraryProps {
@@ -270,12 +270,10 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
     const colorClass = colorMap[color];
     const statusClass = DOCUMENT_STATUS_BADGE[document.status];
 
-    const handleExport = async (e: React.MouseEvent, format: "pdf" | "docx") => {
+    const handleExport = async (e: React.MouseEvent, format: "html" | "pdf") => {
         e.stopPropagation();
         try {
-            const blob = await exportDocument(document.id, format);
-            const filename = `${document.title.replace(/[^a-zA-Z0-9]/g, "_")}.${format === "docx" ? "html" : "html"}`;
-            downloadBlob(blob, filename);
+            await exportDocument(document.id, format);
         } catch (err) {
             console.error("Export failed:", err);
             alert("Export failed. Please try again.");
