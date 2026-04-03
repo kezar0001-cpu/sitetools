@@ -139,7 +139,7 @@ export default function DashboardHome() {
                             Your Workspace
                         </h1>
                         <p className="text-lg md:text-xl text-slate-400 font-medium max-w-2xl leading-relaxed text-balance">
-                            Choose a module to get started. SiteSign for gate sign-in and headcount, SitePlan for programme delivery, Site Diary for daily records, and SiteITP for inspection checklists.
+                            Choose a module to get started. SiteSign for gate sign-in and headcount, SitePlan for programme delivery, SiteCapture for daily records, and SiteITP for inspection checklists.
                         </p>
                     </div>
                 </div>

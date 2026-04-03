@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const liveProducts = ["SiteSign", "SitePlan"];
-const plannedTools = ["Site Diary", "ITP Builder", "Daily Inspections", "Plant & Equipment", "Incident Reports", "Labour & Timesheets"];
+const plannedTools = ["SiteCapture", "ITP Builder", "Daily Inspections", "Plant & Equipment", "Incident Reports", "Labour & Timesheets"];
 
 export default function WorkspacePage() {
   return (

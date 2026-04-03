@@ -20,7 +20,7 @@ const proFeatures = [
   "Advanced PDF reports",
   "Digital signature capture",
   "SitePlan programme tracking",
-  "Site Diary & daily records",
+  "SiteCapture & daily records",
   "SiteITP hold & witness points",
   "WhatsApp checkout reminders",
   "Priority email support",
@@ -136,7 +136,7 @@ export default function PricingPage() {
             {[
               { name: "SiteSign", color: "amber", desc: "Gate sign-in, headcount & compliance" },
               { name: "SitePlan", color: "blue", desc: "Programme planning & delivery tracking" },
-              { name: "Site Diary", color: "sky", desc: "Daily records, weather & site events" },
+              { name: "SiteCapture", color: "sky", desc: "Daily records, weather & site events" },
               { name: "SiteITP", color: "violet", desc: "Hold & witness point checklists" },
             ].map((m) => (
               <div

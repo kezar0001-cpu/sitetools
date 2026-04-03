@@ -53,12 +53,6 @@ export default function SiteInspectionForm({
     [inspectionItems]
   );
 
-  // Wrapper for section updates that syncs local diary state
-  const handleSectionUpdate = useCallback((_updated: SiteDiaryFull) => {
-    // This function is currently not used but kept for potential future use
-    // The form uses more specific handlers like handleItemsChange, handleDefectsChange etc.
-  }, []);
-
   function toggleSection(section: Section) {
     setOpenSections((prev) => {
       const next = new Set(prev);

@@ -73,7 +73,7 @@ export function PublicNavbar() {
                     </Link>
                   ))}
                   <div className="border-t border-slate-100 pt-2 px-3 pb-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Diary · SiteITP · Coming soon</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">SiteCapture · SiteITP · Coming soon</p>
                   </div>
                 </div>
               )}

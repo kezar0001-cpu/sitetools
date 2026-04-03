@@ -131,7 +131,7 @@ export const FREE_TOOLS: FreeTool[] = [
         launchPriority: "now",
         trafficPotential: "high",
         funnelTarget: "Feed earthworks quantities into Buildstate project planning and productivity tracking.",
-        primaryWorkspaceModuleId: "site-diary",
+        primaryWorkspaceModuleId: "site-capture",
         keywords: ["trench excavation calculator", "trench volume calculator", "excavation m3 calculator"],
         assumptions: ["Trench is measured as a uniform rectangular prism."],
         notes: ["Include battering/benching separately where required.", "Apply bulking factors when converting in-situ to loose spoil volumes."],
