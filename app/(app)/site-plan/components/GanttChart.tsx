@@ -7,7 +7,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
-import type { RefObject } from "react";
+import type { MutableRefObject } from "react";
 import {
   Calendar,
 } from "lucide-react";
@@ -56,7 +56,7 @@ interface GanttChartProps {
   onLogDelay?: (task: SitePlanTask) => void;
   canEdit?: boolean;
   todayTrigger?: number;
-  scrollContainerRef?: RefObject<HTMLDivElement | null>;
+  scrollContainerRef?: MutableRefObject<HTMLDivElement | null>;
   onVerticalScroll?: (scrollTop: number) => void;
 }
 
@@ -363,6 +363,11 @@ export function GanttChart({
     });
   }, [selectedTaskId, flatTasks, rangeStart, totalDays, totalTimelineWidth]);
 
+  useEffect(() => {
+    if (!scrollContainerRef) return;
+    scrollContainerRef.current = timelineRef.current;
+  }, [scrollContainerRef]);
+
   // useUpdateTask for resize-end drag (called directly without parent callback)
   const updateTask = useUpdateTask();
   const updateTaskRef = useRef(updateTask);
@@ -514,12 +519,7 @@ export function GanttChart({
 
         {/* Right panel — scrollable SVG timeline */}
         <div
-          ref={(el) => {
-            timelineRef.current = el;
-            if (scrollContainerRef) {
-              scrollContainerRef.current = el;
-            }
-          }}
+          ref={timelineRef}
           className="flex-1 overflow-auto"
           onScroll={(e) => {
             setHeaderOffsetY(e.currentTarget.scrollTop);

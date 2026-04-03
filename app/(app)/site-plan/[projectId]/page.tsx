@@ -32,6 +32,7 @@ import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
 import { GanttChart } from "../components/GanttChart";
 import { SitePlanMobileView } from "../components/SitePlanMobileView";
+import type { MobileTab } from "../components/SitePlanMobileView";
 import { QueryProvider } from "@/components/QueryProvider";
 import { supabase } from "@/lib/supabase";
 
@@ -1045,11 +1046,11 @@ function ProjectDetailInner() {
             <button
               className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
               onClick={() =>
-                updateSearchParams({ view: mobileView === "timeline" ? null : "timeline" })
+                updateSearchParams({ mobileTab: mobileTab === "gantt" ? null : "gantt" })
               }
-              title={mobileView === "timeline" ? "Switch to list view" : "Switch to timeline view"}
+              title={mobileTab === "gantt" ? "Switch to list view" : "Switch to timeline view"}
             >
-              {mobileView === "timeline" ? (
+              {mobileTab === "gantt" ? (
                 <ListTodo className="h-4 w-4 text-slate-500" />
               ) : (
                 <BarChart3 className="h-4 w-4 text-slate-500" />
