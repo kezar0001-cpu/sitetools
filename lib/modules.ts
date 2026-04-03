@@ -7,7 +7,7 @@ export type ModuleStatus = "live" | "coming-soon" | "beta";
 export type ModuleId =
     | "planner"
     | "site-sign-in"
-    | "site-diary"
+    | "site-capture"
     | "itp-builder"
     | "inspections"
     | "plant-checks"
@@ -55,8 +55,8 @@ export const MODULES: BuildstateModule[] = [
         color: "indigo",
     },
     {
-        id: "site-diary",
-        name: "Site Diary",
+        id: "site-capture",
+        name: "SiteCapture",
         tagline: "Daily records for weather, progress, and site events",
         description:
             "Record weather conditions, work completed, delays, instructions, and site photos. Generate professional daily reports for your principal contractor.",

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { getDiaries } from "@/lib/site-capture/client";
+import { getProjects } from "@/lib/workspace/client";
 import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
 import { DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
 
@@ -27,6 +28,7 @@ export default function InductionRegisterPage() {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCompletedOnly, setShowCompletedOnly] = useState(false);
+  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
 
   const inductionEntries = useMemo(() => {
     return entries.filter((e) => e.form_type === "site-induction");
@@ -44,7 +46,7 @@ export default function InductionRegisterPage() {
 
     for (const entry of filteredEntries) {
       const projectId = entry.project_id || "unassigned";
-      const projectName = entry.project_id ? entry.project_id : "Unassigned";
+      const projectName = entry.project_id ? (projectNames[entry.project_id] ?? "Unknown project") : "Unassigned";
 
       if (!groups.has(projectId)) {
         groups.set(projectId, {
@@ -66,7 +68,7 @@ export default function InductionRegisterPage() {
       if (b.id === "unassigned") return -1;
       return a.name.localeCompare(b.name);
     });
-  }, [filteredEntries]);
+  }, [filteredEntries, projectNames]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -75,7 +77,9 @@ export default function InductionRegisterPage() {
       setBusy(true);
       setError(null);
       try {
-        const diaries = await getDiaries(companyId);
+        const [diaries, projects] = await Promise.all([getDiaries(companyId), getProjects(companyId)]);
+        const names = Object.fromEntries(projects.map((project) => [project.id, project.name]));
+        setProjectNames(names);
         // Cast to include induction_data
         setEntries(diaries as InductionEntry[]);
       } catch (err) {

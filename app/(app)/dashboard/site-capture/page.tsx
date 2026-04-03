@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useRouter } from "next/navigation";
 import { getDiaries, createDiary, getDiariesGroupedByProjectSite } from "@/lib/site-capture/client";
@@ -69,19 +69,36 @@ export default function SiteCaptureHubPage() {
     return counts;
   }, [diaries, showArchived]);
 
-  const loadDiaries = async (projectId?: string | null) => {
+  const loadDiaries = useCallback(async (projectId?: string | null, siteId?: string | null) => {
     if (!companyId) return;
     setBusy(true);
     try {
       if (viewMode === 'grouped') {
         const grouped = await getDiariesGroupedByProjectSite(companyId, projectId);
-        setGroupedDiaries(grouped);
+        const filteredGrouped = siteId
+          ? {
+              ...grouped,
+              projects: grouped.projects
+                .map((project) => ({
+                  ...project,
+                  sites: project.sites
+                    .map((site) => ({ ...site, diaries: site.diaries.filter((diary) => diary.site_id === siteId) }))
+                    .filter((site) => site.id === siteId || site.diaries.length > 0),
+                  unassignedDiaries: project.unassignedDiaries.filter((diary) => diary.site_id === siteId),
+                }))
+                .filter((project) => project.sites.length > 0 || project.unassignedDiaries.length > 0),
+              unassignedDiaries: grouped.unassignedDiaries.filter((diary) => diary.site_id === siteId),
+            }
+          : grouped;
+        setGroupedDiaries(filteredGrouped);
         // Also set flat diaries for today's diary check
         const flat = await getDiaries(companyId, projectId);
-        setDiaries(flat);
+        const filteredFlat = siteId ? flat.filter((diary) => diary.site_id === siteId) : flat;
+        setDiaries(filteredFlat);
       } else {
         const flat = await getDiaries(companyId, projectId);
-        setDiaries(flat);
+        const filteredFlat = siteId ? flat.filter((diary) => diary.site_id === siteId) : flat;
+        setDiaries(filteredFlat);
         setGroupedDiaries(null);
       }
     } catch (err) {
@@ -89,14 +106,13 @@ export default function SiteCaptureHubPage() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [companyId, viewMode]);
 
   useEffect(() => {
     if (!companyId) return;
     setBusy(true);
-    loadDiaries(filterProjectId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId, viewMode, filterProjectId, filterSiteId, showArchived]);
+    loadDiaries(filterProjectId, filterSiteId);
+  }, [companyId, loadDiaries, filterProjectId, filterSiteId, showArchived]);
 
   function handleNewEntry(formType: FormType) {
     setSelectedFormType(formType);
@@ -120,6 +136,7 @@ export default function SiteCaptureHubPage() {
       router.push(`/dashboard/site-capture/${diary.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create entry.");
+    } finally {
       setCreating(false);
     }
   }

@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Buildstate — Civil Site Operations Platform",
   description:
-    "Replace clipboards and paper registers with one digital workspace. SiteSign, SitePlan, Site Diary, and ITP management for civil construction teams.",
+    "Replace clipboards and paper registers with one digital workspace. SiteSign, SitePlan, SiteCapture, and ITP management for civil construction teams.",
 };
 
 interface LandingPageProps {
@@ -206,7 +206,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
               </div>
             </Link>
 
-            {/* Site Diary */}
+            {/* SiteCapture */}
             <div className="group relative rounded-3xl border border-sky-100 bg-sky-50 p-8 overflow-hidden">
               <div className="absolute top-0 right-0 w-48 h-48 bg-sky-400/10 rounded-full -mr-16 -mt-16" />
               <div className="relative">
@@ -216,7 +216,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
                   </svg>
                 </div>
                 <div className="inline-block bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2">Site Diary</h3>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">SiteCapture</h3>
                 <p className="text-slate-600 font-medium leading-relaxed mb-4">
                   Daily weather conditions, work completed, delays, instructions, and photos. Generate professional reports for your principal contractor.
                 </p>

@@ -10,7 +10,6 @@ interface WorkerDetailsSectionProps {
   isOpen: boolean;
   onToggle: () => void;
   onUpdate: (details: WorkerDetails) => void;
-  saving?: Record<string, boolean>;
 }
 
 export function WorkerDetailsSection({
@@ -188,6 +187,7 @@ export function WorkerDetailsSection({
                   <button
                     type="button"
                     onClick={handleRemovePhoto}
+                    aria-label="Remove uploaded worker ID photo"
                     className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

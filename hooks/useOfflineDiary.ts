@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Hook for offline-aware SiteDiary operations
+ * Hook for offline-aware SiteCapture operations
  * Automatically queues mutations when offline and syncs when restored
  */
 
@@ -17,7 +17,6 @@ import {
   getDraftForDate,
   deleteDraft,
   type DraftDiary,
-  type QueuedMutation,
   type MutationType,
 } from "@/lib/site-capture/offline";
 import type {
@@ -44,22 +43,6 @@ export function useOfflineDiary(companyId: string) {
     syncErrors: [],
   });
 
-  // Track connectivity changes
-  useEffect(() => {
-    const unsubscribe = onConnectivityChange((online) => {
-      setStatus((prev) => ({ ...prev, isOnline: online }));
-      if (online) {
-        // Auto-sync when coming back online
-        void sync();
-      }
-    });
-
-    // Initial queue count
-    void refreshQueueCount();
-
-    return unsubscribe;
-  }, []);
-
   const refreshQueueCount = useCallback(async () => {
     const mutations = await getQueuedMutations();
     setStatus((prev) => ({ ...prev, pendingCount: mutations.length }));
@@ -81,6 +64,22 @@ export function useOfflineDiary(companyId: string) {
       setStatus((prev) => ({ ...prev, isSyncing: false }));
     }
   }, []);
+
+  // Track connectivity changes
+  useEffect(() => {
+    const unsubscribe = onConnectivityChange((online) => {
+      setStatus((prev) => ({ ...prev, isOnline: online }));
+      if (online) {
+        // Auto-sync when coming back online
+        void sync();
+      }
+    });
+
+    // Initial queue count
+    void refreshQueueCount();
+
+    return unsubscribe;
+  }, [refreshQueueCount, sync]);
 
   // ─────────────────────────────────────────────
   // Queue Operations

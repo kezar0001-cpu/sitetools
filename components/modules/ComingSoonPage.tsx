@@ -8,7 +8,7 @@ import Link from "next/link";
 export default function ComingSoonPage() {
     const pathname = usePathname();
     const segments = pathname.split("/").filter(Boolean);
-    const moduleId = segments[1]; // e.g., site-diary
+    const moduleId = segments[1]; // e.g., site-capture
 
     const activeModule = getModule(moduleId);
 

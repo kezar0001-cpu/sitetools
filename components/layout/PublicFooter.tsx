@@ -35,7 +35,7 @@ export function PublicFooter() {
                 </Link>
               </li>
               <li>
-                <span className="text-sm text-slate-600">Site Diary</span>
+                <span className="text-sm text-slate-600">SiteCapture</span>
               </li>
               <li>
                 <span className="text-sm text-slate-600">SiteITP</span>
