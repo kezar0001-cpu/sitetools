@@ -1,0 +1,653 @@
+"use client";
+
+import { useState } from "react";
+import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection } from "@/lib/site-docs/types";
+import { updateDocument } from "@/lib/site-docs/client";
+
+interface DocumentPreviewProps {
+    content: GeneratedContent;
+    template: DocumentTemplate;
+    editable?: boolean;
+    onChange?: (content: GeneratedContent) => void;
+    documentId?: string;
+}
+
+export function DocumentPreview({ content, template, editable = false, onChange, documentId }: DocumentPreviewProps) {
+    const { metadata, sections, actionItems, attendees, signatories } = content;
+    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
+    const handleChange = (newContent: GeneratedContent) => {
+        onChange?.(newContent);
+    };
+
+    const saveToServer = async (updatedContent: GeneratedContent) => {
+        if (!documentId || !editable) return;
+        
+        setSaveStatus("saving");
+        try {
+            await updateDocument(documentId, { generated_content: updatedContent });
+            setSaveStatus("saved");
+            setTimeout(() => setSaveStatus("idle"), 2000);
+        } catch (error) {
+            console.error("Failed to save document:", error);
+            setSaveStatus("idle");
+        }
+    };
+
+    const updateMetadata = (key: string, value: string) => {
+        if (!editable) return;
+        handleChange({
+            ...content,
+            metadata: { ...metadata, [key]: value }
+        });
+    };
+
+    const updateSection = (index: number, field: "title" | "content" | "status", value: string) => {
+        if (!editable) return;
+        const newSections = [...sections];
+        newSections[index] = { ...newSections[index], [field]: value };
+        handleChange({ ...content, sections: newSections });
+    };
+
+    const updateActionItem = (index: number, field: keyof ActionItem, value: string) => {
+        if (!editable || !actionItems) return;
+        const newItems = [...actionItems];
+        newItems[index] = { ...newItems[index], [field]: value };
+        handleChange({ ...content, actionItems: newItems });
+    };
+
+    const updateAttendee = (index: number, field: keyof Attendee, value: string | boolean) => {
+        if (!editable || !attendees) return;
+        const newAttendees = [...attendees];
+        newAttendees[index] = { ...newAttendees[index], [field]: value };
+        handleChange({ ...content, attendees: newAttendees });
+    };
+
+    const updateSignatory = (index: number, field: keyof Signatory, value: string) => {
+        if (!editable || !signatories) return;
+        const newSigs = [...signatories];
+        newSigs[index] = { ...newSigs[index], [field]: value };
+        handleChange({ ...content, signatories: newSigs });
+    };
+
+    const addSection = () => {
+        if (!editable) return;
+        const newSection: DocumentSection = {
+            id: `section-${Date.now()}`,
+            title: "New Section",
+            content: "",
+            order: sections.length,
+            status: "open"
+        };
+        handleChange({ ...content, sections: [...sections, newSection] });
+    };
+
+    const removeSection = (index: number) => {
+        if (!editable) return;
+        const newSections = sections.filter((_, i) => i !== index);
+        handleChange({ ...content, sections: newSections });
+    };
+
+    const addActionItem = () => {
+        if (!editable) return;
+        const newItem = {
+            id: `action-${Date.now()}`,
+            number: (actionItems?.length || 0) + 1,
+            description: "",
+            responsible: "",
+            due_date: "",
+            status: "open" as const
+        };
+        handleChange({ ...content, actionItems: [...(actionItems || []), newItem] });
+    };
+
+    const removeActionItem = (index: number) => {
+        if (!editable || !actionItems) return;
+        const newItems = actionItems.filter((_, i) => i !== index);
+        handleChange({ ...content, actionItems: newItems });
+    };
+
+    const addAttendee = () => {
+        if (!editable) return;
+        const newAttendee = {
+            id: `attendee-${Date.now()}`,
+            name: "",
+            organization: "",
+            role: "",
+            present: false
+        };
+        handleChange({ ...content, attendees: [...(attendees || []), newAttendee] });
+    };
+
+    const removeAttendee = (index: number) => {
+        if (!editable || !attendees) return;
+        const newAttendees = attendees.filter((_, i) => i !== index);
+        handleChange({ ...content, attendees: newAttendees });
+    };
+
+    const addSignatory = () => {
+        if (!editable) return;
+        const newSignatory = {
+            id: `signatory-${Date.now()}`,
+            name: "",
+            organization: "",
+            signature_date: ""
+        };
+        handleChange({ ...content, signatories: [...(signatories || []), newSignatory] });
+    };
+
+    const removeSignatory = (index: number) => {
+        if (!editable || !signatories) return;
+        const newSignatories = signatories.filter((_, i) => i !== index);
+        handleChange({ ...content, signatories: newSignatories });
+    };
+
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+            {/* Document Header */}
+            <div className="p-8 border-b border-slate-200">
+                <div className="flex items-start justify-between">
+                    <div className={editable ? "flex-1" : ""}>
+                        <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">{template.name}</p>
+                        {editable ? (
+                            <input
+                                type="text"
+                                value={metadata.document_title}
+                                onChange={(e) => updateMetadata("document_title", e.target.value)}
+                                className="w-full text-2xl font-bold text-slate-900 mt-1 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                placeholder="Document Title"
+                            />
+                        ) : (
+                            <h2 className="text-2xl font-bold text-slate-900 mt-1">{metadata.document_title}</h2>
+                        )}
+                    </div>
+                    <div className={`text-right ${editable ? "ml-4" : ""}`}>
+                        {editable && (
+                            <div className="mb-2 text-sm">
+                                {saveStatus === "saving" && (
+                                    <span className="text-slate-500">Saving...</span>
+                                )}
+                                {saveStatus === "saved" && (
+                                    <span className="text-emerald-600 font-medium">Saved ✓</span>
+                                )}
+                            </div>
+                        )}
+                        {editable ? (
+                            <>
+                                <input
+                                    type="text"
+                                    value={metadata.reference || ""}
+                                    onChange={(e) => updateMetadata("reference", e.target.value)}
+                                    className="text-sm font-medium text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent text-right block"
+                                    placeholder="Reference"
+                                />
+                                <input
+                                    type="date"
+                                    value={metadata.date || ""}
+                                    onChange={(e) => updateMetadata("date", e.target.value)}
+                                    className="text-sm text-slate-500 mt-1 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent block text-right"
+                                />
+                            </>
+                        ) : (
+                            <>
+                                {metadata.reference && (
+                                    <p className="text-sm font-medium text-slate-700">{metadata.reference}</p>
+                                )}
+                                {metadata.date && (
+                                    <p className="text-sm text-slate-500">{new Date(metadata.date).toLocaleDateString()}</p>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
+                    {editable ? (
+                        <>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500">Project:</span>
+                                <input
+                                    type="text"
+                                    value={metadata.project_name || ""}
+                                    onChange={(e) => updateMetadata("project_name", e.target.value)}
+                                    className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                    placeholder="Project name"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500">Location:</span>
+                                <input
+                                    type="text"
+                                    value={metadata.location || ""}
+                                    onChange={(e) => updateMetadata("location", e.target.value)}
+                                    className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                    placeholder="Location"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500">Prepared by:</span>
+                                <input
+                                    type="text"
+                                    value={metadata.prepared_by || ""}
+                                    onChange={(e) => updateMetadata("prepared_by", e.target.value)}
+                                    className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                    placeholder="Name"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-500">Organization:</span>
+                                <input
+                                    type="text"
+                                    value={metadata.organization || ""}
+                                    onChange={(e) => updateMetadata("organization", e.target.value)}
+                                    className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                    placeholder="Organization"
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {metadata.project_name && (
+                                <div>
+                                    <span className="text-slate-500">Project:</span>
+                                    <span className="ml-2 font-medium text-slate-900">{metadata.project_name}</span>
+                                </div>
+                            )}
+                            {metadata.location && (
+                                <div>
+                                    <span className="text-slate-500">Location:</span>
+                                    <span className="ml-2 font-medium text-slate-900">{metadata.location}</span>
+                                </div>
+                            )}
+                            {metadata.prepared_by && (
+                                <div>
+                                    <span className="text-slate-500">Prepared by:</span>
+                                    <span className="ml-2 font-medium text-slate-900">{metadata.prepared_by}</span>
+                                </div>
+                            )}
+                            {metadata.organization && (
+                                <div>
+                                    <span className="text-slate-500">Organization:</span>
+                                    <span className="ml-2 font-medium text-slate-900">{metadata.organization}</span>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Attendees */}
+            {((attendees && attendees.length > 0) || editable) && (
+                <div className="p-8 border-b border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-slate-900">Attendees</h3>
+                        {editable && (
+                            <button
+                                onClick={addAttendee}
+                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                + Add Attendee
+                            </button>
+                        )}
+                    </div>
+                    {attendees && attendees.length > 0 && (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Role</th>
+                                        <th className="px-4 py-2 text-center font-medium text-slate-700">Present</th>
+                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {attendees.map((attendee, idx) => (
+                                        <tr key={attendee.id}>
+                                            {editable ? (
+                                                <>
+                                                    <td className="px-4 py-2">
+                                                        <input
+                                                            type="text"
+                                                            value={attendee.name}
+                                                            onChange={(e) => updateAttendee(idx, "name", e.target.value)}
+                                                            className="w-full font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Name"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <input
+                                                            type="text"
+                                                            value={attendee.organization || ""}
+                                                            onChange={(e) => updateAttendee(idx, "organization", e.target.value)}
+                                                            className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Organization"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <input
+                                                            type="text"
+                                                            value={attendee.role || ""}
+                                                            onChange={(e) => updateAttendee(idx, "role", e.target.value)}
+                                                            className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Role"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-2 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={attendee.present}
+                                                            onChange={(e) => updateAttendee(idx, "present", e.target.checked)}
+                                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-2 text-center">
+                                                        <button
+                                                            onClick={() => removeAttendee(idx)}
+                                                            className="text-red-500 hover:text-red-700 text-sm"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="px-4 py-2 font-medium text-slate-900">{attendee.name}</td>
+                                                    <td className="px-4 py-2 text-slate-600">{attendee.organization || "—"}</td>
+                                                    <td className="px-4 py-2 text-slate-600">{attendee.role || "—"}</td>
+                                                    <td className="px-4 py-2 text-center">
+                                                        {attendee.present ? (
+                                                            <span className="text-emerald-600">✓</span>
+                                                        ) : (
+                                                            <span className="text-slate-300">—</span>
+                                                        )}
+                                                    </td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Sections */}
+            <div className="p-8 space-y-8">
+                <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-slate-900">Sections</h3>
+                    {editable && (
+                        <button
+                            onClick={addSection}
+                            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                            + Add Section
+                        </button>
+                    )}
+                </div>
+                {sections.map((section, idx) => (
+                    <div key={section.id} className={editable ? "border border-slate-200 rounded-lg p-4" : ""}>
+                        <div className="flex items-center gap-2 mb-2">
+                            {editable ? (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={section.title}
+                                        onChange={(e) => updateSection(idx, "title", e.target.value)}
+                                        className="flex-1 font-semibold text-slate-900 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                        placeholder="Section Title"
+                                    />
+                                    <select
+                                        value={section.status || ""}
+                                        onChange={(e) => updateSection(idx, "status", e.target.value)}
+                                        className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="">No Status</option>
+                                        <option value="open">Open</option>
+                                        <option value="in-progress">In Progress</option>
+                                        <option value="closed">Closed</option>
+                                    </select>
+                                    <button
+                                        onClick={() => removeSection(idx)}
+                                        className="text-red-500 hover:text-red-700 text-sm px-2"
+                                    >
+                                        ✕
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="font-semibold text-slate-900">{section.title}</h3>
+                                    {section.status && (
+                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                            section.status === "open" ? "bg-amber-100 text-amber-700" :
+                                            section.status === "closed" ? "bg-emerald-100 text-emerald-700" :
+                                            section.status === "in-progress" ? "bg-blue-100 text-blue-700" :
+                                            "bg-slate-100 text-slate-600"
+                                        }`}>
+                                            {section.status}
+                                        </span>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                        {editable ? (
+                            <textarea
+                                value={section.content}
+                                onChange={(e) => updateSection(idx, "content", e.target.value)}
+                                onBlur={() => saveToServer(content)}
+                                className="w-full h-32 px-3 py-2 text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                                placeholder="Section content..."
+                            />
+                        ) : (
+                            <div className="text-slate-700 whitespace-pre-wrap">{section.content}</div>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Action Items */}
+            {((actionItems && actionItems.length > 0) || editable) && (
+                <div className="p-8 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-slate-900">Action Items</h3>
+                        {editable && (
+                            <button
+                                onClick={addActionItem}
+                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                + Add Action Item
+                            </button>
+                        )}
+                    </div>
+                    {actionItems && actionItems.length > 0 && (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 w-12">#</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Action</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Responsible</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Due</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
+                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {actionItems.map((item, idx) => (
+                                        <tr key={item.id}>
+                                            <td className="px-4 py-3 font-medium text-slate-900">{item.number}</td>
+                                            {editable ? (
+                                                <>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="text"
+                                                            value={item.description}
+                                                            onChange={(e) => updateActionItem(idx, "description", e.target.value)}
+                                                            onBlur={() => saveToServer(content)}
+                                                            className="w-full text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Action description"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="text"
+                                                            value={item.responsible || ""}
+                                                            onChange={(e) => updateActionItem(idx, "responsible", e.target.value)}
+                                                            onBlur={() => saveToServer(content)}
+                                                            className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Responsible person"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="date"
+                                                            value={item.due_date || ""}
+                                                            onChange={(e) => updateActionItem(idx, "due_date", e.target.value)}
+                                                            onBlur={() => saveToServer(content)}
+                                                            className="w-full text-slate-600 border border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <select
+                                                            value={item.status}
+                                                            onChange={(e) => updateActionItem(idx, "status", e.target.value)}
+                                                            onBlur={() => saveToServer(content)}
+                                                            className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        >
+                                                            <option value="open">Open</option>
+                                                            <option value="in-progress">In Progress</option>
+                                                            <option value="completed">Completed</option>
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <button
+                                                            onClick={() => removeActionItem(idx)}
+                                                            className="text-red-500 hover:text-red-700 text-sm"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="px-4 py-3 text-slate-700">{item.description}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{item.responsible || "—"}</td>
+                                                    <td className="px-4 py-3 text-slate-600">
+                                                        {item.due_date ? new Date(item.due_date).toLocaleDateString() : "—"}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                                            item.status === "open" ? "bg-amber-100 text-amber-700" :
+                                                            item.status === "in-progress" ? "bg-blue-100 text-blue-700" :
+                                                            "bg-emerald-100 text-emerald-700"
+                                                        }`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Sign-off */}
+            {((signatories && signatories.length > 0) || editable) && (
+                <div className="p-8 border-t border-slate-200">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-slate-900 mb-4">Confirmation & Sign-off</h3>
+                        {editable && (
+                            <button
+                                onClick={addSignatory}
+                                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                + Add Signatory
+                            </button>
+                        )}
+                    </div>
+                    {signatories && signatories.length > 0 && (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Signature</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Date</th>
+                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                    {signatories.map((sig, idx) => (
+                                        <tr key={sig.id}>
+                                            {editable ? (
+                                                <>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="text"
+                                                            value={sig.name}
+                                                            onChange={(e) => updateSignatory(idx, "name", e.target.value)}
+                                                            className="w-full font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Name"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="text"
+                                                            value={sig.organization || ""}
+                                                            onChange={(e) => updateSignatory(idx, "organization", e.target.value)}
+                                                            className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="Organization"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="text"
+                                                            value={(sig as unknown as Record<string, string>).signature_image || ""}
+                                                            onChange={(e) => updateSignatory(idx, "signature_image" as keyof Signatory, e.target.value)}
+                                                            className="w-full text-slate-400 italic border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                            placeholder="_________________"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <input
+                                                            type="date"
+                                                            value={sig.signature_date || ""}
+                                                            onChange={(e) => updateSignatory(idx, "signature_date", e.target.value)}
+                                                            className="w-full text-slate-400 border border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-3 text-center">
+                                                        <button
+                                                            onClick={() => removeSignatory(idx)}
+                                                            className="text-red-500 hover:text-red-700 text-sm"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="px-4 py-3 font-medium text-slate-900">{sig.name}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{sig.organization || "—"}</td>
+                                                    <td className="px-4 py-3 text-slate-400 italic">_________________</td>
+                                                    <td className="px-4 py-3 text-slate-400">____/____/______</td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}

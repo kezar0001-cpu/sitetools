@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Download, FileText, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Trash2, RefreshCw, X } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { fetchDocument, deleteDocument, exportDocument, downloadBlob } from "@/lib/site-docs/client";
+import { fetchDocument, deleteDocument, exportDocument, downloadBlob, regenerateDocument, updateActionItemStatus } from "@/lib/site-docs/client";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type SiteDocument } from "@/lib/site-docs/types";
+import { DocumentPreview } from "../components/DocumentPreview";
 
 export default function DocumentDetailPage() {
     const params = useParams();
@@ -16,6 +17,12 @@ export default function DocumentDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [exporting, setExporting] = useState<"pdf" | "docx" | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    
+    // Regenerate state
+    const [regenerateDrawerOpen, setRegenerateDrawerOpen] = useState(false);
+    const [regenerateSummary, setRegenerateSummary] = useState("");
+    const [regenerating, setRegenerating] = useState(false);
 
     const documentId = params.documentId as string;
     const companyId = summary?.activeMembership?.company_id;
@@ -63,17 +70,64 @@ export default function DocumentDetailPage() {
     async function handleDelete() {
         if (!document) return;
 
-        if (!confirm("Are you sure you want to delete this document?")) {
-            return;
-        }
-
         setDeleting(true);
+        setShowDeleteModal(false);
+        
         try {
             await deleteDocument(document.id);
             router.push("/dashboard/site-docs");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Delete failed");
             setDeleting(false);
+        }
+    }
+
+    function openDeleteModal() {
+        setShowDeleteModal(true);
+    }
+
+    function closeDeleteModal() {
+        if (!deleting) {
+            setShowDeleteModal(false);
+        }
+    }
+
+    async function handleRegenerate() {
+        if (!document) return;
+
+        setRegenerating(true);
+        setError(null);
+        
+        try {
+            const newContent = await regenerateDocument(
+                document.id,
+                document.document_type,
+                regenerateSummary,
+                document.project_id,
+                document.site_id
+            );
+            
+            // Update the document state with new content
+            setDocument({
+                ...document,
+                summary_input: regenerateSummary,
+                generated_content: newContent,
+                updated_at: new Date().toISOString(),
+            });
+            
+            // Close drawer and reset
+            setRegenerateDrawerOpen(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Regeneration failed");
+        } finally {
+            setRegenerating(false);
+        }
+    }
+
+    function openRegenerateDrawer() {
+        if (document) {
+            setRegenerateSummary(document.summary_input);
+            setRegenerateDrawerOpen(true);
         }
     }
 
@@ -107,7 +161,6 @@ export default function DocumentDetailPage() {
 
     if (!document) return null;
 
-    const { metadata, sections, actionItems, attendees, signatories } = document.generated_content;
     const typeLabel = DOCUMENT_TYPE_LABELS[document.document_type];
     const statusClass = DOCUMENT_STATUS_BADGE[document.status];
 
@@ -135,6 +188,13 @@ export default function DocumentDetailPage() {
                     </div>
                     <div className="flex items-center gap-2">
                         <button
+                            onClick={openRegenerateDrawer}
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            Regenerate
+                        </button>
+                        <button
                             onClick={() => handleExport("pdf")}
                             disabled={exporting !== null}
                             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
@@ -147,21 +207,9 @@ export default function DocumentDetailPage() {
                             PDF
                         </button>
                         <button
-                            onClick={() => handleExport("docx")}
-                            disabled={exporting !== null}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                        >
-                            {exporting === "docx" ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <FileText className="h-4 w-4" />
-                            )}
-                            Word
-                        </button>
-                        <button
-                            onClick={handleDelete}
+                            onClick={openDeleteModal}
                             disabled={deleting}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
                         >
                             {deleting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -180,179 +228,13 @@ export default function DocumentDetailPage() {
                 )}
 
                 {/* Document Preview */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                    {/* Document Header */}
-                    <div className="p-8 border-b border-slate-200">
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">{typeLabel}</p>
-                                <h2 className="text-2xl font-bold text-slate-900 mt-1">{metadata.document_title}</h2>
-                            </div>
-                            <div className="text-right">
-                                {metadata.reference && (
-                                    <p className="text-sm font-medium text-slate-700">{metadata.reference}</p>
-                                )}
-                                {metadata.date && (
-                                    <p className="text-sm text-slate-500">{new Date(metadata.date).toLocaleDateString()}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
-                            {metadata.project_name && (
-                                <div>
-                                    <span className="text-slate-500">Project:</span>
-                                    <span className="ml-2 font-medium text-slate-900">{metadata.project_name}</span>
-                                </div>
-                            )}
-                            {metadata.location && (
-                                <div>
-                                    <span className="text-slate-500">Location:</span>
-                                    <span className="ml-2 font-medium text-slate-900">{metadata.location}</span>
-                                </div>
-                            )}
-                            {metadata.prepared_by && (
-                                <div>
-                                    <span className="text-slate-500">Prepared by:</span>
-                                    <span className="ml-2 font-medium text-slate-900">{metadata.prepared_by}</span>
-                                </div>
-                            )}
-                            {metadata.organization && (
-                                <div>
-                                    <span className="text-slate-500">Organization:</span>
-                                    <span className="ml-2 font-medium text-slate-900">{metadata.organization}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Attendees */}
-                    {attendees && attendees.length > 0 && (
-                        <div className="p-8 border-b border-slate-200">
-                            <h3 className="font-semibold text-slate-900 mb-4">Attendees</h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Role</th>
-                                            <th className="px-4 py-2 text-center font-medium text-slate-700">Present</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {attendees.map((attendee) => (
-                                            <tr key={attendee.id}>
-                                                <td className="px-4 py-2 font-medium text-slate-900">{attendee.name}</td>
-                                                <td className="px-4 py-2 text-slate-600">{attendee.organization || "—"}</td>
-                                                <td className="px-4 py-2 text-slate-600">{attendee.role || "—"}</td>
-                                                <td className="px-4 py-2 text-center">
-                                                    {attendee.present ? (
-                                                        <span className="text-emerald-600">✓</span>
-                                                    ) : (
-                                                        <span className="text-slate-300">—</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Sections */}
-                    <div className="p-8 space-y-8">
-                        {sections.map((section) => (
-                            <div key={section.id}>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <h3 className="font-semibold text-slate-900">{section.title}</h3>
-                                    {section.status && (
-                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                            section.status === "open" ? "bg-amber-100 text-amber-700" :
-                                            section.status === "closed" ? "bg-emerald-100 text-emerald-700" :
-                                            section.status === "in-progress" ? "bg-blue-100 text-blue-700" :
-                                            "bg-slate-100 text-slate-600"
-                                        }`}>
-                                            {section.status}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="text-slate-700 whitespace-pre-wrap">{section.content}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Action Items */}
-                    {actionItems && actionItems.length > 0 && (
-                        <div className="p-8 border-t border-slate-200">
-                            <h3 className="font-semibold text-slate-900 mb-4">Action Items</h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700 w-12">#</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Action</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Responsible</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Due</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {actionItems.map((item) => (
-                                            <tr key={item.id}>
-                                                <td className="px-4 py-3 font-medium text-slate-900">{item.number}</td>
-                                                <td className="px-4 py-3 text-slate-700">{item.description}</td>
-                                                <td className="px-4 py-3 text-slate-600">{item.responsible || "—"}</td>
-                                                <td className="px-4 py-3 text-slate-600">
-                                                    {item.due_date ? new Date(item.due_date).toLocaleDateString() : "—"}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                                        item.status === "open" ? "bg-amber-100 text-amber-700" :
-                                                        item.status === "in-progress" ? "bg-blue-100 text-blue-700" :
-                                                        "bg-emerald-100 text-emerald-700"
-                                                    }`}>
-                                                        {item.status}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Sign-off */}
-                    {signatories && signatories.length > 0 && (
-                        <div className="p-8 border-t border-slate-200">
-                            <h3 className="font-semibold text-slate-900 mb-4">Confirmation & Sign-off</h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50">
-                                        <tr>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Signature</th>
-                                            <th className="px-4 py-2 text-left font-medium text-slate-700">Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {signatories.map((sig) => (
-                                            <tr key={sig.id}>
-                                                <td className="px-4 py-3 font-medium text-slate-900">{sig.name}</td>
-                                                <td className="px-4 py-3 text-slate-600">{sig.organization || "—"}</td>
-                                                <td className="px-4 py-3 text-slate-400 italic">_________________</td>
-                                                <td className="px-4 py-3 text-slate-400">____/____/______</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                {document && (
+                    <DocumentPreview
+                        content={document.generated_content}
+                        template={{ id: document.document_type, name: typeLabel, description: "", icon: "", color: "", prompt_template: "", required_fields: [], optional_fields: [], default_sections: [] }}
+                        editable={false}
+                    />
+                )}
 
                 {/* Original Input */}
                 <div className="mt-6 bg-slate-100 rounded-lg p-4">
@@ -361,6 +243,131 @@ export default function DocumentDetailPage() {
                         <pre className="text-sm text-slate-600 whitespace-pre-wrap font-sans">{document.summary_input}</pre>
                     </div>
                 </div>
+
+                {/* Delete Confirmation Modal */}
+                {showDeleteModal && document && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        {/* Backdrop */}
+                        <div 
+                            className="absolute inset-0 bg-black/50"
+                            onClick={closeDeleteModal}
+                        />
+                        
+                        {/* Modal */}
+                        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+                            <div className="text-center">
+                                <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                    <Trash2 className="h-6 w-6 text-red-600" />
+                                </div>
+                                
+                                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                                    Delete Document
+                                </h3>
+                                
+                                <p className="text-sm text-slate-600 mb-4">
+                                    Are you sure you want to delete <strong>{document.title}</strong>? 
+                                    This action cannot be undone and the document will be permanently removed.
+                                </p>
+                                
+                                <div className="flex gap-3 justify-center">
+                                    <button
+                                        onClick={closeDeleteModal}
+                                        disabled={deleting}
+                                        className="px-4 py-2 text-slate-700 font-medium rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleDelete}
+                                        disabled={deleting}
+                                        className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                                    >
+                                        {deleting ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Deleting...
+                                            </>
+                                        ) : (
+                                            "Delete Document"
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Regenerate Slide-over Drawer */}
+                {regenerateDrawerOpen && (
+                    <div className="fixed inset-0 z-50 flex">
+                        {/* Backdrop */}
+                        <div 
+                            className="absolute inset-0 bg-black/50"
+                            onClick={() => !regenerating && setRegenerateDrawerOpen(false)}
+                        />
+                        
+                        {/* Drawer */}
+                        <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                                <h2 className="text-lg font-semibold text-slate-900">Regenerate Document</h2>
+                                <button
+                                    onClick={() => !regenerating && setRegenerateDrawerOpen(false)}
+                                    disabled={regenerating}
+                                    className="p-2 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+                                >
+                                    <X className="h-5 w-5 text-slate-500" />
+                                </button>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="flex-1 px-6 py-6 overflow-y-auto">
+                                <p className="text-sm text-slate-600 mb-4">
+                                    Edit the original notes below to regenerate the document with updated content. 
+                                    The current version will be saved before regeneration.
+                                </p>
+                                
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Original Notes
+                                </label>
+                                <textarea
+                                    value={regenerateSummary}
+                                    onChange={(e) => setRegenerateSummary(e.target.value)}
+                                    disabled={regenerating}
+                                    className="w-full h-64 px-4 py-3 text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-slate-100"
+                                    placeholder="Enter your notes for document generation..."
+                                />
+                                
+                                {error && (
+                                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                        {error}
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Footer */}
+                            <div className="px-6 py-4 border-t border-slate-200">
+                                <button
+                                    onClick={handleRegenerate}
+                                    disabled={regenerating || !regenerateSummary.trim()}
+                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {regenerating ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            Regenerating...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <RefreshCw className="h-4 w-4" />
+                                            Regenerate Document
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

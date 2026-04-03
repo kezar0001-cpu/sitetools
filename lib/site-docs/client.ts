@@ -222,3 +222,141 @@ function getReferencePrefix(type: DocumentType): string {
     };
     return prefixes[type];
 }
+
+// ── Document Version Management ──
+
+export interface DocumentVersion {
+    id: string;
+    document_id: string;
+    version_number: number;
+    summary_input: string;
+    generated_content: GeneratedContent;
+    created_by: string | null;
+    created_at: string;
+}
+
+export async function fetchDocumentVersions(documentId: string): Promise<DocumentVersion[]> {
+    const { data, error } = await supabase
+        .from("site_document_versions")
+        .select("*")
+        .eq("document_id", documentId)
+        .order("version_number", { ascending: false });
+
+    if (error) throw new Error(error.message);
+    return data ?? [];
+}
+
+export async function createDocumentVersion(
+    documentId: string,
+    summaryInput: string,
+    generatedContent: GeneratedContent
+): Promise<DocumentVersion> {
+    // Get next version number
+    const { data: versionData, error: versionError } = await supabase
+        .rpc("get_next_document_version", { doc_id: documentId });
+
+    if (versionError) throw new Error(versionError.message);
+
+    const { data, error } = await supabase
+        .from("site_document_versions")
+        .insert({
+            document_id: documentId,
+            version_number: versionData,
+            summary_input: summaryInput,
+            generated_content: generatedContent,
+        })
+        .select()
+        .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+}
+
+export async function regenerateDocument(
+    documentId: string,
+    documentType: DocumentType,
+    updatedSummary: string,
+    projectId?: string | null,
+    siteId?: string | null
+): Promise<GeneratedContent> {
+    // First, fetch the current document to save as a version
+    const currentDoc = await fetchDocument(documentId);
+    if (!currentDoc) throw new Error("Document not found");
+
+    // Save current version before regenerating
+    await createDocumentVersion(
+        documentId,
+        currentDoc.summary_input,
+        currentDoc.generated_content
+    );
+
+    // Generate new content
+    const newContent = await generateDocumentContent({
+        document_type: documentType,
+        summary: updatedSummary,
+        project_id: projectId,
+        site_id: siteId,
+    });
+
+    // Update document with new content and summary
+    const { error } = await supabase
+        .from("site_documents")
+        .update({
+            summary_input: updatedSummary,
+            generated_content: newContent,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId);
+
+    if (error) throw new Error(error.message);
+
+    return newContent;
+}
+
+// ── Action Item Status Updates ──
+
+export async function updateActionItemStatus(
+    documentId: string,
+    itemId: string,
+    status: "open" | "in-progress" | "completed"
+): Promise<{ updated_at: string }> {
+    // First, fetch the current document
+    const { data: doc, error: fetchError } = await supabase
+        .from("site_documents")
+        .select("generated_content, updated_at")
+        .eq("id", documentId)
+        .single();
+
+    if (fetchError) throw new Error(fetchError.message);
+    if (!doc) throw new Error("Document not found");
+
+    // Update the action item status in the generated_content
+    const generatedContent = doc.generated_content as GeneratedContent;
+    if (!generatedContent.actionItems) {
+        throw new Error("No action items found in document");
+    }
+
+    const updatedActionItems = generatedContent.actionItems.map(item =>
+        item.id === itemId
+            ? { ...item, status, updated_at: new Date().toISOString() }
+            : item
+    );
+
+    const updatedContent: GeneratedContent = {
+        ...generatedContent,
+        actionItems: updatedActionItems,
+    };
+
+    // Update the document
+    const { error: updateError } = await supabase
+        .from("site_documents")
+        .update({
+            generated_content: updatedContent,
+            updated_at: new Date().toISOString(),
+        })
+        .eq("id", documentId);
+
+    if (updateError) throw new Error(updateError.message);
+
+    return { updated_at: new Date().toISOString() };
+}
