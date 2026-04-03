@@ -69,7 +69,7 @@ export function NewDiaryModal({
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="text-xl font-bold text-slate-900">Create New {formTypeLabel}</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Select the project and site for this diary entry.
+          Select the project and site for this entry.
         </p>
 
         {error && (
@@ -163,7 +163,7 @@ export function NewDiaryModal({
                     Creating...
                   </span>
                 ) : (
-                  "Create Diary"
+                  `Create ${formTypeLabel}`
                 )}
               </button>
             </div>
