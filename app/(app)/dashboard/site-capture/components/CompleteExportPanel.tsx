@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { completeDiary } from "@/lib/site-capture/client";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 type CompletableDiary = {
   id: string;
@@ -36,8 +38,11 @@ export function CompleteExportPanel<TDiary extends CompletableDiary>({
       const next = { ...diary, ...updated } as TDiary;
       onUpdate(next);
       setShowExportOptions(true);
+      toast.success("Diary completed.");
     } catch (err) {
-      setCompleteError(err instanceof Error ? err.message : "Failed to complete diary.");
+      const message = err instanceof Error ? err.message : "Failed to complete diary.";
+      setCompleteError(message);
+      toast.error(message);
     } finally {
       setCompleting(false);
     }
@@ -46,20 +51,31 @@ export function CompleteExportPanel<TDiary extends CompletableDiary>({
   async function handleExport(format: "pdf" | "docx") {
     setExporting(format);
     try {
-      const response = await fetch(`/api/diary-export/${diary.id}?format=${format}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("You must be signed in to export.");
+
+      const response = await fetch(`/api/diary-export/${diary.id}?format=${format}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (!response.ok) throw new Error("Export failed");
       
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `site-diary-${diary.date}-${format}.${format}`;
+      a.download = `site-capture-${diary.date}-${format}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+      toast.success(`${format.toUpperCase()} export downloaded.`);
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Export failed";
       console.error("Export error:", err);
+      toast.error(message);
     } finally {
       setExporting(null);
     }

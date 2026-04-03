@@ -78,7 +78,7 @@ export async function GET(
     return new NextResponse(html, {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="site-diary-${exportData.date}.doc"`,
+        "Content-Disposition": `attachment; filename="site-capture-${exportData.date}.doc"`,
       },
     });
   }
@@ -88,7 +88,7 @@ export async function GET(
   return new NextResponse(html, {
     headers: {
       "Content-Type": "text/html",
-      "Content-Disposition": `attachment; filename="site-diary-${exportData.date}.html"`,
+      "Content-Disposition": `attachment; filename="site-capture-${exportData.date}.html"`,
     },
   });
 }

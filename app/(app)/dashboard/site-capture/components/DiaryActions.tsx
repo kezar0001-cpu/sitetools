@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { SiteDiaryFull, ToolboxTalkFull } from "@/lib/site-capture/types";
 import { archiveDiary, restoreDiary, deleteDiary } from "@/lib/site-capture/client";
+import { toast } from "sonner";
 
 interface DiaryActionsProps {
   diary: SiteDiaryFull | ToolboxTalkFull;
@@ -30,13 +31,15 @@ export function DiaryActions({ diary, userRole, userId, onUpdate }: DiaryActions
       if (isArchived) {
         const updated = await restoreDiary(diary.id);
         onUpdate({ ...diary, ...updated });
+        toast.success("Diary restored.");
       } else {
         const updated = await archiveDiary(diary.id);
         onUpdate({ ...diary, ...updated });
+        toast.success("Diary archived.");
       }
     } catch (err) {
       console.error("Failed to archive/restore diary:", err);
-      alert(err instanceof Error ? err.message : "Failed to update diary status");
+      toast.error(err instanceof Error ? err.message : "Failed to update diary status");
     } finally {
       setIsArchiving(false);
     }
@@ -47,10 +50,11 @@ export function DiaryActions({ diary, userRole, userId, onUpdate }: DiaryActions
     setIsDeleting(true);
     try {
       await deleteDiary(diary.id);
+      toast.success("Diary deleted.");
       router.push("/dashboard/site-capture");
     } catch (err) {
       console.error("Failed to delete diary:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete diary");
+      toast.error(err instanceof Error ? err.message : "Failed to delete diary");
       setIsDeleting(false);
       setShowDeleteConfirm(false);
     }
