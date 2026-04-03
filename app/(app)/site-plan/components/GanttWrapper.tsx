@@ -1,145 +1,190 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Gantt, Task, ViewMode } from "gantt-task-react";
-import "gantt-task-react/dist/index.css";
-import type { SitePlanTask, SitePlanDelayLog } from "@/types/siteplan";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
+import type { SitePlanTask } from "@/types/siteplan";
 import { buildTaskTree, flattenTree } from "@/types/siteplan";
 
-const statusBarColors: Record<string, { bg: string; bgProgress: string }> = {
-  not_started: { bg: "#cbd5e1", bgProgress: "#94a3b8" },
-  in_progress: { bg: "#93c5fd", bgProgress: "#3b82f6" },
-  completed: { bg: "#86efac", bgProgress: "#22c55e" },
-  delayed: { bg: "#fca5a5", bgProgress: "#ef4444" },
-  on_hold: { bg: "#fcd34d", bgProgress: "#f59e0b" },
-};
+const ROW_HEIGHT = 40;
+const DAY_WIDTH = 32;
+const LEFT_WIDTH_KEY = "siteplan-left-panel-width";
+const MIN_LEFT_WIDTH = 200;
 
 interface GanttWrapperProps {
   tasks: SitePlanTask[];
-  delayLogs?: SitePlanDelayLog[];
   onTaskClick?: (task: SitePlanTask) => void;
 }
 
-export function GanttWrapper({ tasks, delayLogs, onTaskClick }: GanttWrapperProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
+export function GanttWrapper({ tasks, onTaskClick }: GanttWrapperProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const leftScrollRef = useRef<HTMLDivElement>(null);
+  const rightScrollRef = useRef<HTMLDivElement>(null);
+  const sharedScrollTopRef = useRef(0);
+  const isSyncingRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [leftWidth, setLeftWidth] = useState(360);
 
-  // Build delay count map
-  const delayCountMap = useMemo(() => {
+  const flatTasks = useMemo(() => flattenTree(buildTaskTree(tasks)), [tasks]);
+
+  const depthMap = useMemo(() => {
     const map = new Map<string, number>();
-    if (delayLogs) {
-      for (const log of delayLogs) {
-        map.set(log.task_id, (map.get(log.task_id) ?? 0) + 1);
-      }
-    }
+    const visit = (task: SitePlanTask, depth: number) => {
+      map.set(task.id, depth);
+      flatTasks.filter((t) => t.parent_id === task.id).forEach((c) => visit(c, depth + 1));
+    };
+    flatTasks.filter((t) => !t.parent_id).forEach((t) => visit(t, 0));
     return map;
-  }, [delayLogs]);
+  }, [flatTasks]);
 
-  const ganttTasks: Task[] = useMemo(() => {
-    if (tasks.length === 0) return [];
-    const tree = buildTaskTree(tasks);
-    const flat = flattenTree(tree);
+  useEffect(() => {
+    const raw = window.localStorage.getItem(LEFT_WIDTH_KEY);
+    const stored = raw ? Number(raw) : NaN;
+    if (Number.isFinite(stored)) setLeftWidth(Math.max(MIN_LEFT_WIDTH, stored));
+  }, []);
 
-    return flat.map((node) => {
-      const delayCount = delayCountMap.get(node.id) ?? 0;
-      const hasDelays = delayCount > 0;
-      // If task has delays, force delayed color scheme
-      const effectiveStatus = hasDelays && node.status !== "completed" ? "delayed" : node.status;
-      const colors = statusBarColors[effectiveStatus] ?? statusBarColors.not_started;
-      const isPhase = node.type === "phase";
+  const range = useMemo(() => {
+    if (flatTasks.length === 0) {
+      const now = new Date();
+      const end = new Date(now);
+      end.setDate(end.getDate() + 30);
+      return { start: now, end };
+    }
+    const starts = flatTasks.map((t) => new Date(t.start_date).getTime());
+    const ends = flatTasks.map((t) => new Date(t.end_date).getTime());
+    const start = new Date(Math.min(...starts));
+    const end = new Date(Math.max(...ends));
+    start.setDate(start.getDate() - 3);
+    end.setDate(end.getDate() + 3);
+    return { start, end };
+  }, [flatTasks]);
 
-      // For phases, compute span from children
-      let start = new Date(node.start_date);
-      let end = new Date(node.end_date);
-      if (isPhase && node.children.length > 0) {
-        const childStarts = node.children.map((c) => new Date(c.start_date).getTime());
-        const childEnds = node.children.map((c) => new Date(c.end_date).getTime());
-        start = new Date(Math.min(...childStarts));
-        end = new Date(Math.max(...childEnds));
-      }
+  const dayColumns = useMemo(() => {
+    const cols: Date[] = [];
+    const cursor = new Date(range.start);
+    cursor.setHours(0, 0, 0, 0);
+    const end = new Date(range.end);
+    end.setHours(0, 0, 0, 0);
+    while (cursor <= end) {
+      cols.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return cols;
+  }, [range]);
 
-      // Ensure end is after start
-      if (end <= start) {
-        end = new Date(start.getTime() + 86400000);
-      }
+  const timelineWidth = dayColumns.length * DAY_WIDTH;
 
-      // Show delay indicator in task name
-      const delayBadge = hasDelays ? ` [${delayCount} delay${delayCount !== 1 ? "s" : ""}]` : "";
-
-      return {
-        id: node.id,
-        name: `${node.wbs_code} ${node.name}${delayBadge}`,
-        start,
-        end,
-        progress: node.progress,
-        type: isPhase ? "project" : "task",
-        hideChildren: false,
-        styles: {
-          backgroundColor: colors.bg,
-          backgroundSelectedColor: colors.bg,
-          progressColor: colors.bgProgress,
-          progressSelectedColor: colors.bgProgress,
-        },
-      } satisfies Task;
+  const syncScroll = useCallback((source: "left" | "right") => {
+    if (isSyncingRef.current) return;
+    const sourceEl = source === "left" ? leftScrollRef.current : rightScrollRef.current;
+    const targetEl = source === "left" ? rightScrollRef.current : leftScrollRef.current;
+    if (!sourceEl || !targetEl) return;
+    const nextTop = sourceEl.scrollTop;
+    sharedScrollTopRef.current = nextTop;
+    isSyncingRef.current = true;
+    targetEl.scrollTop = nextTop;
+    requestAnimationFrame(() => {
+      isSyncingRef.current = false;
     });
-  }, [tasks, delayCountMap]);
+  }, []);
 
-  const handleClick = (ganttTask: Task) => {
-    const original = tasks.find((t) => t.id === ganttTask.id);
-    if (original && onTaskClick) onTaskClick(original);
-  };
+  const updateLeftWidth = useCallback((clientX: number) => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const maxLeft = Math.floor(Math.min(window.innerWidth * 0.6, rect.width - 200));
+    const next = Math.max(MIN_LEFT_WIDTH, Math.min(clientX - rect.left, maxLeft));
+    setLeftWidth(next);
+    window.localStorage.setItem(LEFT_WIDTH_KEY, String(next));
+  }, []);
 
-  if (ganttTasks.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64 text-slate-400 text-sm">
-        No tasks to display. Add tasks to see the Gantt chart.
-      </div>
-    );
+  const startResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsResizing(true);
+
+    const onMove = (e: MouseEvent) => updateLeftWidth(e.clientX);
+    const onUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [updateLeftWidth]);
+
+  if (flatTasks.length === 0) {
+    return <div className="flex h-full items-center justify-center text-sm text-slate-400">Add tasks to see the timeline.</div>;
   }
 
   return (
-    <div className="w-full overflow-x-auto">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200 bg-white">
-        <span className="text-xs font-medium text-slate-500 mr-2">Zoom:</span>
-        {[
-          { label: "Day", mode: ViewMode.Day },
-          { label: "Week", mode: ViewMode.Week },
-          { label: "Month", mode: ViewMode.Month },
-        ].map(({ label, mode }) => (
-          <button
-            key={label}
-            onClick={() => setViewMode(mode)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md min-h-[32px] ${
-              viewMode === mode
-                ? "bg-blue-100 text-blue-700"
-                : "text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+    <div ref={rootRef} className={`flex h-full min-h-0 w-full ${isResizing ? "cursor-col-resize" : ""}`}>
+      <div className="min-w-0 border-r border-slate-200" style={{ width: leftWidth }}>
+        <div ref={leftScrollRef} onScroll={() => syncScroll("left")} className="h-full overflow-x-auto overflow-y-auto">
+          <div className="min-w-[700px]">
+            <div className="sticky top-0 z-20 grid grid-cols-[90px_minmax(260px,1fr)_120px_120px_80px] border-b border-slate-200 bg-white text-xs font-semibold text-slate-600">
+              <div className="px-3 py-2">WBS</div>
+              <div className="px-3 py-2">Task</div>
+              <div className="px-3 py-2">Start</div>
+              <div className="px-3 py-2">Finish</div>
+              <div className="px-3 py-2 text-right">%</div>
+            </div>
+            {flatTasks.map((task) => (
+              <button
+                key={task.id}
+                onClick={() => onTaskClick?.(task)}
+                className="grid w-full grid-cols-[90px_minmax(260px,1fr)_120px_120px_80px] border-b border-slate-100 text-left text-sm hover:bg-slate-50"
+                style={{ height: ROW_HEIGHT }}
+              >
+                <div className="px-3 py-2 text-slate-500">{task.wbs_code}</div>
+                <div className="truncate px-3 py-2 text-slate-800" style={{ paddingLeft: 12 + (depthMap.get(task.id) ?? 0) * 16 }}>
+                  {task.name}
+                </div>
+                <div className="px-3 py-2 text-slate-500">{task.start_date}</div>
+                <div className="px-3 py-2 text-slate-500">{task.end_date}</div>
+                <div className="px-3 py-2 text-right text-slate-700">{task.progress}%</div>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Gantt chart */}
-      <div className="min-w-[600px]">
-        <Gantt
-          tasks={ganttTasks}
-          viewMode={viewMode}
-          onClick={handleClick}
-          listCellWidth=""
-          columnWidth={
-            viewMode === ViewMode.Day
-              ? 60
-              : viewMode === ViewMode.Week
-              ? 200
-              : 300
-          }
-          todayColor="rgba(239, 68, 68, 0.1)"
-          barCornerRadius={4}
-          fontSize="12"
-          rowHeight={40}
-          headerHeight={50}
-        />
+      <div
+        onMouseDown={startResize}
+        className="w-1 shrink-0 cursor-col-resize bg-slate-200 transition-colors hover:bg-blue-400"
+        title="Drag to resize"
+      />
+
+      <div className="min-w-0 flex-1">
+        <div ref={rightScrollRef} onScroll={() => syncScroll("right")} className="h-full overflow-x-auto overflow-y-auto">
+          <div style={{ width: timelineWidth }}>
+            <div className="sticky top-0 z-20 flex border-b border-slate-200 bg-white text-xs font-medium text-slate-500">
+              {dayColumns.map((day) => (
+                <div key={day.toISOString()} className="border-r border-slate-100 px-1 py-2 text-center" style={{ width: DAY_WIDTH }}>
+                  {day.getDate()}
+                </div>
+              ))}
+            </div>
+            {flatTasks.map((task) => {
+              const start = new Date(task.start_date);
+              const end = new Date(task.end_date);
+              const startOffsetDays = Math.floor((start.getTime() - range.start.getTime()) / 86400000);
+              const durationDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
+              const left = startOffsetDays * DAY_WIDTH;
+              const width = durationDays * DAY_WIDTH;
+
+              return (
+                <div key={task.id} className="relative border-b border-slate-100" style={{ height: ROW_HEIGHT }}>
+                  <div className="absolute inset-y-0" style={{ left, width }}>
+                    <button
+                      onClick={() => onTaskClick?.(task)}
+                      className="mt-2 h-6 w-full rounded bg-blue-500/80 hover:bg-blue-600"
+                      title={task.name}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
