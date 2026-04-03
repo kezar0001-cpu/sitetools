@@ -1,6 +1,74 @@
 // ── Enums ──
 export type DiaryStatus = "draft" | "completed" | "archived";
 
+export type FormType = 
+  | "daily-diary" 
+  | "prestart-checklist" 
+  | "site-induction" 
+  | "toolbox-talk" 
+  | "incident-report" 
+  | "site-inspection";
+
+export const FORM_TYPE_CONFIG: Record<FormType, { label: string; description: string; icon: string; color: string; bgColor: string; borderColor: string }> = {
+  "daily-diary": {
+    label: "Daily Diary",
+    description: "Daily site records — weather, labour, plant & photos.",
+    icon: "book-open",
+    color: "text-sky-700",
+    bgColor: "bg-sky-50",
+    borderColor: "border-sky-200",
+  },
+  "prestart-checklist": {
+    label: "Prestart Checklist",
+    description: "Pre-start safety checks and hazard assessments.",
+    icon: "clipboard-check",
+    color: "text-emerald-700",
+    bgColor: "bg-emerald-50",
+    borderColor: "border-emerald-200",
+  },
+  "site-induction": {
+    label: "Site Induction",
+    description: "Worker site inductions and safety briefings.",
+    icon: "users",
+    color: "text-violet-700",
+    bgColor: "bg-violet-50",
+    borderColor: "border-violet-200",
+  },
+  "toolbox-talk": {
+    label: "Toolbox Talk",
+    description: "Safety meetings and team briefings.",
+    icon: "message-square",
+    color: "text-amber-700",
+    bgColor: "bg-amber-50",
+    borderColor: "border-amber-200",
+  },
+  "incident-report": {
+    label: "Incident Report",
+    description: "Report near-misses, injuries, or property damage.",
+    icon: "alert-triangle",
+    color: "text-red-700",
+    bgColor: "bg-red-50",
+    borderColor: "border-red-200",
+  },
+  "site-inspection": {
+    label: "Site Inspection",
+    description: "Quality and safety inspections with photos.",
+    icon: "search-check",
+    color: "text-cyan-700",
+    bgColor: "bg-cyan-50",
+    borderColor: "border-cyan-200",
+  },
+};
+
+export const FORM_TYPE_BADGE: Record<FormType, string> = {
+  "daily-diary": "bg-sky-100 text-sky-700 border-sky-200",
+  "prestart-checklist": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "site-induction": "bg-violet-100 text-violet-700 border-violet-200",
+  "toolbox-talk": "bg-amber-100 text-amber-700 border-amber-200",
+  "incident-report": "bg-red-100 text-red-700 border-red-200",
+  "site-inspection": "bg-cyan-100 text-cyan-700 border-cyan-200",
+};
+
 export type WeatherCondition =
   | "sunny"
   | "partly-cloudy"

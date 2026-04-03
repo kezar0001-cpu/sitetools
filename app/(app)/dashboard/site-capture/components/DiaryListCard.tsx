@@ -6,8 +6,10 @@ import {
   DIARY_STATUS_LABELS,
   WEATHER_CONDITION_ICONS,
   WEATHER_CONDITION_LABELS,
+  FORM_TYPE_CONFIG,
+  FORM_TYPE_BADGE,
 } from "@/lib/site-capture/types";
-import type { SiteDiaryWithCounts } from "@/lib/site-capture/types";
+import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
 
 interface Props {
   diary: SiteDiaryWithCounts;
@@ -29,6 +31,11 @@ export default function DiaryListCard({ diary }: Props) {
   const statusLabel = DIARY_STATUS_LABELS[diary.status] ?? diary.status;
   const statusBadge = DIARY_STATUS_BADGE[diary.status] ?? "bg-slate-100 text-slate-500 border-slate-200";
   
+  // Form type badge - default to daily-diary for backwards compatibility
+  const formType: FormType = (diary as { form_type?: FormType }).form_type ?? "daily-diary";
+  const formTypeConfig = FORM_TYPE_CONFIG[formType];
+  const formTypeBadge = FORM_TYPE_BADGE[formType] ?? "bg-slate-100 text-slate-600 border-slate-200";
+  
   const isArchived = diary.status === "archived";
 
   return (
@@ -49,9 +56,18 @@ export default function DiaryListCard({ diary }: Props) {
         {/* Main content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold text-slate-800 truncate">
-              {formatDate(diary.date)}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-slate-800 truncate">
+                {formatDate(diary.date)}
+              </p>
+              {/* Form type badge */}
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium border ${formTypeBadge}`}
+                title={formTypeConfig?.description}
+              >
+                {formTypeConfig?.label ?? "Daily Diary"}
+              </span>
+            </div>
             {/* Status badge */}
             <span
               className={`flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusBadge}`}

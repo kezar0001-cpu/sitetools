@@ -10,6 +10,7 @@ interface NewDiaryModalProps {
   onCreate: (projectId: string | null, siteId: string | null) => void;
   companyId: string;
   isCreating: boolean;
+  formTypeLabel?: string;
 }
 
 export function NewDiaryModal({
@@ -18,6 +19,7 @@ export function NewDiaryModal({
   onCreate,
   companyId,
   isCreating,
+  formTypeLabel = "Daily Diary",
 }: NewDiaryModalProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
@@ -65,7 +67,7 @@ export function NewDiaryModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-xl font-bold text-slate-900">Create New Diary</h2>
+        <h2 className="text-xl font-bold text-slate-900">Create New {formTypeLabel}</h2>
         <p className="text-sm text-slate-500 mt-1">
           Select the project and site for this diary entry.
         </p>
