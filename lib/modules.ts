@@ -63,7 +63,7 @@ export const MODULES: BuildstateModule[] = [
         icon: "book-open",
         status: "live",
         visibility: "primary",
-        href: "/dashboard/diary",
+        href: "/dashboard/site-capture",
         color: "sky",
     },
     {

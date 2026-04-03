@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getDiaryById, getDiaryPhotoUrls } from "@/lib/diary/client";
+import { getDiaryById, getDiaryPhotoUrls } from "@/lib/site-capture/client";
 import { getProjects, getSites } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import type { SiteDiaryFull } from "@/lib/diary/types";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { Project, Site } from "@/lib/workspace/types";
-import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/diary/types";
+import { WEATHER_CONDITION_ICONS, DIARY_STATUS_LABELS, DIARY_STATUS_BADGE } from "@/lib/site-capture/types";
 import DiaryEntryForm from "../components/DiaryEntryForm";
 import { DiaryActions } from "../components/DiaryActions";
 
@@ -103,7 +103,7 @@ export default function DiaryDetailPage() {
         <div className="text-5xl">⚠️</div>
         <p className="text-slate-600 text-center">{error ?? "Diary not found."}</p>
         <Link
-          href="/dashboard/diary"
+          href="/dashboard/site-capture"
           className="mt-2 inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-amber-400 text-slate-900 font-semibold hover:bg-amber-500 transition-colors"
         >
           Back to diaries
@@ -125,7 +125,7 @@ export default function DiaryDetailPage() {
         <div className="sticky top-0 z-20 bg-slate-50/95 backdrop-blur-sm pt-4 pb-3 -mx-4 px-4 border-b border-slate-200/80 mb-4">
           <div className="flex items-center gap-3">
             <Link
-              href="/dashboard/diary"
+              href="/dashboard/site-capture"
               className="flex-shrink-0 p-2 -ml-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
               aria-label="Back"
             >

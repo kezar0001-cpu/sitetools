@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { SiteDiaryFull, SiteDiaryPhoto } from "@/lib/diary/types";
+import type { SiteDiaryFull, SiteDiaryPhoto } from "@/lib/site-capture/types";
 import { SectionHeader } from "./SectionHeader";
 import PhotoUploader from "./PhotoUploader";
 

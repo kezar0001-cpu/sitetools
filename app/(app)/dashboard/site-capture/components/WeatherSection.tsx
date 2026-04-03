@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { updateDiary } from "@/lib/diary/client";
+import { updateDiary } from "@/lib/site-capture/client";
 import {
   WEATHER_CONDITIONS,
   WEATHER_CONDITION_ICONS,
   WEATHER_CONDITION_LABELS,
-} from "@/lib/diary/types";
-import type { SiteDiaryFull, WeatherCondition } from "@/lib/diary/types";
+} from "@/lib/site-capture/types";
+import type { SiteDiaryFull, WeatherCondition } from "@/lib/site-capture/types";
 import { useGPSWeather } from "@/hooks/useGPSWeather";
 import { SectionHeader } from "./SectionHeader";
 

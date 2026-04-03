@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { addEquipment, deleteEquipment } from "@/lib/diary/client";
-import { validateEquipment } from "@/lib/diary/validation";
-import type { SiteDiaryFull, SiteDiaryEquipment } from "@/lib/diary/types";
+import { addEquipment, deleteEquipment } from "@/lib/site-capture/client";
+import { validateEquipment } from "@/lib/site-capture/validation";
+import type { SiteDiaryFull, SiteDiaryEquipment } from "@/lib/site-capture/types";
 import { SectionHeader } from "./SectionHeader";
 
 interface FieldErrorProps {

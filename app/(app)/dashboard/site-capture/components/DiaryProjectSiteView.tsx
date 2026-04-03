@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { SiteDiaryWithCounts } from "@/lib/diary/types";
+import type { SiteDiaryWithCounts } from "@/lib/site-capture/types";
 import DiaryListCard from "./DiaryListCard";
 
 interface DiaryProjectSiteViewProps {

@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useState, useEffect } from "react";
-import { addIssue, deleteIssue } from "@/lib/diary/client";
-import type { SiteDiaryFull, SiteDiaryIssue, IssueType } from "@/lib/diary/types";
+import { addIssue, deleteIssue } from "@/lib/site-capture/client";
+import type { SiteDiaryFull, SiteDiaryIssue, IssueType } from "@/lib/site-capture/types";
 import { useVoiceToText } from "@/hooks/useVoiceToText";
 import { SectionHeader } from "./SectionHeader";
 import { supabase } from "@/lib/supabase";

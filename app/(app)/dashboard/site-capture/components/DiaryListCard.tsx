@@ -6,8 +6,8 @@ import {
   DIARY_STATUS_LABELS,
   WEATHER_CONDITION_ICONS,
   WEATHER_CONDITION_LABELS,
-} from "@/lib/diary/types";
-import type { SiteDiaryWithCounts } from "@/lib/diary/types";
+} from "@/lib/site-capture/types";
+import type { SiteDiaryWithCounts } from "@/lib/site-capture/types";
 
 interface Props {
   diary: SiteDiaryWithCounts;
@@ -32,7 +32,7 @@ export default function DiaryListCard({ diary }: Props) {
   const isArchived = diary.status === "archived";
 
   return (
-    <Link href={`/dashboard/diary/${diary.id}`}>
+    <Link href={`/dashboard/site-capture/${diary.id}`}>
       <div className={`group flex items-start gap-4 rounded-2xl bg-white border p-4 shadow-sm hover:border-amber-400 hover:shadow-md active:scale-[0.99] transition-all duration-150 cursor-pointer ${
         isArchived ? "border-slate-200 opacity-75" : "border-slate-200"
       }`}>

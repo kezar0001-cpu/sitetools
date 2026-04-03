@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { updateDiary } from "@/lib/diary/client";
-import type { SiteDiaryFull } from "@/lib/diary/types";
+import { updateDiary } from "@/lib/site-capture/client";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import { useVoiceToText } from "@/hooks/useVoiceToText";
 import { SectionHeader } from "./SectionHeader";
 import { supabase } from "@/lib/supabase";

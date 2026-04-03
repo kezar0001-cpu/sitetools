@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { approveDiary, rejectDiary, submitDiary } from "@/lib/diary/client";
-import type { SiteDiaryFull } from "@/lib/diary/types";
+import { approveDiary, rejectDiary, submitDiary } from "@/lib/site-capture/client";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { CompanyRole } from "@/lib/workspace/types";
 
 interface ReviewPanelProps {

@@ -123,6 +123,7 @@ export interface CreateDiaryPayload {
   project_id?: string | null;
   site_id?: string | null;
   date?: string;
+  form_type?: FormType;
   weather?: Partial<WeatherSnapshot>;
   notes?: string | null;
   status?: DiaryStatus;

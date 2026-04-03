@@ -214,6 +214,7 @@ export async function createDiary(payload: CreateDiaryPayload): Promise<SiteDiar
       project_id: payload.project_id ?? null,
       site_id: payload.site_id ?? null,
       date: payload.date ?? new Date().toISOString().slice(0, 10),
+      form_type: payload.form_type ?? "daily-diary",
       weather: { ...DEFAULT_WEATHER, ...(payload.weather ?? {}) },
       notes: payload.notes ?? null,
       status: payload.status ?? "draft",

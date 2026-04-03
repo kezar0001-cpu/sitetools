@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { SiteDiaryFull } from "@/lib/diary/types";
-import { archiveDiary, restoreDiary, deleteDiary } from "@/lib/diary/client";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
+import { archiveDiary, restoreDiary, deleteDiary } from "@/lib/site-capture/client";
 
 interface DiaryActionsProps {
   diary: SiteDiaryFull;
@@ -47,7 +47,7 @@ export function DiaryActions({ diary, userRole, userId, onUpdate }: DiaryActions
     setIsDeleting(true);
     try {
       await deleteDiary(diary.id);
-      router.push("/dashboard/diary");
+      router.push("/dashboard/site-capture");
     } catch (err) {
       console.error("Failed to delete diary:", err);
       alert(err instanceof Error ? err.message : "Failed to delete diary");

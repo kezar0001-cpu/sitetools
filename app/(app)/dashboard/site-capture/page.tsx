@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useRouter } from "next/navigation";
-import { getDiaries, createDiary, getDiariesGroupedByProjectSite } from "@/lib/diary/client";
+import { getDiaries, createDiary, getDiariesGroupedByProjectSite } from "@/lib/site-capture/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import type { SiteDiaryWithCounts } from "@/lib/diary/types";
+import type { SiteDiaryWithCounts } from "@/lib/site-capture/types";
 import DiaryListCard from "./components/DiaryListCard";
 import { NewDiaryModal } from "./components/NewDiaryModal";
 import { DiaryProjectSiteView } from "./components/DiaryProjectSiteView";
@@ -69,7 +69,7 @@ export default function DiaryListPage() {
   async function handleStartToday() {
     if (!companyId) return;
     if (todayDiary) {
-      router.push(`/dashboard/diary/${todayDiary.id}`);
+      router.push(`/dashboard/site-capture/${todayDiary.id}`);
       return;
     }
     setShowModal(true);
@@ -87,7 +87,7 @@ export default function DiaryListPage() {
         date: todayIso 
       });
       setShowModal(false);
-      router.push(`/dashboard/diary/${diary.id}`);
+      router.push(`/dashboard/site-capture/${diary.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create diary.");
       setCreating(false);

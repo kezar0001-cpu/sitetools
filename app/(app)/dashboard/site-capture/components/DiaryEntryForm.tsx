@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { SiteDiaryFull } from "@/lib/diary/types";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { CompanyRole } from "@/lib/workspace/types";
 import { WeatherSection } from "./WeatherSection";
 import { WorkCompletedSection } from "./WorkCompletedSection";

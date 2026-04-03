@@ -6,9 +6,9 @@ import {
   deleteLabor,
   getSiteSignLabor,
   type SiteSignLaborEntry,
-} from "@/lib/diary/client";
-import { validateLabor } from "@/lib/diary/validation";
-import type { SiteDiaryFull, SiteDiaryLabor } from "@/lib/diary/types";
+} from "@/lib/site-capture/client";
+import { validateLabor } from "@/lib/site-capture/validation";
+import type { SiteDiaryFull, SiteDiaryLabor } from "@/lib/site-capture/types";
 import { SectionHeader } from "./SectionHeader";
 
 interface FieldErrorProps {

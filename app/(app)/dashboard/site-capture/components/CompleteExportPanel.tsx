@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { completeDiary } from "@/lib/diary/client";
-import type { SiteDiaryFull } from "@/lib/diary/types";
+import { completeDiary } from "@/lib/site-capture/client";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
 
 interface CompleteExportPanelProps {
   diary: SiteDiaryFull;

@@ -7,9 +7,9 @@
 
 import { useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { uploadPhoto } from "@/lib/diary/client";
-import { validatePhotoFile } from "@/lib/diary/validation";
-import type { SiteDiaryPhoto } from "@/lib/diary/types";
+import { uploadPhoto } from "@/lib/site-capture/client";
+import { validatePhotoFile } from "@/lib/site-capture/validation";
+import type { SiteDiaryPhoto } from "@/lib/site-capture/types";
 
 interface Props {
   diaryId: string;
@@ -361,7 +361,7 @@ export default function PhotoUploader({ diaryId, initialPhotos = [], onChange, d
     if (disabled) return;
     setDeletingId(photo.id);
     try {
-      const { deletePhoto } = await import("@/lib/diary/client");
+      const { deletePhoto } = await import("@/lib/site-capture/client");
       await deletePhoto(photo);
       const next = photos.filter((p) => p.id !== photo.id);
       notifyChange(next);

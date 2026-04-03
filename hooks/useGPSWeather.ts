@@ -6,8 +6,8 @@
  */
 
 import { useState, useCallback } from "react";
-import type { WeatherSnapshot, WeatherCondition } from "@/lib/diary/types";
-import { DEFAULT_WEATHER } from "@/lib/diary/types";
+import type { WeatherSnapshot, WeatherCondition } from "@/lib/site-capture/types";
+import { DEFAULT_WEATHER } from "@/lib/site-capture/types";
 
 export interface GPSWeatherState {
   weather: WeatherSnapshot;

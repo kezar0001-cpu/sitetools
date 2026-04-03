@@ -19,13 +19,13 @@ import {
   type DraftDiary,
   type QueuedMutation,
   type MutationType,
-} from "@/lib/diary/offline";
+} from "@/lib/site-capture/offline";
 import type {
   AddEquipmentPayload,
   AddLaborPayload,
   CreateDiaryPayload,
   UpdateDiaryPayload,
-} from "@/lib/diary/types";
+} from "@/lib/site-capture/types";
 
 export interface OfflineStatus {
   isOnline: boolean;

@@ -1,6 +1,6 @@
 "use client";
 
-import type { SiteDiaryFull } from "@/lib/diary/types";
+import type { SiteDiaryFull } from "@/lib/site-capture/types";
 
 interface DiaryProgressProps {
   diary: SiteDiaryFull;
