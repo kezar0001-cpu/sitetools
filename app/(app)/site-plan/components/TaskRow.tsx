@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { ChevronRight, ChevronDown, GripVertical, Calendar, User, AlertTriangle, BarChart2, Pencil, Plus, Folder } from "lucide-react";
 import type { SitePlanTaskNode, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS, computeWorkProgress } from "@/types/siteplan";
