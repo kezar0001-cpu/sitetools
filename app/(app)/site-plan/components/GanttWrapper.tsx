@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SitePlanTask, SitePlanTaskNode, TaskType } from "@/types/siteplan";
+import { computeWorkProgress } from "@/types/siteplan";
+import { PHASE_ACCENT_COLORS } from "@/lib/sitePlanColors";
 import { GanttChart } from "./GanttChart";
 
 export const DESKTOP_ROW_HEIGHT = 40;
@@ -10,6 +12,40 @@ export type TaskListItem =
   | { kind: "task"; node: SitePlanTaskNode; taskIndex: number }
   | { kind: "add_row_trigger" }
   | { kind: "inline_input"; parentId: string | null; type: TaskType; sortOrder: number };
+
+const PHASE_DOT_COLORS = PHASE_ACCENT_COLORS.map((accent) =>
+  accent.replace("border-l-", "bg-")
+);
+
+function collectLeaves(nodes: SitePlanTaskNode[]): SitePlanTaskNode[] {
+  const leaves: SitePlanTaskNode[] = [];
+  const walk = (branch: SitePlanTaskNode[]) => {
+    for (const node of branch) {
+      if (node.type === "phase") {
+        walk(node.children);
+      } else if (node.children.length === 0) {
+        leaves.push(node);
+      } else {
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return leaves;
+}
+
+function computePhaseStats(children: SitePlanTaskNode[]) {
+  if (children.length === 0) {
+    return { totalTasks: 0, progress: 0 };
+  }
+
+  const leaves = collectLeaves(children);
+  const sources = leaves.length > 0 ? leaves : children;
+  return {
+    totalTasks: sources.length,
+    progress: Math.round(computeWorkProgress(sources)),
+  };
+}
 
 interface GanttWrapperProps {
   tasks: SitePlanTask[];
@@ -74,6 +110,8 @@ export function GanttWrapper(props: GanttWrapperProps) {
   const isSyncingScrollRef = useRef(false);
   const [desktopListHeight, setDesktopListHeight] = useState(500);
   const [stickyPhaseNode, setStickyPhaseNode] = useState<SitePlanTaskNode | null>(null);
+  const stickyPhaseIndex = stickyPhaseNode ? (props.phaseIndexMap.get(stickyPhaseNode.id) ?? 0) : 0;
+  const stickyPhaseStats = stickyPhaseNode ? computePhaseStats(stickyPhaseNode.children) : null;
 
   useEffect(() => {
     const el = desktopContainerRef.current;
@@ -131,16 +169,36 @@ export function GanttWrapper(props: GanttWrapperProps) {
     return () => leftEl.removeEventListener("scroll", onLeftScroll);
   }, [leftScrollRef, desktopListHeight, listItems.length]);
 
+  const phaseBanner = (
+    <div
+      className={`shrink-0 overflow-hidden transition-all duration-200 ${
+        stickyPhaseNode ? "h-7 opacity-100" : "h-0 opacity-0"
+      }`}
+    >
+      <div className="h-7 bg-slate-800 px-3 text-white flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              PHASE_DOT_COLORS[stickyPhaseIndex % PHASE_DOT_COLORS.length]
+            }`}
+            aria-hidden
+          />
+          <span className="text-xs font-bold truncate">
+            {stickyPhaseNode?.name ?? ""}
+          </span>
+        </div>
+        <span className="text-xs whitespace-nowrap">
+          {stickyPhaseStats?.totalTasks ?? 0} tasks · {stickyPhaseStats?.progress ?? 0}% complete
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="hidden md:flex flex-1 min-w-0 overflow-hidden">
       <div className="flex flex-col min-w-0 flex-1">
         {props.leftHeader}
-        {stickyPhaseNode && (
-          <div className="shrink-0 bg-slate-800 border-b border-slate-700 px-3 py-1 flex items-center gap-2 z-[5]">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phase</span>
-            <span className="text-xs font-semibold text-white truncate">{stickyPhaseNode.name}</span>
-          </div>
-        )}
+        {phaseBanner}
         <div className="flex-1 min-h-0" ref={desktopContainerRef}>
           {renderLeftRows({
             height: desktopListHeight,
@@ -152,7 +210,9 @@ export function GanttWrapper(props: GanttWrapperProps) {
         </div>
       </div>
       <div className="w-px shrink-0 bg-slate-200" />
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
+        {phaseBanner}
+        <div className="min-h-0 flex-1">
         {tasks.length > 0 ? (
           <GanttChart
             tasks={tasks}
@@ -169,6 +229,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
         ) : (
           <div className="flex items-center justify-center h-full w-full text-slate-400 text-sm">Add tasks to see the Gantt chart.</div>
         )}
+        </div>
       </div>
     </div>
   );
