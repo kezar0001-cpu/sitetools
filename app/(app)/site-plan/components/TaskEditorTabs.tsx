@@ -472,7 +472,7 @@ export function TaskEditorTabs({
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 py-2 text-xs font-medium transition-colors ${
+            className={`min-h-[44px] flex-1 py-2 text-xs font-medium transition-colors md:h-8 md:min-h-0 ${
               activeTab === tab.id
                 ? "text-blue-600 border-b-2 border-blue-600"
                 : "text-slate-500 hover:text-slate-700"

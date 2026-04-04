@@ -243,14 +243,15 @@ export function TaskEditPanel({
       <>
       {/* Backdrop for mobile */}
       <div
-        className="fixed inset-0 bg-black/20 z-40 xl:hidden"
+        className="fixed inset-0 z-40 bg-black/40 md:hidden"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 xl:static xl:inset-auto xl:w-96 xl:border-l xl:border-slate-200 bg-white xl:h-full flex flex-col max-h-[85vh] xl:max-h-full rounded-t-2xl xl:rounded-none shadow-xl xl:shadow-none ${className ?? ""}`}
+        className={`fixed inset-x-0 bottom-0 z-50 flex h-[85dvh] max-h-[85dvh] flex-col overflow-y-auto rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-xl md:absolute md:right-0 md:top-0 md:h-full md:max-h-full md:w-96 md:rounded-none md:border-l md:border-slate-200 md:pb-0 md:shadow-none ${className ?? ""}`}
       >
+        <div className="mx-auto mb-3 mt-2 h-1.5 w-12 rounded-full bg-slate-200 md:hidden" />
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">
