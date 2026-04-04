@@ -9,6 +9,7 @@ import { MobileTaskCard } from "./TaskRow";
 import { GanttChart } from "./GanttChart";
 
 export type MobileTab = "today" | "all" | "gantt";
+export const MOBILE_TABS: readonly MobileTab[] = ["today", "all", "gantt"];
 
 interface SitePlanMobileViewProps {
   projectId: string;
@@ -31,7 +32,7 @@ interface GroupedPhase {
   items: SitePlanTaskNode[];
 }
 
-const TAB_ORDER: MobileTab[] = ["today", "all", "gantt"];
+const TAB_ORDER: MobileTab[] = [...MOBILE_TABS];
 
 export function SitePlanMobileView({
   projectId,
