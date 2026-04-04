@@ -6,7 +6,7 @@ import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
 import { ProgressSlider } from "./ProgressSlider";
 import { MobileTaskCard } from "./TaskRow";
-import { GanttChart } from "./GanttChart";
+import { MobileTimelineView } from "./MobileTimelineView";
 
 export type MobileTab = "today" | "all" | "gantt";
 export const MOBILE_TABS: readonly MobileTab[] = ["today", "all", "gantt"];
@@ -51,6 +51,7 @@ export function SitePlanMobileView({
   delayCountMap,
   refetch,
 }: SitePlanMobileViewProps) {
+  void tasks;
   const updateTask = useUpdateTask();
   const [progressTask, setProgressTask] = useState<SitePlanTaskNode | null>(null);
   const [sliderProgress, setSliderProgress] = useState(0);
@@ -239,17 +240,10 @@ export function SitePlanMobileView({
             ))}
           </div>
 
-          <div className="w-1/3 shrink-0 overflow-hidden pb-24">
-            <GanttChart
-              tasks={tasks}
-              zoom="week"
-              canEdit={false}
-              showDependencies={false}
-              showCriticalPath={false}
-              onTaskClick={(task) => {
-                const found = rows.find((row) => row.id === task.id);
-                if (found) onSelectTask(found);
-              }}
+          <div className="w-1/3 shrink-0 overflow-hidden">
+            <MobileTimelineView
+              rows={rows}
+              onSelectTask={onSelectTask}
             />
           </div>
         </div>
