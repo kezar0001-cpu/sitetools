@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef } from "react";
-import { ChevronDown } from "lucide-react";
+import { BarChart2, ChevronDown, List, Sun } from "lucide-react";
 import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
 import { ProgressSlider } from "./ProgressSlider";
@@ -107,6 +107,11 @@ export function SitePlanMobileView({
   }, [rows, today]);
 
   const activeIndex = TAB_ORDER.indexOf(activeTab);
+  const mobileTabs = [
+    { id: "today" as const, label: "Today", icon: Sun },
+    { id: "all" as const, label: "All Tasks", icon: List },
+    { id: "gantt" as const, label: "Timeline", icon: BarChart2 },
+  ];
 
   const openProgressSheet = (task: SitePlanTaskNode) => {
     setProgressTask(task);
@@ -135,29 +140,6 @@ export function SitePlanMobileView({
 
   return (
     <div className="md:hidden flex flex-1 min-h-0 flex-col">
-      <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-2 py-2">
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
-          {[
-            { id: "today" as const, label: "Today's Tasks" },
-            { id: "all" as const, label: "All Tasks" },
-            { id: "gantt" as const, label: "Gantt" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onTabChange(tab.id)}
-              className={`min-h-[44px] rounded-lg px-2 text-xs font-semibold transition ${
-                activeTab === tab.id
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-slate-600"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="relative flex-1 min-h-0 overflow-hidden">
         <div
           className="flex h-full w-[300%] transition-transform duration-300 ease-out"
@@ -245,6 +227,28 @@ export function SitePlanMobileView({
               }}
             />
           </div>
+        </div>
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-up md:hidden">
+        <div className="grid grid-cols-3">
+          {mobileTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onTabChange(tab.id)}
+                className={`flex min-h-[44px] flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-semibold transition ${
+                  isActive ? "text-blue-600" : "text-slate-400"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
