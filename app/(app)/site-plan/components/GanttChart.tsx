@@ -214,23 +214,23 @@ function getDepArrowColor(pred: SitePlanTaskNode, succ: SitePlanTaskNode): strin
 
 // ─── Main component ─────────────────────────────────────────
 
-export function GanttChart({
-  tasks,
-  baselines,
-  delayLogs,
-  zoom,
-  showDependencies: showDeps = true,
-  showCriticalPath = false,
-  selectedTaskId,
-  hoveredTaskId,
-  onTaskClick,
-  onDoubleClick,
-  onDateChange,
-  canEdit = true,
-  todayTrigger,
-  scrollContainerRef,
-  onVerticalScroll,
-}: GanttChartProps) {
+export function GanttChart(props: GanttChartProps) {
+  const {
+    tasks,
+    baselines,
+    delayLogs,
+    zoom,
+    showDependencies: showDeps = true,
+    showCriticalPath = false,
+    selectedTaskId,
+    hoveredTaskId,
+    onTaskClick,
+    onDoubleClick,
+    onDateChange,
+    canEdit = true,
+    todayTrigger,
+    scrollContainerRef,
+  } = props;
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
   const [arrowTooltip, setArrowTooltip] = useState<{
@@ -523,7 +523,7 @@ export function GanttChart({
           className="flex-1 overflow-auto"
           onScroll={(e) => {
             setHeaderOffsetY(e.currentTarget.scrollTop);
-            onVerticalScroll?.(e.currentTarget.scrollTop);
+            props.onVerticalScroll?.(e.currentTarget.scrollTop);
           }}
         >
           <svg

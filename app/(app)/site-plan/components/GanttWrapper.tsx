@@ -278,7 +278,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
     setStickyPhaseNode((prev) => (prev?.id === found?.id ? prev : found));
   }, [listItems]);
 
-  const handleRightScroll = useCallback((scrollTop: number) => {
+  const handleRightPanelScroll = useCallback((scrollTop: number) => {
     if (isSyncingScrollRef.current || !leftScrollRef.current) return;
     isSyncingScrollRef.current = true;
     leftScrollRef.current.scrollTop = scrollTop;
@@ -379,7 +379,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
             onTaskClick={onTaskClick}
             todayTrigger={todayTrigger}
             scrollContainerRef={rightScrollRef}
-            onVerticalScroll={handleRightScroll}
+            onVerticalScroll={handleRightPanelScroll}
           />
         ) : (
           <div className="flex items-center justify-center h-full w-full text-slate-400 text-sm">Add tasks to see the Gantt chart.</div>
