@@ -982,7 +982,7 @@ function ProjectDetailInner() {
 
         {/* Panes area: horizontal layout for task list and/or Gantt */}
         <div
-          className="relative flex flex-1 min-h-0"
+          className="flex flex-1 min-h-0"
         >
           {/* Left pane: task list (hidden on desktop in gantt-only view) */}
           <div className={`flex flex-col min-w-0 ${
@@ -1144,12 +1144,13 @@ function ProjectDetailInner() {
           </div>
           </div>
 
-          {/* Task edit panel (desktop, non-edit mode) — overlays right side */}
-          {selectedTask && !editMode && (
-            <div
-              className="hidden md:block absolute right-0 top-0 bottom-0 z-20"
-              style={{ width: "min(400px, 40vw)" }}
-            >
+          {/* Task edit panel (desktop, non-edit mode) */}
+          <div
+            className={`hidden md:block shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
+              selectedTask && !editMode ? "w-[380px]" : "w-0"
+            }`}
+          >
+            {selectedTask && !editMode && (
               <TaskEditPanel
                 task={selectedTask}
                 onClose={() => setSelectedTask(null)}
@@ -1158,8 +1159,8 @@ function ProjectDetailInner() {
                   openCreateSheet("subtask", selectedTask.id, selectedTask.children.length, selectedTask)
                 }
               />
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
       {/* Mobile task edit panel (non-edit mode only) */}
