@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SitePlanTask, SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { computeWorkProgress } from "@/types/siteplan";
-import { PHASE_ACCENT_COLORS } from "@/lib/sitePlanColors";
+import { DEPTH_ZERO_DOT_COLORS } from "@/lib/sitePlanColors";
 import { GanttChart } from "./GanttChart";
 
 export const DESKTOP_ROW_HEIGHT = 40;
@@ -13,15 +13,13 @@ export type TaskListItem =
   | { kind: "add_row_trigger" }
   | { kind: "inline_input"; parentId: string | null; type: TaskType; sortOrder: number };
 
-const PHASE_DOT_COLORS = PHASE_ACCENT_COLORS.map((accent) =>
-  accent.replace("border-l-", "bg-")
-);
+const ROOT_DOT_COLORS = DEPTH_ZERO_DOT_COLORS;
 
 function collectLeaves(nodes: SitePlanTaskNode[]): SitePlanTaskNode[] {
   const leaves: SitePlanTaskNode[] = [];
   const walk = (branch: SitePlanTaskNode[]) => {
     for (const node of branch) {
-      if (node.type === "phase") {
+      if (node.children.length > 0) {
         walk(node.children);
       } else if (node.children.length === 0) {
         leaves.push(node);
@@ -66,7 +64,6 @@ interface GanttWrapperProps {
   onRightPanelScroll?: (scrollTop: number) => void;
   leftScrollRef: React.MutableRefObject<HTMLDivElement | null>;
   leftHeader?: React.ReactNode;
-  phaseIndexMap: Map<string, number>;
   expandedIds: Set<string>;
   allExpanded: boolean;
   toggleExpand: (id: string) => void;
@@ -110,7 +107,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
   const isSyncingScrollRef = useRef(false);
   const [desktopListHeight, setDesktopListHeight] = useState(500);
   const [stickyPhaseNode, setStickyPhaseNode] = useState<SitePlanTaskNode | null>(null);
-  const stickyPhaseIndex = stickyPhaseNode ? (props.phaseIndexMap.get(stickyPhaseNode.id) ?? 0) : 0;
+  const stickyPhaseIndex = stickyPhaseNode ? visibleRows.filter((n) => n.children.length > 0 && n.parent_id === null).findIndex((n) => n.id === stickyPhaseNode.id) : 0;
   const stickyPhaseStats = stickyPhaseNode ? computePhaseStats(stickyPhaseNode.children) : null;
 
   useEffect(() => {
@@ -132,11 +129,11 @@ export function GanttWrapper(props: GanttWrapperProps) {
     const topItemIndex = Math.floor(scrollOffset / DESKTOP_ROW_HEIGHT);
     if (topItemIndex === 0) return setStickyPhaseNode(null);
     const topItem = listItems[topItemIndex];
-    if (topItem?.kind === "task" && topItem.node.type === "phase") return setStickyPhaseNode(null);
+    if (topItem?.kind === "task" && topItem.node.children.length > 0 && topItem.node.parent_id === null) return setStickyPhaseNode(null);
     let found: SitePlanTaskNode | null = null;
     for (let i = topItemIndex - 1; i >= 0; i--) {
       const item = listItems[i];
-      if (item?.kind === "task" && item.node.type === "phase") {
+      if (item?.kind === "task" && item.node.children.length > 0 && item.node.parent_id === null) {
         found = item.node;
         break;
       }
@@ -179,7 +176,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={`h-2 w-2 rounded-full ${
-              PHASE_DOT_COLORS[stickyPhaseIndex % PHASE_DOT_COLORS.length]
+              ROOT_DOT_COLORS[stickyPhaseIndex % ROOT_DOT_COLORS.length]
             }`}
             aria-hidden
           />

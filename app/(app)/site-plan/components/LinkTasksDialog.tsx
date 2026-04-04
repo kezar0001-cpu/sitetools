@@ -120,7 +120,7 @@ export function LinkTasksDialog({
                 <div className="min-w-0 flex-1">
                   <p
                     className={`text-sm truncate ${
-                      t.type === "phase"
+                      t.children.length > 0
                         ? "font-semibold text-slate-900"
                         : "text-slate-700"
                     }`}

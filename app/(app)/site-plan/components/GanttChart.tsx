@@ -386,7 +386,7 @@ export function GanttChart(props: GanttChartProps) {
 
   const handleBarMouseDown = useCallback(
     (e: React.MouseEvent, task: SitePlanTask, mode: "move" | "resize-end") => {
-      if (!canEdit || task.type === "phase" || task.type === "milestone") return;
+      if (!canEdit || task.type === "milestone") return;
       e.stopPropagation();
       e.preventDefault();
       setHoverTooltip(null);
@@ -644,7 +644,7 @@ export function GanttChart(props: GanttChartProps) {
               const y = HEADER_HEIGHT + i * ROW_HEIGHT;
               const barY = y + 8;
               const barHeight = ROW_HEIGHT - 16;
-              const isPhase = node.type === "phase";
+              const isSummary = node.children.length > 0;
               const isMilestone = node.type === "milestone";
               const delayDays = delayDaysMap.get(node.id) ?? 0;
               const baseline = baselineMap.get(node.id);
@@ -652,7 +652,7 @@ export function GanttChart(props: GanttChartProps) {
               // Phase spans — compute from children if available
               let startDate = new Date(node.start_date);
               let endDate = new Date(node.end_date);
-              if (isPhase && node.children.length > 0) {
+              if (isSummary) {
                 startDate = new Date(
                   Math.min(...node.children.map((c) => new Date(c.start_date).getTime()))
                 );
@@ -721,7 +721,7 @@ export function GanttChart(props: GanttChartProps) {
               return (
                 <g
                   key={node.id}
-                  className={canEdit && !isPhase ? "cursor-grab" : "cursor-pointer"}
+                  className={canEdit && !isSummary ? "cursor-grab" : "cursor-pointer"}
                   opacity={isDepDimmed ? 0.25 : 1}
                   onClick={() => handleBarClick(taskData)}
                   onDoubleClick={() => handleBarDoubleClick(taskData)}
@@ -771,7 +771,7 @@ export function GanttChart(props: GanttChartProps) {
                       )}
                     </>
                   ) : /* Phase summary bar style */
-                  isPhase ? (
+                  isSummary ? (
                     <>
                       <line
                         x1={barX}
@@ -935,7 +935,7 @@ export function GanttChart(props: GanttChartProps) {
                   </text>
 
                   {/* Baseline bar (thin grey line below main bar) */}
-                  {baseline && !isPhase && (
+                  {baseline && !isSummary && (
                     <rect
                       x={baselineStartX}
                       y={baselineY}
@@ -948,7 +948,7 @@ export function GanttChart(props: GanttChartProps) {
                   )}
 
                   {/* Selected bar ring */}
-                  {isSelected && !isMilestone && !isPhase && (
+                  {isSelected && !isMilestone && !isSummary && (
                     <rect
                       x={effectiveBarX - 2}
                       y={barY - 2}
@@ -961,7 +961,7 @@ export function GanttChart(props: GanttChartProps) {
                       style={{ pointerEvents: "none" }}
                     />
                   )}
-                  {isSelected && isPhase && (
+                  {isSelected && isSummary && (
                     <rect
                       x={barX - 2}
                       y={barY - 2}
@@ -976,7 +976,7 @@ export function GanttChart(props: GanttChartProps) {
                   )}
 
                   {/* Dependency highlight ring */}
-                  {isDepHighlighted && !isMilestone && !isPhase && (
+                  {isDepHighlighted && !isMilestone && !isSummary && (
                     <rect
                       x={effectiveBarX - 2}
                       y={barY - 2}
@@ -991,7 +991,7 @@ export function GanttChart(props: GanttChartProps) {
                   )}
 
                   {/* Critical path highlight */}
-                  {isCritical && !isMilestone && !isPhase && (
+                  {isCritical && !isMilestone && !isSummary && (
                     <rect
                       x={effectiveBarX - 2}
                       y={barY - 2}
@@ -1004,7 +1004,7 @@ export function GanttChart(props: GanttChartProps) {
                       style={{ pointerEvents: "none" }}
                     />
                   )}
-                  {isCritical && isPhase && (
+                  {isCritical && isSummary && (
                     <rect
                       x={barX - 2}
                       y={barY - 2}

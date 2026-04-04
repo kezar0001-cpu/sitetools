@@ -8,7 +8,7 @@ export type { Project };
 /** Increment this when the shape of a baseline snapshot changes. */
 export const BASELINE_SCHEMA_VERSION = 1;
 
-export type TaskType = "phase" | "task" | "subtask" | "milestone";
+export type TaskType = "task" | "milestone";
 
 export type TaskStatus =
   | "not_started"
@@ -167,11 +167,16 @@ export const STATUS_COLORS: Record<TaskStatus, string> = {
 };
 
 /**
- * Canonical progress calculation: average progress of non-phase tasks only.
+ * Canonical progress calculation: average progress of non-milestone leaf work items.
  * Used by the list page header, summary page, and the RPC to ensure consistency.
  */
-export function computeWorkProgress(tasks: SitePlanTask[]): number {
-  const workItems = tasks.filter((t) => t.type !== "phase" && t.type !== "milestone");
+export function computeWorkProgress(
+  tasks: SitePlanTask[],
+  parentIds?: Set<string>
+): number {
+  const workItems = tasks.filter((t) =>
+    t.type !== "milestone" && !(parentIds?.has(t.id))
+  );
   if (workItems.length === 0) return 0;
   return Math.round(
     workItems.reduce((sum, t) => sum + t.progress, 0) / workItems.length
@@ -195,7 +200,7 @@ export function computeProjectHealth(
   const hasDelayed = tasks.some((t) => t.status === "delayed");
   if (hasDelayed) return "delayed";
 
-  const workItems = tasks.filter((t) => t.type !== "phase" && t.type !== "milestone");
+  const workItems = tasks.filter((t) => t.type !== "milestone");
   const avgProgress = workItems.length > 0
     ? workItems.reduce((sum, t) => sum + t.progress, 0) / workItems.length
     : 0;
@@ -295,3 +300,5 @@ export function getBarPosition(
   const right = Math.min(100, (endMs / totalMs) * 100);
   return { left, width: Math.max(1, right - left) };
 }
+
+// -- UPDATE site_plan_tasks SET type = 'task' WHERE type IN ('phase', 'subtask');

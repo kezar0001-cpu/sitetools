@@ -23,12 +23,14 @@ interface SitePlanMobileViewProps {
   onToggleMobileExpand: (id: string) => void;
   delayCountMap: Map<string, number>;
   refetch: () => Promise<unknown>;
+  depthMap: Map<string, number>;
+  rootIndexMap: Map<string, number>;
 }
 
 interface GroupedPhase {
-  phaseId: string;
-  phaseName: string;
-  phaseProgress: number;
+  rootId: string;
+  rootName: string;
+  rootProgress: number;
   items: SitePlanTaskNode[];
 }
 
@@ -50,6 +52,8 @@ export function SitePlanMobileView({
   onToggleMobileExpand,
   delayCountMap,
   refetch,
+  depthMap,
+  rootIndexMap,
 }: SitePlanMobileViewProps) {
   void tasks;
   const updateTask = useUpdateTask();
@@ -65,42 +69,22 @@ export function SitePlanMobileView({
 
   const groupedByPhase = useMemo<GroupedPhase[]>(() => {
     const groups = new Map<string, GroupedPhase>();
-    let activePhaseName = "Unassigned";
-    let activePhaseId = "unassigned";
-
     for (const node of rows) {
-      if (node.type === "phase") {
-        activePhaseName = node.name;
-        activePhaseId = node.id;
-        if (!groups.has(node.id)) {
-          groups.set(node.id, {
-            phaseId: node.id,
-            phaseName: node.name,
-            phaseProgress: node.progress,
-            items: [],
-          });
-        }
-        continue;
-      }
-
-      if (!groups.has(activePhaseId)) {
-        groups.set(activePhaseId, {
-          phaseId: activePhaseId,
-          phaseName: activePhaseName,
-          phaseProgress: 0,
-          items: [],
-        });
-      }
-
-      groups.get(activePhaseId)?.items.push(node);
+      const depth = depthMap.get(node.id) ?? 0;
+      if (depth !== 0 || node.children.length === 0) continue;
+      groups.set(node.id, {
+        rootId: node.id,
+        rootName: node.name,
+        rootProgress: node.progress,
+        items: rows.filter((r) => (rootIndexMap.get(r.id) ?? 0) === (rootIndexMap.get(node.id) ?? 0)),
+      });
     }
-
-    return Array.from(groups.values()).filter((g) => g.items.length > 0);
-  }, [rows]);
+    return Array.from(groups.values());
+  }, [rows, depthMap, rootIndexMap]);
 
   const todaysTasks = useMemo(() => {
     return rows.filter((task) => {
-      if (task.type === "phase") return false;
+      if (task.children.length > 0 || task.type === "milestone") return false;
       const start = new Date(task.start_date);
       const end = new Date(task.end_date);
       const taskStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
@@ -163,9 +147,9 @@ export function SitePlanMobileView({
         >
           <div className="w-1/3 shrink-0 overflow-y-auto pb-24">
             {groupedTodayByPhase.map((group, groupIndex) => (
-              <section key={group.phaseId}>
+              <section key={group.rootId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
-                  <p className="text-xs font-semibold text-slate-700">{group.phaseName}</p>
+                  <p className="text-xs font-semibold text-slate-700">{group.rootName}</p>
                   <p className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
                     {group.activeItems.length} active today
                   </p>
@@ -180,7 +164,8 @@ export function SitePlanMobileView({
                     delayCount={delayCountMap.get(node.id) ?? 0}
                     mobileExpanded={mobileExpandedIds.has(node.id)}
                     onToggleMobileExpand={() => onToggleMobileExpand(node.id)}
-                    phaseIndex={groupIndex}
+                    depth={depthMap.get(node.id) ?? 0}
+                    rootIndex={rootIndexMap.get(node.id) ?? 0}
                   />
                 ))}
               </section>
@@ -216,11 +201,11 @@ export function SitePlanMobileView({
               <div className="px-4 py-2 text-xs text-blue-600">Refreshing…</div>
             )}
             {groupedByPhase.map((group, groupIndex) => (
-              <section key={group.phaseId}>
+              <section key={group.rootId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
-                  <p className="text-xs font-semibold text-slate-700">{group.phaseName}</p>
+                  <p className="text-xs font-semibold text-slate-700">{group.rootName}</p>
                   <p className="text-[11px] text-slate-500">
-                    {group.phaseProgress}% · {group.items.length} tasks
+                    {group.rootProgress}% · {group.items.length} tasks
                   </p>
                 </div>
                 {group.items.map((node) => (
@@ -233,7 +218,8 @@ export function SitePlanMobileView({
                     delayCount={delayCountMap.get(node.id) ?? 0}
                     mobileExpanded={mobileExpandedIds.has(node.id)}
                     onToggleMobileExpand={() => onToggleMobileExpand(node.id)}
-                    phaseIndex={groupIndex}
+                    depth={depthMap.get(node.id) ?? 0}
+                    rootIndex={rootIndexMap.get(node.id) ?? 0}
                   />
                 ))}
               </section>
