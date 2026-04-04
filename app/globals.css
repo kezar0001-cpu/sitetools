@@ -67,4 +67,8 @@ body {
   .animate-zoom-in {
     animation: zoom-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+
+  .shadow-up {
+    box-shadow: 0 -6px 16px rgb(15 23 42 / 0.08);
+  }
 }

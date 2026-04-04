@@ -22,7 +22,6 @@ import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/Sit
 import type { TaskFilter } from "../components/SitePlanToolbar";
 import { BaselineDialog } from "../components/BaselineDialog";
 import { LinkTasksDialog } from "../components/LinkTasksDialog";
-import { SitePlanBottomNav } from "../components/SitePlanBottomNav";
 import { AddTaskFAB } from "../components/AddTaskFAB";
 import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
@@ -1233,7 +1232,6 @@ function ProjectDetailInner() {
       )}
 
       <AddTaskFAB onAdd={handleFABAdd} currentType={selectedTask?.type ?? "task"} />
-      <SitePlanBottomNav activeTab={mobileTab} onTabChange={handleMobileTabChange} />
     </div>
     </>
   );
