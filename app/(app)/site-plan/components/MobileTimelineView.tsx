@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { SitePlanTaskNode } from "@/types/siteplan";
 
 interface MobileTimelineViewProps {
@@ -15,22 +15,25 @@ function startOfDay(dateInput: Date | string) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function diffDays(from: Date, to: Date) {
-  return Math.floor((to.getTime() - from.getTime()) / DAY_MS);
+function diffDays(from: Date | string, to: Date | string) {
+  const fromDay = startOfDay(from);
+  const toDay = startOfDay(to);
+  return Math.floor((toDay.getTime() - fromDay.getTime()) / DAY_MS);
 }
 
 export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewProps) {
-  const today = useMemo(() => startOfDay(new Date()), []);
+  const windowStart = useRef(startOfDay(new Date())).current;
 
   const days = useMemo(() => {
     return Array.from({ length: 14 }, (_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() + index);
+      const date = new Date(windowStart);
+      date.setDate(windowStart.getDate() + index);
       return date;
     });
-  }, [today]);
+  }, [windowStart]);
 
   const windowEnd = days[days.length - 1];
+  const todayCol = diffDays(windowStart, startOfDay(new Date()));
 
   const activeTasks = useMemo(() => {
     return rows
@@ -39,10 +42,10 @@ export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewPro
         if (task.status !== "in_progress" && task.status !== "not_started") return false;
         const start = startOfDay(task.start_date);
         const end = startOfDay(task.end_date);
-        return end >= today && start <= windowEnd;
+        return end >= windowStart && start <= windowEnd;
       })
       .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
-  }, [rows, today, windowEnd]);
+  }, [rows, windowStart, windowEnd]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white">
@@ -50,17 +53,17 @@ export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewPro
         <p className="text-xs font-semibold text-slate-700">Timeline · Next 14 days</p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-24">
-        <div className="min-w-[760px]">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom)+16px)]">
+        <div className="relative min-w-[680px]">
           <div
             className="sticky top-0 z-10 grid border-b border-slate-200 bg-slate-50"
-            style={{ gridTemplateColumns: "180px repeat(14, minmax(40px, 1fr))" }}
+            style={{ gridTemplateColumns: "120px repeat(14, minmax(40px, 1fr))" }}
           >
             <div className="border-r border-slate-200 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Active tasks
             </div>
             {days.map((day) => {
-              const isToday = day.getTime() === today.getTime();
+              const isToday = day.getTime() === windowStart.getTime();
               return (
                 <div
                   key={day.toISOString()}
@@ -74,13 +77,19 @@ export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewPro
               );
             })}
           </div>
+          {todayCol >= 0 && todayCol <= 13 && (
+            <div
+              className="pointer-events-none absolute bottom-0 top-0 z-10 w-[2px] bg-blue-400 opacity-60"
+              style={{ left: `calc(${(todayCol / 13) * 100}% + 120px)` }}
+            />
+          )}
 
           {activeTasks.map((task) => {
-            const taskStart = startOfDay(task.start_date);
-            const taskEnd = startOfDay(task.end_date);
-            const startIndex = Math.max(0, diffDays(today, taskStart));
-            const endIndex = Math.min(13, diffDays(today, taskEnd));
-            const spansTimeline = startIndex <= 13 && endIndex >= 0 && endIndex >= startIndex;
+            const clampedStart = Math.max(diffDays(windowStart, task.start_date), 0);
+            const clampedEnd = Math.min(diffDays(windowStart, task.end_date), 13);
+            if (clampedEnd < clampedStart) return null;
+            const left = (clampedStart / 13) * 100;
+            const width = Math.max(2, ((clampedEnd - clampedStart) / 13) * 100);
             const colorClass = task.status === "in_progress" ? "bg-blue-500" : "bg-slate-400";
 
             return (
@@ -89,7 +98,7 @@ export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewPro
                 type="button"
                 onClick={() => onSelectTask(task)}
                 className="grid w-full border-b border-slate-100 text-left transition active:bg-slate-50"
-                style={{ gridTemplateColumns: "180px repeat(14, minmax(40px, 1fr))" }}
+                style={{ gridTemplateColumns: "120px repeat(14, minmax(40px, 1fr))" }}
               >
                 <div className="truncate border-r border-slate-200 px-3 py-3 text-sm text-slate-800">
                   {task.name}
@@ -98,20 +107,15 @@ export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewPro
                   {days.map((day) => (
                     <div key={`${task.id}-${day.toISOString()}`} className="h-full border-r border-slate-100" />
                   ))}
-                  {spansTimeline && (
-                    <div
-                      className="pointer-events-none absolute top-1/2 -translate-y-1/2"
-                      style={{
-                        left: `calc(${(startIndex / 14) * 100}% + 4px)`,
-                        width: `calc(${((endIndex - startIndex + 1) / 14) * 100}% - 8px)`,
-                      }}
-                    >
-                      <div className={`relative h-2 rounded-full ${colorClass}`}>
-                        <span className={`absolute -left-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${colorClass}`} />
-                        <span className={`absolute -right-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${colorClass}`} />
-                      </div>
+                  <div
+                    className="pointer-events-none absolute top-1/2 -translate-y-1/2"
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                  >
+                    <div className={`relative h-2 rounded-full ${colorClass}`}>
+                      <span className={`absolute -left-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${colorClass}`} />
+                      <span className={`absolute -right-1 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ${colorClass}`} />
                     </div>
-                  )}
+                  </div>
                 </div>
               </button>
             );

@@ -52,7 +52,7 @@ export function ProgressSlider({
           onTouchEnd={(e) =>
             commit(Number((e.target as HTMLInputElement).value))
           }
-          className={`w-full accent-blue-600 cursor-pointer ${height} ${thumbSize}`}
+          className={`h-11 w-full cursor-pointer accent-blue-600 ${height} ${thumbSize}`}
           style={{ touchAction: "none" }}
         />
       </div>

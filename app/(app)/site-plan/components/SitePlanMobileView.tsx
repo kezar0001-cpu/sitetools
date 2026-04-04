@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useRef } from "react";
-import { BarChart2, ChevronDown, List, Sun } from "lucide-react";
+import { BarChart2, List, Loader2, Sun, X } from "lucide-react";
 import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
 import { ProgressSlider } from "./ProgressSlider";
@@ -61,6 +61,7 @@ export function SitePlanMobileView({
   const [sliderProgress, setSliderProgress] = useState(0);
   const [isPulling, setIsPulling] = useState(false);
   const touchStartYRef = useRef<number | null>(null);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const today = useMemo(() => {
     const now = new Date();
@@ -119,23 +120,27 @@ export function SitePlanMobileView({
   };
 
   const commitProgress = (value: number) => {
-    if (!progressTask) return;
-    updateTask.mutate({
-      id: progressTask.id,
-      projectId,
-      updates: { progress: value },
-    });
+    if (commitTimer.current) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => {
+      if (!progressTask) return;
+      updateTask.mutate({
+        id: progressTask.id,
+        projectId,
+        updates: { progress: value },
+      });
+    }, 400);
     setProgressTask((prev) => (prev ? { ...prev, progress: value } : prev));
   };
 
   const markComplete = () => {
-    if (!progressTask) return;
+    const id = progressTask?.id;
+    if (!id) return;
+    setProgressTask(null);
     updateTask.mutate({
-      id: progressTask.id,
+      id,
       projectId,
       updates: { progress: 100 },
     });
-    setProgressTask(null);
   };
 
   return (
@@ -145,7 +150,7 @@ export function SitePlanMobileView({
           className="flex h-full w-[300%] transition-transform duration-300 ease-out"
           style={{ transform: `translateX(-${activeIndex * (100 / 3)}%)` }}
         >
-          <div className="w-1/3 shrink-0 overflow-y-auto pb-24">
+          <div className="w-1/3 shrink-0 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom)+16px)]">
             {groupedTodayByPhase.map((group) => (
               <section key={group.rootId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
@@ -171,12 +176,18 @@ export function SitePlanMobileView({
               </section>
             ))}
             {groupedTodayByPhase.length === 0 && (
-              <p className="px-4 py-8 text-center text-sm text-slate-500">No active tasks for today.</p>
+              <div className="flex h-48 flex-col items-center justify-center gap-3 px-6">
+                <Sun className="h-10 w-10 text-amber-300" strokeWidth={1.5} />
+                <p className="text-sm font-semibold text-slate-700">All clear for today</p>
+                <p className="text-center text-xs text-slate-400">
+                  No active or overdue tasks right now.
+                </p>
+              </div>
             )}
           </div>
 
           <div
-            className="w-1/3 shrink-0 overflow-y-auto pb-24"
+            className="w-1/3 shrink-0 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom)+16px)]"
             onTouchStart={(e) => {
               if (e.currentTarget.scrollTop <= 0) {
                 touchStartYRef.current = e.touches[0].clientY;
@@ -198,7 +209,10 @@ export function SitePlanMobileView({
             }}
           >
             {isPulling && (
-              <div className="px-4 py-2 text-xs text-blue-600">Refreshing…</div>
+              <div className="flex items-center justify-center gap-2 py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <span className="text-xs text-blue-500">Refreshing…</span>
+              </div>
             )}
             {groupedByPhase.map((group) => (
               <section key={group.rootId}>
@@ -274,7 +288,7 @@ export function SitePlanMobileView({
                 className="min-h-[44px] min-w-[44px] rounded-lg text-slate-500"
                 onClick={() => setProgressTask(null)}
               >
-                <ChevronDown className="h-5 w-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
             <div className="py-2">
