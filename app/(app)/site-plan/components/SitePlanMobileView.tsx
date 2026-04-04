@@ -161,7 +161,7 @@ export function SitePlanMobileView({
           style={{ transform: `translateX(-${activeIndex * (100 / 3)}%)` }}
         >
           <div className="w-1/3 shrink-0 overflow-y-auto pb-24">
-            {groupedTodayByPhase.map((group) => (
+            {groupedTodayByPhase.map((group, groupIndex) => (
               <section key={group.phaseId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
                   <p className="text-xs font-semibold text-slate-700">{group.phaseName}</p>
@@ -175,11 +175,11 @@ export function SitePlanMobileView({
                     node={node}
                     onSelect={onSelectTask}
                     onLogDelay={onLogDelay}
-                    onUpdateProgress={openProgressSheet}
                     onProgressTap={openProgressSheet}
                     delayCount={delayCountMap.get(node.id) ?? 0}
                     mobileExpanded={mobileExpandedIds.has(node.id)}
                     onToggleMobileExpand={() => onToggleMobileExpand(node.id)}
+                    phaseIndex={groupIndex}
                   />
                 ))}
               </section>
@@ -214,7 +214,7 @@ export function SitePlanMobileView({
             {isPulling && (
               <div className="px-4 py-2 text-xs text-blue-600">Refreshing…</div>
             )}
-            {groupedByPhase.map((group) => (
+            {groupedByPhase.map((group, groupIndex) => (
               <section key={group.phaseId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
                   <p className="text-xs font-semibold text-slate-700">{group.phaseName}</p>
@@ -228,11 +228,11 @@ export function SitePlanMobileView({
                     node={node}
                     onSelect={onSelectTask}
                     onLogDelay={onLogDelay}
-                    onUpdateProgress={openProgressSheet}
                     onProgressTap={openProgressSheet}
                     delayCount={delayCountMap.get(node.id) ?? 0}
                     mobileExpanded={mobileExpandedIds.has(node.id)}
                     onToggleMobileExpand={() => onToggleMobileExpand(node.id)}
+                    phaseIndex={groupIndex}
                   />
                 ))}
               </section>
