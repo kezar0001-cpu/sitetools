@@ -33,6 +33,7 @@ interface TaskEditPanelProps {
   onClose: () => void;
   hasChildren: boolean;
   onAddSubtask?: () => void;
+  className?: string;
 }
 
 const DEBOUNCE_MS = 600;
@@ -44,6 +45,7 @@ export function TaskEditPanel({
   onClose,
   hasChildren,
   onAddSubtask,
+  className,
 }: TaskEditPanelProps) {
   const [progressNote, setProgressNote] = useState("");
   const progressNoteRef = useRef("");
@@ -241,12 +243,14 @@ export function TaskEditPanel({
       <>
       {/* Backdrop for mobile */}
       <div
-        className="fixed inset-0 bg-black/20 z-40 md:hidden"
+        className="fixed inset-0 bg-black/20 z-40 xl:hidden"
         onClick={onClose}
       />
 
       {/* Panel */}
-      <div className="fixed inset-x-0 bottom-0 z-50 md:static md:inset-auto md:w-96 md:border-l md:border-slate-200 bg-white md:h-full flex flex-col max-h-[85vh] md:max-h-full rounded-t-2xl md:rounded-none shadow-xl md:shadow-none">
+      <div
+        className={`fixed inset-x-0 bottom-0 z-50 xl:static xl:inset-auto xl:w-96 xl:border-l xl:border-slate-200 bg-white xl:h-full flex flex-col max-h-[85vh] xl:max-h-full rounded-t-2xl xl:rounded-none shadow-xl xl:shadow-none ${className ?? ""}`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
           <div className="flex items-center gap-2">

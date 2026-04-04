@@ -1146,8 +1146,8 @@ function ProjectDetailInner() {
 
           {/* Task edit panel (desktop, non-edit mode) */}
           <div
-            className={`hidden md:block shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out ${
-              selectedTask && !editMode ? "w-[380px]" : "w-0"
+            className={`hidden xl:block overflow-hidden transition-all duration-200 ${
+              selectedTask && !editMode ? "w-[340px] shrink-0" : "w-0"
             }`}
           >
             {selectedTask && !editMode && (
@@ -1155,6 +1155,7 @@ function ProjectDetailInner() {
                 task={selectedTask}
                 onClose={() => setSelectedTask(null)}
                 hasChildren={hasChildrenForSelected}
+                className="w-[340px] shrink-0 border-l border-slate-200"
                 onAddSubtask={() =>
                   openCreateSheet("subtask", selectedTask.id, selectedTask.children.length, selectedTask)
                 }
@@ -1163,9 +1164,9 @@ function ProjectDetailInner() {
           </div>
         </div>
 
-      {/* Mobile task edit panel (non-edit mode only) */}
+      {/* Mobile/tablet task edit panel (non-edit mode only) */}
       {selectedTask && !editMode && (
-        <div className="md:hidden">
+        <div className="xl:hidden">
           <TaskEditPanel
             task={selectedTask}
             onClose={() => setSelectedTask(null)}
