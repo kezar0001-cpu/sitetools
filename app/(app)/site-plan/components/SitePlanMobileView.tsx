@@ -32,6 +32,10 @@ interface GroupedPhase {
   items: SitePlanTaskNode[];
 }
 
+interface GroupedTodayPhase extends GroupedPhase {
+  activeItems: SitePlanTaskNode[];
+}
+
 const TAB_ORDER: MobileTab[] = [...MOBILE_TABS];
 
 export function SitePlanMobileView({
@@ -106,6 +110,17 @@ export function SitePlanMobileView({
     });
   }, [rows, today]);
 
+  const groupedTodayByPhase = useMemo<GroupedTodayPhase[]>(() => {
+    const todaysTaskIds = new Set(todaysTasks.map((task) => task.id));
+
+    return groupedByPhase
+      .map((group) => {
+        const activeItems = group.items.filter((task) => todaysTaskIds.has(task.id));
+        return { ...group, activeItems };
+      })
+      .filter((group) => group.activeItems.length > 0);
+  }, [groupedByPhase, todaysTasks]);
+
   const activeIndex = TAB_ORDER.indexOf(activeTab);
   const mobileTabs = [
     { id: "today" as const, label: "Today", icon: Sun },
@@ -146,20 +161,30 @@ export function SitePlanMobileView({
           style={{ transform: `translateX(-${activeIndex * (100 / 3)}%)` }}
         >
           <div className="w-1/3 shrink-0 overflow-y-auto pb-24">
-            {todaysTasks.map((node) => (
-              <MobileTaskCard
-                key={node.id}
-                node={node}
-                onSelect={onSelectTask}
-                onLogDelay={onLogDelay}
-                onUpdateProgress={openProgressSheet}
-                onProgressTap={openProgressSheet}
-                delayCount={delayCountMap.get(node.id) ?? 0}
-                mobileExpanded={mobileExpandedIds.has(node.id)}
-                onToggleMobileExpand={() => onToggleMobileExpand(node.id)}
-              />
+            {groupedTodayByPhase.map((group) => (
+              <section key={group.phaseId}>
+                <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
+                  <p className="text-xs font-semibold text-slate-700">{group.phaseName}</p>
+                  <p className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                    {group.activeItems.length} active today
+                  </p>
+                </div>
+                {group.activeItems.map((node) => (
+                  <MobileTaskCard
+                    key={node.id}
+                    node={node}
+                    onSelect={onSelectTask}
+                    onLogDelay={onLogDelay}
+                    onUpdateProgress={openProgressSheet}
+                    onProgressTap={openProgressSheet}
+                    delayCount={delayCountMap.get(node.id) ?? 0}
+                    mobileExpanded={mobileExpandedIds.has(node.id)}
+                    onToggleMobileExpand={() => onToggleMobileExpand(node.id)}
+                  />
+                ))}
+              </section>
             ))}
-            {todaysTasks.length === 0 && (
+            {groupedTodayByPhase.length === 0 && (
               <p className="px-4 py-8 text-center text-sm text-slate-500">No active tasks for today.</p>
             )}
           </div>
