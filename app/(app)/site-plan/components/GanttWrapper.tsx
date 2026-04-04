@@ -80,8 +80,6 @@ interface VirtualRowData {
   onRowNumberClick: (node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => void;
   onUpdateTaskInline: (taskId: string, updates: Partial<SitePlanTaskNode>) => void;
   columnWidths: Record<string, number>;
-  onToggleColumn: (col: string) => void;
-  onColumnResize: (col: string, width: number) => void;
   selectedTaskId: string | null;
   onHoverTask: (taskId: string | null) => void;
   lastTaskIndex: number;
