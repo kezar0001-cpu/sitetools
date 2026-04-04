@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SitePlanTask, SitePlanTaskNode, TaskType } from "@/types/siteplan";
-import { TaskListHeader } from "./TaskListHeader";
 import { GanttChart } from "./GanttChart";
 
 export const DESKTOP_ROW_HEIGHT = 40;
@@ -30,10 +29,7 @@ interface GanttWrapperProps {
   }) => React.ReactNode;
   onRightPanelScroll?: (scrollTop: number) => void;
   leftScrollRef: React.MutableRefObject<HTMLDivElement | null>;
-  hiddenColumns: Set<string>;
-  columnWidths: Record<string, number>;
-  onToggleColumn: (col: string) => void;
-  onColumnResize: (col: string, width: number) => void;
+  leftHeader?: React.ReactNode;
   phaseIndexMap: Map<string, number>;
   expandedIds: Set<string>;
   allExpanded: boolean;
@@ -138,12 +134,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
   return (
     <div className="hidden md:flex flex-1 min-w-0 overflow-hidden">
       <div className="flex flex-col min-w-0 flex-1">
-        <TaskListHeader
-          hiddenColumns={props.hiddenColumns}
-          onToggleColumn={props.onToggleColumn}
-          columnWidths={props.columnWidths}
-          onColumnResize={props.onColumnResize}
-        />
+        {props.leftHeader}
         {stickyPhaseNode && (
           <div className="shrink-0 bg-slate-800 border-b border-slate-700 px-3 py-1 flex items-center gap-2 z-[5]">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phase</span>

@@ -35,6 +35,7 @@ import { QueryProvider } from "@/components/QueryProvider";
 import { supabase } from "@/lib/supabase";
 import { TaskRow } from "../components/TaskRow";
 import { InlineTaskCreateRow } from "../components/InlineTaskCreateRow";
+import { TaskListHeader } from "../components/TaskListHeader";
 
 // ─── Undo/Redo stack ────────────────────────────────────────
 
@@ -1093,8 +1094,14 @@ function ProjectDetailInner() {
                   )}
                   onRightPanelScroll={() => {}}
                   leftScrollRef={leftScrollRef}
-                  hiddenColumns={hiddenColumns}
-                  columnWidths={columnWidths}
+                  leftHeader={(
+                    <TaskListHeader
+                      hiddenColumns={hiddenColumns}
+                      columnWidths={columnWidths}
+                      onToggleColumn={handleToggleColumn}
+                      onColumnResize={handleColumnResize}
+                    />
+                  )}
                   phaseIndexMap={phaseIndexMap}
                   expandedIds={expandedIds}
                   allExpanded={allExpanded}
@@ -1115,8 +1122,6 @@ function ProjectDetailInner() {
                   onRowNumberClick={handleRowNumberClick}
                   onUpdateTaskInline={handleUpdateTaskInline}
                   onHoverTask={setHoveredTaskId}
-                  onToggleColumn={handleToggleColumn}
-                  onColumnResize={handleColumnResize}
                 />
               )}
 
