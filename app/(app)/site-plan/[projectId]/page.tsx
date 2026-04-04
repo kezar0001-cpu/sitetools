@@ -531,7 +531,7 @@ function ProjectDetailInner() {
 
   const overallProgress = useMemo(
     () => computeWorkProgress(tasks ?? [], parentIdSet),
-    [tasks]
+    [tasks, parentIdSet]
   );
 
   const handleSelect = useCallback((node: SitePlanTaskNode) => {

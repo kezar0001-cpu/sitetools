@@ -35,7 +35,6 @@ function parseMSProjectXML(text: string): ImportedRow[] {
     // Skip the project summary task (outline level 0)
     if (outlineLevel === 0) return;
 
-    const summary = el.querySelector("Summary")?.textContent === "1";
     const start = el.querySelector("Start")?.textContent ?? "";
     const finish = el.querySelector("Finish")?.textContent ?? "";
     const durationRaw = el.querySelector("Duration")?.textContent ?? "";

@@ -5,7 +5,7 @@
  * This component is retained for mobile quick-add only (FAB + inline list entry on small screens).
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { TaskType } from "@/types/siteplan";
 import { useCreateTask } from "@/hooks/useSitePlanTasks";
 
@@ -52,8 +52,8 @@ export function InlineTaskInput({
   onCancel,
 }: InlineTaskInputProps) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<TaskType>(contextType);
-  const [parentId, setParentId] = useState<string | null>(contextParentId);
+  const type: TaskType = contextType;
+  const parentId: string | null = contextParentId;
   const inputRef = useRef<HTMLInputElement>(null);
   const createTask = useCreateTask();
 
@@ -61,7 +61,7 @@ export function InlineTaskInput({
     inputRef.current?.focus();
   }, []);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && name.trim()) {
       e.preventDefault();
       submit();
@@ -69,7 +69,7 @@ export function InlineTaskInput({
       e.preventDefault();
       onCancel?.();
     }
-  }, [name, onCancel]);
+  };
 
   const submit = () => {
     if (!name.trim()) return;

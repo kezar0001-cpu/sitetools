@@ -146,7 +146,7 @@ export function SitePlanMobileView({
           style={{ transform: `translateX(-${activeIndex * (100 / 3)}%)` }}
         >
           <div className="w-1/3 shrink-0 overflow-y-auto pb-24">
-            {groupedTodayByPhase.map((group, groupIndex) => (
+            {groupedTodayByPhase.map((group) => (
               <section key={group.rootId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
                   <p className="text-xs font-semibold text-slate-700">{group.rootName}</p>
@@ -200,7 +200,7 @@ export function SitePlanMobileView({
             {isPulling && (
               <div className="px-4 py-2 text-xs text-blue-600">Refreshing…</div>
             )}
-            {groupedByPhase.map((group, groupIndex) => (
+            {groupedByPhase.map((group) => (
               <section key={group.rootId}>
                 <div className="sticky top-0 z-10 flex min-h-[44px] items-center justify-between border-y border-slate-200 bg-slate-50 px-3">
                   <p className="text-xs font-semibold text-slate-700">{group.rootName}</p>

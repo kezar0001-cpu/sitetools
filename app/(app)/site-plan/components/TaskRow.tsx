@@ -91,7 +91,7 @@ export function TaskRow({
   dragHandleProps, isDragging, depth, rootIndex, editMode = false, isChecked = false,
   onCheck, hiddenColumns = new Set(), isHighlighted = false, onAddBelow, onAddSubtask,
   isSelected = false, selectedRowIds = new Set(), onRowNumberClick, onUpdateTask,
-  columnWidths, onHoverStart, onHoverEnd, isLastVisibleRow = false, onEnterAddBelow,
+  columnWidths, onHoverStart, onHoverEnd,
 }: TaskRowProps) {
   const isSummary = node.children.length > 0;
   const isMilestone = node.type === "milestone";
@@ -116,12 +116,12 @@ export function TaskRow({
 
   const show = (col: string) => !hiddenColumns.has(col);
   const colW = (col: string, fallback: number) => columnWidths?.[col] ?? fallback;
-  const editableOrder = ["name", "start", "finish", "dur", "pct", "assigned"] as const;
-  const [activeCell, setActiveCell] = useState<(typeof editableOrder)[number] | null>(null);
+  type EditableCol = "name" | "start" | "finish" | "dur" | "pct" | "assigned";
+  const [activeCell, setActiveCell] = useState<EditableCol | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const canEdit = (col: (typeof editableOrder)[number]) => !(isSummary && (col === "start" || col === "finish" || col === "dur" || col === "pct"));
-  const getCellValue = (col: (typeof editableOrder)[number]) => {
+  const canEdit = (col: EditableCol) => !(isSummary && (col === "start" || col === "finish" || col === "dur" || col === "pct"));
+  const getCellValue = (col: EditableCol) => {
     if (col === "name") return node.name;
     if (col === "start") return displayStartDate;
     if (col === "finish") return displayEndDate;
@@ -129,12 +129,12 @@ export function TaskRow({
     if (col === "pct") return String(displayProgress);
     return node.assigned_to || node.responsible || "";
   };
-  const startEdit = (col: (typeof editableOrder)[number]) => {
+  const startEdit = (col: EditableCol) => {
     if (!canEdit(col) || (isMilestone && col === "pct")) return;
     setActiveCell(col);
     setEditValue(getCellValue(col));
   };
-  const commitEdit = (col: (typeof editableOrder)[number]) => {
+  const commitEdit = (col: EditableCol) => {
     if (!onUpdateTask) return setActiveCell(null);
     const trimmed = editValue.trim();
     if (col === "name" && trimmed && trimmed !== node.name) onUpdateTask(node.id, { name: trimmed });
