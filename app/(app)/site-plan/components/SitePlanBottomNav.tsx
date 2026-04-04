@@ -1,30 +1,21 @@
 "use client";
 
 import { CheckSquare, ListTodo, BarChart3 } from "lucide-react";
+import { MOBILE_TABS, type MobileTab } from "./SitePlanMobileView";
 
 interface SitePlanBottomNavProps {
-  activeTab: "today" | "all" | "gantt";
-  onTabChange: (tab: "today" | "all" | "gantt") => void;
+  activeTab: MobileTab;
+  onTabChange: (tab: MobileTab) => void;
 }
 
 export function SitePlanBottomNav({ activeTab, onTabChange }: SitePlanBottomNavProps) {
-  const tabs = [
-    {
-      id: "today" as const,
-      label: "Today",
-      icon: CheckSquare,
-    },
-    {
-      id: "all" as const,
-      label: "All Tasks",
-      icon: ListTodo,
-    },
-    {
-      id: "gantt" as const,
-      label: "Gantt",
-      icon: BarChart3,
-    },
-  ];
+  const tabLabels = ["Today", "All Tasks", "Gantt"] as const;
+  const tabIcons = [CheckSquare, ListTodo, BarChart3] as const;
+  const tabs = MOBILE_TABS.map((id, index) => ({
+    id,
+    label: tabLabels[index],
+    icon: tabIcons[index],
+  }));
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 md:hidden safe-area-pb">
