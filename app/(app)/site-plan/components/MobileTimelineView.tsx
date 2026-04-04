@@ -35,7 +35,7 @@ export function MobileTimelineView({ rows, onSelectTask }: MobileTimelineViewPro
   const activeTasks = useMemo(() => {
     return rows
       .filter((task) => {
-        if (task.type === "phase") return false;
+        if (task.children.length > 0) return false;
         if (task.status !== "in_progress" && task.status !== "not_started") return false;
         const start = startOfDay(task.start_date);
         const end = startOfDay(task.end_date);

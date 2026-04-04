@@ -53,7 +53,7 @@ function makeBuilder(start: Date): TasksBuilder {
       _tempIndex: i,
       _parentIndex: -1,
       name,
-      type: "phase",
+      type: "task",
       start_date: d(startDay),
       end_date: d(endDay),
       sort_order: i,

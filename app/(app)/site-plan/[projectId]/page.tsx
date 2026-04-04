@@ -131,7 +131,8 @@ interface VirtualRowData {
   handleSelect: (node: SitePlanTaskNode) => void;
   setDelayTask: (node: SitePlanTaskNode | null) => void;
   delayCountMap: Map<string, number>;
-  phaseIndexMap: Map<string, number>;
+  depthMap: Map<string, number>;
+  rootIndexMap: Map<string, number>;
   editMode: boolean;
   checkedIds: Set<string>;
   handleCheck: (node: SitePlanTaskNode, checked: boolean) => void;
@@ -210,7 +211,8 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
             delayCount={data.delayCountMap.get(node.id) ?? 0}
             dragHandleProps={data.editMode ? undefined : dragProvided.dragHandleProps}
             isDragging={dragSnapshot.isDragging}
-            phaseIndex={data.phaseIndexMap.get(node.id) ?? 0}
+            depth={data.depthMap.get(node.id) ?? 0}
+            rootIndex={data.rootIndexMap.get(node.id) ?? 0}
             editMode={data.editMode}
             isChecked={data.checkedIds.has(node.id)}
             onCheck={data.handleCheck}
@@ -485,8 +487,7 @@ function ProjectDetailInner() {
     [setSelectedTask]
   );
 
-  // Visible rows + phase colour map
-  const { visibleRows, phaseIndexMap } = useTaskFiltering(
+  const { visibleRows } = useTaskFiltering(
     tree,
     expandedIds,
     allExpanded,
@@ -499,9 +500,38 @@ function ProjectDetailInner() {
     filter
   );
 
+
+  const depthMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const visit = (node: SitePlanTaskNode, d: number) => {
+      map.set(node.id, d);
+      node.children.forEach((c) => visit(c, d + 1));
+    };
+    tree.forEach((root) => visit(root, 0));
+    return map;
+  }, [tree]);
+
+  const rootIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    tree.forEach((root, i) => {
+      const mark = (node: SitePlanTaskNode) => {
+        map.set(node.id, i);
+        node.children.forEach(mark);
+      };
+      mark(root);
+    });
+    return map;
+  }, [tree]);
+
+  const parentIdSet = useMemo(() => {
+    const set = new Set<string>();
+    flatTasks.forEach((t) => { if (t.children.length > 0) set.add(t.id); });
+    return set;
+  }, [flatTasks]);
+
   const overallProgress = useMemo(
-    () => computeWorkProgress(tasks ?? []),
-    [tasks]
+    () => computeWorkProgress(tasks ?? [], parentIdSet),
+    [tasks, parentIdSet]
   );
 
   const handleSelect = useCallback((node: SitePlanTaskNode) => {
@@ -539,23 +569,9 @@ function ProjectDetailInner() {
     setLastSelectedRowNumber(rowNumber);
   }, [lastSelectedRowNumber, visibleRows, setSelectedTask]);
 
-  const resolveSelectedPhase = useCallback(() => {
-    if (!selectedTask) return null;
-    if (selectedTask.type === "phase") return selectedTask;
-    let cursor: SitePlanTaskNode | undefined = selectedTask;
-    while (cursor?.parent_id) {
-      const parent = flatTasks.find((t) => t.id === cursor?.parent_id);
-      if (!parent) break;
-      if (parent.type === "phase") return parent;
-      cursor = parent;
-    }
-    return null;
-  }, [selectedTask, flatTasks]);
-
   const openBottomInlineRow = useCallback(() => {
-    const selectedPhase = resolveSelectedPhase();
-    const parentId = selectedPhase?.id ?? null;
-    const type: TaskType = parentId ? "task" : "phase";
+    const parentId = selectedTask?.parent_id ?? null;
+    const type: TaskType = "task";
     const sortOrder = visibleRows.filter((row) => row.parent_id === parentId).length;
     setInlineInput({
       type,
@@ -564,7 +580,7 @@ function ProjectDetailInner() {
       afterTaskId: visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].id : null,
     });
     setSelectedTask(null);
-  }, [resolveSelectedPhase, visibleRows, setSelectedTask]);
+  }, [selectedTask, visibleRows, setSelectedTask]);
 
   /** Row "+" → "Add task below": insert sibling with same type & parent, after the row's subtree */
   const handleRowAddBelow = useCallback((node: SitePlanTaskNode) => {
@@ -575,7 +591,7 @@ function ProjectDetailInner() {
       const row = visibleRows[i];
       // Stop when we reach a sibling or ancestor-level row
       if (row.parent_id === node.parent_id && row.id !== node.id) break;
-      if (row.type === "phase" && node.type !== "phase") break;
+
       lastIdx = i;
     }
     setInlineInput({
@@ -589,8 +605,7 @@ function ProjectDetailInner() {
 
   /** Row "+" → "Add subtask": insert first/next child under this node */
   const handleRowAddSubtask = useCallback((node: SitePlanTaskNode) => {
-    const childType: TaskType = node.type === "phase" ? "task" : "subtask";
-    openCreateSheet(childType, node.id, node.children.length, node);
+    openCreateSheet("task", node.id, node.children.length, node);
   }, [openCreateSheet]);
 
   const handleFABAdd = (type: TaskType) => {
@@ -617,7 +632,7 @@ function ProjectDetailInner() {
         for (let i = phaseIdx + 1; i < visibleRows.length; i++) {
           const row = visibleRows[i];
           // Stop when we hit a sibling or parent-level phase
-          if (row.type === "phase" && row.parent_id === visibleRows[phaseIdx].parent_id) break;
+          if (row.parent_id === visibleRows[phaseIdx].parent_id && row.id !== visibleRows[phaseIdx].id) break;
           lastIdx = i;
         }
         resolvedAfterTaskId = visibleRows[lastIdx].id;
@@ -637,79 +652,45 @@ function ProjectDetailInner() {
   }, [visibleRows, tasks, setSelectedTask]);
 
   // ─── Indent / Outdent ──────────────────────────────────────
-  // Allows flexible nesting: phases can contain phases, tasks can contain tasks/subtasks,
-  // and subtasks can nest deeper. The indent operation makes the task a child of the row above it.
-
-  const indentTask = useCallback(
-    (taskId: string, newType: TaskType, newParentId: string | null) => {
-      updateTask.mutate({
-        id: taskId,
-        projectId,
-        updates: { type: newType, parent_id: newParentId },
-      });
-    },
-    [updateTask, projectId]
-  );
-
   const handleIndent = useCallback(() => {
     if (!selectedTask) return;
-    // Use visibleRows to find the row visually above the selected task
-    const taskIndex = visibleRows.findIndex((r) => r.id === selectedTask.id);
+    const taskIndex = flatTasks.findIndex((r) => r.id === selectedTask.id);
     if (taskIndex <= 0) return;
-
-    // Find the nearest row above that can be a parent
-    const above = visibleRows[taskIndex - 1];
+    const above = flatTasks[taskIndex - 1];
     if (!above) return;
-
-    // Determine new type based on what we're nesting under
-    let newType: TaskType = selectedTask.type;
-    if (above.type === "phase") {
-      // Nesting under a phase: become task (or stay phase if phase-under-phase)
-      newType = selectedTask.type === "phase" ? "phase" : "task";
-    } else if (above.type === "task") {
-      newType = "subtask";
-    } else if (above.type === "subtask") {
-      newType = "subtask";
-    }
 
     pushUndo({
       taskId: selectedTask.id,
       projectId,
-      before: { type: selectedTask.type, parent_id: selectedTask.parent_id },
-      after: { type: newType, parent_id: above.id },
+      before: { parent_id: selectedTask.parent_id },
+      after: { parent_id: above.id },
     });
-    indentTask(selectedTask.id, newType, above.id);
-  }, [selectedTask, visibleRows, projectId, pushUndo, indentTask]);
+
+    updateTask.mutate({
+      id: selectedTask.id,
+      projectId,
+      updates: { parent_id: above.id },
+    });
+  }, [selectedTask, flatTasks, projectId, pushUndo, updateTask]);
 
   const handleOutdent = useCallback(() => {
     if (!selectedTask || !selectedTask.parent_id) return;
-
-    // Use flatTasks (all tasks) so parent lookup works even when rows are collapsed
     const parent = flatTasks.find((r) => r.id === selectedTask.parent_id);
     const grandparentId = parent?.parent_id ?? null;
-
-    // Determine new type: promote one level up
-    let newType: TaskType = selectedTask.type;
-    if (grandparentId === null) {
-      // Moving to root level
-      newType = "phase";
-    } else {
-      const grandparent = flatTasks.find((r) => r.id === grandparentId);
-      if (grandparent?.type === "phase") {
-        newType = selectedTask.type === "phase" ? "phase" : "task";
-      } else {
-        newType = "subtask";
-      }
-    }
 
     pushUndo({
       taskId: selectedTask.id,
       projectId,
-      before: { type: selectedTask.type, parent_id: selectedTask.parent_id },
-      after: { type: newType, parent_id: grandparentId },
+      before: { parent_id: selectedTask.parent_id },
+      after: { parent_id: grandparentId },
     });
-    indentTask(selectedTask.id, newType, grandparentId);
-  }, [selectedTask, flatTasks, projectId, pushUndo, indentTask]);
+
+    updateTask.mutate({
+      id: selectedTask.id,
+      projectId,
+      updates: { parent_id: grandparentId },
+    });
+  }, [selectedTask, flatTasks, projectId, pushUndo, updateTask]);
 
   // Gantt task click — open edit panel
   const handleGanttTaskClick = useCallback(
@@ -733,41 +714,10 @@ function ProjectDetailInner() {
       const [moved] = rows.splice(source.index, 1);
       rows.splice(destination.index, 0, moved);
 
-      // Determine the new parent_id based on surrounding rows
-      let newParentId: string | null = moved.parent_id;
-      const dest = destination.index;
-
-      if (dest === 0) {
-        // Dropped at top — becomes a root-level item
-        newParentId = null;
-      } else {
-        // Look at the row above the destination to infer parent
-        const above = rows[dest - 1];
-        if (moved.type === "subtask") {
-          // Subtask should nest under a task or subtask
-          if (above.type === "task" || above.type === "subtask") newParentId = above.type === "subtask" ? above.parent_id : above.id;
-          else if (above.type === "phase") newParentId = above.id;
-          else newParentId = null;
-        } else if (moved.type === "task") {
-          // Task nests under a phase
-          if (above.type === "phase") newParentId = above.id;
-          else if (above.type === "task") newParentId = above.parent_id;
-          else if (above.type === "subtask") newParentId = above.parent_id;
-          else newParentId = null;
-        } else {
-          // Phase — can nest under another phase or be root
-          if (above.type === "phase" && above.parent_id === null) {
-            // Keep existing parent
-          }
-          newParentId = moved.parent_id;
-        }
-      }
-
-      // Compute new sort_order values for all affected rows
       const moves = rows.map((row, idx) => ({
         id: row.id,
         sort_order: idx,
-        parent_id: row.id === moved.id ? newParentId : row.parent_id,
+        parent_id: row.parent_id,
       }));
 
       reorderTask.mutate({ projectId, moves });
@@ -835,7 +785,8 @@ function ProjectDetailInner() {
     handleSelect,
     setDelayTask,
     delayCountMap,
-    phaseIndexMap,
+    depthMap,
+    rootIndexMap,
     editMode,
     checkedIds,
     handleCheck,
@@ -870,7 +821,8 @@ function ProjectDetailInner() {
     highlightedTaskIds,
     listItems,
     openBottomInlineRow,
-    phaseIndexMap,
+    depthMap,
+    rootIndexMap,
     projectId,
     selectedRowIds,
     selectedTaskId,
@@ -1014,14 +966,14 @@ function ProjectDetailInner() {
                   </p>
                   {/* Desktop: open CreateTaskSheet; mobile: inline input */}
                   <button
-                    onClick={() => openCreateSheet("phase", null, 0)}
+                    onClick={() => openCreateSheet("task", null, 0)}
                     className="hidden md:flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
                   >
                     <Plus className="h-4 w-4" />
                     Add First Phase
                   </button>
                   <button
-                    onClick={() => startInlineAdd("phase")}
+                    onClick={() => startInlineAdd("task")}
                     className="md:hidden flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
                   >
                     <Plus className="h-4 w-4" />
@@ -1060,7 +1012,8 @@ function ProjectDetailInner() {
                                 onToggle={() => {}}
                                 onSelect={() => {}}
                                 isDragging
-                                phaseIndex={phaseIndexMap.get(srcNode.id) ?? 0}
+                                depth={depthMap.get(srcNode.id) ?? 0}
+                                rootIndex={rootIndexMap.get(srcNode.id) ?? 0}
                                 hiddenColumns={hiddenColumns}
                                 selectedRowIds={selectedRowIds}
                                 onRowNumberClick={handleRowNumberClick}
@@ -1101,7 +1054,6 @@ function ProjectDetailInner() {
                       onColumnResize={handleColumnResize}
                     />
                   )}
-                  phaseIndexMap={phaseIndexMap}
                   expandedIds={expandedIds}
                   allExpanded={allExpanded}
                   toggleExpand={toggleExpand}
@@ -1136,6 +1088,8 @@ function ProjectDetailInner() {
                 mobileExpandedIds={mobileExpandedIds}
                 onToggleMobileExpand={toggleMobileExpand}
                 delayCountMap={delayCountMap}
+                depthMap={depthMap}
+                rootIndexMap={rootIndexMap}
                 refetch={refetch}
               />
             </DragDropContext>
@@ -1156,7 +1110,7 @@ function ProjectDetailInner() {
                 hasChildren={hasChildrenForSelected}
                 className="w-[340px] shrink-0 border-l border-slate-200"
                 onAddSubtask={() =>
-                  openCreateSheet("subtask", selectedTask.id, selectedTask.children.length, selectedTask)
+                  openCreateSheet("task", selectedTask.id, selectedTask.children.length, selectedTask)
                 }
               />
             )}
@@ -1171,7 +1125,7 @@ function ProjectDetailInner() {
             onClose={() => setSelectedTask(null)}
             hasChildren={hasChildrenForSelected}
             onAddSubtask={() =>
-              startInlineAdd("subtask", selectedTask.id)
+              startInlineAdd("task", selectedTask.id)
             }
           />
         </div>

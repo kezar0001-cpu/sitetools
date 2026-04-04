@@ -5,7 +5,7 @@
  * This component is retained for mobile quick-add only (FAB + inline list entry on small screens).
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { TaskType } from "@/types/siteplan";
 import { useCreateTask } from "@/hooks/useSitePlanTasks";
 
@@ -34,16 +34,12 @@ function getDefaultDates() {
 }
 
 const indentPx = {
-  phase: "pl-10",
   task: "pl-16",
-  subtask: "pl-20",
   milestone: "pl-10",
 };
 
 const typeLabel: Record<TaskType, string> = {
-  phase: "Phase",
   task: "Task",
-  subtask: "Subtask",
   milestone: "Milestone",
 };
 
@@ -56,8 +52,8 @@ export function InlineTaskInput({
   onCancel,
 }: InlineTaskInputProps) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<TaskType>(contextType);
-  const [parentId, setParentId] = useState<string | null>(contextParentId);
+  const type: TaskType = contextType;
+  const parentId: string | null = contextParentId;
   const inputRef = useRef<HTMLInputElement>(null);
   const createTask = useCreateTask();
 
@@ -65,38 +61,15 @@ export function InlineTaskInput({
     inputRef.current?.focus();
   }, []);
 
-  // Update type/parent when user presses Tab (indent) or Shift+Tab (outdent)
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Tab" && !e.shiftKey) {
-        e.preventDefault();
-        // Indent: phase → task → subtask
-        if (type === "phase") {
-          setType("task");
-          // Parent stays null (will be set from context)
-        } else if (type === "task") {
-          setType("subtask");
-        }
-      } else if (e.key === "Tab" && e.shiftKey) {
-        e.preventDefault();
-        // Outdent: subtask → task → phase
-        if (type === "subtask") {
-          setType("task");
-        } else if (type === "task") {
-          setType("phase");
-          setParentId(null);
-        }
-      } else if (e.key === "Enter" && name.trim()) {
-        e.preventDefault();
-        submit();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onCancel?.();
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [name, type]
-  );
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && name.trim()) {
+      e.preventDefault();
+      submit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel?.();
+    }
+  };
 
   const submit = () => {
     if (!name.trim()) return;
@@ -104,7 +77,7 @@ export function InlineTaskInput({
     createTask.mutate(
       {
         project_id: projectId,
-        parent_id: type === "phase" ? null : parentId,
+        parent_id: parentId,
         name: name.trim(),
         type,
         start_date: dates.start,

@@ -4,7 +4,7 @@ import { Fragment, useState, useRef } from "react";
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, AlertCircle, Check, FileSpreadsheet, ChevronLeft, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import type { ImportedRow, TaskType } from "@/types/siteplan";
+import type { ImportedRow } from "@/types/siteplan";
 import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
 import type { HierarchicalTask } from "@/hooks/useSitePlanTasks";
 import { parseCsvToTasks, resolvePredecessorIndices } from "@/lib/csvParser";
@@ -35,7 +35,6 @@ function parseMSProjectXML(text: string): ImportedRow[] {
     // Skip the project summary task (outline level 0)
     if (outlineLevel === 0) return;
 
-    const summary = el.querySelector("Summary")?.textContent === "1";
     const start = el.querySelector("Start")?.textContent ?? "";
     const finish = el.querySelector("Finish")?.textContent ?? "";
     const durationRaw = el.querySelector("Duration")?.textContent ?? "";
@@ -64,11 +63,7 @@ function parseMSProjectXML(text: string): ImportedRow[] {
       durationDays = Math.max(1, days);
     }
 
-    // Determine type from outline level
-    let taskType: TaskType = "task";
-    if (summary || outlineLevel === 1) taskType = "phase";
-    else if (outlineLevel === 2) taskType = "task";
-    else taskType = "subtask";
+    const taskType = durationDays === 0 ? "milestone" : "task";
 
     // Normalize dates to YYYY-MM-DD
     const startDate = start ? start.split("T")[0] : "";
@@ -163,7 +158,7 @@ function parseMPPBinary(buffer: ArrayBuffer): ImportedRow[] {
 
   return uniqueNames.map((name, i) => ({
     name,
-    type: "task" as TaskType,
+    type: "task",
     parent_name: "",
     start_date: dates[i * 2] ?? today,
     end_date: dates[i * 2 + 1] ?? nextWeek,
@@ -211,19 +206,10 @@ async function parseFile(
 // ─── Hierarchy builder ──────────────────────────────────────
 
 function buildHierarchyFromOutline(rows: ImportedRow[]): ImportedRow[] {
-  // Auto-assign type from outline levels if they exist
-  if (rows.every((r) => r.outline_level >= 0)) {
-    const minLevel = Math.min(...rows.map((r) => r.outline_level));
-    return rows.map((r) => {
-      const adjustedLevel = r.outline_level - minLevel;
-      let type: TaskType = "task";
-      if (adjustedLevel === 0) type = "phase";
-      else if (adjustedLevel === 1) type = "task";
-      else type = "subtask";
-      return { ...r, type };
-    });
-  }
-  return rows;
+  return rows.map((r) => ({
+    ...r,
+    type: r.duration === 0 ? "milestone" : "task",
+  }));
 }
 
 // ─── Warning computation ─────────────────────────────────────
@@ -254,7 +240,7 @@ function computeWarnings(rows: ImportedRow[]): RowWarning[] {
     parentStack.push({ level: row.outline_level, tempIndex: i });
   }
 
-  const hasAnyPhase = rows.some((r) => r.type === "phase");
+  const hasAnyRoot = rows.some((r) => r.outline_level <= 1);
 
   return rows.map((row, i) => {
     const messages: string[] = [];
@@ -282,7 +268,7 @@ function computeWarnings(rows: ImportedRow[]): RowWarning[] {
       }
     }
 
-    if (row.type !== "phase" && parentIndices[i] === -1 && hasAnyPhase) {
+    if (row.type !== "milestone" && parentIndices[i] === -1 && hasAnyRoot) {
       messages.push("No parent found — will be created as a root task");
     }
 
@@ -292,22 +278,8 @@ function computeWarnings(rows: ImportedRow[]): RowWarning[] {
 
 // ─── Phase summary ───────────────────────────────────────────
 
-function getPhaseSummary(
-  rows: ImportedRow[]
-): Array<{ name: string; count: number }> {
-  const phases: Array<{ name: string; count: number }> = [];
-  let currentPhase: { name: string; count: number } | null = null;
-
-  for (const row of rows) {
-    if (row.type === "phase") {
-      currentPhase = { name: row.name, count: 0 };
-      phases.push(currentPhase);
-    } else if (currentPhase) {
-      currentPhase.count++;
-    }
-  }
-
-  return phases;
+function getPhaseSummary(rows: ImportedRow[]): Array<{ name: string; count: number }> {
+  return [{ name: "Imported", count: rows.length }];
 }
 
 // ─── State machine ───────────────────────────────────────────
@@ -526,11 +498,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                             paddingLeft: `${12 + (row.outline_level > 0 ? (row.outline_level - 1) * 16 : 0)}px`,
                           }}
                         >
-                          {row.type === "phase" ? (
-                            <span className="font-semibold">{row.name}</span>
-                          ) : (
-                            row.name
-                          )}
+                          {row.name}
                         </td>
                         <td className="px-3 py-2 text-slate-400">{row.type}</td>
                         <td className="px-3 py-2">{row.start_date || "—"}</td>

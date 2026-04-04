@@ -227,7 +227,7 @@ function DetailsTab({
       </div>
 
       {/* Add subtask */}
-      {task.type !== "subtask" && onAddSubtask && (
+      {onAddSubtask && (
         <button
           onClick={onAddSubtask}
           className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-2"

@@ -33,7 +33,6 @@ function applyFilter(
 /**
  * Derives the ordered list of visible task rows by walking the tree
  * respecting expansion state, then applying the active filter.
- * Also computes the phase-index colour map used by TaskRow.
  */
 export function useTaskFiltering(
   tree: SitePlanTaskNode[],
@@ -58,23 +57,5 @@ export function useTaskFiltering(
     return applyFilter(rows, filter);
   }, [tree, expandedIds, allExpanded, filter]);
 
-  const phaseIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    let idx = 0;
-    for (const row of visibleRows) {
-      if (row.type === "phase") {
-        map.set(row.id, idx);
-        idx++;
-      }
-    }
-    // Non-phase tasks inherit their parent's phase index
-    for (const row of visibleRows) {
-      if (row.type !== "phase" && row.parent_id) {
-        map.set(row.id, map.get(row.parent_id) ?? 0);
-      }
-    }
-    return map;
-  }, [visibleRows]);
-
-  return { visibleRows, phaseIndexMap };
+  return { visibleRows };
 }

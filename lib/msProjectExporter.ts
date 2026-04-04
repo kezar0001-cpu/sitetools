@@ -57,7 +57,7 @@ export function serializeToMsProjectXml(nodes: SitePlanTaskNode[]): string {
   const taskXml = flat
     .map(({ node, uid: taskUid, depth }) => {
       const outlineLevel = getOutlineLevel(node, depth);
-      const isSummary = node.type === "phase" || node.type === "milestone";
+      const isSummary = node.children.length > 0 || node.type === "milestone";
 
       const predLinks = node.predecessors
         ? node.predecessors

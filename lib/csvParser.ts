@@ -84,12 +84,12 @@ export function parseRow(line: string, headers: CsvHeaderIndices): ImportedRow {
   let taskType: TaskType = "task";
   if (typeIdx >= 0) {
     const raw = (cols[typeIdx] ?? "task").toLowerCase();
-    if (raw === "phase" || raw === "summary" || raw === "milestone") taskType = "phase";
-    else if (raw === "subtask" || raw === "sub-task") taskType = "subtask";
+    if (raw === "milestone") taskType = "milestone";
+    else taskType = "task";
   } else if (outlineLevel >= 0) {
-    if (outlineLevel <= 1) taskType = "phase";
+    if (outlineLevel <= 1) taskType = "task";
     else if (outlineLevel === 2) taskType = "task";
-    else taskType = "subtask";
+    else taskType = "task";
   }
 
   const duration = durationIdx >= 0 ? parseInt(cols[durationIdx] ?? "7", 10) || 7 : 7;

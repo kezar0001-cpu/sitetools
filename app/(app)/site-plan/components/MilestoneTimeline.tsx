@@ -225,7 +225,7 @@ export function MilestoneTimeline({ tasks, onTaskClick }: MilestoneTimelineProps
   // Build phase tree
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
   const phases = useMemo(
-    () => tree.filter((n) => n.type === "phase" || n.type === "milestone"),
+    () => tree.filter((n) => n.children.length > 0 || n.type === "milestone"),
     [tree]
   );
 
