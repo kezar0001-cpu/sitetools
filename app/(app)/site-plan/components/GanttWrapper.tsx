@@ -47,6 +47,7 @@ function computePhaseStats(children: SitePlanTaskNode[]) {
 
 interface GanttWrapperProps {
   tasks: SitePlanTask[];
+  isLoading?: boolean;
   baselines?: SitePlanTask[];
   delayLogs: SitePlanDelayLog[];
   visibleRows: SitePlanTaskNode[];
@@ -88,6 +89,7 @@ interface GanttWrapperProps {
 export function GanttWrapper(props: GanttWrapperProps) {
   const {
     tasks,
+    isLoading = false,
     baselines,
     delayLogs,
     visibleRows,
@@ -213,7 +215,9 @@ export function GanttWrapper(props: GanttWrapperProps) {
       <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
         {phaseBanner}
         <div className="min-h-0 flex-1">
-        {tasks.length > 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full w-full text-slate-400 text-sm">Loading Gantt chart…</div>
+        ) : tasks.length > 0 ? (
           <GanttChart
             tasks={tasks}
             visibleRows={visibleRows}

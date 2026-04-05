@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { useDebounceAsync } from "@/hooks/useDebounceAsync";
 import {
@@ -125,6 +126,7 @@ export function TaskEditPanel({
                   setTimeout(() => setShowSaved(false), 1500);
                   setProgressNote("");
                 },
+                onError: () => toast.error("Failed to save. Please try again."),
               }
             );
           }
@@ -143,6 +145,7 @@ export function TaskEditPanel({
               setShowSaved(true);
               setTimeout(() => setShowSaved(false), 1500);
             },
+            onError: () => toast.error("Failed to save. Please try again."),
           }
         );
       });
@@ -217,7 +220,10 @@ export function TaskEditPanel({
   const handleDelete = () => {
     deleteTask.mutate(
       { id: task.id, projectId: task.project_id },
-      { onSuccess: () => onClose() }
+      {
+        onSuccess: () => onClose(),
+        onError: () => toast.error("Failed to save. Please try again."),
+      }
     );
   };
 

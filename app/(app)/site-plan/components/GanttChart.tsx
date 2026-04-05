@@ -103,6 +103,12 @@ interface TimeHeader {
   width: number;
 }
 
+function parseTaskDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function generateTimescale(
   rangeStart: Date,
   rangeEnd: Date,
@@ -341,8 +347,20 @@ export function GanttChart(props: GanttChartProps) {
         totalDays: 44,
       };
     }
-    const starts = tasks.map((t) => new Date(t.start_date).getTime());
-    const ends = tasks.map((t) => new Date(t.end_date).getTime());
+    const starts = tasks
+      .map((t) => parseTaskDate(t.start_date)?.getTime() ?? Number.NaN)
+      .filter((time): time is number => Number.isFinite(time));
+    const ends = tasks
+      .map((t) => parseTaskDate(t.end_date)?.getTime() ?? Number.NaN)
+      .filter((time): time is number => Number.isFinite(time));
+    if (starts.length === 0 || ends.length === 0) {
+      const now = new Date();
+      return {
+        rangeStart: addDays(now, -7),
+        rangeEnd: addDays(now, 37),
+        totalDays: 44,
+      };
+    }
     const min = new Date(Math.min(...starts));
     const max = new Date(Math.max(...ends));
     const s = addDays(min, -7);
@@ -743,6 +761,14 @@ export function GanttChart(props: GanttChartProps) {
 
             {/* Gantt bars */}
             {flatTasks.map((node, i) => {
+              const rawStartDate = parseTaskDate(node.start_date);
+              const rawEndDate = parseTaskDate(node.end_date);
+              if (!rawStartDate || !rawEndDate) {
+                console.warn("[GanttChart] Skipping task bar due to invalid dates", {
+                  taskId: node.id,
+                });
+                return null;
+              }
               const y = HEADER_HEIGHT + i * ROW_HEIGHT;
               const barY = y + 8;
               const barHeight = ROW_HEIGHT - 16;
@@ -752,15 +778,19 @@ export function GanttChart(props: GanttChartProps) {
               const baseline = baselineMap.get(node.id);
 
               // Phase spans — compute from children if available
-              let startDate = new Date(node.start_date);
-              let endDate = new Date(node.end_date);
+              let startDate = rawStartDate;
+              let endDate = rawEndDate;
               if (isSummary) {
-                startDate = new Date(
-                  Math.min(...node.children.map((c) => new Date(c.start_date).getTime()))
-                );
-                endDate = new Date(
-                  Math.max(...node.children.map((c) => new Date(c.end_date).getTime()))
-                );
+                const childStartTimes = node.children
+                  .map((c) => parseTaskDate(c.start_date)?.getTime() ?? Number.NaN)
+                  .filter((time): time is number => Number.isFinite(time));
+                const childEndTimes = node.children
+                  .map((c) => parseTaskDate(c.end_date)?.getTime() ?? Number.NaN)
+                  .filter((time): time is number => Number.isFinite(time));
+                if (childStartTimes.length > 0 && childEndTimes.length > 0) {
+                  startDate = new Date(Math.min(...childStartTimes));
+                  endDate = new Date(Math.max(...childEndTimes));
+                }
               }
 
               const barX = getBarX(startDate, rangeStart, totalDays, totalTimelineWidth);
