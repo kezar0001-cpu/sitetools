@@ -6,7 +6,6 @@ import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
 import { ProgressSlider } from "./ProgressSlider";
 import { MobileTaskCard } from "./TaskRow";
-import { MobileTimelineView } from "./MobileTimelineView";
 
 export type MobileTab = "today" | "all" | "gantt";
 export const MOBILE_TABS: readonly MobileTab[] = ["today", "all", "gantt"];
@@ -241,10 +240,11 @@ export function SitePlanMobileView({
           </div>
 
           <div className="w-1/3 shrink-0 overflow-hidden">
-            <MobileTimelineView
-              rows={rows}
-              onSelectTask={onSelectTask}
-            />
+            <div className="flex h-full items-center justify-center bg-white p-4 text-center">
+              <p className="text-sm text-slate-500">
+                Timeline view is currently unavailable on mobile.
+              </p>
+            </div>
           </div>
         </div>
       </div>
