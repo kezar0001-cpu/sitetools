@@ -410,7 +410,8 @@ export function useUpdateProgress() {
         updates: { progress: progressAfter },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, { projectId }) => {
+      qc.invalidateQueries({ queryKey: tasksKey(projectId) });
       toast.success("Progress updated", { duration: 3000 });
     },
     onError: () => {
