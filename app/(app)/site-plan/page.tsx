@@ -11,10 +11,24 @@ import { QueryProvider } from "@/components/QueryProvider";
 
 function deriveHealth(p: ProjectWithStats): ProjectHealth {
   if (p.has_delayed) return "delayed";
-  if (p.task_count > 0 && p.avg_progress < 50) {
-    // Simple heuristic: if there are tasks but low progress, at risk
+
+  const startMs = p.start_date ? new Date(p.start_date).getTime() : Number.NaN;
+  const endMs = p.end_date ? new Date(p.end_date).getTime() : Number.NaN;
+  const todayMs = Date.now();
+
+  // If project dates are missing/invalid (or brand-new with no schedule yet),
+  // avoid marking it at-risk immediately.
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) {
+    return "on_track";
+  }
+
+  const elapsedRatio = Math.min(Math.max((todayMs - startMs) / (endMs - startMs), 0), 1);
+  const expectedProgress = elapsedRatio * 100;
+
+  if (p.avg_progress < expectedProgress - 10) {
     return "at_risk";
   }
+
   return "on_track";
 }
 

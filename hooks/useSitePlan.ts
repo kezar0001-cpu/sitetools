@@ -32,6 +32,8 @@ export interface ProjectWithStats extends Project {
   task_count: number;
   avg_progress: number;
   has_delayed: boolean;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 /** Fetch projects with task stats in a single RPC call (no N+1) */
