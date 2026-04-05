@@ -97,12 +97,23 @@ export function TaskEditPanel({
           const newProgress = value as number;
           if (newProgress !== t.progress) {
             const note = progressNoteRef.current.trim() || undefined;
+            let statusAfter: UpdateTaskPayload["status"] | undefined;
+            if (newProgress === 100 && t.status !== "completed") {
+              statusAfter = "completed";
+            } else if (
+              t.progress === 0 &&
+              newProgress > 0 &&
+              t.status === "not_started"
+            ) {
+              statusAfter = "in_progress";
+            }
             updateProgress.mutate(
               {
                 taskId: t.id,
                 projectId: t.project_id,
                 progressBefore: t.progress,
                 progressAfter: newProgress,
+                statusAfter,
                 note,
               },
               {

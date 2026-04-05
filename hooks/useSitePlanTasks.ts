@@ -376,18 +376,20 @@ export function useUpdateProgress() {
   const qc = useQueryClient();
   const updateTask = useUpdateTask();
 
-  return useMutation<void, Error, { taskId: string; projectId: string; progressBefore: number; progressAfter: number; note?: string }>({
+  return useMutation<void, Error, { taskId: string; projectId: string; progressBefore: number; progressAfter: number; statusAfter?: UpdateTaskPayload["status"]; note?: string }>({
     mutationFn: async ({
       taskId,
       projectId,
       progressBefore,
       progressAfter,
+      statusAfter,
       note,
     }: {
       taskId: string;
       projectId: string;
       progressBefore: number;
       progressAfter: number;
+      statusAfter?: UpdateTaskPayload["status"];
       note?: string;
     }) => {
       // Log progress change
@@ -407,7 +409,10 @@ export function useUpdateProgress() {
       await updateTask.mutateAsync({
         id: taskId,
         projectId,
-        updates: { progress: progressAfter },
+        updates: {
+          progress: progressAfter,
+          ...(statusAfter ? { status: statusAfter } : {}),
+        },
       });
     },
     onSuccess: (_data, { projectId }) => {

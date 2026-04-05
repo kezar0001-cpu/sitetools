@@ -249,6 +249,7 @@ function ProgressStatusTab({
   onProgressNoteChange,
 }: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "savedField" | "progressNote" | "onProgressNoteChange">) {
   const currentStatus = (form.status ?? task.status) as TaskStatus;
+  const isMilestone = task.type === "milestone";
 
   return (
     <div className="space-y-5">
@@ -277,16 +278,18 @@ function ProgressStatusTab({
         </div>
       </div>
 
-      {/* Progress slider */}
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">
-          Progress
-        </label>
-        <ProgressSlider
-          value={form.progress ?? task.progress}
-          onChange={(v) => onChange("progress", v)}
-        />
-      </div>
+      {/* Progress slider (hidden for milestones, which are point-in-time) */}
+      {!isMilestone && (
+        <div>
+          <label className="block text-xs font-medium text-slate-500 mb-1">
+            Progress
+          </label>
+          <ProgressSlider
+            value={form.progress ?? task.progress}
+            onChange={(v) => onChange("progress", Number(v))}
+          />
+        </div>
+      )}
 
       {/* Actual dates */}
       <div className="grid grid-cols-2 gap-3">
