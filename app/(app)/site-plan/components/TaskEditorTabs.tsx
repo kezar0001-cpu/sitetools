@@ -26,6 +26,7 @@ interface TaskEditorTabsProps {
   progressNote: string;
   onProgressNoteChange: (v: string) => void;
   onAddSubtask?: () => void;
+  onLogDelay?: () => void;
   dateError?: string | null;
 }
 
@@ -117,8 +118,9 @@ function DetailsTab({
   savedField,
   members,
   onAddSubtask,
+  onLogDelay,
   dateError,
-}: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "savedField" | "members" | "onAddSubtask" | "dateError">) {
+}: Pick<TaskEditorTabsProps, "task" | "form" | "onChange" | "savedField" | "members" | "onAddSubtask" | "onLogDelay" | "dateError">) {
   return (
     <div className="space-y-5">
       {/* Name */}
@@ -234,6 +236,17 @@ function DetailsTab({
           className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-2"
         >
           + Add Subtask
+        </button>
+      )}
+
+      {/* Log delay */}
+      {onLogDelay && (
+        <button
+          type="button"
+          onClick={onLogDelay}
+          className="w-full text-sm text-red-600 hover:text-red-700 font-medium py-2 border border-red-200 rounded-lg hover:bg-red-50 min-h-[44px]"
+        >
+          Log Delay
         </button>
       )}
     </div>
@@ -464,6 +477,7 @@ export function TaskEditorTabs({
   progressNote,
   onProgressNoteChange,
   onAddSubtask,
+  onLogDelay,
   dateError,
 }: TaskEditorTabsProps) {
   const [activeTab, setActiveTab] = useState<Tab>("details");
@@ -497,6 +511,7 @@ export function TaskEditorTabs({
             savedField={savedField}
             members={members}
             onAddSubtask={onAddSubtask}
+            onLogDelay={onLogDelay}
             dateError={dateError}
           />
         )}
