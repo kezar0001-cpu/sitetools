@@ -7,7 +7,6 @@ import type { ProjectHealth } from "@/types/siteplan";
 import { HealthBadge } from "./components/StatusBadge";
 import { ProgressBar } from "./components/ProgressSlider";
 import { ProjectGridSkeleton } from "./components/Skeleton";
-import { SitePlanOnboardingEmptyState } from "./components/OnboardingEmptyState";
 import { QueryProvider } from "@/components/QueryProvider";
 
 function deriveHealth(p: ProjectWithStats): ProjectHealth {
@@ -71,7 +70,12 @@ function SitePlanDashboardInner() {
       {isLoading ? (
         <ProjectGridSkeleton />
       ) : !projects || projects.length === 0 ? (
-        <SitePlanOnboardingEmptyState />
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+          <h2 className="text-lg font-semibold text-slate-900">No projects yet</h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Create your first SitePlan project from the workspace dashboard to get started.
+          </p>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
