@@ -642,7 +642,8 @@ export function useHierarchicalImport() {
 
       return allInserted;
     },
-    onSuccess: (data: SitePlanTask[]) => {
+    onSuccess: (data: SitePlanTask[], variables) => {
+      qc.invalidateQueries({ queryKey: ["sitePlanTasks", variables.projectId] });
       if (data.length > 0) {
         qc.invalidateQueries({ queryKey: tasksKey(data[0].project_id) });
       }
