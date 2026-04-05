@@ -20,7 +20,6 @@ import {
   buildTaskTree,
   flattenTree,
 } from "@/types/siteplan";
-import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import { StatusBadge } from "./StatusBadge";
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { STATUS_BAR_COLORS } from "@/lib/sitePlanColors";
@@ -368,11 +367,6 @@ export function GanttChart(props: GanttChartProps) {
     scrollContainerRef.current = timelineRef.current;
   }, [scrollContainerRef]);
 
-  // useUpdateTask for resize-end drag (called directly without parent callback)
-  const updateTask = useUpdateTask();
-  const updateTaskRef = useRef(updateTask);
-  updateTaskRef.current = updateTask;
-
   // Drag state for interactive bar resizing
   const [dragState, setDragState] = useState<{
     task: SitePlanTask;
@@ -457,16 +451,7 @@ export function GanttChart(props: GanttChartProps) {
         const origEnd = fmt(dragState.origEndDate);
 
         if (newStart !== origStart || newEnd !== origEnd) {
-          if (dragState.mode === "resize-end") {
-            // Drag-handle resize: update end_date directly via mutation
-            updateTaskRef.current.mutate({
-              id: dragState.task.id,
-              projectId: dragState.task.project_id,
-              updates: { end_date: newEnd },
-            });
-          } else {
-            onDateChange?.(dragState.task, newStart, newEnd);
-          }
+          onDateChange?.(dragState.task, newStart, newEnd);
         }
       }
       setDragState(null);
