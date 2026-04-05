@@ -576,7 +576,13 @@ function ProjectDetailInner() {
     openCreateSheet("task", node.id, node.children.length, node);
   }, [openCreateSheet]);
 
-  const handleFABAdd = (type: TaskType) => {
+  const handleFABAdd = useCallback((type: TaskType) => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches) {
+      openCreateSheet(type, null, tasks?.length ?? 0);
+      setSelectedTask(null);
+      return;
+    }
+
     setInlineInput({
       type,
       parentId: null,
@@ -584,7 +590,7 @@ function ProjectDetailInner() {
       afterTaskId: null,
     });
     setSelectedTask(null);
-  };
+  }, [openCreateSheet, tasks, setSelectedTask]);
 
   const startInlineAdd = useCallback((
     type: TaskType,
