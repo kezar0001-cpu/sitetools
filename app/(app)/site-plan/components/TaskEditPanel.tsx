@@ -31,6 +31,7 @@ interface TaskEditPanelProps {
   onClose: () => void;
   hasChildren: boolean;
   onAddSubtask?: () => void;
+  onLogDelay?: () => void;
   className?: string;
 }
 
@@ -43,6 +44,7 @@ export function TaskEditPanel({
   onClose,
   hasChildren,
   onAddSubtask,
+  onLogDelay,
   className,
 }: TaskEditPanelProps) {
   const [progressNote, setProgressNote] = useState("");
@@ -304,6 +306,7 @@ export function TaskEditPanel({
             progressNote={progressNote}
             onProgressNoteChange={setProgressNote}
             onAddSubtask={onAddSubtask}
+            onLogDelay={onLogDelay}
             dateError={dateError}
           />
         </div>

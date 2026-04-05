@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SitePlanTask, SitePlanTaskNode, TaskType } from "@/types/siteplan";
+import type { SitePlanTask, SitePlanTaskNode, SitePlanDelayLog, TaskType } from "@/types/siteplan";
 import { computeWorkProgress } from "@/types/siteplan";
 import { DEPTH_ZERO_DOT_COLORS } from "@/lib/sitePlanColors";
 import { GanttChart } from "./GanttChart";
@@ -47,6 +47,7 @@ function computePhaseStats(children: SitePlanTaskNode[]) {
 
 interface GanttWrapperProps {
   tasks: SitePlanTask[];
+  delayLogs: SitePlanDelayLog[];
   visibleRows: SitePlanTaskNode[];
   listItems: TaskListItem[];
   zoom: "day" | "week" | "month" | "quarter";
@@ -85,6 +86,7 @@ interface GanttWrapperProps {
 export function GanttWrapper(props: GanttWrapperProps) {
   const {
     tasks,
+    delayLogs,
     visibleRows,
     listItems,
     zoom,
@@ -210,6 +212,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
         {tasks.length > 0 ? (
           <GanttChart
             tasks={tasks}
+            delayLogs={delayLogs}
             zoom={zoom}
             showDependencies={showDeps}
             showCriticalPath={showCriticalPath}

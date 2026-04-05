@@ -955,6 +955,7 @@ function ProjectDetailInner() {
               {desktopView !== "list" && (
                 <GanttWrapper
                   tasks={tasks ?? []}
+                  delayLogs={delayLogs ?? []}
                   visibleRows={visibleRows}
                   listItems={listItems}
                   zoom={zoom}
@@ -1077,6 +1078,7 @@ function ProjectDetailInner() {
                 onAddSubtask={() =>
                   openCreateSheet("task", selectedTask.id, selectedTask.children.length, selectedTask)
                 }
+                onLogDelay={() => setDelayTask(selectedTask)}
               />
             )}
           </div>
@@ -1092,6 +1094,7 @@ function ProjectDetailInner() {
             onAddSubtask={() =>
               startInlineAdd("task", selectedTask.id)
             }
+            onLogDelay={() => setDelayTask(selectedTask)}
           />
         </div>
       )}
