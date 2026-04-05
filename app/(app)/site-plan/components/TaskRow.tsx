@@ -55,7 +55,7 @@ interface TaskRowProps {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("en-US", {
+  return new Date(d).toLocaleDateString("en-AU", {
     month: "2-digit",
     day: "2-digit",
     year: "2-digit",

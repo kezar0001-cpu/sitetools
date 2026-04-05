@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { SitePlanTask, SitePlanProgressLog, SitePlanDelayLog, UpdateTaskPayload, TaskStatus } from "@/types/siteplan";
 import { STATUS_LABELS } from "@/types/siteplan";
 import { STATUS_BADGE_STYLES } from "@/lib/sitePlanColors";
@@ -53,6 +53,10 @@ function MemberCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
+
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
 
   const filtered = members.filter((m) =>
     m.name.toLowerCase().includes(inputValue.toLowerCase())
@@ -162,7 +166,7 @@ function DetailsTab({
           </label>
           <input
             type="date"
-            value={form.start_date ?? ""}
+            value={(form.start_date ?? "").slice(0, 10)}
             onChange={(e) => onChange("start_date", e.target.value)}
             className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedClass(savedField, "start_date")}`}
           />
@@ -173,16 +177,13 @@ function DetailsTab({
           </label>
           <input
             type="date"
-            value={form.end_date ?? ""}
+            value={(form.end_date ?? "").slice(0, 10)}
             onChange={(e) => onChange("end_date", e.target.value)}
             className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedClass(savedField, "end_date")}`}
           />
+          {dateError && <p className="mt-1 text-xs text-red-600">{dateError}</p>}
         </div>
       </div>
-
-      {dateError && (
-        <p className="text-xs text-red-600">{dateError}</p>
-      )}
 
       {/* Responsible */}
       <div>
@@ -295,8 +296,8 @@ function ProgressStatusTab({
           </label>
           <input
             type="date"
-            value={form.actual_start ?? ""}
-            onChange={(e) => onChange("actual_start", e.target.value || null)}
+            value={(form.actual_start ?? "").slice(0, 10)}
+            onChange={(e) => onChange("actual_start", e.target.value)}
             className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedClass(savedField, "actual_start")}`}
           />
         </div>
@@ -306,8 +307,8 @@ function ProgressStatusTab({
           </label>
           <input
             type="date"
-            value={form.actual_end ?? ""}
-            onChange={(e) => onChange("actual_end", e.target.value || null)}
+            value={(form.actual_end ?? "").slice(0, 10)}
+            onChange={(e) => onChange("actual_end", e.target.value)}
             className={`w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] ${savedClass(savedField, "actual_end")}`}
           />
         </div>
