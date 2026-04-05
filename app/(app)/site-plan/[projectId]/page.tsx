@@ -381,6 +381,7 @@ function ProjectDetailInner() {
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [todayTrigger, setTodayTrigger] = useState(0);
   const [projectName, setProjectName] = useState("");
+  const lastServerProjectNameRef = useRef("");
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -432,7 +433,14 @@ function ProjectDetailInner() {
   } | null>(null);
 
   useEffect(() => {
-    if (project?.name) setProjectName(project.name);
+    if (!project?.name) return;
+    setProjectName((current) => {
+      if (current === "" || current === lastServerProjectNameRef.current) {
+        return project.name;
+      }
+      return current;
+    });
+    lastServerProjectNameRef.current = project.name;
   }, [project?.name]);
 
   const handleProjectNameSave = useCallback(
@@ -445,6 +453,7 @@ function ProjectDetailInner() {
         toast.error("Couldn't rename project");
         return;
       }
+      lastServerProjectNameRef.current = name;
       toast.success("Project renamed");
     },
     [projectId, projectName]
@@ -969,19 +978,11 @@ function ProjectDetailInner() {
               ) : (
                 <>
                   <p className="text-sm text-slate-500 mb-4">
-                    No tasks yet. Start typing to build your programme.
+                    No tasks yet. Add your first phase or import a programme.
                   </p>
-                  {/* Desktop: open CreateTaskSheet; mobile: inline input */}
                   <button
                     onClick={() => openCreateSheet("phase", null, 0)}
-                    className="hidden md:flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add First Phase
-                  </button>
-                  <button
-                    onClick={() => startInlineAdd("task")}
-                    className="md:hidden flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
                   >
                     <Plus className="h-4 w-4" />
                     Add First Phase
