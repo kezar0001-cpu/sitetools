@@ -2,13 +2,10 @@
 
 import { useState } from "react";
 import { X } from "lucide-react";
+import { toast } from "sonner";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import type { SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { useCreateTask } from "@/hooks/useSitePlanTasks";
-
-function toDateString(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 interface CreateTaskSheetProps {
   projectId: string;
@@ -26,34 +23,62 @@ export function CreateTaskSheet({ projectId, type, parentId, parentNode, sortOrd
   const [endDate, setEndDate] = useState(parentNode?.end_date ?? "");
   const [responsible, setResponsible] = useState("");
   const [isMilestone, setIsMilestone] = useState(type === "milestone");
-  const [dateError, setDateError] = useState<string | null>(null);
+  const [taskType, setTaskType] = useState<TaskType>(type);
+  const [startDateError, setStartDateError] = useState<string | null>(null);
+  const [endDateError, setEndDateError] = useState<string | null>(null);
+  const [dateRangeError, setDateRangeError] = useState<string | null>(null);
   const create = useCreateTask();
 
-  const defaultDays = 7;
+  const isValidDateValue = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    const today = new Date();
-    const defaultEnd = new Date(today);
-    defaultEnd.setDate(today.getDate() + defaultDays);
-    const effectiveStart = startDate || toDateString(today);
-    const effectiveEnd = endDate || toDateString(defaultEnd);
-    if (effectiveEnd < effectiveStart) {
-      setDateError("End date must be on or after start date.");
+
+    const nextStartDateError = !startDate ? "Start date is required." : !isValidDateValue(startDate) ? "Start date must be in YYYY-MM-DD format." : null;
+    const nextEndDateError = !endDate ? "End date is required." : !isValidDateValue(endDate) ? "End date must be in YYYY-MM-DD format." : null;
+
+    setStartDateError(nextStartDateError);
+    setEndDateError(nextEndDateError);
+
+    if (nextStartDateError || nextEndDateError) {
+      setDateRangeError(null);
       return;
     }
-    setDateError(null);
+
+    if (endDate < startDate) {
+      setDateRangeError("End date must be on or after start date.");
+      return;
+    }
+
+    setDateRangeError(null);
+
     create.mutate({
       project_id: projectId,
       parent_id: parentId ?? undefined,
       name: name.trim(),
-      type: isMilestone ? "milestone" : "task",
-      start_date: effectiveStart,
-      end_date: effectiveEnd,
+      type: taskType,
+      start_date: startDate,
+      end_date: endDate,
       responsible: responsible.trim() || undefined,
       sort_order: sortOrder,
-    }, { onSuccess: () => onClose() });
+    }, {
+      onSuccess: () => {
+        onClose();
+        setName("");
+        setStartDate("");
+        setEndDate("");
+        setIsMilestone(false);
+        setTaskType("task");
+        setResponsible("");
+        setStartDateError(null);
+        setEndDateError(null);
+        setDateRangeError(null);
+      },
+      onError: () => {
+        toast.error("Failed to create task. Please try again.");
+      },
+    });
   };
 
   return (
@@ -72,20 +97,51 @@ export function CreateTaskSheet({ projectId, type, parentId, parentNode, sortOrd
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Excavate trench" required autoFocus className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={isMilestone} onChange={(e) => setIsMilestone(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
+              <input
+                type="checkbox"
+                checked={isMilestone}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsMilestone(checked);
+                  if (checked) {
+                    setTaskType("milestone");
+                  } else if (taskType === "milestone") {
+                    setTaskType("task");
+                  }
+                }}
+                className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+              />
               Milestone
             </label>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+              <select
+                value={taskType}
+                onChange={(e) => {
+                  const nextType = e.target.value as TaskType;
+                  setTaskType(nextType);
+                  setIsMilestone(nextType === "milestone");
+                }}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px] bg-white"
+              >
+                <option value="task">Task</option>
+                <option value="phase">Phase</option>
+                <option value="milestone">Milestone</option>
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">Start Date</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">Start Date *</label>
+                <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setStartDateError(null); }} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]" />
+                {startDateError && <p className="mt-1 text-xs text-red-600">{startDateError}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 mb-1">End Date</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]" />
+                <label className="block text-xs font-medium text-slate-500 mb-1">End Date *</label>
+                <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setEndDateError(null); }} className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]" />
+                {endDateError && <p className="mt-1 text-xs text-red-600">{endDateError}</p>}
               </div>
             </div>
-            {dateError && <p className="text-xs text-red-600">{dateError}</p>}
+            {dateRangeError && <p className="text-xs text-red-600">{dateRangeError}</p>}
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Responsible</label>
               <input type="text" value={responsible} onChange={(e) => setResponsible(e.target.value)} placeholder="Name or trade" className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm min-h-[44px]" />
