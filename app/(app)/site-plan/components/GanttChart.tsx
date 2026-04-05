@@ -313,6 +313,16 @@ export function GanttChart(props: GanttChartProps) {
     [showCriticalPath, tasks]
   );
 
+  useEffect(() => {
+    if (!showCriticalPath) return;
+    const ids = Array.from(criticalPathIds);
+    // Debug visibility for critical-path toggle validation.
+    console.info("[SitePlan] Critical path task IDs:", ids);
+    if (ids.length === 0 && tasks.length > 0) {
+      console.warn("[SitePlan] Critical path returned an empty set for non-empty tasks.");
+    }
+  }, [showCriticalPath, criticalPathIds, tasks.length]);
+
   // Build tree and flatten
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
   const fullFlatTasks = useMemo(() => flattenTree(tree), [tree]);

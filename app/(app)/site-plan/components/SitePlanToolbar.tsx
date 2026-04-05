@@ -56,6 +56,7 @@ function ToolbarButton({
   disabled,
   title,
   iconOnly,
+  activeClassName,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -64,6 +65,7 @@ function ToolbarButton({
   disabled?: boolean;
   title?: string;
   iconOnly?: boolean;
+  activeClassName?: string;
 }) {
   return (
     <button
@@ -76,7 +78,7 @@ function ToolbarButton({
         iconOnly ? "w-8 px-0" : "gap-1.5 px-2"
       } ${
         active
-          ? "border-blue-300 bg-blue-50 text-blue-700"
+          ? (activeClassName ?? "border-blue-300 bg-blue-50 text-blue-700")
           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
       } disabled:cursor-not-allowed disabled:opacity-40`}
     >
@@ -203,6 +205,7 @@ export function SitePlanToolbar({
             label="Critical Path"
             onClick={() => setShowCriticalPath(!showCriticalPath)}
             active={showCriticalPath}
+            activeClassName="border-red-300 bg-red-50 text-red-700"
             title="Critical Path"
             iconOnly
           />
