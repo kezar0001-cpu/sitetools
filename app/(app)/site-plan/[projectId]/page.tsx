@@ -928,7 +928,7 @@ function ProjectDetailInner() {
                   </p>
                   {/* Desktop: open CreateTaskSheet; mobile: inline input */}
                   <button
-                    onClick={() => openCreateSheet("task", null, 0)}
+                    onClick={() => openCreateSheet("phase", null, 0)}
                     className="hidden md:flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg min-h-[44px]"
                   >
                     <Plus className="h-4 w-4" />
