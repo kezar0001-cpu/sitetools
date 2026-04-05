@@ -8,7 +8,7 @@ export type { Project };
 /** Increment this when the shape of a baseline snapshot changes. */
 export const BASELINE_SCHEMA_VERSION = 1;
 
-export type TaskType = "task" | "milestone";
+export type TaskType = "task" | "phase" | "milestone";
 
 export type TaskStatus =
   | "not_started"
