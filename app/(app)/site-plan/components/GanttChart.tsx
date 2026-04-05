@@ -302,6 +302,7 @@ export function GanttChart(props: GanttChartProps) {
     }
     return map;
   }, [baselines]);
+  const hasBaselines = baselineMap.size > 0;
 
   // Critical path computation (only when toggle is on)
   const criticalPathIds = useMemo(
@@ -588,6 +589,14 @@ export function GanttChart(props: GanttChartProps) {
   return (
     <ComponentErrorBoundary>
     <div className="flex flex-col h-full bg-white">
+      {hasBaselines && (
+        <div className="h-8 shrink-0 border-b border-slate-100 px-3 flex items-center">
+          <div className="inline-flex items-center gap-2 text-[11px] text-slate-500">
+            <span className="h-[2px] w-5 rounded bg-slate-400 opacity-70" aria-hidden />
+            <span>Baseline</span>
+          </div>
+        </div>
+      )}
       {/* Main split pane */}
       <div className="flex flex-1 overflow-hidden relative">
       {/* Left panel removed */}
