@@ -216,6 +216,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
         {tasks.length > 0 ? (
           <GanttChart
             tasks={tasks}
+            visibleRows={visibleRows}
             baselines={baselines}
             delayLogs={delayLogs}
             zoom={zoom}

@@ -294,6 +294,7 @@ export function SitePlanMobileView({
           <div className="w-1/3 shrink-0 overflow-hidden">
             <GanttChart
               tasks={tasks}
+              visibleRows={rows}
               zoom={zoom}
               showDependencies={showDeps}
               showCriticalPath={showCriticalPath}
