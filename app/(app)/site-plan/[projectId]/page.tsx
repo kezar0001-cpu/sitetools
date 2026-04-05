@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
+import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { computeWorkProgress } from "@/types/siteplan";
 import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
 import { useTaskTree } from "@/hooks/useTaskTree";
@@ -242,7 +243,14 @@ function ProjectDetailInner() {
   const reorderTask = useReorderTask();
 
   const { data: delayLogs } = useProjectDelayLogs(projectId);
+  const { data: baselines } = useSitePlanBaselines(projectId);
   const { pushUndo } = useUndoRedo(updateTask);
+  const activeBaselineTasks = useMemo(
+    () =>
+      ((baselines?.[0]?.snapshot as unknown as SitePlanTask[] | undefined) ??
+        []),
+    [baselines]
+  );
 
   // Compute delay count per task
   const delayCountMap = useMemo(() => {
@@ -968,6 +976,7 @@ function ProjectDetailInner() {
               {desktopView !== "list" && (
                 <GanttWrapper
                   tasks={tasks ?? []}
+                  baselines={activeBaselineTasks}
                   delayLogs={delayLogs ?? []}
                   visibleRows={visibleRows}
                   listItems={listItems}

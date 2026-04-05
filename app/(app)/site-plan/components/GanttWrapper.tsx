@@ -47,6 +47,7 @@ function computePhaseStats(children: SitePlanTaskNode[]) {
 
 interface GanttWrapperProps {
   tasks: SitePlanTask[];
+  baselines?: SitePlanTask[];
   delayLogs: SitePlanDelayLog[];
   visibleRows: SitePlanTaskNode[];
   listItems: TaskListItem[];
@@ -87,6 +88,7 @@ interface GanttWrapperProps {
 export function GanttWrapper(props: GanttWrapperProps) {
   const {
     tasks,
+    baselines,
     delayLogs,
     visibleRows,
     listItems,
@@ -214,6 +216,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
         {tasks.length > 0 ? (
           <GanttChart
             tasks={tasks}
+            baselines={baselines}
             delayLogs={delayLogs}
             zoom={zoom}
             showDependencies={showDeps}
