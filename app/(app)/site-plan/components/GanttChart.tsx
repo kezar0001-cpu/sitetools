@@ -1217,8 +1217,6 @@ export function GanttChart(props: GanttChartProps) {
         </div>
       )}
 
-      <style jsx>{`
-      `}</style>
     </div>
     </ComponentErrorBoundary>
   );
