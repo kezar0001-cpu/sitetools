@@ -43,6 +43,7 @@ type ZoomLevel = "day" | "week" | "month" | "quarter";
 
 interface GanttChartProps {
   tasks: SitePlanTask[];
+  visibleRows?: SitePlanTaskNode[];
   baselines?: SitePlanTask[];
   delayLogs?: SitePlanDelayLog[];
   zoom: ZoomLevel;
@@ -245,6 +246,7 @@ function getTooltipPosition(x: number, y: number, width = 280, height = 44): { l
 export function GanttChart(props: GanttChartProps) {
   const {
     tasks,
+    visibleRows,
     baselines,
     delayLogs,
     zoom,
@@ -313,7 +315,11 @@ export function GanttChart(props: GanttChartProps) {
 
   // Build tree and flatten
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
-  const flatTasks = useMemo(() => flattenTree(tree), [tree]);
+  const fullFlatTasks = useMemo(() => flattenTree(tree), [tree]);
+  const flatTasks = useMemo(
+    () => (visibleRows ? visibleRows : fullFlatTasks),
+    [visibleRows, fullFlatTasks]
+  );
 
   // Date range (padded by 7 days on each side)
   const { rangeStart, rangeEnd, totalDays } = useMemo(() => {
