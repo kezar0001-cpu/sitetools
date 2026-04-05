@@ -4,10 +4,16 @@ import { Fragment, useState, useRef } from "react";
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary";
 import { X, AlertCircle, Check, FileSpreadsheet, ChevronLeft, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ImportedRow } from "@/types/siteplan";
 import { useHierarchicalImport } from "@/hooks/useSitePlanTasks";
 import type { HierarchicalTask } from "@/hooks/useSitePlanTasks";
-import { parseCsvToTasks, resolvePredecessorIndices } from "@/lib/csvParser";
+import {
+  parseCsvHeaders,
+  parseCsvToTasks,
+  parseRow,
+  resolvePredecessorIndices,
+} from "@/lib/csvParser";
 
 interface ImportPanelProps {
   projectId: string;
@@ -180,7 +186,7 @@ async function parseFile(
 
   if (ext === "csv") {
     const text = await file.text();
-    return { rows: parseCsvToTasks(text), format: "CSV" };
+    return { rows: parseCsvToTasksForPreview(text), format: "CSV" };
   }
 
   if (ext === "xml") {
@@ -200,7 +206,26 @@ async function parseFile(
 
   // Fallback: try as CSV
   const text = await file.text();
-  return { rows: parseCsvToTasks(text), format: "CSV" };
+  return { rows: parseCsvToTasksForPreview(text), format: "CSV" };
+}
+
+function parseCsvToTasksForPreview(text: string): ImportedRow[] {
+  try {
+    const strictRows = parseCsvToTasks(text);
+    if (strictRows.length > 0) return strictRows;
+  } catch {
+    // Fallback to a permissive parser below so rows with missing names
+    // or non-ISO dates can still be previewed and flagged before import.
+  }
+
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvHeaders(lines[0]);
+  return lines.slice(1).map((line) => parseRow(line, headers));
 }
 
 // ─── Hierarchy builder ──────────────────────────────────────
@@ -216,18 +241,92 @@ function buildHierarchyFromOutline(rows: ImportedRow[]): ImportedRow[] {
 
 interface RowWarning {
   messages: string[];
+  isInvalid: boolean;
 }
 
-function computeWarnings(rows: ImportedRow[]): RowWarning[] {
+function formatDateUTC(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function createValidUTCDate(year: number, month: number, day: number): Date | null {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function parseImportDate(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+
+  // Excel serial dates (days since 1900-01-01)
+  if (/^\d+(\.\d+)?$/.test(value)) {
+    const serial = Number(value);
+    if (!Number.isFinite(serial) || serial < 0) return null;
+    const days = Math.floor(serial);
+    const excelEpoch = Date.UTC(1900, 0, 1);
+    return formatDateUTC(new Date(excelEpoch + days * 86400000));
+  }
+
+  // ISO datetime strings
+  const isoDate = new Date(value);
+  if (!Number.isNaN(isoDate.getTime()) && value.includes("T")) {
+    return formatDateUTC(isoDate);
+  }
+
+  // YYYY-MM-DD
+  const isoYmd = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoYmd) {
+    const date = createValidUTCDate(
+      Number(isoYmd[1]),
+      Number(isoYmd[2]),
+      Number(isoYmd[3])
+    );
+    return date ? formatDateUTC(date) : null;
+  }
+
+  // DD/MM/YYYY or MM/DD/YYYY
+  const slashDate = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashDate) {
+    const first = Number(slashDate[1]);
+    const second = Number(slashDate[2]);
+    const year = Number(slashDate[3]);
+
+    const asDmy = createValidUTCDate(year, second, first);
+    const asMdy = createValidUTCDate(year, first, second);
+
+    if (first > 12 && asDmy) return formatDateUTC(asDmy);
+    if (second > 12 && asMdy) return formatDateUTC(asMdy);
+    if (asMdy) return formatDateUTC(asMdy);
+    if (asDmy) return formatDateUTC(asDmy);
+  }
+
+  return null;
+}
+
+function normalizeAndValidateRows(rows: ImportedRow[]): {
+  rows: ImportedRow[];
+  warnings: RowWarning[];
+} {
+  const normalizedRows: ImportedRow[] = rows.map((row) => ({ ...row }));
+
   // Build name→index map for predecessor resolution check
   const nameToIdx = new Map<string, number>();
-  rows.forEach((r, i) => nameToIdx.set(r.name.toLowerCase(), i));
+  normalizedRows.forEach((r, i) => nameToIdx.set(r.name.toLowerCase(), i));
 
   // Build parent stack to determine which non-phase rows will become roots
   const parentStack: { level: number; tempIndex: number }[] = [];
   const parentIndices: number[] = [];
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+  for (let i = 0; i < normalizedRows.length; i++) {
+    const row = normalizedRows[i];
     while (
       parentStack.length > 0 &&
       parentStack[parentStack.length - 1].level >= row.outline_level
@@ -240,10 +339,32 @@ function computeWarnings(rows: ImportedRow[]): RowWarning[] {
     parentStack.push({ level: row.outline_level, tempIndex: i });
   }
 
-  const hasAnyRoot = rows.some((r) => r.outline_level <= 1);
+  const hasAnyRoot = normalizedRows.some((r) => r.outline_level <= 1);
 
-  return rows.map((row, i) => {
+  const warnings = normalizedRows.map((row, i) => {
     const messages: string[] = [];
+    let isInvalid = false;
+
+    if (!row.name.trim()) {
+      messages.push("Missing task name — row will be skipped");
+      isInvalid = true;
+    }
+
+    const parsedStart = row.start_date ? parseImportDate(row.start_date) : null;
+    if (row.start_date && !parsedStart) {
+      messages.push(`Invalid start date "${row.start_date}" — row will be skipped`);
+      isInvalid = true;
+    } else {
+      row.start_date = parsedStart ?? "";
+    }
+
+    const parsedEnd = row.end_date ? parseImportDate(row.end_date) : null;
+    if (row.end_date && !parsedEnd) {
+      messages.push(`Invalid end date "${row.end_date}" — row will be skipped`);
+      isInvalid = true;
+    } else {
+      row.end_date = parsedEnd ?? "";
+    }
 
     if (!row.start_date) messages.push("No start date — will default to today");
     if (!row.end_date) messages.push("No end date — will default to +7 days");
@@ -272,8 +393,10 @@ function computeWarnings(rows: ImportedRow[]): RowWarning[] {
       messages.push("No parent found — will be created as a root task");
     }
 
-    return { messages };
+    return { messages, isInvalid };
   });
+
+  return { rows: normalizedRows, warnings };
 }
 
 // ─── Phase summary ───────────────────────────────────────────
@@ -295,6 +418,7 @@ interface PreviewData {
 // ─── Component ──────────────────────────────────────────────
 
 export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
+  const queryClient = useQueryClient();
   const [stage, setStage] = useState<Stage>("select");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
@@ -323,8 +447,12 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
         return;
       }
       const processed = buildHierarchyFromOutline(result.rows);
-      const warnings = computeWarnings(processed);
-      setPreviewData({ rows: processed, format: result.format, warnings });
+      const normalized = normalizeAndValidateRows(processed);
+      setPreviewData({
+        rows: normalized.rows,
+        format: result.format,
+        warnings: normalized.warnings,
+      });
       setStage("preview");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse file");
@@ -335,7 +463,8 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
 
   const handleConfirm = () => {
     if (!previewData) return;
-    const { rows } = previewData;
+    const rows = previewData.rows.filter((_, i) => !previewData.warnings[i]?.isInvalid);
+    if (rows.length === 0) return;
 
     const today = new Date().toISOString().split("T")[0];
     const nextWeek = new Date(Date.now() + 7 * 86400000)
@@ -383,6 +512,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
       { projectId, tasks },
       {
         onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["sitePlanTasks", projectId] });
           toast.success(`Imported ${rows.length} task${rows.length === 1 ? "" : "s"}`);
           setStage("done");
         },
@@ -426,6 +556,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
     const { rows, format, warnings } = previewData;
     const phaseSummary = getPhaseSummary(rows);
     const warningCount = warnings.filter((w) => w.messages.length > 0).length;
+    const validRowCount = rows.filter((_, idx) => !warnings[idx]?.isInvalid).length;
 
     return (
       <ComponentErrorBoundary>
@@ -477,20 +608,25 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
               <thead>
                 <tr className="bg-slate-50 text-left sticky top-0">
                   <th className="px-3 py-2 font-medium text-slate-500">Name</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Type</th>
                   <th className="px-3 py-2 font-medium text-slate-500">Start</th>
                   <th className="px-3 py-2 font-medium text-slate-500">End</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Dur.</th>
-                  <th className="px-3 py-2 font-medium text-slate-500">Resp.</th>
+                  <th className="px-3 py-2 font-medium text-slate-500">Type</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.slice(0, 50).map((row, i) => {
                   const rowWarnings = warnings[i]?.messages ?? [];
+                  const isInvalid = warnings[i]?.isInvalid ?? false;
                   return (
                     <Fragment key={`row-fragment-${i}`}>
                       <tr
-                        className={`border-t border-slate-100 ${rowWarnings.length > 0 ? "bg-amber-50/50" : ""}`}
+                        className={`border-t border-slate-100 ${
+                          isInvalid
+                            ? "bg-red-50"
+                            : rowWarnings.length > 0
+                              ? "bg-amber-50/50"
+                              : ""
+                        }`}
                       >
                         <td
                           className="px-3 py-2"
@@ -500,16 +636,14 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                         >
                           {row.name}
                         </td>
-                        <td className="px-3 py-2 text-slate-400">{row.type}</td>
                         <td className="px-3 py-2">{row.start_date || "—"}</td>
                         <td className="px-3 py-2">{row.end_date || "—"}</td>
-                        <td className="px-3 py-2">{row.duration}d</td>
-                        <td className="px-3 py-2">{row.responsible || "—"}</td>
+                        <td className="px-3 py-2 text-slate-500">{row.type}</td>
                       </tr>
                       {rowWarnings.length > 0 && (
-                        <tr className="bg-amber-50/50">
+                        <tr className={isInvalid ? "bg-red-50" : "bg-amber-50/50"}>
                           <td
-                            colSpan={6}
+                            colSpan={4}
                             className="px-3 pb-2"
                             style={{
                               paddingLeft: `${12 + (row.outline_level > 0 ? (row.outline_level - 1) * 16 : 0)}px`,
@@ -518,7 +652,9 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                             {rowWarnings.map((msg, j) => (
                               <div
                                 key={j}
-                                className="flex items-start gap-1 text-amber-700"
+                                className={`flex items-start gap-1 ${
+                                  isInvalid ? "text-red-700" : "text-amber-700"
+                                }`}
                               >
                                 <TriangleAlert className="h-3 w-3 mt-0.5 shrink-0" />
                                 <span>{msg}</span>
@@ -533,7 +669,7 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
                 {rows.length > 50 && (
                   <tr className="border-t border-slate-100">
                     <td
-                      colSpan={6}
+                      colSpan={4}
                       className="px-3 py-2 text-slate-400 text-center"
                     >
                       ...and {rows.length - 50} more tasks
@@ -555,12 +691,14 @@ export function ImportPanel({ projectId, onClose }: ImportPanelProps) {
             </button>
             <button
               onClick={handleConfirm}
-              disabled={hierarchicalImport.isPending}
+              disabled={hierarchicalImport.isPending || validRowCount === 0}
               className="flex-1 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg min-h-[44px]"
             >
               {hierarchicalImport.isPending
                 ? "Importing..."
-                : `Confirm Import (${rows.length} tasks)`}
+                : validRowCount > 0
+                  ? `Confirm Import (${validRowCount} valid task${validRowCount === 1 ? "" : "s"})`
+                  : "No valid rows to import"}
             </button>
           </div>
         </div>
