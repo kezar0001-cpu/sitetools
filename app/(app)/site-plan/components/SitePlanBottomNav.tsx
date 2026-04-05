@@ -1,7 +1,7 @@
 "use client";
 
 import { CheckSquare, ListTodo, BarChart3 } from "lucide-react";
-import { MOBILE_TABS, type MobileTab } from "./SitePlanMobileView";
+import type { MobileTab } from "./SitePlanMobileView";
 
 interface SitePlanBottomNavProps {
   activeTab: MobileTab;
@@ -9,9 +9,10 @@ interface SitePlanBottomNavProps {
 }
 
 export function SitePlanBottomNav({ activeTab, onTabChange }: SitePlanBottomNavProps) {
+  const mobileTabs: readonly MobileTab[] = ["today", "all", "gantt"];
   const tabLabels = ["Today", "All Tasks", "Gantt"] as const;
   const tabIcons = [CheckSquare, ListTodo, BarChart3] as const;
-  const tabs = MOBILE_TABS.map((id, index) => ({
+  const tabs = mobileTabs.map((id, index) => ({
     id,
     label: tabLabels[index],
     icon: tabIcons[index],

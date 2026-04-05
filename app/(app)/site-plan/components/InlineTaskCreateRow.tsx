@@ -12,6 +12,7 @@ interface InlineTaskCreateRowProps {
   hiddenColumns?: Set<string>;
   columnWidths?: Record<string, number>;
   autoFocusName?: boolean;
+  mobile?: boolean;
   onCreated?: (task: SitePlanTask) => void;
   onCancel: () => void;
 }
@@ -36,6 +37,7 @@ export function InlineTaskCreateRow({
   hiddenColumns = new Set(),
   columnWidths,
   autoFocusName = false,
+  mobile = false,
   onCreated,
   onCancel,
 }: InlineTaskCreateRowProps) {
@@ -85,6 +87,11 @@ export function InlineTaskCreateRow({
     );
   };
 
+  const onSubmit: React.FormEventHandler<HTMLFormElement> = (e) => {
+    e.preventDefault();
+    submit();
+  };
+
   const onKeyDown: React.KeyboardEventHandler<HTMLElement> = (e) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -96,6 +103,63 @@ export function InlineTaskCreateRow({
       submit();
     }
   };
+
+  if (mobile) {
+    return (
+      <form
+        className="md:hidden border-t border-b border-blue-200 bg-blue-50/70 px-3 py-3"
+        onKeyDown={onKeyDown}
+        onSubmit={onSubmit}
+      >
+        <div className="space-y-2">
+          <input
+            ref={nameRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="+ Task Name"
+            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none min-h-[44px]"
+            enterKeyHint="done"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none min-h-[44px]"
+            />
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none min-h-[44px]"
+            />
+          </div>
+          <input
+            value={assignedTo}
+            onChange={(e) => setAssignedTo(e.target.value)}
+            placeholder="Assigned To"
+            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none min-h-[44px]"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="submit"
+              className="min-h-[44px] flex-1 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white"
+              disabled={createTask.isPending}
+            >
+              {createTask.isPending ? "Adding..." : "Add task"}
+            </button>
+            <button
+              type="button"
+              className="min-h-[44px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600"
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <div

@@ -1080,6 +1080,9 @@ function ProjectDetailInner() {
                 depthMap={depthMap}
                 rootIndexMap={rootIndexMap}
                 refetch={refetch}
+                mobileInlineInput={inlineInput}
+                onMobileInlineCreated={() => setInlineInput(null)}
+                onMobileInlineCancel={() => setInlineInput(null)}
               />
             </DragDropContext>
           )}

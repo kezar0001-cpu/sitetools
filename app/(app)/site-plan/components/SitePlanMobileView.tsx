@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo, useState, useRef } from "react";
-import { BarChart2, List, Loader2, Sun, X } from "lucide-react";
+import { Loader2, Sun, X } from "lucide-react";
 import { useUpdateTask } from "@/hooks/useSitePlanTasks";
-import type { SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
+import type { SitePlanTask, SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { ProgressSlider } from "./ProgressSlider";
 import { MobileTaskCard } from "./TaskRow";
+import { SitePlanBottomNav } from "./SitePlanBottomNav";
+import { InlineTaskCreateRow } from "./InlineTaskCreateRow";
 
 export type MobileTab = "today" | "all" | "gantt";
 export const MOBILE_TABS: readonly MobileTab[] = ["today", "all", "gantt"];
@@ -24,6 +26,14 @@ interface SitePlanMobileViewProps {
   refetch: () => Promise<unknown>;
   depthMap: Map<string, number>;
   rootIndexMap: Map<string, number>;
+  mobileInlineInput: {
+    type: TaskType;
+    parentId: string | null;
+    afterIndex: number;
+    afterTaskId: string | null;
+  } | null;
+  onMobileInlineCreated: () => void;
+  onMobileInlineCancel: () => void;
 }
 
 interface GroupedPhase {
@@ -53,6 +63,9 @@ export function SitePlanMobileView({
   refetch,
   depthMap,
   rootIndexMap,
+  mobileInlineInput,
+  onMobileInlineCreated,
+  onMobileInlineCancel,
 }: SitePlanMobileViewProps) {
   void tasks;
   const updateTask = useUpdateTask();
@@ -68,18 +81,32 @@ export function SitePlanMobileView({
   }, []);
 
   const groupedByPhase = useMemo<GroupedPhase[]>(() => {
-    const groups = new Map<string, GroupedPhase>();
+    const groups = new Map<number, GroupedPhase>();
     for (const node of rows) {
-      const depth = depthMap.get(node.id) ?? 0;
-      if (depth !== 0 || node.children.length === 0) continue;
-      groups.set(node.id, {
+      const rootIndex = rootIndexMap.get(node.id) ?? 0;
+      const group = groups.get(rootIndex);
+      if (group) {
+        group.items.push(node);
+        continue;
+      }
+      groups.set(rootIndex, {
         rootId: node.id,
         rootName: node.name,
         rootProgress: node.progress,
-        items: rows.filter((r) => (rootIndexMap.get(r.id) ?? 0) === (rootIndexMap.get(node.id) ?? 0)),
+        items: [node],
       });
     }
-    return Array.from(groups.values());
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([, group]) => {
+        const root = group.items.find((item) => (depthMap.get(item.id) ?? 0) === 0) ?? group.items[0];
+        return {
+          ...group,
+          rootId: root?.id ?? group.rootId,
+          rootName: root?.name ?? group.rootName,
+          rootProgress: root?.progress ?? group.rootProgress,
+        };
+      });
   }, [rows, depthMap, rootIndexMap]);
 
   const todaysTasks = useMemo(() => {
@@ -90,8 +117,9 @@ export function SitePlanMobileView({
       const taskStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
       const taskEnd = new Date(end.getFullYear(), end.getMonth(), end.getDate());
       const inRange = taskStart <= today && today <= taskEnd;
-      const overdueOpen = taskEnd < today && task.progress < 100;
-      return inRange || overdueOpen;
+      const inProgress = task.status === "in_progress";
+      const overdueNoProgress = taskEnd < today && task.progress === 0;
+      return inRange || inProgress || overdueNoProgress;
     });
   }, [rows, today]);
 
@@ -107,11 +135,6 @@ export function SitePlanMobileView({
   }, [groupedByPhase, todaysTasks]);
 
   const activeIndex = TAB_ORDER.indexOf(activeTab);
-  const mobileTabs = [
-    { id: "today" as const, label: "Today", icon: Sun },
-    { id: "all" as const, label: "All Tasks", icon: List },
-    { id: "gantt" as const, label: "Timeline", icon: BarChart2 },
-  ];
 
   const openProgressSheet = (task: SitePlanTaskNode) => {
     setProgressTask(task);
@@ -237,6 +260,18 @@ export function SitePlanMobileView({
                 ))}
               </section>
             ))}
+            {mobileInlineInput && mobileInlineInput.afterTaskId === null && (
+              <InlineTaskCreateRow
+                mobile
+                projectId={projectId}
+                parentId={mobileInlineInput.parentId}
+                type={mobileInlineInput.type}
+                sortOrder={mobileInlineInput.afterIndex}
+                autoFocusName
+                onCreated={onMobileInlineCreated}
+                onCancel={onMobileInlineCancel}
+              />
+            )}
           </div>
 
           <div className="w-1/3 shrink-0 overflow-hidden">
@@ -249,27 +284,7 @@ export function SitePlanMobileView({
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-up md:hidden">
-        <div className="grid grid-cols-3">
-          {mobileTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onTabChange(tab.id)}
-                className={`flex min-h-[44px] flex-col items-center justify-center gap-1 px-2 py-2 text-xs font-semibold transition ${
-                  isActive ? "text-blue-600" : "text-slate-400"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <SitePlanBottomNav activeTab={activeTab} onTabChange={onTabChange} />
 
       {progressTask && (
         <div className="fixed inset-0 z-40 md:hidden">
