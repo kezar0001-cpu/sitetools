@@ -8,6 +8,7 @@ import { ProgressSlider } from "./ProgressSlider";
 import { MobileTaskCard } from "./TaskRow";
 import { SitePlanBottomNav } from "./SitePlanBottomNav";
 import { InlineTaskCreateRow } from "./InlineTaskCreateRow";
+import { GanttChart } from "./GanttChart";
 
 export type MobileTab = "today" | "all" | "gantt";
 export const MOBILE_TABS: readonly MobileTab[] = ["today", "all", "gantt"];
@@ -34,6 +35,14 @@ interface SitePlanMobileViewProps {
   } | null;
   onMobileInlineCreated: () => void;
   onMobileInlineCancel: () => void;
+  zoom: "day" | "week" | "month" | "quarter";
+  showDeps: boolean;
+  showCriticalPath: boolean;
+  selectedTaskId: string | null;
+  hoveredTaskId: string | null;
+  todayTrigger: number;
+  onGanttTaskClick: (task: SitePlanTask) => void;
+  onGanttDateChange: (task: SitePlanTask, start_date: string, end_date: string) => void;
 }
 
 interface GroupedPhase {
@@ -66,6 +75,14 @@ export function SitePlanMobileView({
   mobileInlineInput,
   onMobileInlineCreated,
   onMobileInlineCancel,
+  zoom,
+  showDeps,
+  showCriticalPath,
+  selectedTaskId,
+  hoveredTaskId,
+  todayTrigger,
+  onGanttTaskClick,
+  onGanttDateChange,
 }: SitePlanMobileViewProps) {
   void tasks;
   const updateTask = useUpdateTask();
@@ -275,11 +292,17 @@ export function SitePlanMobileView({
           </div>
 
           <div className="w-1/3 shrink-0 overflow-hidden">
-            <div className="flex h-full items-center justify-center bg-white p-4 text-center">
-              <p className="text-sm text-slate-500">
-                Timeline view is currently unavailable on mobile.
-              </p>
-            </div>
+            <GanttChart
+              tasks={tasks}
+              zoom={zoom}
+              showDependencies={showDeps}
+              showCriticalPath={showCriticalPath}
+              selectedTaskId={selectedTaskId}
+              hoveredTaskId={hoveredTaskId}
+              onTaskClick={onGanttTaskClick}
+              onDateChange={onGanttDateChange}
+              todayTrigger={todayTrigger}
+            />
           </div>
         </div>
       </div>

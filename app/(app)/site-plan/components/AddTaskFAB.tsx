@@ -12,7 +12,7 @@ interface AddTaskFABProps {
 
 export function AddTaskFAB({ onAdd, currentType = "task" }: AddTaskFABProps) {
   return (
-    <div className="fixed bottom-20 right-4 z-40 md:hidden flex flex-col items-end gap-2">
+    <div className="fixed bottom-20 right-4 z-40 md:hidden mb-[env(safe-area-inset-bottom)] flex flex-col items-end gap-2">
       <button
         onClick={() => onAdd(currentType)}
         className="flex items-center justify-center h-14 w-14 rounded-full bg-blue-600 text-white shadow-lg hover:bg-blue-700 active:scale-95 transition-transform"

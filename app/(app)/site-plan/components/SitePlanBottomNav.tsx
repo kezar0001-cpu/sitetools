@@ -19,7 +19,7 @@ export function SitePlanBottomNav({ activeTab, onTabChange }: SitePlanBottomNavP
   }));
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 md:hidden safe-area-pb">
+    <nav className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)] md:hidden safe-area-pb">
       <div className="flex items-center justify-around h-16">
         {tabs.map(({ id, label, icon: Icon }) => {
           const active = id === activeTab;

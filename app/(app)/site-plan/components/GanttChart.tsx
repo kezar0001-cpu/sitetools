@@ -268,6 +268,7 @@ export function GanttChart(props: GanttChartProps) {
     task: SitePlanTask;
   } | null>(null);
   const [headerOffsetY, setHeaderOffsetY] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const timelineRef = useRef<HTMLDivElement>(null);
 
   // Build delay count map
@@ -607,6 +608,7 @@ export function GanttChart(props: GanttChartProps) {
           className="flex-1 overflow-auto"
           onScroll={(e) => {
             setHeaderOffsetY(e.currentTarget.scrollTop);
+            setScrollLeft(e.currentTarget.scrollLeft);
             props.onVerticalScroll?.(e.currentTarget.scrollTop);
           }}
         >
@@ -1198,21 +1200,21 @@ export function GanttChart(props: GanttChartProps) {
         {/* Floating Today button (mobile) */}
         <button
           onClick={scrollToToday}
-          className="md:hidden absolute bottom-4 right-4 z-20 w-12 h-12 rounded-full bg-red-600 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+          className="md:hidden absolute bottom-4 right-4 z-20 mb-[env(safe-area-inset-bottom)] w-12 h-12 rounded-full bg-red-600 text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
           aria-label="Go to today"
         >
           <Calendar className="h-5 w-5" />
         </button>
 
         {/* Mini-map (date range indicator) */}
-        <div className="absolute bottom-0 left-0 right-0 md:hidden h-6 bg-slate-100 border-t border-slate-200 flex items-center px-2">
+        <div className="absolute bottom-0 left-0 right-0 md:hidden h-6 bg-slate-100 border-t border-slate-200 flex items-center px-2 pb-[env(safe-area-inset-bottom)]">
           <div className="flex-1 h-2 bg-slate-200 rounded-full relative overflow-hidden">
             {timelineRef.current && (
               <div
                 className="absolute h-full bg-blue-400 rounded-full"
                 style={{
                   left: `${
-                    (timelineRef.current.scrollLeft / (totalTimelineWidth - timelineRef.current.clientWidth + 1)) * 100
+                    (scrollLeft / (totalTimelineWidth - timelineRef.current.clientWidth + 1)) * 100
                   }%`,
                   width: `${Math.max(10, (timelineRef.current.clientWidth / totalTimelineWidth) * 100)}%`,
                 }}

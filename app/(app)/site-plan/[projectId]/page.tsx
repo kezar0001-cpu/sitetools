@@ -1083,6 +1083,14 @@ function ProjectDetailInner() {
                 mobileInlineInput={inlineInput}
                 onMobileInlineCreated={() => setInlineInput(null)}
                 onMobileInlineCancel={() => setInlineInput(null)}
+                zoom={zoom}
+                showDeps={showDeps}
+                showCriticalPath={showCriticalPath}
+                selectedTaskId={selectedTaskId}
+                hoveredTaskId={hoveredTaskId}
+                todayTrigger={todayTrigger}
+                onGanttTaskClick={handleGanttTaskClick}
+                onGanttDateChange={handleGanttDateChange}
               />
             </DragDropContext>
           )}
