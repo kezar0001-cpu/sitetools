@@ -92,6 +92,8 @@ function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
       id: entry.taskId,
       projectId: entry.projectId,
       updates: entry.before as Parameters<typeof updateTask.mutate>[0]["updates"],
+    }, {
+      onError: () => toast.error("Failed to save. Please try again."),
     });
     setRevision((r) => r + 1);
   }, [updateTask]);
@@ -104,6 +106,8 @@ function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
       id: entry.taskId,
       projectId: entry.projectId,
       updates: entry.after as Parameters<typeof updateTask.mutate>[0]["updates"],
+    }, {
+      onError: () => toast.error("Failed to save. Please try again."),
     });
     setRevision((r) => r + 1);
   }, [updateTask]);
@@ -241,6 +245,9 @@ function ProjectDetailInner() {
   const { data: tasks, isLoading, refetch } = useSitePlanTasks(projectId);
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
+  const handleMutateError = useCallback(() => {
+    toast.error("Failed to save. Please try again.");
+  }, []);
 
   const { data: delayLogs } = useProjectDelayLogs(projectId);
   const { data: baselines } = useSitePlanBaselines(projectId);
@@ -518,8 +525,8 @@ function ProjectDetailInner() {
   }, [setSelectedTask]);
 
   const handleUpdateTaskInline = useCallback((taskId: string, updates: Partial<SitePlanTaskNode>) => {
-    updateTask.mutate({ id: taskId, projectId, updates });
-  }, [updateTask, projectId]);
+    updateTask.mutate({ id: taskId, projectId, updates }, { onError: handleMutateError });
+  }, [updateTask, projectId, handleMutateError]);
 
   const handleRowNumberClick = useCallback((node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => {
     setSelectedTask(node);
@@ -645,8 +652,10 @@ function ProjectDetailInner() {
       id: selectedTask.id,
       projectId,
       updates: { parent_id: above.id },
+    }, {
+      onError: handleMutateError,
     });
-  }, [selectedTask, visibleRows, projectId, pushUndo, updateTask]);
+  }, [selectedTask, visibleRows, projectId, pushUndo, updateTask, handleMutateError]);
 
   const handleOutdent = useCallback(() => {
     if (!selectedTask || !selectedTask.parent_id) return;
@@ -664,8 +673,10 @@ function ProjectDetailInner() {
       id: selectedTask.id,
       projectId,
       updates: { parent_id: grandparentId },
+    }, {
+      onError: handleMutateError,
     });
-  }, [selectedTask, flatTasks, projectId, pushUndo, updateTask]);
+  }, [selectedTask, flatTasks, projectId, pushUndo, updateTask, handleMutateError]);
 
   // Gantt task click — open edit panel
   const handleGanttTaskClick = useCallback(
@@ -685,9 +696,11 @@ function ProjectDetailInner() {
           start_date,
           end_date,
         },
+      }, {
+        onError: handleMutateError,
       });
     },
-    [projectId, updateTask]
+    [projectId, updateTask, handleMutateError]
   );
 
   // ─── Drag and drop ──────────────────────────────────────────
@@ -715,9 +728,9 @@ function ProjectDetailInner() {
         };
       });
 
-      reorderTask.mutate({ projectId, moves });
+      reorderTask.mutate({ projectId, moves }, { onError: handleMutateError });
     },
-    [visibleRows, projectId, reorderTask]
+    [visibleRows, projectId, reorderTask, handleMutateError]
   );
 
   // ─── Keyboard shortcuts (Tab / Shift+Tab for indent/outdent) ──
@@ -931,8 +944,13 @@ function ProjectDetailInner() {
           {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
           <div className="flex-1 flex flex-col min-h-0">
           {isLoading ? (
-            <div className="flex-1 overflow-auto pb-20 md:pb-4">
-              <TaskListSkeleton />
+            <div className="flex-1 min-h-0 md:flex">
+              <div className="flex-1 overflow-auto pb-20 md:pb-4">
+                <TaskListSkeleton />
+              </div>
+              <div className="hidden md:flex flex-1 items-center justify-center border-l border-slate-200 text-slate-400 text-sm">
+                Loading Gantt chart…
+              </div>
             </div>
           ) : visibleRows.length === 0 && !inlineInput ? (
             <div className="flex-1 overflow-auto pb-20 md:pb-4 flex flex-col items-center justify-center py-20 text-center px-4">
@@ -976,6 +994,7 @@ function ProjectDetailInner() {
               {desktopView !== "list" && (
                 <GanttWrapper
                   tasks={tasks ?? []}
+                  isLoading={isLoading}
                   baselines={activeBaselineTasks}
                   delayLogs={delayLogs ?? []}
                   visibleRows={visibleRows}
