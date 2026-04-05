@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
 } from "react";
+import { flushSync } from "react-dom";
 import type { MutableRefObject } from "react";
 import {
   Calendar,
@@ -319,16 +320,6 @@ export function GanttChart(props: GanttChartProps) {
     [showCriticalPath, tasks]
   );
 
-  useEffect(() => {
-    if (!showCriticalPath) return;
-    const ids = Array.from(criticalPathIds);
-    // Debug visibility for critical-path toggle validation.
-    console.info("[SitePlan] Critical path task IDs:", ids);
-    if (ids.length === 0 && tasks.length > 0) {
-      console.warn("[SitePlan] Critical path returned an empty set for non-empty tasks.");
-    }
-  }, [showCriticalPath, criticalPathIds, tasks.length]);
-
   // Build tree and flatten
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
   const fullFlatTasks = useMemo(() => flattenTree(tree), [tree]);
@@ -363,8 +354,12 @@ export function GanttChart(props: GanttChartProps) {
     }
     const min = new Date(Math.min(...starts));
     const max = new Date(Math.max(...ends));
-    const s = addDays(min, -7);
-    const e = addDays(max, 14);
+    const todayFloor = new Date();
+    todayFloor.setHours(0, 0, 0, 0);
+    const earliest = min < todayFloor ? min : todayFloor;
+    const latest = max > todayFloor ? max : todayFloor;
+    const s = addDays(earliest, -7);
+    const e = addDays(latest, 14);
     return { rangeStart: s, rangeEnd: e, totalDays: daysBetween(s, e) };
   }, [tasks]);
 
@@ -566,15 +561,7 @@ export function GanttChart(props: GanttChartProps) {
         const predNode =
           byWbs.get(normalizedPred) ||
           flatTasks.find((t) => normalizedPred.startsWith(`${t.wbs_code.toUpperCase()}FS`));
-        if (!predNode) {
-          if (process.env.NODE_ENV !== "production") {
-            console.warn("[GanttChart] predecessor not found in flatTasks", {
-              predCode,
-              normalizedPred,
-            });
-          }
-          return [];
-        }
+        if (!predNode) return [];
 
         const predIdx = flatTasks.indexOf(predNode);
         const isSelected =
@@ -641,9 +628,10 @@ export function GanttChart(props: GanttChartProps) {
           ref={timelineRef}
           className="flex-1 overflow-auto"
           onScroll={(e) => {
-            setHeaderOffsetY(e.currentTarget.scrollTop);
-            setScrollLeft(e.currentTarget.scrollLeft);
-            props.onVerticalScroll?.(e.currentTarget.scrollTop);
+            const { scrollTop, scrollLeft: nextScrollLeft } = e.currentTarget;
+            flushSync(() => setHeaderOffsetY(scrollTop));
+            setScrollLeft(nextScrollLeft);
+            props.onVerticalScroll?.(scrollTop);
           }}
         >
           <svg
@@ -763,12 +751,7 @@ export function GanttChart(props: GanttChartProps) {
             {flatTasks.map((node, i) => {
               const rawStartDate = parseTaskDate(node.start_date);
               const rawEndDate = parseTaskDate(node.end_date);
-              if (!rawStartDate || !rawEndDate) {
-                console.warn("[GanttChart] Skipping task bar due to invalid dates", {
-                  taskId: node.id,
-                });
-                return null;
-              }
+              if (!rawStartDate || !rawEndDate) return null;
               const y = HEADER_HEIGHT + i * ROW_HEIGHT;
               const barY = y + 8;
               const barHeight = ROW_HEIGHT - 16;
@@ -849,6 +832,8 @@ export function GanttChart(props: GanttChartProps) {
               const showInsideLabel = !isMilestone && barWidth > 60;
               const labelX = isMilestone ? mCx + mR + 8 : (showInsideLabel ? barX + 8 : barEndX + 8);
               const labelY = barY + barHeight / 2 + 4;
+              const labelClipWidth = Math.max(40, (isMilestone ? 2 * mR : effectiveBarWidth) + 60);
+              const labelClipX = isMilestone ? mCx - mR : effectiveBarX;
 
               return (
                 <g
@@ -1041,10 +1026,19 @@ export function GanttChart(props: GanttChartProps) {
                     </>
                   )}
 
+                  <clipPath id={`task-label-clip-${node.id}`}>
+                    <rect
+                      x={labelClipX}
+                      y={barY - 2}
+                      width={labelClipWidth}
+                      height={barHeight + 4}
+                    />
+                  </clipPath>
                   <text
                     x={labelX}
                     y={labelY}
                     textAnchor={isMilestone || !showInsideLabel ? "start" : "start"}
+                    clipPath={`url(#task-label-clip-${node.id})`}
                     className={showInsideLabel ? "fill-white text-[10px] font-semibold pointer-events-none" : "fill-slate-700 text-[10px] pointer-events-none"}
                   >
                     {node.name}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type KeyboardEvent } from "react";
+import React, { useEffect, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
