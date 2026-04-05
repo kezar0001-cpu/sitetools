@@ -57,6 +57,7 @@ interface GanttWrapperProps {
   selectedTaskId: string | null;
   hoveredTaskId: string | null;
   onTaskClick: (task: SitePlanTask) => void;
+  onDateChange: (task: SitePlanTask, start_date: string, end_date: string) => void;
   renderLeftRows: (args: {
     height: number;
     onScroll: ({ scrollOffset }: { scrollOffset: number }) => void;
@@ -96,6 +97,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
     selectedTaskId,
     hoveredTaskId,
     onTaskClick,
+    onDateChange,
     renderLeftRows,
     onRightPanelScroll,
     leftScrollRef,
@@ -219,6 +221,7 @@ export function GanttWrapper(props: GanttWrapperProps) {
             selectedTaskId={selectedTaskId}
             hoveredTaskId={hoveredTaskId}
             onTaskClick={onTaskClick}
+            onDateChange={onDateChange}
             todayTrigger={todayTrigger}
             scrollContainerRef={rightScrollRef}
             onVerticalScroll={handleRightPanelScroll}

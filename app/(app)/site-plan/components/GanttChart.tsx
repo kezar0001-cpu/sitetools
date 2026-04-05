@@ -379,10 +379,11 @@ export function GanttChart(props: GanttChartProps) {
   } | null>(null);
 
   const handleBarMouseDown = useCallback(
-    (e: React.MouseEvent, task: SitePlanTask, mode: "move" | "resize-end") => {
+    (e: React.PointerEvent<SVGElement>, task: SitePlanTask, mode: "move" | "resize-end") => {
       if (!canEdit || task.type === "milestone") return;
       e.stopPropagation();
       e.preventDefault();
+      e.currentTarget.setPointerCapture(e.pointerId);
       setHoverTooltip(null);
       setDragState({
         task,
@@ -416,7 +417,7 @@ export function GanttChart(props: GanttChartProps) {
   useEffect(() => {
     if (!dragState) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const dx = e.clientX - dragState.startX;
       const pxPerDay = totalTimelineWidth / totalDays;
       const daysDelta = Math.round(dx / pxPerDay);
@@ -442,7 +443,7 @@ export function GanttChart(props: GanttChartProps) {
       }
     };
 
-    const handleMouseUp = () => {
+    const handlePointerRelease = () => {
       if (dragState) {
         const fmt = (d: Date) => d.toISOString().split("T")[0];
         const newStart = fmt(dragState.currentStartDate);
@@ -457,11 +458,13 @@ export function GanttChart(props: GanttChartProps) {
       setDragState(null);
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerRelease);
+    document.addEventListener("pointercancel", handlePointerRelease);
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("pointermove", handlePointerMove);
+      document.removeEventListener("pointerup", handlePointerRelease);
+      document.removeEventListener("pointercancel", handlePointerRelease);
     };
   }, [dragState, totalTimelineWidth, totalDays, onDateChange]);
 
@@ -720,7 +723,7 @@ export function GanttChart(props: GanttChartProps) {
                         stroke="#5b21b6"
                         strokeWidth={1}
                         style={{ cursor: "pointer" }}
-                        onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onMouseEnter={(e) => handleBarMouseEnter(e, taskData)}
                         onMouseMove={handleBarMouseMove}
                         onMouseLeave={handleBarMouseLeave}
@@ -789,29 +792,12 @@ export function GanttChart(props: GanttChartProps) {
                         height={barHeight}
                         fill={colors.bg}
                         rx={4}
-                        onMouseDown={(e) => handleBarMouseDown(e, taskData, "move")}
+                        onPointerDown={(e) => handleBarMouseDown(e, taskData, "move")}
                         onMouseEnter={(e) => handleBarMouseEnter(e, taskData)}
                         onMouseMove={handleBarMouseMove}
                         onMouseLeave={handleBarMouseLeave}
                         style={canEdit ? { cursor: isDragging ? "grabbing" : "grab" } : undefined}
                       />
-                      {dragState?.mode === "move" && isDragging && (
-                        <rect
-                          x={getBarX(dragState.currentStartDate, rangeStart, totalDays, totalTimelineWidth)}
-                          y={barY}
-                          width={Math.max(
-                            4,
-                            getBarX(dragState.currentEndDate, rangeStart, totalDays, totalTimelineWidth) -
-                              getBarX(dragState.currentStartDate, rangeStart, totalDays, totalTimelineWidth)
-                          )}
-                          height={barHeight}
-                          fill={colors.progress}
-                          opacity={0.35}
-                          rx={4}
-                          stroke="#0f172a"
-                          strokeDasharray="4,2"
-                        />
-                      )}
 
                       {/* Progress fill */}
                       {node.progress > 0 && (
@@ -827,9 +813,9 @@ export function GanttChart(props: GanttChartProps) {
                       )}
 
                       {/* Resize handle on right edge — 8px wide grab zone with visible grip line */}
-                      {canEdit && (
+                      {canEdit && effectiveBarWidth > 16 && (
                         <g
-                          onMouseDown={(e) => handleBarMouseDown(e, taskData, "resize-end")}
+                          onPointerDown={(e) => handleBarMouseDown(e, taskData, "resize-end")}
                           style={{ cursor: "ew-resize" }}
                         >
                           <rect
@@ -1014,6 +1000,30 @@ export function GanttChart(props: GanttChartProps) {
                 </g>
               );
             })}
+            {dragState?.mode === "move" && (() => {
+              const nodeIndex = flatTasks.findIndex((node) => node.id === dragState.task.id);
+              if (nodeIndex < 0) return null;
+              const y = HEADER_HEIGHT + nodeIndex * ROW_HEIGHT;
+              const barY = y + 8;
+              const barHeight = ROW_HEIGHT - 16;
+              const ghostX = getBarX(dragState.currentStartDate, rangeStart, totalDays, totalTimelineWidth);
+              const ghostEndX = getBarX(dragState.currentEndDate, rangeStart, totalDays, totalTimelineWidth);
+              return (
+                <rect
+                  x={ghostX}
+                  y={barY}
+                  width={Math.max(4, ghostEndX - ghostX)}
+                  height={barHeight}
+                  fill="#0ea5e9"
+                  opacity={0.3}
+                  rx={4}
+                  stroke="#0369a1"
+                  strokeWidth={1.5}
+                  strokeDasharray="6,3"
+                  style={{ pointerEvents: "none" }}
+                />
+              );
+            })()}
 
             {/* Dependency arrows */}
             {showDeps &&
