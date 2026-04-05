@@ -176,9 +176,7 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
           hiddenColumns={data.hiddenColumns}
           columnWidths={data.columnWidths}
           autoFocusName
-          onCreated={(created) => {
-            data.setInlineInput((prev) => (prev ? { ...prev, afterTaskId: created.id, afterIndex: prev.afterIndex + 1 } : prev));
-          }}
+          onCreated={() => data.setInlineInput(null)}
           onCancel={() => data.setInlineInput(null)}
         />
       </div>
@@ -540,36 +538,31 @@ function ProjectDetailInner() {
   const openBottomInlineRow = useCallback(() => {
     const parentId = selectedTask?.parent_id ?? null;
     const type: TaskType = "task";
-    const sortOrder = visibleRows.filter((row) => row.parent_id === parentId).length;
+    const sortOrder = (tasks ?? []).filter((row) => row.parent_id === parentId).length;
     setInlineInput({
       type,
       parentId,
       afterIndex: sortOrder,
-      afterTaskId: visibleRows.length > 0 ? visibleRows[visibleRows.length - 1].id : null,
+      afterTaskId: null,
     });
     setSelectedTask(null);
-  }, [selectedTask, visibleRows, setSelectedTask]);
+  }, [selectedTask, tasks, setSelectedTask]);
 
   /** Row "+" → "Add task below": insert sibling with same type & parent, after the row's subtree */
   const handleRowAddBelow = useCallback((node: SitePlanTaskNode) => {
-    const idx = visibleRows.findIndex((r) => r.id === node.id);
-    // Walk forward to find the last visible row belonging to this node's subtree
-    let lastIdx = idx;
-    for (let i = idx + 1; i < visibleRows.length; i++) {
-      const row = visibleRows[i];
-      // Stop when we reach a sibling or ancestor-level row
-      if (row.parent_id === node.parent_id && row.id !== node.id) break;
-
-      lastIdx = i;
-    }
+    const siblings = (tasks ?? [])
+      .filter((task) => task.parent_id === node.parent_id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    const siblingIndex = siblings.findIndex((task) => task.id === node.id);
+    const sortOrder = siblingIndex >= 0 ? siblingIndex + 1 : siblings.length;
     setInlineInput({
       type: node.type,
       parentId: node.parent_id,
-      afterIndex: lastIdx + 1,
-      afterTaskId: visibleRows[lastIdx]?.id ?? node.id,
+      afterIndex: sortOrder,
+      afterTaskId: node.id,
     });
     setSelectedTask(null);
-  }, [visibleRows, setSelectedTask]);
+  }, [tasks, setSelectedTask]);
 
   /** Row "+" → "Add subtask": insert first/next child under this node */
   const handleRowAddSubtask = useCallback((node: SitePlanTaskNode) => {
@@ -628,9 +621,9 @@ function ProjectDetailInner() {
   // ─── Indent / Outdent ──────────────────────────────────────
   const handleIndent = useCallback(() => {
     if (!selectedTask) return;
-    const taskIndex = flatTasks.findIndex((r) => r.id === selectedTask.id);
+    const taskIndex = visibleRows.findIndex((r) => r.id === selectedTask.id);
     if (taskIndex <= 0) return;
-    const above = flatTasks[taskIndex - 1];
+    const above = visibleRows[taskIndex - 1];
     if (!above) return;
 
     pushUndo({
@@ -645,7 +638,7 @@ function ProjectDetailInner() {
       projectId,
       updates: { parent_id: above.id },
     });
-  }, [selectedTask, flatTasks, projectId, pushUndo, updateTask]);
+  }, [selectedTask, visibleRows, projectId, pushUndo, updateTask]);
 
   const handleOutdent = useCallback(() => {
     if (!selectedTask || !selectedTask.parent_id) return;
@@ -702,11 +695,17 @@ function ProjectDetailInner() {
       const [moved] = rows.splice(source.index, 1);
       rows.splice(destination.index, 0, moved);
 
-      const moves = rows.map((row, idx) => ({
+      const parentSortOrder = new Map<string, number>();
+      const moves = rows.map((row) => {
+        const parentKey = row.parent_id ?? "__root__";
+        const nextSortOrder = parentSortOrder.get(parentKey) ?? 0;
+        parentSortOrder.set(parentKey, nextSortOrder + 1);
+        return {
         id: row.id,
-        sort_order: idx,
+        sort_order: nextSortOrder,
         parent_id: row.parent_id,
-      }));
+        };
+      });
 
       reorderTask.mutate({ projectId, moves });
     },
