@@ -789,7 +789,7 @@ function ProjectDetailInner() {
     selectedRowIds,
     selectedTaskId,
     toggleExpand,
-    visibleRows.length,
+    visibleRows,
   ]);
 
   /** Called by DelayLogDialog when a cascade delay impacts successor tasks */
