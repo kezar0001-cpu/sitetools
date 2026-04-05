@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -225,9 +226,12 @@ export default function InductionRegisterPage() {
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
                                 {inductionData?.workerDetails?.photoIdUrl ? (
-                                  <img
+                                  <Image
                                     src={inductionData.workerDetails.photoIdUrl}
                                     alt={workerName}
+                                    width={32}
+                                    height={32}
+                                    unoptimized
                                     className="w-8 h-8 rounded-full object-cover border border-slate-200"
                                   />
                                 ) : (

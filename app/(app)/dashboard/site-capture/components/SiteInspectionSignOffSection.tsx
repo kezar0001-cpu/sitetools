@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
+import Image from "next/image";
 import { SectionHeader } from "./SectionHeader";
 import type { SiteDiaryFull, InspectionSignOff } from "@/lib/site-capture/types";
 import SignatureCanvas from "react-signature-canvas";
@@ -114,9 +115,12 @@ export function SiteInspectionSignOffSection({
 
             {signOff?.inspector_signature ? (
               <div className="relative">
-                <img
+                <Image
                   src={signOff.inspector_signature}
                   alt="Inspector signature"
+                  width={500}
+                  height={128}
+                  unoptimized
                   className="w-full h-32 bg-white border border-slate-200 rounded-lg object-contain"
                 />
                 {!isLocked && (
@@ -176,9 +180,12 @@ export function SiteInspectionSignOffSection({
 
             {signOff?.client_representative_signature ? (
               <div className="relative">
-                <img
+                <Image
                   src={signOff.client_representative_signature}
                   alt="Client signature"
+                  width={500}
+                  height={128}
+                  unoptimized
                   className="w-full h-32 bg-white border border-slate-200 rounded-lg object-contain"
                 />
                 {!isLocked && (
