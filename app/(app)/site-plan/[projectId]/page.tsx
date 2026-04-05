@@ -675,6 +675,20 @@ function ProjectDetailInner() {
     [flatTasks, setSelectedTask]
   );
 
+  const handleGanttDateChange = useCallback(
+    (task: SitePlanTask, start_date: string, end_date: string) => {
+      updateTask.mutate({
+        id: task.id,
+        projectId,
+        updates: {
+          start_date,
+          end_date,
+        },
+      });
+    },
+    [projectId, updateTask]
+  );
+
   // ─── Drag and drop ──────────────────────────────────────────
 
   const handleDragEnd = useCallback(
@@ -965,6 +979,7 @@ function ProjectDetailInner() {
                   selectedTaskId={selectedTaskId}
                   hoveredTaskId={hoveredTaskId}
                   onTaskClick={handleGanttTaskClick}
+                  onDateChange={handleGanttDateChange}
                   renderLeftRows={({ height, onScroll, setOuterRef }) => (
                     <Droppable
                       droppableId="task-list"
