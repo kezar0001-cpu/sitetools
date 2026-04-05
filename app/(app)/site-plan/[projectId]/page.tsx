@@ -21,7 +21,6 @@ import { ImportPanel } from "../components/ImportPanel";
 import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
 import type { TaskFilter } from "../components/SitePlanToolbar";
 import { BaselineDialog } from "../components/BaselineDialog";
-import { LinkTasksDialog } from "../components/LinkTasksDialog";
 import { AddTaskFAB } from "../components/AddTaskFAB";
 import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
@@ -369,7 +368,6 @@ function ProjectDetailInner() {
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [todayTrigger, setTodayTrigger] = useState(0);
   const [projectName, setProjectName] = useState("");
-  const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1124,15 +1122,6 @@ function ProjectDetailInner() {
           projectId={projectId}
           tasks={tasks ?? []}
           onClose={() => setShowBaselines(false)}
-        />
-      )}
-
-      {/* Link tasks dialog */}
-      {showLinkDialog && selectedTask && (
-        <LinkTasksDialog
-          task={selectedTask}
-          allTasks={flatTasks}
-          onClose={() => setShowLinkDialog(false)}
         />
       )}
 
