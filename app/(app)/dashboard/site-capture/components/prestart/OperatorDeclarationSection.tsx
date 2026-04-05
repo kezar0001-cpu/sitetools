@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import type { OperatorDeclaration } from "@/lib/site-capture/types";
 import { SectionHeader } from "../SectionHeader";
 
@@ -212,9 +213,12 @@ export function OperatorDeclarationSection({
                 )}
                 {declaration?.signature && isLocked && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <img
+                    <Image
                       src={declaration.signature}
                       alt="Operator signature"
+                      width={300}
+                      height={120}
+                      unoptimized
                       className="max-h-full"
                     />
                   </div>

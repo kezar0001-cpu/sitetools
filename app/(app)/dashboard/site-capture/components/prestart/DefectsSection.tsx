@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, ChangeEvent } from "react";
+import Image from "next/image";
 import type { ChecklistDefect, DefectSeverity } from "@/lib/site-capture/types";
 import { SectionHeader } from "../SectionHeader";
 
@@ -204,9 +205,11 @@ export function DefectsSection({
                           key={idx}
                           className="relative w-20 h-20 rounded-lg overflow-hidden bg-slate-100 group"
                         >
-                          <img
+                          <Image
                             src={photo}
                             alt={`Defect photo ${idx + 1}`}
+                            fill
+                            unoptimized
                             className="w-full h-full object-cover"
                           />
                           {!isLocked && (

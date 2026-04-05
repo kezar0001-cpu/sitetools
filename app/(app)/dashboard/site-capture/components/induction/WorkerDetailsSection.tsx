@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Image from "next/image";
 import { SectionHeader } from "../SectionHeader";
 import type { WorkerDetails } from "@/lib/site-capture/induction-types";
 
@@ -178,9 +179,12 @@ export function WorkerDetailsSection({
             <label className="block text-sm font-medium text-slate-700 mb-2">Photo ID</label>
             {localDetails.photoIdUrl ? (
               <div className="relative inline-block">
-                <img
+                <Image
                   src={localDetails.photoIdUrl}
                   alt="Worker ID"
+                  width={128}
+                  height={160}
+                  unoptimized
                   className="w-32 h-40 object-cover rounded-xl border border-slate-200"
                 />
                 {!isLocked && (

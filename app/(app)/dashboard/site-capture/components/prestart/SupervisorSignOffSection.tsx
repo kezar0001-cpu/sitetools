@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import Image from "next/image";
 import type { SupervisorSignOff, ClearanceDecision } from "@/lib/site-capture/types";
 import { SectionHeader } from "../SectionHeader";
 
@@ -275,9 +276,12 @@ export function SupervisorSignOffSection({
                 )}
                 {signOff?.signature && effectiveLocked && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <img
+                    <Image
                       src={signOff.signature}
                       alt="Supervisor signature"
+                      width={300}
+                      height={120}
+                      unoptimized
                       className="max-h-full"
                     />
                   </div>
