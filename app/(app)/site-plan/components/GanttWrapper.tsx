@@ -70,9 +70,6 @@ interface GanttWrapperProps {
   handleSelect: (node: SitePlanTaskNode) => void;
   setDelayTask: (node: SitePlanTaskNode | null) => void;
   delayCountMap: Map<string, number>;
-  editMode: boolean;
-  checkedIds: Set<string>;
-  handleCheck: (node: SitePlanTaskNode, checked: boolean) => void;
   openBottomInlineRow: () => void;
   onRowAddBelow: (node: SitePlanTaskNode) => void;
   onRowAddSubtask: (node: SitePlanTaskNode) => void;

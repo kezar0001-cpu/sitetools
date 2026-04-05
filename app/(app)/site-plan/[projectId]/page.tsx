@@ -133,9 +133,6 @@ interface VirtualRowData {
   delayCountMap: Map<string, number>;
   depthMap: Map<string, number>;
   rootIndexMap: Map<string, number>;
-  editMode: boolean;
-  checkedIds: Set<string>;
-  handleCheck: (node: SitePlanTaskNode, checked: boolean) => void;
   hiddenColumns: Set<string>;
   openBottomInlineRow: () => void;
   onRowAddBelow: (node: SitePlanTaskNode) => void;
@@ -209,13 +206,10 @@ function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowDa
             onSelect={data.handleSelect}
             onLogDelay={data.setDelayTask}
             delayCount={data.delayCountMap.get(node.id) ?? 0}
-            dragHandleProps={data.editMode ? undefined : dragProvided.dragHandleProps}
+            dragHandleProps={dragProvided.dragHandleProps}
             isDragging={dragSnapshot.isDragging}
             depth={data.depthMap.get(node.id) ?? 0}
             rootIndex={data.rootIndexMap.get(node.id) ?? 0}
-            editMode={data.editMode}
-            isChecked={data.checkedIds.has(node.id)}
-            onCheck={data.handleCheck}
             hiddenColumns={data.hiddenColumns}
             isHighlighted={data.highlightedTaskIds.has(node.id)}
             onAddBelow={data.onRowAddBelow}
@@ -379,8 +373,6 @@ function ProjectDetailInner() {
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [editMode] = useState(false);
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
   // ─── Virtual list state ──────────────────────────────────────
   const leftScrollRef = useRef<HTMLDivElement | null>(null);
@@ -469,24 +461,6 @@ function ProjectDetailInner() {
     [updateSearchParams]
   );
 
-  // Check/uncheck a task — in edit mode this is "select for bulk action"
-  const handleCheck = useCallback(
-    (task: SitePlanTaskNode, checked: boolean) => {
-      setCheckedIds((prev) => {
-        const next = new Set(prev);
-        if (checked) {
-          next.add(task.id);
-          setSelectedTask(task);
-        } else {
-          next.delete(task.id);
-          if (next.size === 0) setSelectedTask(null);
-        }
-        return next;
-      });
-    },
-    [setSelectedTask]
-  );
-
   const { visibleRows } = useTaskFiltering(
     tree,
     expandedIds,
@@ -535,13 +509,9 @@ function ProjectDetailInner() {
   );
 
   const handleSelect = useCallback((node: SitePlanTaskNode) => {
-    if (editMode) {
-      handleCheck(node, !checkedIds.has(node.id));
-    } else {
-      setSelectedTask(node);
-      setInlineInput(null);
-    }
-  }, [editMode, handleCheck, checkedIds, setSelectedTask]);
+    setSelectedTask(node);
+    setInlineInput(null);
+  }, [setSelectedTask]);
 
   const handleUpdateTaskInline = useCallback((taskId: string, updates: Partial<SitePlanTaskNode>) => {
     updateTask.mutate({ id: taskId, projectId, updates });
@@ -787,9 +757,6 @@ function ProjectDetailInner() {
     delayCountMap,
     depthMap,
     rootIndexMap,
-    editMode,
-    checkedIds,
-    handleCheck,
     hiddenColumns,
     openBottomInlineRow,
     onRowAddBelow: handleRowAddBelow,
@@ -806,12 +773,9 @@ function ProjectDetailInner() {
     lastTaskIndex: visibleRows.length - 1,
   }), [
     allExpanded,
-    checkedIds,
     columnWidths,
     delayCountMap,
-    editMode,
     expandedIds,
-    handleCheck,
     handleRowAddBelow,
     handleRowAddSubtask,
     handleRowNumberClick,
@@ -1060,9 +1024,6 @@ function ProjectDetailInner() {
                   handleSelect={handleSelect}
                   setDelayTask={setDelayTask}
                   delayCountMap={delayCountMap}
-                  editMode={editMode}
-                  checkedIds={checkedIds}
-                  handleCheck={handleCheck}
                   openBottomInlineRow={openBottomInlineRow}
                   onRowAddBelow={handleRowAddBelow}
                   onRowAddSubtask={handleRowAddSubtask}
@@ -1100,10 +1061,10 @@ function ProjectDetailInner() {
           {/* Task edit panel (desktop, non-edit mode) */}
           <div
             className={`hidden xl:block overflow-hidden transition-all duration-200 ${
-              selectedTask && !editMode ? "w-[340px] shrink-0" : "w-0"
+              selectedTask ? "w-[340px] shrink-0" : "w-0"
             }`}
           >
-            {selectedTask && !editMode && (
+            {selectedTask && (
               <TaskEditPanel
                 task={selectedTask}
                 onClose={() => setSelectedTask(null)}
@@ -1117,8 +1078,8 @@ function ProjectDetailInner() {
           </div>
         </div>
 
-      {/* Mobile/tablet task edit panel (non-edit mode only) */}
-      {selectedTask && !editMode && (
+      {/* Mobile/tablet task edit panel */}
+      {selectedTask && (
         <div className="xl:hidden">
           <TaskEditPanel
             task={selectedTask}
