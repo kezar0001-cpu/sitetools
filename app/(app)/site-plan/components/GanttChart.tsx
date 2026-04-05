@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  default as React,
   useState,
   useMemo,
   useRef,
@@ -70,6 +71,21 @@ const ZOOM_COLUMN_WIDTH: Record<ZoomLevel, number> = {
   month: 200,
   quarter: 300,
 };
+
+interface ArrowTooltipState {
+  x: number;
+  y: number;
+  predName: string;
+  succName: string;
+}
+
+interface DependencyEdge {
+  predNode: SitePlanTaskNode;
+  succNode: SitePlanTaskNode;
+  pathD: string;
+  arrowColor: string;
+  isSelected: boolean;
+}
 
 // ─── Timescale generation ───────────────────────────────────
 
@@ -203,12 +219,25 @@ function getDepArrowColor(pred: SitePlanTaskNode, succ: SitePlanTaskNode): strin
   const succStart = new Date(succ.start_date);
   if (predEnd > succStart) return "#ef4444";
 
-  // Yellow: tight gap (≤ 3 days) or successor is on hold
-  const gapDays = daysBetween(predEnd, succStart);
-  if (gapDays <= 3 || succ.status === "on_hold") return "#f59e0b";
-
   // Green: on time
   return "#22c55e";
+}
+
+function normalizePredCode(value: string): string {
+  return value.trim().replace(/\s+/g, "").toUpperCase();
+}
+
+function getTooltipPosition(x: number, y: number, width = 280, height = 44): { left: number; top: number } {
+  if (typeof window === "undefined") {
+    return { left: x + 14, top: y - 36 };
+  }
+  const gap = 12;
+  const desiredLeft = x + 14;
+  const desiredTop = y - 36;
+  return {
+    left: Math.min(Math.max(gap, desiredLeft), Math.max(gap, window.innerWidth - width - gap)),
+    top: Math.min(Math.max(gap, desiredTop), Math.max(gap, window.innerHeight - height - gap)),
+  };
 }
 
 // ─── Main component ─────────────────────────────────────────
@@ -232,12 +261,7 @@ export function GanttChart(props: GanttChartProps) {
   } = props;
   const [selectedBar, setSelectedBar] = useState<SitePlanTask | null>(null);
   const [selectedDep, setSelectedDep] = useState<{ predId: string; succId: string } | null>(null);
-  const [arrowTooltip, setArrowTooltip] = useState<{
-    x: number;
-    y: number;
-    predName: string;
-    succName: string;
-  } | null>(null);
+  const [arrowTooltip, setArrowTooltip] = useState<ArrowTooltipState | null>(null);
   const [hoverTooltip, setHoverTooltip] = useState<{
     x: number;
     y: number;
@@ -482,8 +506,71 @@ export function GanttChart(props: GanttChartProps) {
   useEffect(() => {
     if (!showDeps) {
       setSelectedDep(null);
+      setArrowTooltip(null);
     }
   }, [showDeps]);
+
+  const dependencyEdges = useMemo((): DependencyEdge[] => {
+    if (!showDeps) return [];
+    const byWbs = new Map<string, SitePlanTaskNode>();
+    flatTasks.forEach((task) => {
+      byWbs.set(task.wbs_code.toUpperCase(), task);
+    });
+
+    return flatTasks.flatMap((node, i) => {
+      if (!node.predecessors) return [];
+      const preds = node.predecessors
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .slice(0, 50);
+
+      return preds.flatMap((predCode) => {
+        const normalizedPred = normalizePredCode(predCode);
+        const predNode =
+          byWbs.get(normalizedPred) ||
+          flatTasks.find((t) => normalizedPred.startsWith(`${t.wbs_code.toUpperCase()}FS`));
+        if (!predNode) {
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[GanttChart] predecessor not found in flatTasks", {
+              predCode,
+              normalizedPred,
+            });
+          }
+          return [];
+        }
+
+        const predIdx = flatTasks.indexOf(predNode);
+        const isSelected =
+          selectedDep?.predId === predNode.id &&
+          selectedDep?.succId === node.id;
+        const arrowColor = getDepArrowColor(predNode, node);
+
+        const predEndX = getBarX(
+          new Date(predNode.end_date),
+          rangeStart,
+          totalDays,
+          totalTimelineWidth
+        );
+        const succStartX = getBarX(
+          new Date(node.start_date),
+          rangeStart,
+          totalDays,
+          totalTimelineWidth
+        );
+
+        const predCenterY =
+          HEADER_HEIGHT + predIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+        const succCenterY =
+          HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
+
+        const elbowX = predEndX + 10;
+        const pathD = `M ${predEndX} ${predCenterY} L ${elbowX} ${predCenterY} L ${elbowX} ${succCenterY} L ${succStartX} ${succCenterY}`;
+
+        return [{ predNode, succNode: node, pathD, arrowColor, isSelected }];
+      });
+    });
+  }, [flatTasks, rangeStart, selectedDep, showDeps, totalDays, totalTimelineWidth]);
 
   const isTodayColumn = useCallback((colDate: Date) => {
     if (zoom === "day") {
@@ -709,6 +796,7 @@ export function GanttChart(props: GanttChartProps) {
               return (
                 <g
                   key={node.id}
+                  data-testid={`task-bar-${node.id}`}
                   className={canEdit && !isSummary ? "cursor-grab" : "cursor-pointer"}
                   opacity={isDepDimmed ? 0.25 : 1}
                   onClick={() => handleBarClick(taskData)}
@@ -1027,109 +1115,73 @@ export function GanttChart(props: GanttChartProps) {
 
             {/* Dependency arrows */}
             {showDeps &&
-              flatTasks.flatMap((node, i) => {
-                if (!node.predecessors) return [];
-                // Cap at 50 dependencies per task
-                const preds = node.predecessors
-                  .split(",")
-                  .map((p) => p.trim())
-                  .filter(Boolean)
-                  .slice(0, 50);
+              dependencyEdges.map(({ predNode, succNode, pathD, arrowColor, isSelected }) => {
+                const succStartX = getBarX(
+                  new Date(succNode.start_date),
+                  rangeStart,
+                  totalDays,
+                  totalTimelineWidth
+                );
+                const succIdx = flatTasks.indexOf(succNode);
+                const succCenterY = HEADER_HEIGHT + succIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
+                const arrowOpacity = selectedDep && !isSelected ? 0.15 : 0.85;
 
-                return preds.flatMap((predCode) => {
-                  const predNode = flatTasks.find(
-                    (t) =>
-                      t.wbs_code === predCode ||
-                      predCode.startsWith(t.wbs_code + "FS")
-                  );
-                  if (!predNode) return [];
+                return (
+                  <g
+                    key={`dep-${predNode.id}-${succNode.id}`}
+                    data-testid={`dep-${predNode.id}-${succNode.id}`}
+                    style={{ cursor: "pointer" }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDep(
+                        isSelected
+                          ? null
+                          : { predId: predNode.id, succId: succNode.id }
+                      );
+                    }}
+                  >
+                    <path
+                      d={pathD}
+                      data-testid={`dep-hit-${predNode.id}-${succNode.id}`}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      onMouseEnter={(e) =>
+                        setArrowTooltip({
+                          x: e.clientX,
+                          y: e.clientY,
+                          predName: predNode.name,
+                          succName: succNode.name,
+                        })
+                      }
+                      onMouseMove={(e) =>
+                        setArrowTooltip((prev) =>
+                          prev
+                            ? { ...prev, x: e.clientX, y: e.clientY }
+                            : null
+                        )
+                      }
+                      onMouseLeave={() => setArrowTooltip(null)}
+                    />
 
-                  const predIdx = flatTasks.indexOf(predNode);
-                  const isSelected =
-                    selectedDep?.predId === predNode.id &&
-                    selectedDep?.succId === node.id;
-                  const arrowColor = getDepArrowColor(predNode, node);
+                    <path
+                      d={pathD}
+                      data-testid={`dep-line-${predNode.id}-${succNode.id}`}
+                      fill="none"
+                      stroke={arrowColor}
+                      strokeWidth={isSelected ? 2.5 : 1.5}
+                      opacity={arrowOpacity}
+                      style={{ pointerEvents: "none" }}
+                    />
 
-                  const predEndX = getBarX(
-                    new Date(predNode.end_date),
-                    rangeStart,
-                    totalDays,
-                    totalTimelineWidth
-                  );
-                  const succStartX = getBarX(
-                    new Date(node.start_date),
-                    rangeStart,
-                    totalDays,
-                    totalTimelineWidth
-                  );
-
-                  const predCenterY =
-                    HEADER_HEIGHT + predIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
-                  const succCenterY =
-                    HEADER_HEIGHT + i * ROW_HEIGHT + ROW_HEIGHT / 2;
-
-                  // Elbow connector: pred end → right elbow → down/up → succ start
-                  const elbowX = predEndX + 10;
-                  const pathD = `M ${predEndX} ${predCenterY} L ${elbowX} ${predCenterY} L ${elbowX} ${succCenterY} L ${succStartX} ${succCenterY}`;
-                  const arrowOpacity = selectedDep && !isSelected ? 0.15 : 0.85;
-
-                  return [
-                    <g
-                      key={`dep-${predNode.id}-${node.id}`}
-                      style={{ cursor: "pointer" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedDep(
-                          isSelected
-                            ? null
-                            : { predId: predNode.id, succId: node.id }
-                        );
-                      }}
-                    >
-                      {/* Wide invisible hit area */}
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke="transparent"
-                        strokeWidth={12}
-                        onMouseEnter={(e) =>
-                          setArrowTooltip({
-                            x: e.clientX,
-                            y: e.clientY,
-                            predName: predNode.name,
-                            succName: node.name,
-                          })
-                        }
-                        onMouseMove={(e) =>
-                          setArrowTooltip((prev) =>
-                            prev
-                              ? { ...prev, x: e.clientX, y: e.clientY }
-                              : null
-                          )
-                        }
-                        onMouseLeave={() => setArrowTooltip(null)}
-                      />
-
-                      {/* Visible path */}
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke={arrowColor}
-                        strokeWidth={isSelected ? 2.5 : 1.5}
-                        opacity={arrowOpacity}
-                        style={{ pointerEvents: "none" }}
-                      />
-
-                      {/* Arrow head */}
-                      <polygon
-                        points={`${succStartX},${succCenterY} ${succStartX - 6},${succCenterY - 3} ${succStartX - 6},${succCenterY + 3}`}
-                        fill={arrowColor}
-                        opacity={arrowOpacity}
-                        style={{ pointerEvents: "none" }}
-                      />
-                    </g>,
-                  ];
-                });
+                    <polygon
+                      points={`${succStartX},${succCenterY} ${succStartX - 6},${succCenterY - 3} ${succStartX - 6},${succCenterY + 3}`}
+                      fill={arrowColor}
+                      opacity={arrowOpacity}
+                      style={{ pointerEvents: "none" }}
+                    />
+                  </g>
+                );
               })}
           </svg>
         </div>
@@ -1203,8 +1255,9 @@ export function GanttChart(props: GanttChartProps) {
       {/* Dependency arrow hover tooltip */}
       {arrowTooltip && (
         <div
+          data-testid="dep-tooltip"
           className="fixed z-[200] pointer-events-none bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap"
-          style={{ left: arrowTooltip.x + 14, top: arrowTooltip.y - 36 }}
+          style={getTooltipPosition(arrowTooltip.x, arrowTooltip.y)}
         >
           <span className="font-semibold">{arrowTooltip.predName}</span>
           <span className="text-slate-300"> must finish before </span>
