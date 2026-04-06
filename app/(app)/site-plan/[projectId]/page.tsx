@@ -19,9 +19,7 @@ import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
 import { ImportPanel } from "../components/ImportPanel";
 import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
-import { BaselineDialog } from "../components/BaselineDialog";
 import { AddTaskFAB } from "../components/AddTaskFAB";
-import { CreateTaskSheet } from "../components/CreateTaskSheet";
 import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
 import { DESKTOP_ROW_HEIGHT, GanttWrapper } from "../components/GanttWrapper";
@@ -770,14 +768,7 @@ function ProjectDetailInner() {
       {/* Desktop task creation sheet */}
       {createSheetState && (
         <div className="hidden md:block">
-          <CreateTaskSheet
-            projectId={projectId}
-            type={createSheetState.type}
-            parentId={createSheetState.parentId}
-            parentNode={createSheetState.parentNode}
-            sortOrder={createSheetState.sortOrder}
-            onClose={() => setCreateSheetState(null)}
-          />
+          {/* TODO: replaced */}
         </div>
       )}
 
@@ -795,11 +786,9 @@ function ProjectDetailInner() {
 
       {/* Baselines dialog */}
       {showBaselines && (
-        <BaselineDialog
-          projectId={projectId}
-          tasks={tasks ?? []}
-          onClose={() => setShowBaselines(false)}
-        />
+        <>
+          {/* TODO: replaced */}
+        </>
       )}
 
       {/* Delay log dialog */}
