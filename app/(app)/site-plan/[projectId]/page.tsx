@@ -4,7 +4,6 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Plus, BarChart3, ListTodo } from "lucide-react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
-import type { DropResult } from "@hello-pangea/dnd";
 import { FixedSizeList } from "react-window";
 import type { ListChildComponentProps } from "react-window";
 import { toast } from "sonner";
@@ -13,14 +12,13 @@ import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSite
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { computeWorkProgress } from "@/types/siteplan";
-import type { SitePlanTaskNode, SitePlanTask, TaskType, TaskStatus } from "@/types/siteplan";
+import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
 import { useTaskTree } from "@/hooks/useTaskTree";
 import { useTaskFiltering } from "@/hooks/useTaskFiltering";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
 import { ImportPanel } from "../components/ImportPanel";
 import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
-import type { TaskFilter } from "../components/SitePlanToolbar";
 import { BaselineDialog } from "../components/BaselineDialog";
 import { AddTaskFAB } from "../components/AddTaskFAB";
 import { CreateTaskSheet } from "../components/CreateTaskSheet";
@@ -29,103 +27,15 @@ import { TaskListSkeleton } from "../components/Skeleton";
 import { DESKTOP_ROW_HEIGHT, GanttWrapper } from "../components/GanttWrapper";
 import type { TaskListItem } from "../components/GanttWrapper";
 import { SitePlanMobileView } from "../components/SitePlanMobileView";
-import type { MobileTab } from "../components/SitePlanMobileView";
 import { QueryProvider } from "@/components/QueryProvider";
 import { supabase } from "@/lib/supabase";
 import { TaskRow } from "../components/TaskRow";
 import { InlineTaskCreateRow } from "../components/InlineTaskCreateRow";
 import { TaskListHeader } from "../components/TaskListHeader";
-
-// ─── Undo/Redo stack ────────────────────────────────────────
-
-interface UndoEntry {
-  taskId: string;
-  projectId: string;
-  before: Partial<SitePlanTask>;
-  after: Partial<SitePlanTask>;
-}
-
-function describeEntry(entry: UndoEntry): string {
-  const keys = Object.keys(entry.before) as (keyof SitePlanTask)[];
-  if (keys.includes("name") && entry.before.name !== undefined) {
-    return `changed name of '${entry.before.name}'`;
-  }
-  if (keys.some((k) => k === "parent_id" || k === "type")) {
-    return "changed indent level";
-  }
-  if (keys.includes("status")) {
-    return "changed status";
-  }
-  if (keys.includes("start_date") || keys.includes("end_date")) {
-    return "changed dates";
-  }
-  if (keys.includes("progress")) {
-    return "changed progress";
-  }
-  const readableKey = keys[0]?.replace(/_/g, " ") ?? "field";
-  return `changed ${readableKey}`;
-}
-
-function useUndoRedo(updateTask: ReturnType<typeof useUpdateTask>) {
-  const undoStack = useRef<UndoEntry[]>([]);
-  const redoStack = useRef<UndoEntry[]>([]);
-  const [revision, setRevision] = useState(0);
-
-  // NOTE: The stacks are intentionally NOT cleared on task selection changes.
-  // UndoEntry includes taskId/projectId so mutations always target the correct task
-  // regardless of which task is currently selected.
-
-  const pushUndo = useCallback(
-    (entry: UndoEntry) => {
-      undoStack.current.push(entry);
-      redoStack.current = [];
-      setRevision((r) => r + 1);
-    },
-    []
-  );
-
-  const undo = useCallback(() => {
-    const entry = undoStack.current.pop();
-    if (!entry) return;
-    redoStack.current.push(entry);
-    updateTask.mutate({
-      id: entry.taskId,
-      projectId: entry.projectId,
-      updates: entry.before as Parameters<typeof updateTask.mutate>[0]["updates"],
-    }, {
-      onError: () => toast.error("Failed to save. Please try again."),
-    });
-    setRevision((r) => r + 1);
-  }, [updateTask]);
-
-  const redo = useCallback(() => {
-    const entry = redoStack.current.pop();
-    if (!entry) return;
-    undoStack.current.push(entry);
-    updateTask.mutate({
-      id: entry.taskId,
-      projectId: entry.projectId,
-      updates: entry.after as Parameters<typeof updateTask.mutate>[0]["updates"],
-    }, {
-      onError: () => toast.error("Failed to save. Please try again."),
-    });
-    setRevision((r) => r + 1);
-  }, [updateTask]);
-
-  const undoTop = undoStack.current[undoStack.current.length - 1];
-  const redoTop = redoStack.current[redoStack.current.length - 1];
-
-  return {
-    pushUndo,
-    undo,
-    redo,
-    canUndo: undoStack.current.length > 0,
-    canRedo: redoStack.current.length > 0,
-    revision,
-    undoLabel: undoTop ? describeEntry(undoTop) : undefined,
-    redoLabel: redoTop ? describeEntry(redoTop) : undefined,
-  };
-}
+import { useUndoRedo } from "../hooks/useUndoRedo";
+import { useSitePlanUrl } from "../hooks/useSitePlanUrl";
+import { useColumnSettings } from "../hooks/useColumnSettings";
+import { useTaskActions } from "../hooks/useTaskActions";
 
 interface VirtualRowData {
   listItems: TaskListItem[];
@@ -252,6 +162,16 @@ function ProjectDetailInner() {
   const { data: delayLogs } = useProjectDelayLogs(projectId);
   const { data: baselines } = useSitePlanBaselines(projectId);
   const { pushUndo } = useUndoRedo(updateTask);
+  const {
+    updateSearchParams,
+    mobileTab,
+    handleMobileTabChange,
+    desktopView,
+    filter,
+    setFilter,
+    taskIdParam,
+    expandedIdsParam,
+  } = useSitePlanUrl({ searchParams, pathname, router });
   const activeBaselineTasks = useMemo(
     () =>
       ((baselines?.[0]?.snapshot as unknown as SitePlanTask[] | undefined) ??
@@ -270,82 +190,7 @@ function ProjectDetailInner() {
     return map;
   }, [delayLogs]);
 
-  // Helper to update URL search params
-  const updateSearchParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const newParams = new URLSearchParams(searchParams.toString());
-      for (const [key, val] of Object.entries(updates)) {
-        if (val === null || val === "") {
-          newParams.delete(key);
-        } else {
-          newParams.set(key, val);
-        }
-      }
-      const qs = newParams.toString();
-      router.replace(pathname + (qs ? `?${qs}` : ""), { scroll: false });
-    },
-    [searchParams, pathname, router]
-  );
-
-  const mobileTab = (
-    searchParams.get("mobileTab") === "today" ||
-    searchParams.get("mobileTab") === "gantt"
-      ? searchParams.get("mobileTab")
-      : "all"
-  ) as MobileTab;
-  const handleMobileTabChange = useCallback(
-    (nextTab: MobileTab) => {
-      updateSearchParams({ mobileTab: nextTab === "all" ? null : nextTab });
-    },
-    [updateSearchParams]
-  );
-
-  // Desktop view mode (URL param): list | gantt | split (default: split)
-  const viewParam = searchParams.get("view");
-  const desktopView = (viewParam === "list" || viewParam === "gantt" || viewParam === "split" ? viewParam : "split") as "list" | "gantt" | "split";
-
-  // Derive filter from URL search params
-  const filter = useMemo<TaskFilter>(() => {
-    const filterParam = searchParams.get("filter");
-    const searchParam = searchParams.get("search");
-    const assignedParam = searchParams.get("assignedTo");
-    const typeParam = searchParams.get("type");
-
-    // Support predefined filter aliases
-    if (filterParam === "overdue") {
-      return { status: ["delayed" as const], type: [], assignedTo: "", search: "" };
-    }
-    if (filterParam === "due_this_week") {
-      return { status: ["in_progress" as const, "not_started" as const], type: [], assignedTo: "", search: "" };
-    }
-    if (filterParam === "no_progress") {
-      return { status: ["not_started" as const], type: [], assignedTo: "", search: "" };
-    }
-
-    const statusParam = searchParams.get("status");
-    return {
-      status: statusParam ? statusParam.split(",") as TaskStatus[] : [],
-      type: typeParam ? typeParam.split(",") as TaskType[] : [],
-      assignedTo: assignedParam ?? "",
-      search: searchParam ?? "",
-    };
-  }, [searchParams]);
-
-  const setFilter = useCallback(
-    (f: TaskFilter) => {
-      updateSearchParams({
-        status: f.status.length > 0 ? f.status.join(",") : null,
-        type: f.type.length > 0 ? f.type.join(",") : null,
-        assignedTo: f.assignedTo || null,
-        search: f.search || null,
-        filter: null, // clear predefined alias
-      });
-    },
-    [updateSearchParams]
-  );
-
   // Derive expandedIds from URL and initialise the task tree hook
-  const expandedIdsParam = searchParams.get("expanded");
   const {
     tree,
     flatTasks,
@@ -368,9 +213,6 @@ function ProjectDetailInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedIds]);
 
-  // Derive selected task from URL
-  const taskIdParam = searchParams.get("task");
-
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(taskIdParam);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
@@ -389,32 +231,9 @@ function ProjectDetailInner() {
   // ─── Virtual list state ──────────────────────────────────────
   const leftScrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Column visibility state
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
-    name: 300,
-    dur: 90,
-    start: 110,
-    finish: 110,
-    pred: 120,
-    pct: 90,
-    status: 120,
-    delays: 80,
-    assigned: 140,
-  });
+  const { hiddenColumns, columnWidths, handleToggleColumn, handleColumnResize } = useColumnSettings();
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [lastSelectedRowNumber, setLastSelectedRowNumber] = useState<number | null>(null);
-  const handleToggleColumn = useCallback((col: string) => {
-    setHiddenColumns((prev) => {
-      const next = new Set(prev);
-      if (next.has(col)) next.delete(col);
-      else next.add(col);
-      return next;
-    });
-  }, []);
-  const handleColumnResize = useCallback((col: string, width: number) => {
-    setColumnWidths((prev) => ({ ...prev, [col]: width }));
-  }, []);
 
   // Inline input state (mobile only after refactor)
   const [inlineInput, setInlineInput] = useState<{
@@ -528,219 +347,37 @@ function ProjectDetailInner() {
     [tasks, parentIdSet]
   );
 
-  const handleSelect = useCallback((node: SitePlanTaskNode) => {
-    setSelectedTask(node);
-    setInlineInput(null);
-  }, [setSelectedTask]);
-
-  const handleUpdateTaskInline = useCallback((taskId: string, updates: Partial<SitePlanTaskNode>) => {
-    updateTask.mutate({ id: taskId, projectId, updates }, { onError: handleMutateError });
-  }, [updateTask, projectId, handleMutateError]);
-
-  const handleRowNumberClick = useCallback((node: SitePlanTaskNode, rowNumber: number, e: React.MouseEvent<HTMLButtonElement>) => {
-    setSelectedTask(node);
-    setInlineInput(null);
-    setSelectedRowIds((prev) => {
-      const next = new Set(prev);
-      if (e.shiftKey && lastSelectedRowNumber !== null) {
-        next.clear();
-        const start = Math.min(lastSelectedRowNumber, rowNumber);
-        const end = Math.max(lastSelectedRowNumber, rowNumber);
-        visibleRows.slice(start - 1, end).forEach((r) => next.add(r.id));
-      } else if (e.metaKey || e.ctrlKey) {
-        if (next.has(node.id)) next.delete(node.id);
-        else next.add(node.id);
-      } else {
-        next.clear();
-        next.add(node.id);
-      }
-      return next;
-    });
-    setLastSelectedRowNumber(rowNumber);
-  }, [lastSelectedRowNumber, visibleRows, setSelectedTask]);
-
-  const openBottomInlineRow = useCallback(() => {
-    const parentId = selectedTask?.parent_id ?? null;
-    const type: TaskType = "task";
-    const sortOrder = (tasks ?? []).filter((row) => row.parent_id === parentId).length;
-    setInlineInput({
-      type,
-      parentId,
-      afterIndex: sortOrder,
-      afterTaskId: null,
-    });
-    setSelectedTask(null);
-  }, [selectedTask, tasks, setSelectedTask]);
-
-  /** Row "+" → "Add task below": insert sibling with same type & parent, after the row's subtree */
-  const handleRowAddBelow = useCallback((node: SitePlanTaskNode) => {
-    const siblings = (tasks ?? [])
-      .filter((task) => task.parent_id === node.parent_id)
-      .sort((a, b) => a.sort_order - b.sort_order);
-    const siblingIndex = siblings.findIndex((task) => task.id === node.id);
-    const sortOrder = siblingIndex >= 0 ? siblingIndex + 1 : siblings.length;
-    setInlineInput({
-      type: node.type,
-      parentId: node.parent_id,
-      afterIndex: sortOrder,
-      afterTaskId: node.id,
-    });
-    setSelectedTask(null);
-  }, [tasks, setSelectedTask]);
-
-  /** Row "+" → "Add subtask": insert first/next child under this node */
-  const handleRowAddSubtask = useCallback((node: SitePlanTaskNode) => {
-    openCreateSheet("task", node.id, node.children.length, node);
-  }, [openCreateSheet]);
-
-  const handleFABAdd = useCallback((type: TaskType) => {
-    if (typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches) {
-      openCreateSheet(type, null, tasks?.length ?? 0);
-      setSelectedTask(null);
-      return;
-    }
-
-    setInlineInput({
-      type,
-      parentId: null,
-      afterIndex: tasks?.length ?? 0,
-      afterTaskId: null,
-    });
-    setSelectedTask(null);
-  }, [openCreateSheet, tasks, setSelectedTask]);
-
-  const startInlineAdd = useCallback((
-    type: TaskType,
-    parentId: string | null = null,
-    afterTaskId: string | null = null
-  ) => {
-    // Find the last visible row belonging to the afterTaskId subtree
-    let resolvedAfterTaskId = afterTaskId;
-    if (afterTaskId) {
-      const phaseIdx = visibleRows.findIndex((r) => r.id === afterTaskId);
-      if (phaseIdx >= 0) {
-        let lastIdx = phaseIdx;
-        for (let i = phaseIdx + 1; i < visibleRows.length; i++) {
-          const row = visibleRows[i];
-          // Stop when we hit a sibling or parent-level phase
-          if (row.parent_id === visibleRows[phaseIdx].parent_id && row.id !== visibleRows[phaseIdx].id) break;
-          lastIdx = i;
-        }
-        resolvedAfterTaskId = visibleRows[lastIdx].id;
-      }
-    }
-    const afterIdx = resolvedAfterTaskId
-      ? visibleRows.findIndex((r) => r.id === resolvedAfterTaskId)
-      : -1;
-    const sortOrder = afterIdx >= 0 ? afterIdx + 1 : tasks?.length ?? 0;
-    setInlineInput({
-      type,
-      parentId,
-      afterIndex: sortOrder,
-      afterTaskId: resolvedAfterTaskId,
-    });
-    setSelectedTask(null);
-  }, [visibleRows, tasks, setSelectedTask]);
-
-  // ─── Indent / Outdent ──────────────────────────────────────
-  const handleIndent = useCallback(() => {
-    if (!selectedTask) return;
-    const taskIndex = visibleRows.findIndex((r) => r.id === selectedTask.id);
-    if (taskIndex <= 0) return;
-    const above = visibleRows[taskIndex - 1];
-    if (!above) return;
-
-    pushUndo({
-      taskId: selectedTask.id,
-      projectId,
-      before: { parent_id: selectedTask.parent_id },
-      after: { parent_id: above.id },
-    });
-
-    updateTask.mutate({
-      id: selectedTask.id,
-      projectId,
-      updates: { parent_id: above.id },
-    }, {
-      onError: handleMutateError,
-    });
-  }, [selectedTask, visibleRows, projectId, pushUndo, updateTask, handleMutateError]);
-
-  const handleOutdent = useCallback(() => {
-    if (!selectedTask || !selectedTask.parent_id) return;
-    const parent = flatTasks.find((r) => r.id === selectedTask.parent_id);
-    const grandparentId = parent?.parent_id ?? null;
-
-    pushUndo({
-      taskId: selectedTask.id,
-      projectId,
-      before: { parent_id: selectedTask.parent_id },
-      after: { parent_id: grandparentId },
-    });
-
-    updateTask.mutate({
-      id: selectedTask.id,
-      projectId,
-      updates: { parent_id: grandparentId },
-    }, {
-      onError: handleMutateError,
-    });
-  }, [selectedTask, flatTasks, projectId, pushUndo, updateTask, handleMutateError]);
-
-  // Gantt task click — open edit panel
-  const handleGanttTaskClick = useCallback(
-    (task: SitePlanTask) => {
-      const node = flatTasks.find((t) => t.id === task.id);
-      if (node) setSelectedTask(node);
-    },
-    [flatTasks, setSelectedTask]
-  );
-
-  const handleGanttDateChange = useCallback(
-    (task: SitePlanTask, start_date: string, end_date: string) => {
-      updateTask.mutate({
-        id: task.id,
-        projectId,
-        updates: {
-          start_date,
-          end_date,
-        },
-      }, {
-        onError: handleMutateError,
-      });
-    },
-    [projectId, updateTask, handleMutateError]
-  );
-
-  // ─── Drag and drop ──────────────────────────────────────────
-
-  const handleDragEnd = useCallback(
-    (result: DropResult) => {
-      const { source, destination } = result;
-      if (!destination || source.index === destination.index) return;
-      // Ignore drops between the desktop and mobile droppables
-      if (source.droppableId !== destination.droppableId) return;
-
-      const rows = [...visibleRows];
-      const [moved] = rows.splice(source.index, 1);
-      rows.splice(destination.index, 0, moved);
-
-      const parentSortOrder = new Map<string, number>();
-      const moves = rows.map((row) => {
-        const parentKey = row.parent_id ?? "__root__";
-        const nextSortOrder = parentSortOrder.get(parentKey) ?? 0;
-        parentSortOrder.set(parentKey, nextSortOrder + 1);
-        return {
-        id: row.id,
-        sort_order: nextSortOrder,
-        parent_id: row.parent_id,
-        };
-      });
-
-      reorderTask.mutate({ projectId, moves }, { onError: handleMutateError });
-    },
-    [visibleRows, projectId, reorderTask, handleMutateError]
-  );
+  const {
+    handleSelect,
+    handleUpdateTaskInline,
+    handleRowNumberClick,
+    handleRowAddBelow,
+    handleRowAddSubtask,
+    handleFABAdd,
+    startInlineAdd,
+    handleIndent,
+    handleOutdent,
+    handleDragEnd,
+    handleGanttTaskClick,
+    handleGanttDateChange,
+    openBottomInlineRow,
+  } = useTaskActions({
+    tasks,
+    visibleRows,
+    flatTasks,
+    selectedTask,
+    setSelectedTask,
+    setInlineInput,
+    projectId,
+    updateTask,
+    reorderTask,
+    openCreateSheet,
+    pushUndo,
+    handleMutateError,
+    setSelectedRowIds,
+    lastSelectedRowNumber,
+    setLastSelectedRowNumber,
+  });
 
   // ─── Keyboard shortcuts (Tab / Shift+Tab for indent/outdent) ──
   useEffect(() => {
@@ -875,29 +512,6 @@ function ProjectDetailInner() {
       }
     );
   }, [listItems]);
-
-
-  /** Track desktop list container height for FixedSizeList */
-  useEffect(() => {
-    const raw = localStorage.getItem("siteplan-col-widths");
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as Record<string, number>;
-      setColumnWidths((prev) => ({ ...prev, ...parsed }));
-    } catch {
-      // Ignore invalid local storage values.
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("siteplan-col-widths", JSON.stringify(columnWidths));
-  }, [columnWidths]);
-
-
-
-
-
-
 
   const hasChildrenForSelected = selectedTask
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
