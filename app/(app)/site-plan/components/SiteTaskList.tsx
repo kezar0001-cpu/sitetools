@@ -6,7 +6,6 @@ import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import type { SitePlanDelayLog, SitePlanTask, SitePlanTaskNode } from "@/types/siteplan";
 import { buildTaskTree } from "@/types/siteplan";
 import { InlineTaskCreateRow } from "./InlineTaskCreateRow";
-import { SiteTaskPanel } from "./SiteTaskPanel";
 
 interface SiteTaskListProps {
   tasks: SitePlanTask[];
@@ -60,7 +59,6 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
   void delayLogs;
   const router = useRouter();
   const [collapsedPhaseIds, setCollapsedPhaseIds] = useState<Set<string>>(new Set());
-  const [activeTask, setActiveTask] = useState<SitePlanTask | null>(null);
   const [inlinePhaseId, setInlinePhaseId] = useState<string | null>(null);
   const rowRefMap = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -94,7 +92,6 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
 
   const openTask = (task: SitePlanTask) => {
     onTaskSelect(task);
-    setActiveTask(task);
   };
 
   const handleFocusTap = (taskId: string) => {
@@ -231,13 +228,6 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
           📊 Summary →
         </button>
       </div>
-
-      {activeTask ? (
-        <SiteTaskPanel
-          task={activeTask}
-          onClose={() => setActiveTask(null)}
-        />
-      ) : null}
     </div>
   );
 }
