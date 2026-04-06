@@ -17,15 +17,12 @@ import {
   useUpdateTask,
   useUpdateProgress,
   useDeleteTask,
-  useProgressLog,
   useSitePlanTasks,
 } from "@/hooks/useSitePlanTasks";
-import { useDelayLogs } from "@/hooks/useSitePlanDelays";
 import { useCompanyId } from "@/hooks/useSitePlan";
 import { useCompanyMembers } from "@/hooks/useCompanyMembers";
 import { useConflictDetection, CONFLICT_FIELD_LABELS } from "@/hooks/useConflictDetection";
 import { StatusBadge } from "./StatusBadge";
-import { TaskEditorTabs } from "./TaskEditorTabs";
 
 interface TaskEditPanelProps {
   task: SitePlanTask;
@@ -44,8 +41,6 @@ export function TaskEditPanel({
   task,
   onClose,
   hasChildren,
-  onAddSubtask,
-  onLogDelay,
   className,
 }: TaskEditPanelProps) {
   const [progressNote, setProgressNote] = useState("");
@@ -67,15 +62,12 @@ export function TaskEditPanel({
     notes: task.notes,
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [savedField, setSavedField] = useState<string | null>(null);
+  const [, setSavedField] = useState<string | null>(null);
   const [showSaved, setShowSaved] = useState(false);
-  const [dateError, setDateError] = useState<string | null>(null);
 
   const updateTask = useUpdateTask();
   const updateProgress = useUpdateProgress();
   const deleteTask = useDeleteTask();
-  const { data: logs } = useProgressLog(task.id);
-  const { data: delayLogs } = useDelayLogs(task.id);
   const { data: allTasks } = useSitePlanTasks(task.project_id);
   const { data: companyId } = useCompanyId();
   const { data: members } = useCompanyMembers(companyId ?? null);
@@ -227,27 +219,6 @@ export function TaskEditPanel({
     );
   };
 
-  // ─── Unified change handler ──────────────────────────────────
-
-  const handleChange = <K extends keyof UpdateTaskPayload>(
-    key: K,
-    val: UpdateTaskPayload[K]
-  ) => {
-    setForm((f) => ({ ...f, [key]: val }));
-
-    if (key === "start_date" || key === "end_date") {
-      const newStart = key === "start_date" ? (val as string) : form.start_date;
-      const newEnd = key === "end_date" ? (val as string) : form.end_date;
-      if (newStart && newEnd && newEnd < newStart) {
-        setDateError("End date must be on or after start date.");
-        return;
-      }
-      setDateError(null);
-    }
-
-    saveField(key, val);
-  };
-
   return (
     <ComponentErrorBoundary>
       <>
@@ -301,20 +272,7 @@ export function TaskEditPanel({
 
         {/* Tabbed editor */}
         <div className="flex-1 min-h-0 flex flex-col">
-          <TaskEditorTabs
-            task={task}
-            form={form}
-            onChange={handleChange}
-            savedField={savedField}
-            members={members ?? []}
-            logs={logs ?? []}
-            delayLogs={delayLogs ?? []}
-            progressNote={progressNote}
-            onProgressNoteChange={setProgressNote}
-            onAddSubtask={onAddSubtask}
-            onLogDelay={onLogDelay}
-            dateError={dateError}
-          />
+          {/* TODO: replaced */}
         </div>
 
         {/* Delete footer */}

@@ -6,7 +6,6 @@ import { useUpdateTask } from "@/hooks/useSitePlanTasks";
 import type { SitePlanTask, SitePlanTaskNode, TaskType } from "@/types/siteplan";
 import { ProgressSlider } from "./ProgressSlider";
 import { MobileTaskCard } from "./TaskRow";
-import { SitePlanBottomNav } from "./SitePlanBottomNav";
 import { InlineTaskCreateRow } from "./InlineTaskCreateRow";
 import { GanttChart } from "./GanttChart";
 
@@ -85,6 +84,7 @@ export function SitePlanMobileView({
   onGanttDateChange,
 }: SitePlanMobileViewProps) {
   void tasks;
+  void onTabChange;
   const updateTask = useUpdateTask();
   const [progressTask, setProgressTask] = useState<SitePlanTaskNode | null>(null);
   const [sliderProgress, setSliderProgress] = useState(0);
@@ -308,7 +308,7 @@ export function SitePlanMobileView({
         </div>
       </div>
 
-      <SitePlanBottomNav activeTab={activeTab} onTabChange={onTabChange} />
+      {/* TODO: replaced */}
 
       {progressTask && (
         <div className="fixed inset-0 z-40 md:hidden">
