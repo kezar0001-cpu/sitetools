@@ -8,6 +8,7 @@ import { GanttChart } from "./GanttChart";
 import { InlineTaskCreateRow } from "./InlineTaskCreateRow";
 
 interface PlanModeLayoutProps {
+  projectId: string;
   tasks: SitePlanTask[];
   visibleRows: SitePlanTaskNode[];
   expandedIds: Set<string>;
@@ -30,6 +31,7 @@ type EditableField = "name" | "dur" | "start" | "finish" | "pct";
 const PHASE_COLORS = ["border-blue-500", "border-violet-500", "border-emerald-500", "border-amber-500", "border-rose-500", "border-cyan-500"];
 
 export function PlanModeLayout({
+  projectId,
   tasks,
   visibleRows,
   expandedIds,
@@ -116,6 +118,10 @@ export function PlanModeLayout({
     }
     return current;
   };
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  }
 
   return (
     <div className="flex h-full w-full">
@@ -224,8 +230,8 @@ export function PlanModeLayout({
                 <div className="w-16 text-xs">
                   {editing?.id === node.id && editing.field === "dur" ? <input autoFocus className="w-full border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} /> : <span onClick={() => { setEditing({ id: node.id, field: "dur" }); setDraft(String(node.duration_days)); }}>{node.duration_days}</span>}
                 </div>
-                <div className="w-24 text-xs">{editing?.id === node.id && editing.field === "start" ? <input autoFocus type="date" className="w-full border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} /> : <span onClick={() => { setEditing({ id: node.id, field: "start" }); setDraft(node.start_date); }}>{node.start_date}</span>}</div>
-                <div className="w-24 text-xs">{editing?.id === node.id && editing.field === "finish" ? <input autoFocus type="date" className="w-full border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} /> : <span onClick={() => { setEditing({ id: node.id, field: "finish" }); setDraft(node.end_date); }}>{node.end_date}</span>}</div>
+                <div className="w-24 text-xs">{editing?.id === node.id && editing.field === "start" ? <input autoFocus type="date" className="w-full border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} /> : <span onClick={() => { setEditing({ id: node.id, field: "start" }); setDraft(node.start_date); }}>{fmtDate(node.start_date)}</span>}</div>
+                <div className="w-24 text-xs">{editing?.id === node.id && editing.field === "finish" ? <input autoFocus type="date" className="w-full border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} /> : <span onClick={() => { setEditing({ id: node.id, field: "finish" }); setDraft(node.end_date); }}>{fmtDate(node.end_date)}</span>}</div>
                 <div className="w-14 text-xs">{editing?.id === node.id && editing.field === "pct" ? <input autoFocus type="number" min={0} max={100} className="w-full border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} /> : <span onClick={() => { setEditing({ id: node.id, field: "pct" }); setDraft(String(node.progress)); }}>{node.progress}</span>}</div>
                 <div className="mr-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <button
@@ -252,14 +258,14 @@ export function PlanModeLayout({
           <button
             onClick={() => {
               const anyTask = tasks[0];
-              if (!anyTask) return;
+              const today = new Date().toISOString().slice(0, 10);
               createTask.mutate({
-                project_id: anyTask.project_id,
+                project_id: projectId,
                 parent_id: null,
                 name: "New Phase",
                 type: "summary" as unknown as SitePlanTask["type"],
-                start_date: anyTask.start_date,
-                end_date: anyTask.end_date,
+                start_date: anyTask?.start_date ?? today,
+                end_date: anyTask?.end_date ?? today,
                 sort_order: rootPhases.length,
               });
             }}

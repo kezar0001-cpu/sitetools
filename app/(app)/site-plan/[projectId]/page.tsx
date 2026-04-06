@@ -213,6 +213,7 @@ function ProjectDetailInner() {
         {activeTab === "tasks" && mode === "plan" && (
           <div className="flex h-full">
             <PlanModeLayout
+              projectId={projectId}
               tasks={tasks}
               visibleRows={visibleRows}
               expandedIds={expandedIds}
