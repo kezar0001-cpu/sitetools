@@ -95,6 +95,17 @@ export function PlanModeLayout({
     setEditing(null);
   };
 
+  const focusNameInput = (taskId: string) => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      const nextInput = document.querySelector<HTMLInputElement>(
+        `input[data-task-name-input="true"][data-task-id="${taskId}"]`
+      );
+      nextInput?.focus();
+      nextInput?.select();
+    });
+  };
+
   const findPhaseOf = (node: SitePlanTaskNode) => {
     if (node.parent_id === null) return node;
     let current = node;
@@ -129,22 +140,25 @@ export function PlanModeLayout({
                     <div className="mr-2 h-2 w-16 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-500" style={{ width: `${node.progress}%` }} /></div>
                     <span className="text-xs">{node.progress}%</span>
                   </div>
-                  {inlinePhaseId === node.id && (
-                    <InlineTaskCreateRow
-                      projectId={node.project_id}
-                      parentId={node.id}
-                      type="task"
-                      sortOrder={node.children.length + 1}
-                      onCreated={() => setInlinePhaseId(null)}
-                      onCancel={() => setInlinePhaseId(null)}
-                    />
-                  )}
-                  <button
-                    onClick={() => setInlinePhaseId(node.id)}
-                    className="h-8 w-full border-b border-slate-100 px-4 text-left text-xs italic text-slate-400 hover:bg-slate-50"
-                  >
-                    + Add task
-                  </button>
+                  {isOpen ? (
+                    inlinePhaseId === node.id ? (
+                      <InlineTaskCreateRow
+                        projectId={node.project_id}
+                        parentId={node.id}
+                        type="task"
+                        sortOrder={node.children.length + 1}
+                        onCreated={() => setInlinePhaseId(null)}
+                        onCancel={() => setInlinePhaseId(null)}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setInlinePhaseId(node.id)}
+                        className="h-8 w-full border-b border-slate-100 px-4 text-left text-xs italic text-slate-400 hover:bg-slate-50"
+                      >
+                        + Add task
+                      </button>
+                    )
+                  ) : null}
                 </div>
               );
             }
@@ -154,7 +168,55 @@ export function PlanModeLayout({
                 <div className="w-8 px-1 text-[10px] text-slate-400">{index + 1}</div>
                 <button onClick={() => onTaskClick(node)} className="flex flex-1 items-center text-left" style={{ paddingLeft: `${Math.max(0, depth - 1) * 14}px` }}>
                   {editing?.id === node.id && editing.field === "name" ? (
-                    <input autoFocus className="w-full rounded border px-1 text-xs" value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commitEdit(node)} />
+                    <input
+                      autoFocus
+                      data-task-name-input="true"
+                      data-task-id={node.id}
+                      className="w-full rounded border px-1 text-xs"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onBlur={() => commitEdit(node)}
+                      onKeyDown={(e) => {
+                        const currentIndex = visibleRows.findIndex((row) => row.id === node.id);
+
+                        if (e.key === "Tab" && !e.shiftKey) {
+                          e.preventDefault();
+                          const above = currentIndex > 0 ? visibleRows[currentIndex - 1] : null;
+                          if (above) {
+                            updateTask.mutate({
+                              id: node.id,
+                              projectId: node.project_id,
+                              updates: { parent_id: above.id },
+                            });
+                          }
+                          return;
+                        }
+
+                        if (e.key === "Tab" && e.shiftKey) {
+                          e.preventDefault();
+                          const parent = node.parent_id
+                            ? visibleRows.find((row) => row.id === node.parent_id)
+                            : null;
+                          updateTask.mutate({
+                            id: node.id,
+                            projectId: node.project_id,
+                            updates: { parent_id: parent?.parent_id ?? null },
+                          });
+                          return;
+                        }
+
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          commitEdit(node);
+                          const next = currentIndex >= 0 ? visibleRows[currentIndex + 1] : null;
+                          if (next) {
+                            setEditing({ id: next.id, field: "name" });
+                            setDraft(next.name);
+                            focusNameInput(next.id);
+                          }
+                        }
+                      }}
+                    />
                   ) : (
                     <span className="truncate text-xs" onClick={() => { setEditing({ id: node.id, field: "name" }); setDraft(node.name); }}>{node.name}</span>
                   )}
@@ -195,7 +257,7 @@ export function PlanModeLayout({
                 project_id: anyTask.project_id,
                 parent_id: null,
                 name: "New Phase",
-                type: "phase",
+                type: "summary" as unknown as SitePlanTask["type"],
                 start_date: anyTask.start_date,
                 end_date: anyTask.end_date,
                 sort_order: rootPhases.length,

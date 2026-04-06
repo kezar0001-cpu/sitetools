@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { SitePlanTaskNode } from "@/types/siteplan";
-import { isFilterActive } from "@/app/(app)/site-plan/components/SitePlanToolbar";
-import type { TaskFilter } from "@/app/(app)/site-plan/components/SitePlanToolbar";
+import { isFilterActive } from "@/app/(app)/site-plan/lib/viewState";
+import type { TaskFilter } from "@/app/(app)/site-plan/lib/viewState";
 
 /** Apply filter predicates to a flat list of visible task nodes. */
 function applyFilter(

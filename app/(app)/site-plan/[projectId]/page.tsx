@@ -14,7 +14,7 @@ import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
 import { useSaveBaseline, useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import { useTaskTree } from "@/hooks/useTaskTree";
 import { useTaskFiltering } from "@/hooks/useTaskFiltering";
-import { EMPTY_FILTER } from "../components/SitePlanToolbar";
+import { EMPTY_FILTER } from "../lib/viewState";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { ImportPanel } from "../components/ImportPanel";
 import { SiteTaskList } from "../components/SiteTaskList";
@@ -44,9 +44,9 @@ function ProjectDetailInner() {
   const [showImport, setShowImport] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
-  const [zoom] = useState<"day" | "week" | "month" | "quarter">("week");
-  const [showDeps] = useState(true);
-  const [showCriticalPath] = useState(false);
+  const [zoom, setZoom] = useState<"day" | "week" | "month" | "quarter">("week");
+  const [showDeps, setShowDeps] = useState(true);
+  const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [todayTrigger] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -175,6 +175,34 @@ function ProjectDetailInner() {
               <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100">
                 <input type="checkbox" checked={editMode} onChange={(e) => setEditMode(e.target.checked)} />
                 Edit Mode
+              </label>
+              <div className="my-1 h-px bg-slate-200" />
+              <div className="px-2 py-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-slate-700">Zoom</span>
+                  <div className="inline-flex items-center gap-1">
+                    {(["day", "week", "month", "quarter"] as const).map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => setZoom(level)}
+                        className={`rounded px-2 py-0.5 text-xs ${
+                          zoom === level ? "bg-slate-200 text-slate-900" : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        {level === "day" ? "Day" : level === "week" ? "Week" : level === "month" ? "Month" : "Quarter"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100">
+                <input type="checkbox" checked={showDeps} onChange={(e) => setShowDeps(e.target.checked)} />
+                Show Dependencies
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-100">
+                <input type="checkbox" checked={showCriticalPath} onChange={(e) => setShowCriticalPath(e.target.checked)} />
+                <span className={showCriticalPath ? "text-red-600" : ""}>Critical Path</span>
               </label>
             </div>
           </details>
