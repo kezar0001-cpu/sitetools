@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Plus, BarChart3, ListTodo } from "lucide-react";
+import { Plus, ArrowLeft, MoreHorizontal } from "lucide-react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { FixedSizeList } from "react-window";
 import type { ListChildComponentProps } from "react-window";
@@ -10,17 +10,15 @@ import { toast } from "sonner";
 import { useSitePlanProject } from "@/hooks/useSitePlan";
 import { useSitePlanTasks, useUpdateTask, useReorderTask } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
-import { useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
-import { computeWorkProgress } from "@/types/siteplan";
+import { useSaveBaseline, useSitePlanBaselines } from "@/hooks/useSitePlanBaselines";
 import type { SitePlanTaskNode, SitePlanTask, TaskType } from "@/types/siteplan";
 import { useTaskTree } from "@/hooks/useTaskTree";
 import { useTaskFiltering } from "@/hooks/useTaskFiltering";
 import { TaskEditPanel } from "../components/TaskEditPanel";
 import { DelayLogDialog } from "../components/DelayLogDialog";
 import { ImportPanel } from "../components/ImportPanel";
-import { SitePlanToolbar, EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
+import { EMPTY_FILTER, isFilterActive } from "../components/SitePlanToolbar";
 import { AddTaskFAB } from "../components/AddTaskFAB";
-import { ProgressBar } from "../components/ProgressSlider";
 import { TaskListSkeleton } from "../components/Skeleton";
 import { DESKTOP_ROW_HEIGHT, GanttWrapper } from "../components/GanttWrapper";
 import type { TaskListItem } from "../components/GanttWrapper";
@@ -153,6 +151,7 @@ function ProjectDetailInner() {
   const { data: tasks, isLoading, refetch } = useSitePlanTasks(projectId);
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
+  const saveBaseline = useSaveBaseline();
   const handleMutateError = useCallback(() => {
     toast.error("Failed to save. Please try again.");
   }, []);
@@ -215,12 +214,13 @@ function ProjectDetailInner() {
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   const [showImport, setShowImport] = useState(false);
-  const [showBaselines, setShowBaselines] = useState(false);
-  const [zoom, setZoom] = useState<"day" | "week" | "month" | "quarter">("week");
+  const [zoom] = useState<"day" | "week" | "month" | "quarter">("week");
   const [showDeps, setShowDeps] = useState(true);
-  const [showCriticalPath, setShowCriticalPath] = useState(false);
-  const [todayTrigger, setTodayTrigger] = useState(0);
+  const [showCriticalPath] = useState(false);
+  const [todayTrigger] = useState(0);
   const [projectName, setProjectName] = useState("");
+  const [desktopTab, setDesktopTab] = useState<"tasks" | "gantt">("tasks");
+  const [planMode, setPlanMode] = useState<"plan" | "site">("plan");
   const lastServerProjectNameRef = useRef("");
   const [delayTask, setDelayTask] = useState<SitePlanTaskNode | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
@@ -259,6 +259,17 @@ function ProjectDetailInner() {
     });
     lastServerProjectNameRef.current = project.name;
   }, [project?.name]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("siteplan-mode-v1");
+    if (saved === "plan" || saved === "site") setPlanMode(saved);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("siteplan-mode-v1", planMode);
+  }, [planMode]);
 
   const handleProjectNameSave = useCallback(
     async (name: string) => {
@@ -333,17 +344,6 @@ function ProjectDetailInner() {
     });
     return map;
   }, [tree]);
-
-  const parentIdSet = useMemo(() => {
-    const set = new Set<string>();
-    flatTasks.forEach((t) => { if (t.children.length > 0) set.add(t.id); });
-    return set;
-  }, [flatTasks]);
-
-  const overallProgress = useMemo(
-    () => computeWorkProgress(tasks ?? [], parentIdSet),
-    [tasks, parentIdSet]
-  );
 
   const {
     handleSelect,
@@ -515,53 +515,67 @@ function ProjectDetailInner() {
     ? (tasks ?? []).some((t) => t.parent_id === selectedTask.id)
     : false;
 
+  const handleCaptureBaseline = useCallback(async () => {
+    if (!tasks || tasks.length === 0) {
+      toast.error("No tasks to baseline");
+      return;
+    }
+    try {
+      await saveBaseline.mutateAsync({
+        projectId,
+        name: `Baseline ${new Date().toLocaleString("en-AU")}`,
+        tasks,
+      });
+      toast.success("Baseline captured");
+    } catch {
+      toast.error("Failed to capture baseline");
+    }
+  }, [projectId, saveBaseline, tasks]);
+
+  const isSiteMode = planMode === "site" || desktopView === "list";
+
   return (
     <>
       <div className="relative flex h-full flex-col bg-white">
-        {/* Toolbar */}
-        <SitePlanToolbar
-          projectName={projectName || project?.name || "Loading..."}
-          onProjectNameSave={handleProjectNameSave}
-          zoom={zoom}
-          setZoom={setZoom}
-          showDeps={showDeps}
-          setShowDeps={setShowDeps}
-          showCriticalPath={showCriticalPath}
-          setShowCriticalPath={setShowCriticalPath}
-          onOpenBaseline={() => setShowBaselines(true)}
-          onOpenImport={() => setShowImport(true)}
-          onToday={() => setTodayTrigger((v) => v + 1)}
-        />
-        <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-1.5">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-600 tabular-nums">{overallProgress}%</span>
-            <div className="flex-1">
-              <ProgressBar value={overallProgress} />
-            </div>
-            <button
-              className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 min-w-[44px] min-h-[44px] flex items-center justify-center"
-              onClick={() =>
-                updateSearchParams({ mobileTab: mobileTab === "gantt" ? null : "gantt" })
-              }
-              title={mobileTab === "gantt" ? "Switch to list view" : "Switch to timeline view"}
-            >
-              {mobileTab === "gantt" ? (
-                <ListTodo className="h-4 w-4 text-slate-500" />
-              ) : (
-                <BarChart3 className="h-4 w-4 text-slate-500" />
-              )}
-            </button>
+        <header className="sticky top-0 z-20 hidden h-12 items-center gap-3 border-b border-slate-200 bg-white px-3 md:flex">
+          <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </button>
+          <input
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            onBlur={(e) => void handleProjectNameSave(e.target.value)}
+            className="w-56 rounded border border-transparent px-2 py-1 text-sm font-semibold hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+          />
+          <div className="ml-2 inline-flex rounded-lg border border-slate-200 p-0.5 text-xs">
+            {(["tasks", "gantt"] as const).map((tab) => (
+              <button key={tab} onClick={() => setDesktopTab(tab)} className={`rounded-md px-2.5 py-1 ${desktopTab === tab ? "bg-slate-900 text-white" : "text-slate-600"}`}>
+                {tab === "tasks" ? "Tasks" : "Gantt"}
+              </button>
+            ))}
+            <button onClick={() => router.push(`/site-plan/${projectId}/summary`)} className="rounded-md px-2.5 py-1 text-slate-600">Summary</button>
           </div>
-        </div>
+          <div className="ml-auto inline-flex rounded-full border border-slate-300 p-0.5 text-xs">
+            {(["plan", "site"] as const).map((mode) => (
+              <button key={mode} onClick={() => setPlanMode(mode)} className={`rounded-full px-3 py-1 ${planMode === mode ? "bg-slate-900 text-white" : "text-slate-600"}`}>{mode === "plan" ? "Plan" : "Site"}</button>
+            ))}
+          </div>
+          <details className="relative">
+            <summary className="list-none cursor-pointer rounded-md p-1.5 hover:bg-slate-100"><MoreHorizontal className="h-4 w-4" /></summary>
+            <div className="absolute right-0 top-8 z-30 w-52 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+              <button onClick={() => setShowImport(true)} className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100">Import</button>
+              <button onClick={() => void handleCaptureBaseline()} className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100">Capture Baseline</button>
+              <button onClick={() => setShowDeps((v) => !v)} className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100">Toggle Edit Mode</button>
+            </div>
+          </details>
+        </header>
 
         {/* Panes area: horizontal layout for task list and/or Gantt */}
         <div
           className="flex flex-1 min-h-0"
         >
           {/* Left pane: task list (hidden on desktop in gantt-only view) */}
-          <div className={`flex flex-col min-w-0 ${
-            desktopView === "gantt" ? "md:hidden" : ""
-          } flex-1`}>
+          <div className={`flex flex-col min-w-0 ${desktopTab === "gantt" || isSiteMode ? "md:hidden" : ""} flex-1 md:w-[380px] md:shrink-0 md:border-r md:border-slate-200`}>
           {/* Task list — desktop uses FixedSizeList virtualisation; mobile uses standard rendering */}
           <div className="flex-1 flex flex-col min-h-0">
           {isLoading ? (
@@ -604,7 +618,7 @@ function ProjectDetailInner() {
             </div>
           ) : (
             <DragDropContext onDragEnd={handleDragEnd}>
-              {desktopView !== "list" && (
+              {!isSiteMode && (
                 <GanttWrapper
                   tasks={tasks ?? []}
                   isLoading={isLoading}
@@ -670,14 +684,7 @@ function ProjectDetailInner() {
                   )}
                   onRightPanelScroll={() => {}}
                   leftScrollRef={leftScrollRef}
-                  leftHeader={(
-                    <TaskListHeader
-                      hiddenColumns={hiddenColumns}
-                      columnWidths={columnWidths}
-                      onToggleColumn={handleToggleColumn}
-                      onColumnResize={handleColumnResize}
-                    />
-                  )}
+                  leftHeader={<TaskListHeader hiddenColumns={new Set(["pred", "status", "delays", "assigned"])} columnWidths={columnWidths} onToggleColumn={handleToggleColumn} onColumnResize={handleColumnResize} />}
                   expandedIds={expandedIds}
                   allExpanded={allExpanded}
                   toggleExpand={toggleExpand}
@@ -782,13 +789,6 @@ function ProjectDetailInner() {
             />
           </div>
         </div>
-      )}
-
-      {/* Baselines dialog */}
-      {showBaselines && (
-        <>
-          {/* TODO: replaced */}
-        </>
       )}
 
       {/* Delay log dialog */}
