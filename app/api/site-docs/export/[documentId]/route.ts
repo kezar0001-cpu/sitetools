@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import type { DocumentType, DocumentStatus } from "@/lib/site-docs/types";
 
 export const runtime = "nodejs";
@@ -114,6 +115,7 @@ export async function GET(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function generatePDF(title: string, content: any, docType: DocumentType, status: DocumentStatus, company: { name?: string; abn?: string; address?: string } | null): ArrayBuffer {
     const doc = new jsPDF();
+    const docWithAutoTable = doc as jsPDF & { lastAutoTable?: { finalY: number } };
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 20;
     const contentWidth = pageWidth - (margin * 2);
@@ -284,51 +286,21 @@ function generatePDF(title: string, content: any, docType: DocumentType, status:
         
         y += 10;
         
-        // Table columns
-        const colWidths = [contentWidth * 0.3, contentWidth * 0.3, contentWidth * 0.25, contentWidth * 0.15];
-        const headers = ["Name", "Organization", "Role", "Present"];
-        
-        doc.setFillColor(230, 230, 230);
-        doc.rect(margin, y, contentWidth, 7, "F");
-        doc.setTextColor(50, 50, 50);
-        doc.setFontSize(8);
-        let x = margin + 2;
-        headers.forEach((header, i) => {
-            doc.setFont("helvetica", "bold");
-            doc.text(header, x, y + 5);
-            x += colWidths[i];
+        autoTable(doc, {
+            startY: y,
+            head: [["Name", "Organization", "Role", "Present"]],
+            body: attendees.map((a: { name: string; organization?: string; role?: string; present?: boolean }) => [
+                a.name || "",
+                a.organization || "—",
+                a.role || "—",
+                a.present ? "Yes" : "No",
+            ]),
+            styles: { fontSize: 9, cellPadding: 3 },
+            headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255] },
+            alternateRowStyles: { fillColor: [247, 250, 252] },
+            margin: { left: margin, right: margin },
         });
-        
-        y += 7;
-        
-        // Table rows
-        attendees.forEach((attendee: { name: string; organization?: string; role?: string; present?: boolean }, i: number) => {
-            if (y > 280) {
-                doc.addPage();
-                y = margin;
-            }
-            
-            if (i % 2 === 0) {
-                doc.setFillColor(247, 250, 252);
-                doc.rect(margin, y, contentWidth, 7, "F");
-            }
-            
-            doc.setTextColor(50, 50, 50);
-            doc.setFont("helvetica", "normal");
-            
-            x = margin + 2;
-            doc.text(attendee.name || "", x, y + 5);
-            x += colWidths[0];
-            doc.text(attendee.organization || "—", x, y + 5);
-            x += colWidths[1];
-            doc.text(attendee.role || "—", x, y + 5);
-            x += colWidths[2];
-            doc.text(attendee.present ? "Yes" : "No", x, y + 5);
-            
-            y += 7;
-        });
-        
-        y += 5;
+        y = (docWithAutoTable.lastAutoTable?.finalY ?? y) + 8;
     }
     
     // Action items table
@@ -349,71 +321,29 @@ function generatePDF(title: string, content: any, docType: DocumentType, status:
         
         y += 10;
         
-        // Table columns
-        const colWidths = [20, contentWidth * 0.45, contentWidth * 0.2, contentWidth * 0.2, contentWidth * 0.15 - 20];
-        const headers = ["#", "Action", "Responsible", "Due", "Status"];
-        
-        doc.setFillColor(230, 230, 230);
-        doc.rect(margin, y, contentWidth, 7, "F");
-        doc.setTextColor(50, 50, 50);
-        doc.setFontSize(8);
-        let x = margin + 2;
-        headers.forEach((header, i) => {
-            doc.setFont("helvetica", "bold");
-            doc.text(header, x, y + 5);
-            x += colWidths[i];
+        autoTable(doc, {
+            startY: y,
+            head: [["#", "Action", "Responsible", "Due", "Status"]],
+            body: actionItems.map((item: { number: number; description: string; responsible?: string; due_date?: string; status: string }) => [
+                String(item.number),
+                item.description || "",
+                item.responsible || "—",
+                item.due_date || "—",
+                item.status.charAt(0).toUpperCase() + item.status.slice(1),
+            ]),
+            styles: { fontSize: 8.5, cellPadding: 3, overflow: "linebreak" },
+            headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255] },
+            columnStyles: {
+                0: { cellWidth: 10, halign: "center" },
+                1: { cellWidth: "auto" },
+                2: { cellWidth: 35 },
+                3: { cellWidth: 28 },
+                4: { cellWidth: 22, halign: "center" },
+            },
+            alternateRowStyles: { fillColor: [247, 250, 252] },
+            margin: { left: margin, right: margin },
         });
-        
-        y += 7;
-        
-        // Table rows
-        actionItems.forEach((item: { number: number; description: string; responsible?: string; due_date?: string; status: string }, i: number) => {
-            const rowHeight = 7;
-            
-            if (y > 280) {
-                doc.addPage();
-                y = margin;
-                // Redraw header
-                doc.setFillColor(230, 230, 230);
-                doc.rect(margin, y, contentWidth, 7, "F");
-                let hx = margin + 2;
-                headers.forEach((header, hi) => {
-                    doc.setFont("helvetica", "bold");
-                    doc.text(header, hx, y + 5);
-                    hx += colWidths[hi];
-                });
-                y += 7;
-            }
-            
-            if (i % 2 === 0) {
-                doc.setFillColor(247, 250, 252);
-                doc.rect(margin, y, contentWidth, rowHeight, "F");
-            }
-            
-            doc.setTextColor(50, 50, 50);
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "normal");
-            
-            x = margin + 2;
-            doc.text(String(item.number), x, y + 5);
-            x += colWidths[0];
-            
-            const desc = doc.splitTextToSize(item.description || "", colWidths[1] - 4);
-            doc.text(desc, x, y + 5);
-            x += colWidths[1];
-            
-            doc.text(item.responsible || "—", x, y + 5);
-            x += colWidths[2];
-            doc.text(item.due_date || "—", x, y + 5);
-            x += colWidths[3];
-            
-            const statusText = item.status.charAt(0).toUpperCase() + item.status.slice(1);
-            doc.text(statusText, x, y + 5);
-            
-            y += rowHeight;
-        });
-        
-        y += 5;
+        y = (docWithAutoTable.lastAutoTable?.finalY ?? y) + 8;
     }
     
     // Signatories
