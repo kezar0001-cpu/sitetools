@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { QueryProvider } from "@/components/QueryProvider";
 import { useSitePlanTasks } from "@/hooks/useSitePlanTasks";
 import { useProjectDelayLogs } from "@/hooks/useSitePlanDelays";
@@ -62,7 +63,12 @@ function SummaryInner() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-6">
-      <Link href={`/site-plan/${projectId}`} className="text-sm text-slate-600 hover:text-slate-900">← Back to Programme</Link>
+      <Link
+        href={`/site-plan/${projectId}`}
+        className="inline-flex min-h-[44px] items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+      >
+        <ArrowLeft className="h-4 w-4" /> Back to Programme
+      </Link>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
@@ -101,16 +107,22 @@ function SummaryInner() {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Programme Dates</h3>
         <div className="flex items-center justify-between text-sm"><span>Original end date</span><span>{baselineEnd ?? "No baseline set"}</span></div>
         <div className="flex items-center justify-between text-sm"><span>Forecast end date</span><span>{forecastEnd ?? "—"}</span></div>
-        {deltaDays !== null && (
+        {baselineEnd && forecastEnd && deltaDays !== null ? (
           <>
             <p className={`text-2xl font-bold ${deltaDays > 0 ? "text-red-600" : "text-emerald-600"}`}>{deltaDays > 0 ? `+${deltaDays} days` : "On Schedule"}</p>
-            <div className="relative h-4 rounded-full bg-slate-200">
-              <div className="absolute left-[10%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-slate-700" />
-              <div className="absolute right-[10%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-slate-900" />
-              <div className="absolute left-[10%] right-[10%] top-1/2 h-0.5 -translate-y-1/2 bg-slate-500" />
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="rounded bg-slate-100 px-2 py-1">📅 {baselineEnd}</span>
+              <div className="flex flex-1 items-center gap-1">
+                <div className="h-0.5 flex-1 bg-slate-300" />
+                <span className={`font-semibold ${deltaDays > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                  {deltaDays > 0 ? `+${deltaDays}d` : "on time"}
+                </span>
+                <div className="h-0.5 flex-1 bg-red-300" />
+              </div>
+              <span className="rounded bg-red-50 px-2 py-1 text-red-700">📅 {forecastEnd}</span>
             </div>
           </>
-        )}
+        ) : null}
       </section>
     </div>
   );
