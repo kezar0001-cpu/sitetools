@@ -75,52 +75,57 @@ export async function POST(req: NextRequest) {
   }
 
   let affectedTaskIds: string[] = [];
+  let propagationWarning: string | undefined;
 
   if (impacts_completion === true && delay_days > 0) {
-    const { data: projectTasks, error: tasksErr } = await supabaseAdmin
-      .from("siteplan_tasks")
-      .select("*")
-      .eq("project_id", targetTask.project_id);
+    try {
+      const { data: projectTasks, error: tasksErr } = await supabaseAdmin
+        .from("siteplan_tasks")
+        .select("*")
+        .eq("project_id", targetTask.project_id);
 
-    if (tasksErr || !projectTasks) {
-      return NextResponse.json({ error: "Failed to load project tasks." }, { status: 500 });
-    }
-
-    const updates = computeDelayPropagation(
-      task_id,
-      delay_days,
-      projectTasks as SitePlanTask[]
-    );
-
-    if (updates.length > 0) {
-      const updateResults = await Promise.all(
-        updates.map((u) =>
-          supabaseAdmin
-            .from("siteplan_tasks")
-            .update({ start_date: u.newStartDate, end_date: u.newEndDate })
-            .eq("id", u.taskId)
-        )
-      );
-
-      const failed = updateResults.find((r) => !!r.error);
-      if (failed?.error) {
-        return NextResponse.json({ error: "Failed to update affected tasks." }, { status: 500 });
+      if (tasksErr || !projectTasks) {
+        throw new Error("Failed to load project tasks");
       }
 
-      affectedTaskIds = updates.map((u) => u.taskId);
+      const updates = computeDelayPropagation(
+        task_id,
+        delay_days,
+        projectTasks as SitePlanTask[]
+      );
 
-      await supabaseAdmin
-        .from("siteplan_delay_logs")
-        .update({ affected_task_ids: affectedTaskIds })
-        .eq("id", delayLog.id);
+      if (updates.length > 0) {
+        const { error: upsertError } = await supabaseAdmin
+          .from("siteplan_tasks")
+          .upsert(
+            updates.map((u) => ({
+              id: u.taskId,
+              start_date: u.newStartDate,
+              end_date: u.newEndDate,
+            }))
+          );
+
+        if (upsertError) throw upsertError;
+
+        affectedTaskIds = updates.map((u) => u.taskId);
+
+        await supabaseAdmin
+          .from("siteplan_delay_logs")
+          .update({ affected_task_ids: affectedTaskIds })
+          .eq("id", delayLog.id);
+      }
+    } catch {
+      propagationWarning = "Could not push dates";
     }
   }
 
   return NextResponse.json({
+    success: true,
     delay_log: {
       ...delayLog,
       affected_task_ids: affectedTaskIds,
     },
     affected_task_ids: affectedTaskIds,
+    ...(propagationWarning ? { propagationWarning } : {}),
   });
 }

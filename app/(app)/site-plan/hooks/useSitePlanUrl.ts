@@ -1,8 +1,7 @@
 import { useCallback, useMemo } from "react";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { TaskStatus, TaskType } from "@/types/siteplan";
-import type { MobileTab } from "../components/SitePlanMobileView";
-import type { TaskFilter } from "../components/SitePlanToolbar";
+import type { MobileTab, TaskFilter } from "../lib/viewState";
 
 interface UseSitePlanUrlParams {
   searchParams: ReadonlyURLSearchParams;

@@ -51,10 +51,14 @@ export function computeDelayPropagation(
 
   const walk = (sourceTaskId: string, depth: number) => {
     if (depth >= MAX_DEPTH) return;
+    const sourceTask = tasksById.get(sourceTaskId);
+    if (!sourceTask) return;
+    const sourceCode = sourceTask.wbs_code;
+    if (!sourceCode) return;
 
     const dependents = allTasks.filter((task) => {
       const predecessors = parsePredecessors(task.predecessors);
-      return predecessors.includes(sourceTaskId);
+      return predecessors.includes(sourceCode);
     });
 
     for (const dependent of dependents) {

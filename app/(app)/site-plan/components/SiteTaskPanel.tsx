@@ -30,6 +30,15 @@ const DELAY_CHOICES: DelayChoice[] = [
   { label: "Other", category: "Other" },
 ];
 
+const DELAY_REASON_BY_LABEL: Record<DelayChoice["label"], string> = {
+  Weather: "weather",
+  Labour: "labour",
+  Materials: "materials",
+  Design: "design",
+  Client: "client",
+  Other: "other",
+};
+
 export function SiteTaskPanel({ task, onClose, onDelayLogged }: SiteTaskPanelProps) {
   const updateProgress = useUpdateProgress();
   const updateTask = useUpdateTask();
@@ -42,7 +51,7 @@ export function SiteTaskPanel({ task, onClose, onDelayLogged }: SiteTaskPanelPro
   const [delayCategory, setDelayCategory] = useState<DelayChoice>(DELAY_CHOICES[0]);
   const [delayDays, setDelayDays] = useState(1);
   const [impactsCompletion, setImpactsCompletion] = useState(true);
-  const [delayReason, setDelayReason] = useState("");
+  const [delayReason, setDelayReason] = useState(DELAY_REASON_BY_LABEL[DELAY_CHOICES[0].label]);
 
   const [comments, setComments] = useState(task.comments ?? "");
 
@@ -96,7 +105,7 @@ export function SiteTaskPanel({ task, onClose, onDelayLogged }: SiteTaskPanelPro
     setDelayCategory(DELAY_CHOICES[0]);
     setDelayDays(1);
     setImpactsCompletion(true);
-    setDelayReason("");
+    setDelayReason(DELAY_REASON_BY_LABEL[DELAY_CHOICES[0].label]);
   };
 
   const handleLogDelay = () => {
@@ -207,7 +216,10 @@ export function SiteTaskPanel({ task, onClose, onDelayLogged }: SiteTaskPanelPro
                       <button
                         key={choice.label}
                         type="button"
-                        onClick={() => setDelayCategory(choice)}
+                        onClick={() => {
+                          setDelayCategory(choice);
+                          setDelayReason(DELAY_REASON_BY_LABEL[choice.label]);
+                        }}
                         className={`rounded-lg border px-2 py-2 text-sm font-medium ${
                           active
                             ? "border-amber-600 bg-amber-600 text-white"
@@ -304,4 +316,3 @@ export function SiteTaskPanel({ task, onClose, onDelayLogged }: SiteTaskPanelPro
     </>
   );
 }
-
