@@ -120,15 +120,27 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     }
 
     async function handleExport() {
-        if (!document) {
-            // Save first if not saved
-            await handleSave();
-        }
-        if (!document?.id) return;
-
         setExporting(true);
+        setError(null);
         try {
-            await exportDocument(document.id);
+            let docId = document?.id;
+
+            // Save first if not yet saved, and capture the returned doc id directly
+            if (!docId) {
+                const saved = await createDocument({
+                    company_id: companyId,
+                    document_type: template.id,
+                    title: generatedContent?.metadata.document_title
+                        || `${template.name} — ${new Date().toLocaleDateString()}`,
+                    summary_input: summaryInput,
+                    generated_content: generatedContent!,
+                    project_id: selectedProjectId,
+                });
+                setDocument(saved);
+                docId = saved.id;
+            }
+
+            await exportDocument(docId);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
         } finally {
@@ -338,7 +350,7 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                     <div className="flex items-center gap-2">
                         <button
                             onClick={handleExport}
-                            disabled={exporting}
+                            disabled={exporting || !generatedContent}
                             className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
                             {exporting ? (
