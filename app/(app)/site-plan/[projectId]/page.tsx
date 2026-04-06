@@ -23,6 +23,7 @@ import { TaskListSkeleton } from "../components/Skeleton";
 import { DESKTOP_ROW_HEIGHT, GanttWrapper } from "../components/GanttWrapper";
 import type { TaskListItem } from "../components/GanttWrapper";
 import { SitePlanMobileView } from "../components/SitePlanMobileView";
+import { SiteTaskList } from "../components/SiteTaskList";
 import { QueryProvider } from "@/components/QueryProvider";
 import { supabase } from "@/lib/supabase";
 import { TaskRow } from "../components/TaskRow";
@@ -704,33 +705,45 @@ function ProjectDetailInner() {
                 />
               )}
 
-              {/* ── Mobile: dedicated site tracking tabs (< md) ── */}
-              <SitePlanMobileView
-                projectId={projectId}
-                tasks={tasks ?? []}
-                rows={mobileRows}
-                activeTab={mobileTab}
-                onTabChange={handleMobileTabChange}
-                onSelectTask={handleSelect}
-                onLogDelay={(task) => setDelayTask(task)}
-                mobileExpandedIds={mobileExpandedIds}
-                onToggleMobileExpand={toggleMobileExpand}
-                delayCountMap={delayCountMap}
-                depthMap={depthMap}
-                rootIndexMap={rootIndexMap}
-                refetch={refetch}
-                mobileInlineInput={inlineInput}
-                onMobileInlineCreated={() => setInlineInput(null)}
-                onMobileInlineCancel={() => setInlineInput(null)}
-                zoom={zoom}
-                showDeps={showDeps}
-                showCriticalPath={showCriticalPath}
-                selectedTaskId={selectedTaskId}
-                hoveredTaskId={hoveredTaskId}
-                todayTrigger={todayTrigger}
-                onGanttTaskClick={handleGanttTaskClick}
-                onGanttDateChange={handleGanttDateChange}
-              />
+              {/* ── Mobile views (< md) ── */}
+              {isSiteMode ? (
+                <SiteTaskList
+                  tasks={tasks ?? []}
+                  delayLogs={delayLogs ?? []}
+                  onTaskSelect={(task) => {
+                    const node = flatTasks.find((candidate) => candidate.id === task.id);
+                    if (node) handleSelect(node);
+                  }}
+                  projectId={projectId}
+                />
+              ) : (
+                <SitePlanMobileView
+                  projectId={projectId}
+                  tasks={tasks ?? []}
+                  rows={mobileRows}
+                  activeTab={mobileTab}
+                  onTabChange={handleMobileTabChange}
+                  onSelectTask={handleSelect}
+                  onLogDelay={(task) => setDelayTask(task)}
+                  mobileExpandedIds={mobileExpandedIds}
+                  onToggleMobileExpand={toggleMobileExpand}
+                  delayCountMap={delayCountMap}
+                  depthMap={depthMap}
+                  rootIndexMap={rootIndexMap}
+                  refetch={refetch}
+                  mobileInlineInput={inlineInput}
+                  onMobileInlineCreated={() => setInlineInput(null)}
+                  onMobileInlineCancel={() => setInlineInput(null)}
+                  zoom={zoom}
+                  showDeps={showDeps}
+                  showCriticalPath={showCriticalPath}
+                  selectedTaskId={selectedTaskId}
+                  hoveredTaskId={hoveredTaskId}
+                  todayTrigger={todayTrigger}
+                  onGanttTaskClick={handleGanttTaskClick}
+                  onGanttDateChange={handleGanttDateChange}
+                />
+              )}
             </DragDropContext>
           )}
           </div>
@@ -758,7 +771,7 @@ function ProjectDetailInner() {
         </div>
 
       {/* Mobile/tablet task edit panel */}
-      {selectedTask && (
+      {selectedTask && !isSiteMode && (
         <div className="xl:hidden">
           <TaskEditPanel
             task={selectedTask}
