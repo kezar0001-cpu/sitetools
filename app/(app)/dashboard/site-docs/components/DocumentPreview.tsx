@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection } from "@/lib/site-docs/types";
 import { updateDocument } from "@/lib/site-docs/client";
 
@@ -16,16 +16,20 @@ export function DocumentPreview({ content, template, editable = false, onChange,
     const { metadata, sections, actionItems, attendees, signatories } = content;
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
+    // Ref always holds the latest content so onBlur handlers don't capture a stale prop value
+    const latestContent = useRef(content);
+    latestContent.current = content;
+
     const handleChange = (newContent: GeneratedContent) => {
         onChange?.(newContent);
     };
 
-    const saveToServer = async (updatedContent: GeneratedContent) => {
+    const saveToServer = async () => {
         if (!documentId || !editable) return;
-        
+
         setSaveStatus("saving");
         try {
-            await updateDocument(documentId, { generated_content: updatedContent });
+            await updateDocument(documentId, { generated_content: latestContent.current });
             setSaveStatus("saved");
             setTimeout(() => setSaveStatus("idle"), 2000);
         } catch (error) {
@@ -154,6 +158,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                 type="text"
                                 value={metadata.document_title}
                                 onChange={(e) => updateMetadata("document_title", e.target.value)}
+                                onBlur={saveToServer}
                                 className="w-full text-2xl font-bold text-slate-900 mt-1 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                 placeholder="Document Title"
                             />
@@ -178,6 +183,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                     type="text"
                                     value={metadata.reference || ""}
                                     onChange={(e) => updateMetadata("reference", e.target.value)}
+                                    onBlur={saveToServer}
                                     className="text-sm font-medium text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent text-right block"
                                     placeholder="Reference"
                                 />
@@ -185,6 +191,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                     type="date"
                                     value={metadata.date || ""}
                                     onChange={(e) => updateMetadata("date", e.target.value)}
+                                    onBlur={saveToServer}
                                     className="text-sm text-slate-500 mt-1 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent block text-right"
                                 />
                             </>
@@ -210,6 +217,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                     type="text"
                                     value={metadata.project_name || ""}
                                     onChange={(e) => updateMetadata("project_name", e.target.value)}
+                                    onBlur={saveToServer}
                                     className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                     placeholder="Project name"
                                 />
@@ -220,6 +228,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                     type="text"
                                     value={metadata.location || ""}
                                     onChange={(e) => updateMetadata("location", e.target.value)}
+                                    onBlur={saveToServer}
                                     className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                     placeholder="Location"
                                 />
@@ -230,6 +239,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                     type="text"
                                     value={metadata.prepared_by || ""}
                                     onChange={(e) => updateMetadata("prepared_by", e.target.value)}
+                                    onBlur={saveToServer}
                                     className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                     placeholder="Name"
                                 />
@@ -240,6 +250,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                     type="text"
                                     value={metadata.organization || ""}
                                     onChange={(e) => updateMetadata("organization", e.target.value)}
+                                    onBlur={saveToServer}
                                     className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                     placeholder="Organization"
                                 />
@@ -312,6 +323,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={attendee.name}
                                                             onChange={(e) => updateAttendee(idx, "name", e.target.value)}
+                                                            onBlur={saveToServer}
                                                             className="w-full font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Name"
                                                         />
@@ -321,6 +333,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={attendee.organization || ""}
                                                             onChange={(e) => updateAttendee(idx, "organization", e.target.value)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Organization"
                                                         />
@@ -330,6 +343,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={attendee.role || ""}
                                                             onChange={(e) => updateAttendee(idx, "role", e.target.value)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Role"
                                                         />
@@ -338,7 +352,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                         <input
                                                             type="checkbox"
                                                             checked={attendee.present}
-                                                            onChange={(e) => updateAttendee(idx, "present", e.target.checked)}
+                                                            onChange={(e) => { updateAttendee(idx, "present", e.target.checked); saveToServer(); }}
                                                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                                         />
                                                     </td>
@@ -436,7 +450,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                             <textarea
                                 value={section.content}
                                 onChange={(e) => updateSection(idx, "content", e.target.value)}
-                                onBlur={() => saveToServer(content)}
+                                onBlur={saveToServer}
                                 className="w-full h-32 px-3 py-2 text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                                 placeholder="Section content..."
                             />
@@ -485,7 +499,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={item.description}
                                                             onChange={(e) => updateActionItem(idx, "description", e.target.value)}
-                                                            onBlur={() => saveToServer(content)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-700 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Action description"
                                                         />
@@ -495,7 +509,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={item.responsible || ""}
                                                             onChange={(e) => updateActionItem(idx, "responsible", e.target.value)}
-                                                            onBlur={() => saveToServer(content)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Responsible person"
                                                         />
@@ -505,7 +519,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="date"
                                                             value={item.due_date || ""}
                                                             onChange={(e) => updateActionItem(idx, "due_date", e.target.value)}
-                                                            onBlur={() => saveToServer(content)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-600 border border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                         />
                                                     </td>
@@ -513,12 +527,12 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                         <select
                                                             value={item.status}
                                                             onChange={(e) => updateActionItem(idx, "status", e.target.value)}
-                                                            onBlur={() => saveToServer(content)}
+                                                            onBlur={saveToServer}
                                                             className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                         >
                                                             <option value="open">Open</option>
                                                             <option value="in-progress">In Progress</option>
-                                                            <option value="completed">Completed</option>
+                                                            <option value="closed">Closed</option>
                                                         </select>
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
@@ -593,6 +607,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={sig.name}
                                                             onChange={(e) => updateSignatory(idx, "name", e.target.value)}
+                                                            onBlur={saveToServer}
                                                             className="w-full font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Name"
                                                         />
@@ -602,24 +617,18 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             type="text"
                                                             value={sig.organization || ""}
                                                             onChange={(e) => updateSignatory(idx, "organization", e.target.value)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                             placeholder="Organization"
                                                         />
                                                     </td>
-                                                    <td className="px-4 py-3">
-                                                        <input
-                                                            type="text"
-                                                            value={(sig as unknown as Record<string, string>).signature_image || ""}
-                                                            onChange={(e) => updateSignatory(idx, "signature_image" as keyof Signatory, e.target.value)}
-                                                            className="w-full text-slate-400 italic border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
-                                                            placeholder="_________________"
-                                                        />
-                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-400 italic">_________________</td>
                                                     <td className="px-4 py-3">
                                                         <input
                                                             type="date"
                                                             value={sig.signature_date || ""}
                                                             onChange={(e) => updateSignatory(idx, "signature_date", e.target.value)}
+                                                            onBlur={saveToServer}
                                                             className="w-full text-slate-400 border border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                         />
                                                     </td>

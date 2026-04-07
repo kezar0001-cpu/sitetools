@@ -20,7 +20,7 @@ export async function fetchCompanyDocuments(
     options?: {
         projectId?: string | null;
         documentType?: DocumentType | null;
-        status?: "draft" | "final" | "archived" | null;
+        status?: "draft" | "shared" | "finalised" | null;
         limit?: number;
     }
 ): Promise<SiteDocument[]> {
