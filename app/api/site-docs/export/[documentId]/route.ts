@@ -254,18 +254,21 @@ function generatePDF(title: string, content: any, docType: DocumentType, status:
         doc.setTextColor(50, 50, 50);
         doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
-        
+
         const sectionContent = String(section.content || "").replace(/\n/g, " ");
         const splitText = doc.splitTextToSize(sectionContent, contentWidth - 6);
-        
-        // Check if content fits on current page
-        if (y + splitText.length * 5 > 280) {
-            doc.addPage();
-            y = margin;
+        const lineHeight = 5;
+        const pageBottom = 280;
+
+        for (const line of splitText as string[]) {
+            if (y + lineHeight > pageBottom) {
+                doc.addPage();
+                y = margin;
+            }
+            doc.text(line, margin + 3, y);
+            y += lineHeight;
         }
-        
-        doc.text(splitText, margin + 3, y);
-        y += splitText.length * 5 + 10;
+        y += 10;
     }
     
     // Attendees table

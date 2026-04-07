@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { FileText, ChevronRight, Download, Trash2, Search, Filter, Calendar, ArrowUpDown, X } from "lucide-react";
+import { FileText, ChevronRight, Download, Loader2, Trash2, Search, Filter, Calendar, ArrowUpDown, X } from "lucide-react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { fetchCompanyDocuments, deleteDocument, exportDocument } from "@/lib/site-docs/client";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_TYPE_COLORS, DOCUMENT_STATUS_BADGE, type SiteDocument, type DocumentType } from "@/lib/site-docs/types";
@@ -269,14 +270,19 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
     const color = DOCUMENT_TYPE_COLORS[docType] || "slate";
     const colorClass = colorMap[color];
     const statusClass = DOCUMENT_STATUS_BADGE[document.status];
+    const [exporting, setExporting] = useState(false);
 
     const handleExport = async (e: React.MouseEvent) => {
         e.stopPropagation();
+        if (exporting) return;
+        setExporting(true);
         try {
             await exportDocument(document.id);
         } catch (err) {
             console.error("Export failed:", err);
-            alert("Export failed. Please try again.");
+            toast.error(err instanceof Error ? err.message : "Export failed. Please try again.");
+        } finally {
+            setExporting(false);
         }
     };
 
@@ -317,10 +323,11 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
                 <div className="hidden group-hover:flex items-center gap-1">
                     <button
                         onClick={handleExport}
-                        className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700"
+                        disabled={exporting}
+                        className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Export PDF"
                     >
-                        <Download className="h-4 w-4" />
+                        {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     </button>
                     <button
                         onClick={handleDelete}
