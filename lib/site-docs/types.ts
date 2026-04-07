@@ -54,6 +54,12 @@ export interface DocumentMetadata {
     reference: string | null;
     prepared_by: string | null;
     organization: string | null;
+    // Meeting-minutes extended fields
+    meeting_type?: string | null;
+    time?: string | null;
+    next_meeting?: string | null;
+    distribution?: string | null;
+    abn?: string | null;
 }
 
 export interface DocumentSection {
