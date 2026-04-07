@@ -85,10 +85,10 @@ Structure the output as JSON with this exact structure:
   "sections": [
     { "id": "1", "title": "1. Incident Overview", "content": "What happened, severity, classification", "order": 1 },
     { "id": "2", "title": "2. Timeline of Events", "content": "chronological sequence with times", "order": 2 },
-    { "id": "3", "title": "3. Immediate Actions Taken", "content: "response actions", "order": 3 },
-    { "id": "4", "title": "4. Witnesses", "content: "witness information", "order": 4 },
-    { "id": "5", "title": "5. Investigation Findings", "content: "root cause analysis", "order": 5 },
-    { "id": "6", "title": "6. Corrective Actions", "content: "actions to prevent recurrence", "order": 6 }
+    { "id": "3", "title": "3. Immediate Actions Taken", "content": "response actions", "order": 3 },
+    { "id": "4", "title": "4. Witnesses", "content": "witness information", "order": 4 },
+    { "id": "5", "title": "5. Investigation Findings", "content": "root cause analysis", "order": 5 },
+    { "id": "6", "title": "6. Corrective Actions", "content": "actions to prevent recurrence", "order": 6 }
   ],
   "actionItems": [
     { "id": "1", "number": 1, "description": "corrective action", "responsible": "Name — Org", "due_date": "YYYY-MM-DD", "status": "open" }
@@ -149,8 +149,8 @@ Structure the output as JSON with this exact structure:
     { "id": "3", "title": "3. Root Cause Analysis", "content": "5 whys or fishbone analysis", "order": 3 },
     { "id": "4", "title": "4. Immediate Correction", "content": "actions already taken", "order": 4 },
     { "id": "5", "title": "5. Corrective Actions", "content": "long-term fixes", "order": 5 },
-    { "id": "6", "title": "6. Preventive Actions", "content: "measures to prevent recurrence", "order": 6 },
-    { "id": "7", "title": "7. Verification & Close-out", "content: "how effectiveness will be verified", "order": 7 }
+    { "id": "6", "title": "6. Preventive Actions", "content": "measures to prevent recurrence", "order": 6 },
+    { "id": "7", "title": "7. Verification & Close-out", "content": "how effectiveness will be verified", "order": 7 }
   ],
   "actionItems": [
     { "id": "1", "number": 1, "description": "action", "responsible": "Name", "due_date": "YYYY-MM-DD", "status": "open" }
@@ -207,11 +207,11 @@ Structure the output as JSON:
   "sections": [
     { "id": "1", "title": "1. Safety Statistics", "content": "TRIFR, LTIFR, incidents, near misses", "order": 1 },
     { "id": "2", "title": "2. Hazards Identified", "content": "new hazards found this period", "order": 2 },
-    { "id": "3", "title": "3. Inspections Conducted", "content: "inspections and results", "order": 3 },
-    { "id": "4", "title": "4. Training Delivered", "content: "safety training sessions", "order": 4 },
-    { "id": "5", "title": "5. Incidents & Near Misses", "content: "summary of events", "order": 5 },
-    { "id": "6", "title": "6. Actions Taken", "content: "corrective actions completed", "order": 6 },
-    { "id": "7", "title": "7. Outstanding Items", "content: "pending actions", "order": 7 }
+    { "id": "3", "title": "3. Inspections Conducted", "content": "inspections and results", "order": 3 },
+    { "id": "4", "title": "4. Training Delivered", "content": "safety training sessions", "order": 4 },
+    { "id": "5", "title": "5. Incidents & Near Misses", "content": "summary of events", "order": 5 },
+    { "id": "6", "title": "6. Actions Taken", "content": "corrective actions completed", "order": 6 },
+    { "id": "7", "title": "7. Outstanding Items", "content": "pending actions", "order": 7 }
   ],
   "actionItems": []
 }
@@ -251,11 +251,11 @@ Structure the output as JSON:
   },
   "sections": [
     { "id": "1", "title": "1. Drawing/Document Reference", "content": "specific references", "order": 1 },
-    { "id": "2", "title": "2. Description of Issue", "content: "conflict or missing info", "order": 2 },
-    { "id": "3", "title": "3. Contractor's Interpretation", "content: "how we understand it", "order": 3 },
-    { "id": "4", "title": "4. Proposed Solution", "content: "our suggested approach", "order": 4 },
-    { "id": "5", "title": "5. Information Requested", "content: "specific questions", "order": 5 },
-    { "id": "6", "title": "6. Impact Assessment", "content: "cost/time impacts if not resolved", "order": 6 }
+    { "id": "2", "title": "2. Description of Issue", "content": "conflict or missing info", "order": 2 },
+    { "id": "3", "title": "3. Contractor's Interpretation", "content": "how we understand it", "order": 3 },
+    { "id": "4", "title": "4. Proposed Solution", "content": "our suggested approach", "order": 4 },
+    { "id": "5", "title": "5. Information Requested", "content": "specific questions", "order": 5 },
+    { "id": "6", "title": "6. Impact Assessment", "content": "cost/time impacts if not resolved", "order": 6 }
   ]
 }
 
@@ -297,8 +297,8 @@ Structure the output as JSON:
     "organization": "company"
   },
   "sections": [
-    { "id": "1", "title": "1. General Requirements", "content: "inspection items with status", "order": 1 },
-    { "id": "2", "title": "2. Specific Checks", "content: "detailed inspection points", "order": 2 }
+    { "id": "1", "title": "1. General Requirements", "content": "inspection items with status", "order": 1 },
+    { "id": "2", "title": "2. Specific Checks", "content": "detailed inspection points", "order": 2 }
   ],
   "actionItems": [
     { "id": "1", "number": 1, "description": "defect/finding", "responsible": "trade", "due_date": "date", "status": "open" }
@@ -341,9 +341,9 @@ Structure the output as JSON:
   },
   "sections": [
     { "id": "1", "title": "1. Topic", "content": "talk subject", "order": 1 },
-    { "id": "2", "title": "2. Key Points Discussed", "content: "main discussion points", "order": 2 },
-    { "id": "3", "title": "3. Questions & Answers", "content: "worker questions", "order": 3 },
-    { "id": "4", "title": "4. Actions Agreed", "content: "commitments made", "order": 4 }
+    { "id": "2", "title": "2. Key Points Discussed", "content": "main discussion points", "order": 2 },
+    { "id": "3", "title": "3. Questions & Answers", "content": "worker questions", "order": 3 },
+    { "id": "4", "title": "4. Actions Agreed", "content": "commitments made", "order": 4 }
   ],
   "attendees": [
     { "name": "Worker Name", "organization": "Company", "role": "Trade", "present": true }
