@@ -153,10 +153,13 @@ export default function DocumentDetailPage() {
     const companyId = summary?.activeMembership?.company_id;
 
     useEffect(() => {
-        if (!documentId || !companyId) {
+        if (!documentId) {
+            setError("Invalid document");
             setLoading(false);
             return;
         }
+        // Wait for workspace to finish loading before attempting fetch
+        if (!companyId) return;
 
         async function loadDocument() {
             try {
