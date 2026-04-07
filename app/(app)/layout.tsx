@@ -13,7 +13,7 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { loading, error, summary } = useWorkspace({
+  const { loading, error, summary, refresh } = useWorkspace({
     requireAuth: true,
     requireCompany: true,
   });
@@ -35,6 +35,12 @@ export default function AppLayout({
         <div className="w-full max-w-xl bg-white border border-red-200 rounded-2xl p-6">
           <h1 className="text-lg font-bold text-red-700">Workspace load failed</h1>
           <p className="mt-2 text-sm text-slate-600">{error}</p>
+          <button
+            onClick={refresh}
+            className="mt-4 text-sm font-semibold text-amber-600 hover:underline"
+          >
+            Try again
+          </button>
         </div>
       </div>
     );

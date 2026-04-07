@@ -7,6 +7,24 @@ import { loadWorkspaceSummary } from "@/lib/workspace/client";
 import { cacheWorkspaceSummary, clearWorkspaceSummaryCache } from "@/lib/workspace/summaryCache";
 import { WorkspaceSummary } from "@/lib/workspace/types";
 
+function isNetworkError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message.toLowerCase() : "";
+  return msg.includes("load failed") || msg.includes("failed to fetch") || msg.includes("networkerror");
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delayMs = 800): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isNetworkError(err) || attempt === retries) throw err;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+    }
+  }
+  // Unreachable, but satisfies TypeScript
+  return fn();
+}
+
 interface UseWorkspaceOptions {
   requireAuth?: boolean;
   requireCompany?: boolean;
@@ -67,7 +85,7 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
     }
 
     try {
-      const nextSummary = await loadWorkspaceSummary(user.id, user.email ?? null);
+      const nextSummary = await withRetry(() => loadWorkspaceSummary(user.id, user.email ?? null));
       setSummary(nextSummary);
       cacheWorkspaceSummary(nextSummary);
 
