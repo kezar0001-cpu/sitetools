@@ -166,8 +166,6 @@ export default function DocumentDetailPage() {
                 const doc = await fetchDocument(documentId);
                 if (!doc) {
                     setError("Document not found");
-                } else if (doc.company_id !== companyId) {
-                    setError("You don't have access to this document");
                 } else {
                     setDocument(doc);
                 }
