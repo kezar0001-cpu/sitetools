@@ -57,7 +57,7 @@ export async function GET(
         // Fetch document with company info
         const { data: document, error: docError } = await supabaseAdmin
             .from("site_documents")
-            .select("*, company:companies(name, abn, address)")
+            .select("*, company:companies(name, address)")
             .eq("id", documentId)
             .single();
 
@@ -87,7 +87,7 @@ export async function GET(
         // Generate PDF
         const content = document.generated_content;
         const docType = document.document_type as DocumentType;
-        const company = document.company as { name?: string; abn?: string; address?: string } | null;
+        const company = document.company as { name?: string; address?: string } | null;
 
         const pdfBuffer = generatePDF(document.title, content, docType, document.status as DocumentStatus, company);
 
@@ -113,7 +113,7 @@ export async function GET(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function generatePDF(title: string, content: any, docType: DocumentType, status: DocumentStatus, company: { name?: string; abn?: string; address?: string } | null): ArrayBuffer {
+function generatePDF(title: string, content: any, docType: DocumentType, status: DocumentStatus, company: { name?: string; address?: string } | null): ArrayBuffer {
     const doc = new jsPDF();
     const docWithAutoTable = doc as jsPDF & { lastAutoTable?: { finalY: number } };
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -153,11 +153,7 @@ function generatePDF(title: string, content: any, docType: DocumentType, status:
     // Company details
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    let detailsY = y + 16;
-    if (company?.abn) {
-        doc.text(`ABN: ${company.abn}`, margin, detailsY);
-        detailsY += 4;
-    }
+    const detailsY = y + 16;
     if (company?.address) {
         const addressLines = doc.splitTextToSize(company.address, contentWidth * 0.5);
         doc.text(addressLines, margin, detailsY);
