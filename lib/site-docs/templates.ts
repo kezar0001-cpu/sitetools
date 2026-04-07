@@ -21,31 +21,36 @@ Structure the output as JSON with this exact structure:
     "project_name": "extracted or null",
     "location": "extracted meeting location or null",
     "date": "YYYY-MM-DD format",
+    "time": "extracted meeting time e.g. 2:00 PM or null",
     "reference": "generated reference like MTG-001 or null",
-    "prepared_by": "extracted minute taker",
-    "organization": "extracted organization"
+    "prepared_by": "extracted minute taker name or null",
+    "organization": "extracted primary organization or null",
+    "abn": "extracted ABN number if mentioned or null",
+    "meeting_type": "e.g. Site Meeting, Internal Management Meeting, Progress Meeting, or null",
+    "next_meeting": "YYYY-MM-DD format or null",
+    "distribution": "e.g. Attendees only, All stakeholders, or null"
   },
   "attendees": [
-    { "name": "Full Name", "organization": "Company", "role": "Role", "present": true }
+    { "name": "Full Name", "organization": "Company", "role": "Role/Title", "present": true }
   ],
   "sections": [
-    { "id": "1", "title": "1. Matters from Previous Meeting", "content": "detailed content", "order": 1, "status": "open|closed|in-progress" }
+    { "id": "1", "title": "Descriptive agenda item title", "content": "Detailed discussion notes, decisions made, and context. Write in full sentences.", "order": 1, "status": "open|closed|in-progress" }
   ],
   "actionItems": [
-    { "id": "1", "number": 1, "description": "action description", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open|in-progress|closed" }
+    { "id": "1", "number": 1, "description": "Clear action description", "responsible": "Name — Organisation", "due_date": "YYYY-MM-DD or null", "status": "open|in-progress|closed" }
   ],
   "signatories": [
-    { "name": "Name", "organization": "Org", "signature_date": null }
+    { "name": "Name", "organization": "Organisation", "signature_date": null }
   ]
 }
 
-Extract and organize:
-- Meeting date, time, location
+Extract and organize all of the following:
+- Meeting date, time, location, meeting type, and next meeting date
 - All attendees with their organizations and roles
-- Agenda items discussed (numbered sections)
-- Action items with responsible parties and due dates
-- Status indicators (Open/Closed/In Progress) for each item
-- Decisions made and agreements reached
+- Every agenda item discussed — write detailed section content in full sentences
+- All action items with responsible parties and due dates
+- Status indicators (open/closed/in-progress) for each item and section
+- All decisions made, agreements reached, and outstanding matters
 
 Meeting Summary:
 {{SUMMARY}}`,
