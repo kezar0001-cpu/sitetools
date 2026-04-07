@@ -135,7 +135,7 @@ function ActionItemTracker({ documentId, actionItems, onUpdate }: ActionItemTrac
 export default function DocumentDetailPage() {
     const params = useParams();
     const router = useRouter();
-    const { summary } = useWorkspace();
+    const { loading: workspaceLoading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
     const [document, setDocument] = useState<SiteDocument | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -276,6 +276,14 @@ export default function DocumentDetailPage() {
             setRegenerateSummary(document.summary_input);
             setRegenerateDrawerOpen(true);
         }
+    }
+
+    if (workspaceLoading || !summary) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-blue-600 animate-spin" />
+            </div>
+        );
     }
 
     if (loading) {
