@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Download, Loader2, Trash2, RefreshCw, X, FolderOpen } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { fetchDocument, deleteDocument, exportDocument, regenerateDocument, updateActionItemStatus } from "@/lib/site-docs/client";
+import { fetchDocument, deleteDocument, exportDocument, regenerateDocument, updateActionItemStatus, updateDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type SiteDocument } from "@/lib/site-docs/types";
@@ -206,6 +206,8 @@ export default function DocumentDetailPage() {
 
         setExporting(true);
         try {
+            // Flush any in-progress edits before generating the PDF
+            await updateDocument(document.id, { generated_content: document.generated_content });
             await exportDocument(document.id);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
@@ -323,24 +325,24 @@ export default function DocumentDetailPage() {
         <div className="min-h-screen bg-slate-50">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                    <div className="flex items-center gap-3 min-w-0">
                         <button
                             onClick={() => router.push("/dashboard/site-docs")}
-                            className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
+                            className="p-2 rounded-lg hover:bg-slate-200 transition-colors shrink-0"
                         >
                             <ArrowLeft className="h-5 w-5 text-slate-600" />
                         </button>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-bold text-slate-900">{document.title}</h1>
-                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${statusClass}`}>
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-lg font-bold text-slate-900 truncate">{document.title}</h1>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full border shrink-0 ${statusClass}`}>
                                     {DOCUMENT_STATUS_LABELS[document.status]}
                                 </span>
                                 {project && (
                                     <button
                                         onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                                        className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200 hover:bg-blue-100 transition-colors"
+                                        className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200 hover:bg-blue-100 transition-colors shrink-0"
                                     >
                                         <FolderOpen className="h-3 w-3" />
                                         {project.name}
@@ -350,18 +352,18 @@ export default function DocumentDetailPage() {
                             <p className="text-sm text-slate-500">{typeLabel}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
                         <button
                             onClick={openRegenerateDrawer}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
                         >
                             <RefreshCw className="h-4 w-4" />
-                            Regenerate
+                            <span className="hidden sm:inline">Regenerate</span>
                         </button>
                         <button
                             onClick={handleExport}
                             disabled={exporting}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
                             {exporting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -373,14 +375,14 @@ export default function DocumentDetailPage() {
                         <button
                             onClick={openDeleteModal}
                             disabled={deleting}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 font-medium rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
                         >
                             {deleting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <Trash2 className="h-4 w-4" />
                             )}
-                            Delete
+                            <span className="hidden sm:inline">Delete</span>
                         </button>
                     </div>
                 </div>

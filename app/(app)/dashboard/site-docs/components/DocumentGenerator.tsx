@@ -334,11 +334,11 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
         <div className="min-h-screen bg-slate-50">
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setStep("input")}
-                            className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
+                            className="p-2 rounded-lg hover:bg-slate-200 transition-colors shrink-0"
                         >
                             <ArrowLeft className="h-5 w-5 text-slate-600" />
                         </button>
@@ -347,11 +347,11 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                             <p className="text-sm text-slate-500">Review the generated document before saving</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
                         <button
                             onClick={handleExport}
                             disabled={exporting || !generatedContent}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
                             {exporting ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -364,7 +364,7 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                             <button
                                 onClick={handleSave}
                                 disabled={step === "saving"}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                             >
                                 {step === "saving" ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
