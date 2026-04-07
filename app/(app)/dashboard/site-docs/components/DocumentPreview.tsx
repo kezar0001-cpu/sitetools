@@ -21,6 +21,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
     latestContent.current = content;
 
     const handleChange = (newContent: GeneratedContent) => {
+        latestContent.current = newContent;
         onChange?.(newContent);
     };
 
@@ -149,8 +150,8 @@ export function DocumentPreview({ content, template, editable = false, onChange,
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
             {/* Document Header */}
-            <div className="p-8 border-b border-slate-200">
-                <div className="flex items-start justify-between">
+            <div className="p-4 sm:p-8 border-b border-slate-200">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div className={editable ? "flex-1" : ""}>
                         <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">{template.name}</p>
                         {editable ? (
@@ -166,7 +167,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                             <h2 className="text-2xl font-bold text-slate-900 mt-1">{metadata.document_title}</h2>
                         )}
                     </div>
-                    <div className={`text-right ${editable ? "ml-4" : ""}`}>
+                    <div className={`sm:text-right ${editable ? "sm:ml-4" : ""}`}>
                         {editable && (
                             <div className="mb-2 text-sm">
                                 {saveStatus === "saving" && (
@@ -208,7 +209,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                     </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-4 text-sm">
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     {editable ? (
                         <>
                             <div className="flex items-center gap-2">
@@ -289,7 +290,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
 
             {/* Attendees */}
             {((attendees && attendees.length > 0) || editable) && (
-                <div className="p-8 border-b border-slate-200">
+                <div className="p-4 sm:p-8 border-b border-slate-200">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold text-slate-900">Attendees</h3>
                         {editable && (
@@ -389,7 +390,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
             )}
 
             {/* Sections */}
-            <div className="p-8 space-y-8">
+            <div className="p-4 sm:p-8 space-y-8">
                 <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-slate-900">Sections</h3>
                     {editable && (
@@ -410,12 +411,14 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                         type="text"
                                         value={section.title}
                                         onChange={(e) => updateSection(idx, "title", e.target.value)}
+                                        onBlur={saveToServer}
                                         className="flex-1 font-semibold text-slate-900 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                         placeholder="Section Title"
                                     />
                                     <select
                                         value={section.status || ""}
                                         onChange={(e) => updateSection(idx, "status", e.target.value)}
+                                        onBlur={saveToServer}
                                         className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="">No Status</option>
@@ -463,7 +466,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
 
             {/* Action Items */}
             {((actionItems && actionItems.length > 0) || editable) && (
-                <div className="p-8 border-t border-slate-200">
+                <div className="p-4 sm:p-8 border-t border-slate-200">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold text-slate-900">Action Items</h3>
                         {editable && (
@@ -573,7 +576,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
 
             {/* Sign-off */}
             {((signatories && signatories.length > 0) || editable) && (
-                <div className="p-8 border-t border-slate-200">
+                <div className="p-4 sm:p-8 border-t border-slate-200">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="font-semibold text-slate-900 mb-4">Confirmation & Sign-off</h3>
                         {editable && (
