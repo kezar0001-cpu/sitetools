@@ -438,7 +438,7 @@ function StatusTable({
                     backgroundColor: rowColor(rowIndex),
                     borderRightWidth: isLast ? 0 : 0.5,
                   },
-                  isLast && styles.statusWrap,
+                  isLast ? styles.statusWrap : undefined,
                 ]}
               >
                 {isLast ? <Text style={statusStyle(row.status)}>{row.status.toUpperCase()}</Text> : <Text>{row.cells[cellIndex] ?? ''}</Text>}
