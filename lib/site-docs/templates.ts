@@ -31,7 +31,7 @@ Structure the output as JSON with this exact structure:
     "distribution": "e.g. Attendees only, All stakeholders, or null"
   },
   "attendees": [
-    { "name": "Full Name", "organization": "Company", "role": "Role/Title", "present": true }
+    { "id": "1", "name": "Full Name", "organization": "Company", "role": "Role/Title", "present": true }
   ],
   "sections": [
     { "id": "1", "title": "Descriptive agenda item title", "content": "Detailed discussion notes, decisions made, and context. Write in full sentences.", "order": 1, "status": "open|closed|in-progress" }
@@ -40,7 +40,7 @@ Structure the output as JSON with this exact structure:
     { "id": "1", "number": 1, "description": "Clear action description", "responsible": "Name — Organisation", "due_date": "YYYY-MM-DD or null", "status": "open|in-progress|closed" }
   ],
   "signatories": [
-    { "name": "Name", "organization": "Organisation", "signature_date": null }
+    { "id": "1", "name": "Name", "organization": "Organisation", "signature_date": null }
   ]
 }
 
@@ -97,6 +97,10 @@ Structure the output as JSON with this exact structure:
   ],
   "actionItems": [
     { "id": "1", "number": 1, "description": "corrective action", "responsible": "Name — Org", "due_date": "YYYY-MM-DD", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Reporter Name", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Supervisor Name", "organization": "Organisation", "signature_date": null }
   ]
 }
 
@@ -110,6 +114,7 @@ Extract and include:
 - Photos/evidence references
 - Regulatory notification requirements
 - Corrective actions with responsible parties
+- Names of reporter and supervisor/manager for sign-off
 
 Incident Summary:
 {{SUMMARY}}`,
@@ -159,6 +164,10 @@ Structure the output as JSON with this exact structure:
   ],
   "actionItems": [
     { "id": "1", "number": 1, "description": "action", "responsible": "Name", "due_date": "YYYY-MM-DD", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Raised By", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Verified By", "organization": "Organisation", "signature_date": null }
   ]
 }
 
@@ -172,6 +181,7 @@ Extract and structure:
 - Preventive actions (system-wide improvements)
 - Responsible parties and due dates
 - Verification method and evidence required
+- Names of originator and verifier for sign-off
 
 CAR Summary:
 {{SUMMARY}}`,
@@ -201,25 +211,37 @@ const safetyReportTemplate: DocumentTemplate = {
 Structure the output as JSON:
 {
   "metadata": {
-    "document_title": "Safety Report — [Period]",
-    "project_name": "extracted",
-    "location": "site location",
-    "date": "report date",
-    "reference": "SAF-XXX",
-    "prepared_by": "safety officer",
-    "organization": "company"
+    "document_title": "Safety Report — [Period e.g. Week Ending DD MMM YYYY]",
+    "project_name": "extracted or null",
+    "location": "extracted site location or null",
+    "date": "YYYY-MM-DD",
+    "reference": "SAF-XXX or null",
+    "prepared_by": "extracted name or null",
+    "organization": "extracted company or null"
   },
   "sections": [
-    { "id": "1", "title": "1. Safety Statistics", "content": "TRIFR, LTIFR, incidents, near misses", "order": 1 },
-    { "id": "2", "title": "2. Hazards Identified", "content": "new hazards found this period", "order": 2 },
-    { "id": "3", "title": "3. Inspections Conducted", "content": "inspections and results", "order": 3 },
-    { "id": "4", "title": "4. Training Delivered", "content": "safety training sessions", "order": 4 },
-    { "id": "5", "title": "5. Incidents & Near Misses", "content": "summary of events", "order": 5 },
-    { "id": "6", "title": "6. Actions Taken", "content": "corrective actions completed", "order": 6 },
-    { "id": "7", "title": "7. Outstanding Items", "content": "pending actions", "order": 7 }
+    { "id": "1", "title": "1. Safety Statistics", "content": "TRIFR, LTIFR, total hours worked, LTIs, MTIs, near misses, first aids — use null for any not provided", "order": 1 },
+    { "id": "2", "title": "2. Hazards Identified", "content": "new hazards found this period with risk rating and control measures", "order": 2 },
+    { "id": "3", "title": "3. Inspections Conducted", "content": "inspections carried out, by whom, outcomes and findings", "order": 3 },
+    { "id": "4", "title": "4. Training Delivered", "content": "safety inductions, toolbox talks, competency assessments conducted", "order": 4 },
+    { "id": "5", "title": "5. Incidents & Near Misses", "content": "summary of any incidents, near misses, or first aid treatments this period", "order": 5 },
+    { "id": "6", "title": "6. Actions Taken", "content": "corrective actions completed and closed out this period", "order": 6 },
+    { "id": "7", "title": "7. Outstanding Items", "content": "open actions carried forward, responsible party, and target close date", "order": 7 }
   ],
-  "actionItems": []
+  "actionItems": [
+    { "id": "1", "number": 1, "description": "outstanding safety action", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open|in-progress|closed" }
+  ]
 }
+
+Extract and include:
+- Report period (daily/weekly/monthly) and date
+- All safety statistics mentioned (hours worked, incidents, near misses, LTIs, TRIFR, LTIFR)
+- Hazards identified with risk ratings and controls
+- Inspections and audits conducted with results
+- Safety training and inductions delivered
+- Incidents and near misses with brief descriptions
+- Corrective actions completed and still outstanding
+- Omit any section with no relevant information rather than leaving it empty
 
 Safety Summary:
 {{SUMMARY}}`,
@@ -261,6 +283,13 @@ Structure the output as JSON:
     { "id": "4", "title": "4. Proposed Solution", "content": "our suggested approach", "order": 4 },
     { "id": "5", "title": "5. Information Requested", "content": "specific questions", "order": 5 },
     { "id": "6", "title": "6. Impact Assessment", "content": "cost/time impacts if not resolved", "order": 6 }
+  ],
+  "actionItems": [
+    { "id": "1", "number": 1, "description": "Response required from designer/consultant", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Submitted By", "organization": "Contractor", "signature_date": null },
+    { "id": "2", "name": "Responded By", "organization": "Consultant/Designer", "signature_date": null }
   ]
 }
 
@@ -293,22 +322,40 @@ const inspectionChecklistTemplate: DocumentTemplate = {
 Structure the output as JSON:
 {
   "metadata": {
-    "document_title": "Inspection Checklist — [Type]",
-    "project_name": "extracted",
-    "location": "inspection area",
+    "document_title": "Inspection Checklist — [Type e.g. Pre-Pour Concrete Inspection]",
+    "project_name": "extracted or null",
+    "location": "extracted inspection area or null",
     "date": "YYYY-MM-DD",
-    "reference": "INSP-XXX",
-    "prepared_by": "inspector",
-    "organization": "company"
+    "reference": "INSP-XXX or null",
+    "prepared_by": "extracted inspector name or null",
+    "organization": "extracted company or null"
   },
   "sections": [
-    { "id": "1", "title": "1. General Requirements", "content": "inspection items with status", "order": 1 },
-    { "id": "2", "title": "2. Specific Checks", "content": "detailed inspection points", "order": 2 }
+    { "id": "1", "title": "1. Pre-Inspection Setup", "content": "permits, drawings, method statements checked; weather/environmental conditions", "order": 1, "status": "open|closed" },
+    { "id": "2", "title": "2. General Requirements", "content": "site safety, access, PPE, housekeeping — Pass/Fail/NA for each item", "order": 2, "status": "open|closed" },
+    { "id": "3", "title": "3. Work-Specific Checks", "content": "detailed inspection points relevant to the work type with Pass/Fail/NA outcomes", "order": 3, "status": "open|closed" },
+    { "id": "4", "title": "4. Quality & Compliance", "content": "materials, tolerances, specifications, standards checked", "order": 4, "status": "open|closed" },
+    { "id": "5", "title": "5. Defects & Observations", "content": "items that failed or require attention, with location and description", "order": 5, "status": "open|closed" },
+    { "id": "6", "title": "6. Overall Outcome", "content": "overall pass/conditional pass/fail, any hold points, re-inspection required yes/no", "order": 6, "status": "open|closed" }
   ],
   "actionItems": [
-    { "id": "1", "number": 1, "description": "defect/finding", "responsible": "trade", "due_date": "date", "status": "open" }
+    { "id": "1", "number": 1, "description": "defect or finding requiring rectification", "responsible": "Name — Trade/Org", "due_date": "YYYY-MM-DD or null", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Inspector", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Witness/Superintendent", "organization": "Organisation", "signature_date": null }
   ]
 }
+
+Extract and include:
+- Inspection type, date, area/location, inspector and witness names
+- Pre-inspection checks (drawings, permits, SWMS reviewed)
+- General safety and housekeeping observations
+- Work-specific checks with Pass/Fail/NA outcomes
+- Any defects found with location and description
+- Overall inspection outcome (pass, conditional pass, fail)
+- All action items for defect rectification with responsible trades and due dates
+- Hold points triggered or released
 
 Inspection Summary:
 {{SUMMARY}}`,
@@ -351,9 +398,20 @@ Structure the output as JSON:
     { "id": "4", "title": "4. Actions Agreed", "content": "commitments made", "order": 4 }
   ],
   "attendees": [
-    { "name": "Worker Name", "organization": "Company", "role": "Trade", "present": true }
+    { "id": "1", "name": "Worker Name", "organization": "Company", "role": "Trade", "present": true }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Presenter Name", "organization": "Organisation", "signature_date": null }
   ]
 }
+
+Extract and include:
+- Topic title, date, location, presenter name
+- All key safety points covered
+- Any questions raised and answers given
+- Actions or commitments agreed by the team
+- Names of all attendees with their trade/role
+- Presenter name for sign-off
 
 Toolbox Talk Summary:
 {{SUMMARY}}`,
@@ -397,8 +455,26 @@ Structure the output as JSON:
     { "id": "5", "title": "5. Time Impact", "content": "programme implications", "order": 5 },
     { "id": "6", "title": "6. Proposed Solution", "content": "how to implement", "order": 6 },
     { "id": "7", "title": "7. Approval Status", "content": "approvals obtained/pending", "order": 7 }
+  ],
+  "actionItems": [
+    { "id": "1", "number": 1, "description": "follow-up action required to progress variation", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Submitted By (Contractor)", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Approved By (Principal/Superintendent)", "organization": "Organisation", "signature_date": null }
   ]
 }
+
+Extract and include:
+- Variation/change order reference number and date
+- Clear description of the scope change
+- Reason the variation is required (design change, latent condition, client request, etc.)
+- Relevant contract clauses and drawing references
+- Cost impact with breakdown if provided
+- Time (programme) impact in days
+- Proposed implementation approach
+- Current approval status
+- Any follow-up actions needed to progress the variation
 
 Variation Summary:
 {{SUMMARY}}`,
@@ -445,6 +521,11 @@ Structure the output as JSON:
   ],
   "actionItems": [
     { "id": "1", "number": 1, "description": "action to close NCR", "responsible": "Name — Org", "due_date": "YYYY-MM-DD", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Raised By", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Trade/Subcontractor", "organization": "Organisation", "signature_date": null },
+    { "id": "3", "name": "Close-Out Verification", "organization": "Organisation", "signature_date": null }
   ]
 }
 
@@ -489,9 +570,26 @@ Structure the output as JSON:
     { "id": "3", "title": "3. Reference Documents", "content": "drawings, specs, previous correspondence", "order": 3 },
     { "id": "4", "title": "4. Contractor's Obligations", "content": "what contractor must do", "order": 4 },
     { "id": "5", "title": "5. Time for Compliance", "content": "when action must be taken", "order": 5 },
-    { "id": "6", "title": "6. Cost & Time Implications", "content": "contractor to advise if claim arises", "order": 6 }
+    { "id": "6", "title": "6. Cost & Time Implications", "content": "contractor to advise if claim arises within the specified notice period", "order": 6 }
+  ],
+  "actionItems": [
+    { "id": "1", "number": 1, "description": "compliance action required by contractor", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Issued By (Engineer/Client)", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Acknowledged By (Contractor)", "organization": "Organisation", "signature_date": null }
   ]
 }
+
+Extract and include:
+- SI reference number, date issued, and issuing party
+- Clear and specific instruction details — what must be done
+- Reason the instruction is being issued
+- Relevant drawings, specifications, or prior correspondence
+- Specific contractor obligations and deliverables
+- Compliance timeframe or deadline
+- Any cost or programme claim notice requirements
+- All compliance actions with responsible parties and due dates
 
 Instruction Summary:
 {{SUMMARY}}`,
