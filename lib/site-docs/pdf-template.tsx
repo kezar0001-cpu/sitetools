@@ -1,5 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
-import type { MSAItem, MSADocumentProps, MSASection } from '@/lib/pdf/types'
+import type { MSAItem, MSADocumentProps, MSASection } from '@/lib/site-docs/pdf-types'
 
 const MM_TO_PT = 2.835
 const CONTENT_WIDTH = 170 * MM_TO_PT
