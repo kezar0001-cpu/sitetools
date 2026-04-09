@@ -61,7 +61,6 @@ const LABEL_TEXT = {
   fontFamily: 'Helvetica-Bold',
   fontSize: 8,
   color: MID,
-  textTransform: 'uppercase' as const,
 }
 
 const VALUE_TEXT = {
@@ -201,7 +200,7 @@ const styles = StyleSheet.create({
   },
   metadataRow: {
     flexDirection: 'row',
-    gap: 6,
+    justifyContent: 'space-between',
   },
   metaCell: {
     flex: 1,
@@ -470,7 +469,7 @@ function FieldsGrid({ data }: Pick<Extract<MSAItem, { type: 'fields' }>, 'data'>
               key={`field-${rowIndex}-${colIndex}`}
               style={[styles.fieldCol, { borderRightWidth: colIndex === pair.length - 1 ? 0 : 0.5 }]}
             >
-              <Text style={LABEL_TEXT}>{field?.label ?? ''}</Text>
+              <Text style={LABEL_TEXT}>{(field?.label ?? '').toUpperCase()}</Text>
               <Text style={VALUE_TEXT}>{field?.value ?? ''}</Text>
             </View>
           ))}
@@ -553,9 +552,9 @@ export function MSADocument(props: MSADocumentProps) {
               { label: 'Document No', value: props.documentNo },
               { label: 'Date', value: props.date },
               { label: 'Revision', value: props.revision },
-            ].map((meta) => (
-              <View key={meta.label} style={styles.metaCell}>
-                <Text style={LABEL_TEXT}>{meta.label}</Text>
+            ].map((meta, index) => (
+              <View key={meta.label} style={[styles.metaCell, { marginRight: index === 2 ? 0 : 6 }]}>
+                <Text style={LABEL_TEXT}>{meta.label.toUpperCase()}</Text>
                 <Text style={VALUE_TEXT}>{meta.value}</Text>
               </View>
             ))}
@@ -576,7 +575,7 @@ export function MSADocument(props: MSADocumentProps) {
                 { label: 'Date', value: props.date },
               ].map((meta) => (
                 <View key={meta.label} style={styles.titleMetaCell}>
-                  <Text style={LABEL_TEXT}>{meta.label}</Text>
+                  <Text style={LABEL_TEXT}>{meta.label.toUpperCase()}</Text>
                   <Text style={VALUE_TEXT}>{meta.value}</Text>
                 </View>
               ))}
