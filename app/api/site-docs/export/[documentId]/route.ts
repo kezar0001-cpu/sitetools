@@ -72,7 +72,7 @@ export async function GET(
 
         const pdfBuffer = generatePDF(document.title, content, docType, document.status as DocumentStatus, company);
         const safeTitle = document.title.replace(/[^a-zA-Z0-9\s-]/g, "").replace(/\s+/g, "_").substring(0, 50);
-        const pdfBytes = new Uint8Array(pdfBuffer);
+        const pdfBytes = toPdfResponseBody(pdfBuffer);
 
         return new NextResponse(pdfBytes, {
             headers: {
@@ -142,6 +142,16 @@ function statusLabel(status: string): string {
         case "pending":     return "Pending";
         default:            return status.charAt(0).toUpperCase() + status.slice(1);
     }
+}
+
+function toPdfResponseBody(pdf: ArrayBuffer | Buffer): ArrayBuffer {
+    if (pdf instanceof ArrayBuffer) {
+        return pdf;
+    }
+
+    const out = new ArrayBuffer(pdf.byteLength);
+    new Uint8Array(out).set(pdf);
+    return out;
 }
 
 // ─── PDF Generator ────────────────────────────────────────────────────────────
