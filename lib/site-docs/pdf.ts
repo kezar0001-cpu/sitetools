@@ -27,11 +27,12 @@ function statusToRevision(status: DocumentStatus): string {
   return 'Rev A'
 }
 
-function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' {
+function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' | 'in-progress' {
   if (!value) return 'open'
   const normalized = value.toLowerCase()
   if (normalized === 'closed') return 'closed'
   if (normalized === 'critical') return 'critical'
+  if (normalized === 'in-progress' || normalized === 'in progress') return 'in-progress'
   return 'open'
 }
 
@@ -80,6 +81,34 @@ export function mapSiteDocToMSA(
       }
     })
 
+  const attendeesSection = generatedContent.attendees?.length
+    ? {
+        title: 'Attendees',
+        items: [
+          {
+            type: 'table' as const,
+            columns: [
+              { header: 'Name', weight: 2 },
+              { header: 'Organisation', weight: 2 },
+              { header: 'Role', weight: 2 },
+              { header: 'Present', weight: 1 },
+            ],
+            rows: generatedContent.attendees.map((attendee) => [
+              attendee.name,
+              attendee.organization ?? '—',
+              attendee.role ?? '—',
+              attendee.present ? 'Yes' : 'No',
+            ]),
+          },
+        ],
+      }
+    : null
+
+  // Meeting minutes lead with attendees so they appear at the top of the document
+  if (attendeesSection && document.document_type === 'meeting-minutes') {
+    sections.unshift(attendeesSection)
+  }
+
   if (generatedContent.actionItems?.length) {
     sections.push({
       title: 'Action Register',
@@ -108,27 +137,8 @@ export function mapSiteDocToMSA(
     })
   }
 
-  if (generatedContent.attendees?.length) {
-    sections.push({
-      title: 'Attendees',
-      items: [
-        {
-          type: 'table',
-          columns: [
-            { header: 'Name', weight: 2 },
-            { header: 'Organisation', weight: 2 },
-            { header: 'Role', weight: 2 },
-            { header: 'Present', weight: 1 },
-          ],
-          rows: generatedContent.attendees.map((attendee) => [
-            attendee.name,
-            attendee.organization ?? '—',
-            attendee.role ?? '—',
-            attendee.present ? 'Yes' : 'No',
-          ]),
-        },
-      ],
-    })
+  if (attendeesSection && document.document_type !== 'meeting-minutes') {
+    sections.push(attendeesSection)
   }
 
   if (generatedContent.signatories?.length) {
