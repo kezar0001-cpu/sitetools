@@ -563,7 +563,8 @@ export function MSADocument(props: MSADocumentProps) {
             </View>
             <View style={styles.logoBox}>
               {props.companyLogoUrl ? (
-                <Image src={props.companyLogoUrl} style={styles.logoImage} alt={`${props.companyName || 'Company'} logo`} />
+                // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image is not a DOM <img> and has no alt prop.
+                <Image src={props.companyLogoUrl} style={styles.logoImage} />
               ) : (
                 <Text style={styles.logoText}>BUILDSTATE</Text>
               )}
