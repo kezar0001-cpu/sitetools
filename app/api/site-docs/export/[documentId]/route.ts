@@ -40,7 +40,7 @@ export async function GET(
 
     const { data: document, error: docError } = await supabaseAdmin
       .from('site_documents')
-      .select('*, company:companies(name)')
+      .select('*, company:companies(name,logo_url)')
       .eq('id', params.documentId)
       .single()
 
@@ -60,7 +60,7 @@ export async function GET(
     }
 
     const typedDocument = document as SiteDocument & {
-      company?: { name?: string } | null
+      company?: { name?: string; logo_url?: string | null } | null
       generated_content: GeneratedContent
     }
 
@@ -73,7 +73,8 @@ export async function GET(
         reference_number: typedDocument.reference_number,
       },
       typedDocument.generated_content,
-      typedDocument.company?.name ?? null
+      typedDocument.company?.name ?? null,
+      typedDocument.company?.logo_url ?? null
     )
 
     const buffer = await renderToBuffer(createElement(MSADocument, pdfData))

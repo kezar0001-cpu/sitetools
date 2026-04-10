@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Image, Link, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import type { MSAItem, MSADocumentProps, MSASection } from '@/lib/site-docs/pdf-types'
 
 const MM_TO_PT = 2.835
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   },
   content: {
     width: CONTENT_WIDTH,
-    paddingTop: 120,
+    paddingTop: 132,
     paddingBottom: 40,
   },
   header: {
@@ -178,19 +178,36 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    minHeight: 42,
+  },
+  companyBlock: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  companyName: {
+    ...TITLE_STYLE,
+    fontSize: 16,
   },
   logoBox: {
     width: 40 * MM_TO_PT,
-    height: 14 * MM_TO_PT,
-    backgroundColor: ORANGE,
+    height: 16 * MM_TO_PT,
+    borderWidth: 1,
+    borderColor: '#D9DDE4',
+    backgroundColor: WHITE,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain',
   },
   logoText: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 12,
-    color: WHITE,
+    fontSize: 10,
+    color: MID,
   },
   hr: {
     height: 2,
@@ -204,6 +221,7 @@ const styles = StyleSheet.create({
   },
   metaCell: {
     flex: 1,
+    minWidth: 0,
     backgroundColor: LIGHT,
     borderWidth: 1,
     borderColor: MID,
@@ -219,7 +237,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 16,
+    fontSize: 14,
     color: WHITE,
     marginBottom: 2,
   },
@@ -264,7 +282,9 @@ const styles = StyleSheet.create({
     borderBottomColor: MID,
   },
   fieldCol: {
-    width: '50%',
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 0,
     paddingVertical: 4,
     paddingHorizontal: 6,
     borderRightWidth: 0.5,
@@ -280,11 +300,13 @@ const styles = StyleSheet.create({
   },
   headerCell: {
     ...TABLE_HEADER,
+    minWidth: 0,
     borderRightWidth: 0.5,
     borderRightColor: '#CCCCCC',
   },
   bodyCell: {
     ...TABLE_CELL,
+    minWidth: 0,
     borderTopWidth: 0.5,
     borderTopColor: '#CCCCCC',
     borderRightWidth: 0.5,
@@ -335,6 +357,7 @@ const styles = StyleSheet.create({
   },
   footerCell: {
     width: '33%',
+    minWidth: 0,
   },
   footerCenter: {
     textAlign: 'center',
@@ -363,8 +386,6 @@ function statusStyle(status: 'open' | 'closed' | 'critical') {
 }
 
 function Table({ columns, rows }: Pick<Extract<MSAItem, { type: 'table' }>, 'columns' | 'rows'>) {
-  const totalWeight = columns.reduce((sum, col) => sum + col.weight, 0)
-
   return (
     <View style={styles.table}>
       <View style={styles.tableRow}>
@@ -373,7 +394,7 @@ function Table({ columns, rows }: Pick<Extract<MSAItem, { type: 'table' }>, 'col
             key={`${column.header}-${index}`}
             style={[
               styles.headerCell,
-              { width: `${(column.weight / totalWeight) * 100}%`, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
+              { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
             ]}
           >
             {column.header}
@@ -388,7 +409,8 @@ function Table({ columns, rows }: Pick<Extract<MSAItem, { type: 'table' }>, 'col
               style={[
                 rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt,
                 {
-                  width: `${(column.weight / totalWeight) * 100}%`,
+                  flexGrow: column.weight,
+                  flexBasis: 0,
                   backgroundColor: rowColor(rowIndex),
                   borderRightWidth: cellIndex === columns.length - 1 ? 0 : 0.5,
                 },
@@ -407,8 +429,6 @@ function StatusTable({
   columns,
   rows,
 }: Pick<Extract<MSAItem, { type: 'status_table' }>, 'columns' | 'rows'>) {
-  const totalWeight = columns.reduce((sum, col) => sum + col.weight, 0)
-
   return (
     <View style={styles.table}>
       <View style={styles.tableRow}>
@@ -417,7 +437,7 @@ function StatusTable({
             key={`${column.header}-${index}`}
             style={[
               styles.headerCell,
-              { width: `${(column.weight / totalWeight) * 100}%`, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
+              { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
             ]}
           >
             {column.header}
@@ -434,7 +454,8 @@ function StatusTable({
                 style={[
                   rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt,
                   {
-                    width: `${(column.weight / totalWeight) * 100}%`,
+                    flexGrow: column.weight,
+                    flexBasis: 0,
                     backgroundColor: rowColor(rowIndex),
                     borderRightWidth: isLast ? 0 : 0.5,
                   },
@@ -536,12 +557,17 @@ export function MSADocument(props: MSADocumentProps) {
       <Page size="A4" style={styles.page}>
         <View fixed style={styles.header}>
           <View style={styles.headerRow}>
-            <View>
-              <Text style={TITLE_STYLE}>MSA Civil & Communications Pty Ltd</Text>
+            <View style={styles.companyBlock}>
+              <Text style={styles.companyName}>{props.companyName || 'Buildstate'}</Text>
               <Text style={SUBTITLE_STYLE}>{props.documentType}</Text>
             </View>
             <View style={styles.logoBox}>
-              <Text style={styles.logoText}>MSA</Text>
+              {props.companyLogoUrl ? (
+                // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image is not a DOM <img> and has no alt prop.
+                <Image src={props.companyLogoUrl} style={styles.logoImage} />
+              ) : (
+                <Text style={styles.logoText}>BUILDSTATE</Text>
+              )}
             </View>
           </View>
 
@@ -586,13 +612,17 @@ export function MSADocument(props: MSADocumentProps) {
             <Section key={`${section.title}-${index}`} section={section} />
           ))}
 
-          <Text style={[CAPTION_TEXT, { marginTop: 4 }]}>Generated via SiteTools PDF engine (@react-pdf/renderer)</Text>
+          <Text style={[CAPTION_TEXT, { marginTop: 4 }]}>
+            Generated by Buildstate
+            {' · '}
+            <Link src="https://buildstate.com.au">buildstate.com.au</Link>
+          </Text>
         </View>
 
         <View fixed style={styles.footer}>
           <View style={styles.footerRule} />
           <View style={styles.footerRow}>
-            <Text style={[FOOTER_TEXT, styles.footerCell]}>MSA Civil & Communications Pty Ltd — INTERNAL USE ONLY</Text>
+            <Text style={[FOOTER_TEXT, styles.footerCell]}>{props.companyName || 'Buildstate'} — INTERNAL USE ONLY</Text>
             <Text style={[FOOTER_TEXT, styles.footerCell, styles.footerCenter]}>{docTitle}</Text>
             <Text
               style={[FOOTER_TEXT, styles.footerCell, styles.footerRight]}

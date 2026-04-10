@@ -46,7 +46,8 @@ function paragraphsFromContent(content: string): MSAItem[] {
 export function mapSiteDocToMSA(
   document: Pick<SiteDocument, 'id' | 'title' | 'document_type' | 'status' | 'reference_number'>,
   generatedContent: GeneratedContent,
-  companyName: string | null
+  companyName: string | null,
+  companyLogoUrl?: string | null
 ): MSADocumentProps {
   const metadata = generatedContent.metadata
 
@@ -135,17 +136,25 @@ export function mapSiteDocToMSA(
       title: 'Sign-Off',
       items: [
         {
-          type: 'fields',
-          data: generatedContent.signatories.flatMap((signatory) => [
-            { label: 'Signatory', value: signatory.name },
-            { label: 'Organisation', value: signatory.organization ?? '—' },
-            { label: 'Signature Date', value: formatDisplayDate(signatory.signature_date) },
-            { label: 'Status', value: signatory.signature_date ? 'Signed' : 'Pending' },
+          type: 'table',
+          columns: [
+            { header: 'Signatory', weight: 2 },
+            { header: 'Organisation', weight: 2 },
+            { header: 'Signature Date', weight: 1.4 },
+            { header: 'Status', weight: 1 },
+          ],
+          rows: generatedContent.signatories.map((signatory) => [
+            signatory.name,
+            signatory.organization ?? '—',
+            formatDisplayDate(signatory.signature_date),
+            signatory.signature_date ? 'Signed' : 'Pending',
           ]),
         },
       ],
     })
   }
+
+  const resolvedCompanyName = companyName ?? metadata.organization ?? 'Buildstate'
 
   return {
     documentType: DOC_TYPE_LABELS[document.document_type] ?? document.document_type,
@@ -155,8 +164,10 @@ export function mapSiteDocToMSA(
     title: document.title,
     subtitle: metadata.document_title,
     project: metadata.project_name ?? 'Unspecified Project',
-    client: companyName ?? metadata.organization ?? 'MSA Civil & Communications Pty Ltd',
-    preparedBy: metadata.prepared_by ?? 'SiteDocs',
+    client: resolvedCompanyName,
+    preparedBy: metadata.prepared_by ?? 'Buildstate',
+    companyName: resolvedCompanyName,
+    companyLogoUrl: companyLogoUrl ?? null,
     sections,
   }
 }

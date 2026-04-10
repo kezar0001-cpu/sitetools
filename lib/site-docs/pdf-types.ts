@@ -8,6 +8,8 @@ export interface MSADocumentProps {
   project: string
   client: string
   preparedBy: string
+  companyName: string
+  companyLogoUrl?: string | null
   sections: MSASection[]
 }
 
