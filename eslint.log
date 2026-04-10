@@ -1,8 +1,0 @@
-﻿C:\Users\kezar\site-signin\__tests__\create-editor.test.ts:60:22: Unexpected any. Specify a different type. [Error/@typescript-eslint/no-explicit-any]
-C:\Users\kezar\site-signin\app\(app)\dashboard\site-sign-in\page.tsx:213:48: 'onLogout' is defined but never used. [Error/@typescript-eslint/no-unused-vars]
-C:\Users\kezar\site-signin\app\(app)\dashboard\site-sign-in\page.tsx:221:10: 'userEmail' is assigned a value but never used. [Error/@typescript-eslint/no-unused-vars]
-C:\Users\kezar\site-signin\app\(public)\page.tsx:4:8: 'Image' is defined but never used. [Error/@typescript-eslint/no-unused-vars]
-C:\Users\kezar\site-signin\components\layout\AppTopbar.tsx:4:8: 'Link' is defined but never used. [Error/@typescript-eslint/no-unused-vars]
-C:\Users\kezar\site-signin\components\modules\ComingSoonPage.tsx:13:5: Do not assign to the variable `module`. See: https://nextjs.org/docs/messages/no-assign-module-variable [Error/@next/next/no-assign-module-variable]
-
-6 problems
