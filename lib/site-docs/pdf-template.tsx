@@ -135,6 +135,16 @@ const STATUS_CRITICAL = {
   borderRadius: 3,
 }
 
+const STATUS_IN_PROGRESS = {
+  fontFamily: 'Helvetica-Bold',
+  fontSize: 8,
+  color: BLUE,
+  backgroundColor: BLUEBG,
+  paddingVertical: 2,
+  paddingHorizontal: 6,
+  borderRadius: 3,
+}
+
 const OUTCOME_BLOCK = {
   backgroundColor: BLUEBG,
   borderWidth: 1,
@@ -326,6 +336,7 @@ const styles = StyleSheet.create({
   statusOpen: STATUS_OPEN,
   statusClosed: STATUS_CLOSED,
   statusCritical: STATUS_CRITICAL,
+  statusInProgress: STATUS_IN_PROGRESS,
   block: {
     marginBottom: 8,
   },
@@ -379,9 +390,15 @@ function rowColor(index: number): string {
   return index % 2 === 0 ? WHITE : LIGHT
 }
 
-function statusStyle(status: 'open' | 'closed' | 'critical') {
+function formatStatus(status: 'open' | 'closed' | 'critical' | 'in-progress'): string {
+  if (status === 'in-progress') return 'IN PROGRESS'
+  return status.toUpperCase()
+}
+
+function statusStyle(status: 'open' | 'closed' | 'critical' | 'in-progress') {
   if (status === 'closed') return styles.statusClosed
   if (status === 'critical') return styles.statusCritical
+  if (status === 'in-progress') return styles.statusInProgress
   return styles.statusOpen
 }
 
@@ -462,7 +479,7 @@ function StatusTable({
                   ...(isLast ? [styles.statusWrap] : []),
                 ]}
               >
-                {isLast ? <Text style={statusStyle(row.status)}>{row.status.toUpperCase()}</Text> : <Text>{row.cells[cellIndex] ?? ''}</Text>}
+                {isLast ? <Text style={statusStyle(row.status)}>{formatStatus(row.status)}</Text> : <Text>{row.cells[cellIndex] ?? ''}</Text>}
               </View>
             )
           })}
