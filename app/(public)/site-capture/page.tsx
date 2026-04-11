@@ -3,9 +3,9 @@ import SiteCaptureDemo from "@/components/animations/SiteCaptureDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
 
 export const metadata: Metadata = {
-  title: "Site Capture — Daily Site Records & Export Automation | Buildstate",
+  title: "SiteCapture — Daily Site Records & Export Automation | Buildstate",
   description:
-    "Capture site diaries, progress notes, weather, labour, and delivery updates in one place. Export polished daily records instantly for PM, client, and compliance workflows.",
+    "SiteCapture helps teams record site diaries, progress notes, weather, labour, and delivery updates in one place with instant export-ready records.",
 };
 
 const steps = [
