@@ -148,7 +148,7 @@ const CORE_MODULES: AppModule[] = [
     id: "itp-builder",
     slug: "siteitp",
     name: "SiteITP",
-    route: "/site-itp",
+    route: "/dashboard/site-itp",
     shortDescription: "Create and manage ITPs with hold/witness sign-off workflows.",
     moduleColor: "violet",
     publicVisible: true,
@@ -165,7 +165,7 @@ const CORE_MODULES: AppModule[] = [
     icon: "list-checks",
     status: "live",
     visibility: "primary",
-    href: "/site-itp",
+    href: "/dashboard/site-itp",
     color: "violet",
   },
   {
