@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Username and password are required." }, { status: 400 });
   }
 
-  const { username: configuredUsername, password: configuredPassword } = getCmsCredentials();
+  const { username: configuredUsername, password: configuredPassword } = await getCmsCredentials();
 
   if (body.username !== configuredUsername || body.password !== configuredPassword) {
     return NextResponse.json({ error: "Invalid admin credentials." }, { status: 401 });

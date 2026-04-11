@@ -15,14 +15,14 @@ import {
  *     → Validates the recovery token and returns the current username.
  *
  *   { action: "reset", token: string, username: string, password: string }
- *     → Validates the token, then writes new credentials to cms-credentials.json.
+ *     → Validates the token, then saves new credentials to Supabase.
  */
 export async function POST(request: Request) {
   if (!recoveryEnabled()) {
     return NextResponse.json(
       {
         error:
-          "Recovery is not configured. Add CMS_RECOVERY_TOKEN (minimum 16 characters) to your .env.local file, then restart the dev server.",
+          "Recovery is not configured. Add CMS_RECOVERY_TOKEN (minimum 16 characters) to your environment variables, then redeploy.",
       },
       { status: 503 },
     );
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
   // ── Verify action ──────────────────────────────────────────────────────────
   if (body.action === "verify") {
-    const { username } = getCmsCredentials();
+    const { username } = await getCmsCredentials();
     return NextResponse.json({ username });
   }
 
@@ -55,7 +55,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     }
 
-    writeCmsCredentials({ username: username.trim(), password });
+    try {
+      await writeCmsCredentials({ username: username.trim(), password });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error saving credentials.";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
     return NextResponse.json({ success: true });
   }
 
