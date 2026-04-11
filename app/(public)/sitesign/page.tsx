@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import SiteSignDemo from "@/components/animations/SiteSignDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
 
 export const metadata: Metadata = {
@@ -77,8 +78,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 16l-4 4m0 0h4m-4 0v-4m16-8V4m0 0h-4m4 0l-4 4M9 12a3 3 0 116 0v4a3 3 0 11-6 0v-4z" />
       </svg>
     ),
-    title: "Offline capable",
-    description: "Works in low-connectivity site environments so teams can keep signing in when signal is unreliable.",
+    title: "Offline-ready sign-in",
+    description: "Keep crews moving in low-connectivity areas, then sync attendance records once signal returns.",
   },
 ];
 
@@ -109,19 +110,10 @@ export default function SiteSignPage() {
       }}
       demoPanel={{
         title: "From setup to live in minutes.",
-        description: "Three steps and your gate is digital.",
+        description: "See how fast teams can move from gate QR setup to compliant digital attendance.",
         bullets: steps.map((step, index) => `${index + 1}. ${step.title}`),
-        panelTitle: "How it works",
-        panelContent: (
-          <div className="space-y-4">
-            {steps.map((step) => (
-              <article key={step.title} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-                <h3 className="text-sm font-black text-zinc-100">{step.title}</h3>
-                <p className="mt-1 text-sm font-medium leading-relaxed text-zinc-400">{step.description}</p>
-              </article>
-            ))}
-          </div>
-        ),
+        panelTitle: "Live SiteSign demo",
+        panelContent: <SiteSignDemo />,
       }}
       features={{
         eyebrow: "Features",
