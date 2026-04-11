@@ -385,6 +385,20 @@ export function getSecondaryNavModules(): AppModule[] {
   });
 }
 
+export function getInternalNavModules(): AppModule[] {
+  const INTERNAL_ORDER: ModuleId[] = [
+    "dashboard",
+    "sites-projects",
+    "team",
+    "settings",
+  ];
+
+  const ordered = MODULES.filter((m) => m.visibility === "internal");
+  return ordered.sort(
+    (a, b) => INTERNAL_ORDER.indexOf(a.id) - INTERNAL_ORDER.indexOf(b.id),
+  );
+}
+
 export function getRoadmapModules(): AppModule[] {
   const isRoadmapEnabled = process.env.NEXT_PUBLIC_SHOW_ROADMAP_MODULES !== "false";
   if (!isRoadmapEnabled) return [];

@@ -2,27 +2,31 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { getPublicModules } from "@/lib/modules";
 
-const products = [
-  {
-    href: "/sitesign",
-    name: "SiteSign",
-    desc: "QR gate sign-in & live headcount",
-    color: "text-amber-600",
-    dot: "bg-amber-400",
-  },
-  {
-    href: "/siteplan",
-    name: "SitePlan",
-    desc: "Programme planning & delivery tracking",
-    color: "text-blue-600",
-    dot: "bg-blue-500",
-  },
-];
+const colorByModule: Record<string, { color: string; dot: string }> = {
+  "site-sign-in": { color: "text-amber-600", dot: "bg-amber-400" },
+  planner: { color: "text-blue-600", dot: "bg-blue-500" },
+  "site-capture": { color: "text-sky-600", dot: "bg-sky-500" },
+  "itp-builder": { color: "text-violet-600", dot: "bg-violet-500" },
+  "site-docs": { color: "text-cyan-600", dot: "bg-cyan-500" },
+};
 
 export function PublicNavbar() {
   const mobileMenuRef = useRef<HTMLDetailsElement>(null);
   const [productsOpen, setProductsOpen] = useState(false);
+  const products = getPublicModules().map((module) => {
+    const moduleColors = colorByModule[module.id] ?? {
+      color: "text-slate-700",
+      dot: "bg-slate-400",
+    };
+    return {
+      href: `/tools/${module.id}`,
+      name: module.name,
+      desc: module.shortDescription,
+      ...moduleColors,
+    };
+  });
 
   const closeMobileMenu = () => {
     mobileMenuRef.current?.removeAttribute("open");
@@ -72,9 +76,6 @@ export function PublicNavbar() {
                       </div>
                     </Link>
                   ))}
-                  <div className="border-t border-slate-100 pt-2 px-3 pb-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">SiteCapture · SiteITP · Coming soon</p>
-                  </div>
                 </div>
               )}
             </div>
