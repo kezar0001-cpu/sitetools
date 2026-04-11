@@ -102,9 +102,9 @@ const audiences = [
 
 export default function SitePlanPage() {
   return (
-    <div className="bg-white">
+    <div className="bg-zinc-950">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-slate-950 py-24 lg:py-32">
+      <section className="relative overflow-hidden bg-zinc-950 py-24 lg:py-32">
         <div className="pointer-events-none absolute inset-0 opacity-[0.06]">
           <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -144,7 +144,7 @@ export default function SitePlanPage() {
               Log in
             </Link>
           </div>
-          <p className="text-xs text-slate-500 font-medium">Free to start · No credit card · Cancel anytime</p>
+          <p className="text-xs text-zinc-400 font-medium">Free to start · No credit card · Cancel anytime</p>
         </div>
       </section>
 
@@ -153,9 +153,9 @@ export default function SitePlanPage() {
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-6">
             {audiences.map((a) => (
-              <div key={a.role} className="bg-white rounded-2xl border border-blue-100 p-6 shadow-sm">
+              <div key={a.role} className="bg-zinc-950 rounded-2xl border border-blue-100 p-6 shadow-sm">
                 <p className="text-xs font-black uppercase tracking-widest text-blue-600 mb-2">{a.role}</p>
-                <p className="text-sm font-semibold text-slate-700 leading-relaxed">{a.task}</p>
+                <p className="text-sm font-semibold text-zinc-400 leading-relaxed">{a.task}</p>
               </div>
             ))}
           </div>
@@ -163,20 +163,20 @@ export default function SitePlanPage() {
       </section>
 
       {/* ── How it works ─────────────────────────────────────────────────── */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-zinc-950">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3">
             <p className="text-xs font-black uppercase tracking-widest text-blue-600">How it works</p>
-            <h2 className="text-4xl font-black text-slate-900">From programme to delivery — in one view.</h2>
+            <h2 className="text-4xl font-black text-zinc-50">From programme to delivery — in one view.</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {steps.map((step, index) => (
-              <article key={step.title} className="rounded-3xl border border-blue-100 bg-slate-50 p-8 hover:shadow-lg hover:border-blue-200 transition-all">
+              <article key={step.title} className="rounded-3xl border border-blue-100 bg-zinc-900 p-8 hover:shadow-lg hover:border-blue-200 transition-all">
                 <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white font-black text-xl">
                   {index + 1}
                 </span>
-                <h3 className="text-xl font-black text-slate-900 mt-6">{step.title}</h3>
-                <p className="text-slate-600 mt-3 font-medium leading-relaxed">{step.description}</p>
+                <h3 className="text-xl font-black text-zinc-50 mt-6">{step.title}</h3>
+                <p className="text-zinc-400 mt-3 font-medium leading-relaxed">{step.description}</p>
               </article>
             ))}
           </div>
@@ -184,20 +184,20 @@ export default function SitePlanPage() {
       </section>
 
       {/* ── Features ─────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-slate-50">
+      <section className="py-24 bg-zinc-900">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3">
             <p className="text-xs font-black uppercase tracking-widest text-blue-600">Features</p>
-            <h2 className="text-4xl font-black text-slate-900">Everything you need to run a live programme.</h2>
+            <h2 className="text-4xl font-black text-zinc-50">Everything you need to run a live programme.</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature) => (
-              <div key={feature.title} className="rounded-2xl border border-slate-200 bg-white p-7 space-y-4 hover:border-blue-200 hover:shadow-md transition-all">
+              <div key={feature.title} className="rounded-2xl border border-slate-200 bg-zinc-950 p-7 space-y-4 hover:border-blue-200 hover:shadow-md transition-all">
                 <div className="w-11 h-11 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
                   {feature.icon}
                 </div>
-                <h3 className="text-lg font-black text-slate-900">{feature.title}</h3>
-                <p className="text-slate-600 text-sm font-medium leading-relaxed">{feature.desc}</p>
+                <h3 className="text-lg font-black text-zinc-50">{feature.title}</h3>
+                <p className="text-zinc-400 text-sm font-medium leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
