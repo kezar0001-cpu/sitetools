@@ -19,9 +19,9 @@ export default function CmsAdminPage() {
         <header className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">CMS</p>
-            <h1 className="text-3xl font-black text-slate-900 mt-1">Hero Media</h1>
+            <h1 className="text-3xl font-black text-slate-900 mt-1">Site Media</h1>
             <p className="text-sm text-slate-600 mt-2 max-w-2xl">
-              Update the homepage hero background video and hero card image. Saves go live immediately and fall back to defaults if unset.
+              Manage all public site media — background video, hero images, and module visuals. Changes go live immediately and fall back to defaults if unset.
             </p>
           </div>
           <form action="/api/cms/logout" method="post">
