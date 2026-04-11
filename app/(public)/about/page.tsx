@@ -95,7 +95,7 @@ export default function AboutPage() {
               <p className="text-lg font-medium leading-relaxed text-zinc-400">
                 Project engineers, site supervisors, and leading hands carry enormous operational
                 responsibility. They manage crews, compliance, programmes, and quality — often with
-                tools that weren't designed for them.
+                tools that were not designed for them.
               </p>
               <p className="text-base leading-relaxed text-zinc-500">
                 Buildstate exists to change that. We build software around the actual daily workflows
@@ -115,7 +115,7 @@ export default function AboutPage() {
                 end of a twelve-hour shift.
               </p>
               <p className="text-base leading-relaxed text-zinc-500">
-                This isn't a technology gap — it's a design gap. The tools haven't been built for
+                This is not a technology gap — it is a design gap. The tools have not been built for
                 the people who need them most. Buildstate closes that gap with software that is
                 genuinely usable in the field, not just in the office.
               </p>
