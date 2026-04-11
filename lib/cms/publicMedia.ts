@@ -82,7 +82,7 @@ const fetchEditableMediaOverridesCached = unstable_cache(
     }, {});
   },
   ["public-site-media-overrides"],
-  { revalidate: 300 }
+  { revalidate: 300, tags: ["public-site-media-overrides"] }
 );
 
 export async function fetchEditableMediaOverrides(): Promise<Record<string, PublicSiteMediaRow>> {

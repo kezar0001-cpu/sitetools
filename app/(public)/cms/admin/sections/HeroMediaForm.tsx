@@ -126,7 +126,13 @@ function VideoEditor({ slot, value, onSaved }: { slot: string; value: VideoSlot;
     setErrorMsg(null);
     try {
       const { url } = await uploadFile(slot, kind, file);
-      await handleSave(kind === "video" ? url : undefined, kind === "poster" ? url : undefined);
+      // The upload route already upserts the DB — just update local state directly
+      // so the preview refreshes without firing a redundant PUT that could fail.
+      if (kind === "video") setSrc(url);
+      else setPoster(url);
+      setState("saved");
+      onSaved();
+      setTimeout(() => setState("idle"), 1500);
     } catch (err) {
       setState("error");
       setErrorMsg(err instanceof Error ? err.message : "Upload failed");
@@ -193,7 +199,11 @@ function ImageEditor({ slot, value, onSaved }: { slot: string; value: MediaSlot;
     setErrorMsg(null);
     try {
       const { url } = await uploadFile(slot, "image", file);
-      await handleSave(url);
+      // Upload route already upserts the DB — update local state directly.
+      setSrc(url);
+      setState("saved");
+      onSaved();
+      setTimeout(() => setState("idle"), 1500);
     } catch (err) {
       setState("error");
       setErrorMsg(err instanceof Error ? err.message : "Upload failed");
