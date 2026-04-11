@@ -1,13 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 export function CmsLoginClient() {
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("password") === "updated") {
+      toast.success("Password updated");
+    }
+  }, [searchParams]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,6 +45,25 @@ export function CmsLoginClient() {
     }
 
     window.location.href = "/cms/admin";
+  }
+
+  async function handleResetSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResetError(null);
+    setResetLoading(true);
+
+    const { error: resetRequestError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: `${window.location.origin}/cms/reset`,
+    });
+
+    setResetLoading(false);
+
+    if (resetRequestError) {
+      setResetError(resetRequestError.message);
+      return;
+    }
+
+    toast.success("Check your email for reset instructions");
   }
 
   return (
@@ -62,7 +95,7 @@ export function CmsLoginClient() {
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               required
-              className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900"
+              className="w-full min-h-12 border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900"
               placeholder="admin"
             />
           </div>
@@ -76,7 +109,7 @@ export function CmsLoginClient() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900"
+              className="w-full min-h-12 border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900"
               placeholder="••••••••"
             />
           </div>
@@ -84,11 +117,55 @@ export function CmsLoginClient() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-slate-900 hover:bg-black disabled:opacity-70 text-white font-bold px-4 py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-sm"
+            className="w-full min-h-12 bg-slate-900 hover:bg-black disabled:opacity-70 text-white font-bold px-4 py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-sm"
           >
             {loading ? "Logging in..." : "Log in to CMS"}
           </button>
         </form>
+
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              setShowForgotPassword((value) => !value);
+              setResetError(null);
+            }}
+            className="min-h-12 w-full text-center text-sm font-semibold text-amber-700 hover:text-amber-800"
+          >
+            Forgot Password?
+          </button>
+        </div>
+
+        {showForgotPassword && (
+          <form onSubmit={handleResetSubmit} className="space-y-4 border-t border-slate-200 pt-4">
+            {resetError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold">{resetError}</div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5" htmlFor="cms-reset-email">
+                Admin Email
+              </label>
+              <input
+                id="cms-reset-email"
+                type="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                required
+                className="w-full min-h-12 border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-slate-900"
+                placeholder="admin@company.com"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={resetLoading}
+              className="w-full min-h-12 bg-amber-400 hover:bg-amber-300 disabled:opacity-70 text-amber-950 font-bold px-4 py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg text-sm"
+            >
+              {resetLoading ? "Sending..." : "Send Reset Link"}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
