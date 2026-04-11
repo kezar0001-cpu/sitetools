@@ -89,20 +89,20 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: "Unknown video slot." }, { status: 400 });
   }
 
-  // Basic sanitization
-  const patch: Record<string, unknown> = {
-    slot,
-    type: body.type,
-    src: body.src ?? null,
-    poster: body.poster ?? null,
-    alt: body.alt ?? null,
-    width: body.width ?? null,
-    height: body.height ?? null,
-    source_name: body.source_name ?? null,
-    source_url: body.source_url ?? null,
-    license: body.license ?? null,
-    notes: body.notes ?? null,
-  };
+  // Only include fields that were explicitly sent — omitting a field leaves its
+  // existing DB value intact.  Previously every PUT nulled out every metadata
+  // column it didn't receive, e.g. clearing the poster when saving just the
+  // video URL.
+  const patch: Record<string, unknown> = { slot, type: body.type };
+  if (body.src !== undefined) patch.src = body.src ?? null;
+  if (body.poster !== undefined) patch.poster = body.poster ?? null;
+  if (body.alt !== undefined) patch.alt = body.alt ?? null;
+  if (body.width !== undefined) patch.width = body.width ?? null;
+  if (body.height !== undefined) patch.height = body.height ?? null;
+  if (body.source_name !== undefined) patch.source_name = body.source_name ?? null;
+  if (body.source_url !== undefined) patch.source_url = body.source_url ?? null;
+  if (body.license !== undefined) patch.license = body.license ?? null;
+  if (body.notes !== undefined) patch.notes = body.notes ?? null;
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from(TABLE).upsert(patch);

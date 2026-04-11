@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SitePlanDemo from "@/components/animations/SitePlanDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
+import { resolveMediaSlot } from "@/lib/cms/publicMedia";
 
 export const metadata: Metadata = {
   title: "SitePlan — Civil Programme Planning & Delivery Tracking | Buildstate",
@@ -91,7 +92,8 @@ const comparison = [
   { item: "Client reporting", baseline: "Manual summary prep", module: "Export-ready delivery snapshots" },
 ];
 
-export default function SitePlanPage() {
+export default async function SitePlanPage() {
+  const heroImage = await resolveMediaSlot("sitePlanWorkflow");
   return (
     <ModulePageTemplate
       moduleName="Buildstate SitePlan"
@@ -108,6 +110,7 @@ export default function SitePlanPage() {
         primaryCta: { href: "/login?signup=1&intent=siteplan", label: "Start SitePlan free" },
         secondaryCta: { href: "/login", label: "Log in" },
         helperText: "Free to start · No credit card · Cancel anytime",
+        heroImage: { src: heroImage.src, alt: heroImage.alt },
       }}
       demoPanel={{
         title: "From programme to delivery — in one view.",

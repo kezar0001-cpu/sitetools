@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteITPDemo from "@/components/animations/SiteITPDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
+import { resolveMediaSlot } from "@/lib/cms/publicMedia";
 
 export const metadata: Metadata = {
   title: "SiteITP — Digital ITP Checklists, Hold Points & Sign-Offs | Buildstate",
@@ -89,7 +90,8 @@ const comparison = [
   { item: "Handover prep", baseline: "Manual QA pack assembly", module: "Export-ready QA evidence" },
 ];
 
-export default function SiteItpPage() {
+export default async function SiteItpPage() {
+  const heroImage = await resolveMediaSlot("siteItpWorkflow");
   return (
     <ModulePageTemplate
       moduleName="Buildstate SiteITP"
@@ -107,6 +109,7 @@ export default function SiteItpPage() {
         primaryCta: { href: "/login?signup=1&intent=siteitp", label: "Start SiteITP free" },
         secondaryCta: { href: "/login", label: "Log in" },
         helperText: "Structured QA · Fewer bottlenecks · Handover-ready outputs",
+        heroImage: { src: heroImage.src, alt: heroImage.alt },
       }}
       demoPanel={{
         eyebrow: "See it in action",

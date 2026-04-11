@@ -96,6 +96,49 @@ async function uploadFile(slot: string, kind: "image" | "poster" | "video", file
   return (await res.json()) as { url: string };
 }
 
+/**
+ * Upload a video by getting a signed URL from the server, then PUT-ing the file
+ * directly from the browser to Supabase storage.  This bypasses the serverless
+ * function body-size limit (~4.5 MB on most platforms) that causes large video
+ * uploads to silently fail when routed through the server.
+ */
+async function uploadVideoViaSignedUrl(slot: string, file: File): Promise<string> {
+  // Step 1 — ask the server for a signed upload URL
+  const urlRes = await fetch("/api/cms/public-media/upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      slot,
+      kind: "video",
+      fileName: file.name,
+      // Normalise to video/mp4 so stored object has the correct MIME type for
+      // playback — iOS Safari reports .mp4 as video/quicktime.
+      contentType: "video/mp4",
+      size: file.size,
+    }),
+  });
+  if (!urlRes.ok) {
+    const j = await urlRes.json().catch(() => ({}));
+    throw new Error((j as { error?: string }).error ?? "Failed to prepare upload");
+  }
+  const { signedUrl, publicUrl } = (await urlRes.json()) as { signedUrl: string; publicUrl: string };
+
+  // Step 2 — upload directly from the browser to Supabase (no server middleman)
+  const putRes = await fetch(signedUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "Content-Type": "video/mp4" },
+  });
+  if (!putRes.ok) {
+    throw new Error("Storage upload failed. Please try again.");
+  }
+
+  // Step 3 — save the public URL to the database (only src; poster is preserved)
+  await saveSlot({ slot, type: "video", src: publicUrl });
+
+  return publicUrl;
+}
+
 function VideoEditor({ slot, value, onSaved }: { slot: string; value: VideoSlot; onSaved: () => void }) {
   const [src, setSrc] = useState(value.src);
   const [poster, setPoster] = useState(value.poster);
@@ -125,9 +168,16 @@ function VideoEditor({ slot, value, onSaved }: { slot: string; value: VideoSlot;
     setState("saving");
     setErrorMsg(null);
     try {
-      const { url } = await uploadFile(slot, kind, file);
-      // The upload route already upserts the DB — just update local state directly
-      // so the preview refreshes without firing a redundant PUT that could fail.
+      let url: string;
+      if (kind === "video") {
+        // Use signed URL so the video goes browser → Supabase directly,
+        // bypassing the serverless function body-size limit.
+        url = await uploadVideoViaSignedUrl(slot, file);
+      } else {
+        // Poster images are small — direct server upload is fine.
+        const result = await uploadFile(slot, kind, file);
+        url = result.url;
+      }
       if (kind === "video") setSrc(url);
       else setPoster(url);
       setState("saved");

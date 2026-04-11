@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteDocsDemo from "@/components/animations/SiteDocsDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
+import { resolveMediaSlot } from "@/lib/cms/publicMedia";
 
 export const metadata: Metadata = {
   title: "SiteDocs — Controlled Construction Document Workflow | Buildstate",
@@ -88,7 +89,8 @@ const comparison = [
   { item: "Audit trace", baseline: "Partial history", module: "Complete change timeline" },
 ];
 
-export default function SiteDocsPage() {
+export default async function SiteDocsPage() {
+  const heroImage = await resolveMediaSlot("siteDocsWorkflow");
   return (
     <ModulePageTemplate
       moduleName="Buildstate SiteDocs"
@@ -106,6 +108,7 @@ export default function SiteDocsPage() {
         primaryCta: { href: "/login?signup=1&intent=sitedocs", label: "Start SiteDocs free" },
         secondaryCta: { href: "/login", label: "Log in" },
         helperText: "Central register · Clear approvals · Audit-friendly history",
+        heroImage: { src: heroImage.src, alt: heroImage.alt },
       }}
       demoPanel={{
         eyebrow: "See it in action",

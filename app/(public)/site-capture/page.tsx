@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteCaptureDemo from "@/components/animations/SiteCaptureDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
+import { resolveMediaSlot } from "@/lib/cms/publicMedia";
 
 export const metadata: Metadata = {
   title: "SiteCapture — Daily Site Records & Export Automation | Buildstate",
@@ -88,7 +89,8 @@ const comparison = [
   { item: "Admin time", baseline: "High after-hours data cleanup", module: "Reduced by structured capture" },
 ];
 
-export default function SiteCapturePage() {
+export default async function SiteCapturePage() {
+  const heroImage = await resolveMediaSlot("siteCaptureWorkflow");
   return (
     <ModulePageTemplate
       moduleName="Buildstate SiteCapture"
@@ -106,6 +108,7 @@ export default function SiteCapturePage() {
         primaryCta: { href: "/login?signup=1&intent=sitecapture", label: "Start SiteCapture free" },
         secondaryCta: { href: "/login", label: "Log in" },
         helperText: "Fast setup · Built for site teams · Export-ready from day one",
+        heroImage: { src: heroImage.src, alt: heroImage.alt },
       }}
       demoPanel={{
         eyebrow: "See it in action",

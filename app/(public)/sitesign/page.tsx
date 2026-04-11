@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteSignDemo from "@/components/animations/SiteSignDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
+import { resolveMediaSlot } from "@/lib/cms/publicMedia";
 
 export const metadata: Metadata = {
   title: "SiteSign — Digital Site Sign-In for Construction | Buildstate",
@@ -91,7 +92,8 @@ const comparison = [
   { item: "Audit preparation", baseline: "Hours of data entry", module: "One-click export" },
 ];
 
-export default function SiteSignPage() {
+export default async function SiteSignPage() {
+  const heroImage = await resolveMediaSlot("siteSignHero");
   return (
     <ModulePageTemplate
       moduleName="Buildstate SiteSign"
@@ -108,6 +110,7 @@ export default function SiteSignPage() {
         primaryCta: { href: "/login?signup=1&intent=sitesign", label: "Start SiteSign free" },
         secondaryCta: { href: "/login", label: "Log in" },
         helperText: "Free tier available · No credit card · Set up in under 10 min",
+        heroImage: { src: heroImage.src, alt: heroImage.alt },
       }}
       demoPanel={{
         title: "From setup to live in minutes.",
