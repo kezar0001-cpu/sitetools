@@ -1,5 +1,11 @@
 import { CmsLoginClient } from "./CmsLoginClient";
 
-export default function CmsLoginPage() {
-  return <CmsLoginClient />;
+type CmsLoginPageProps = {
+  searchParams: {
+    password?: string;
+  };
+};
+
+export default function CmsLoginPage({ searchParams }: CmsLoginPageProps) {
+  return <CmsLoginClient passwordUpdated={searchParams.password === "updated"} />;
 }
