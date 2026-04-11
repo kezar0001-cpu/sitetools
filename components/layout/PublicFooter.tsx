@@ -105,7 +105,12 @@ export function PublicFooter() {
 
         <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 md:flex-row">
           <p className="text-xs text-slate-500">&copy; {new Date().getFullYear()} Buildstate. All rights reserved.</p>
-          <p className="text-xs text-slate-600 font-medium">Digital operations for civil construction delivery.</p>
+          <div className="flex items-center gap-3 text-xs font-medium text-slate-600">
+            <span>Digital operations for civil construction delivery.</span>
+            <Link href="/cms" className="text-slate-500 hover:text-slate-300 transition-colors" aria-label="Open content management">
+              CMS
+            </Link>
+          </div>
         </div>
       </div>
     </footer>
