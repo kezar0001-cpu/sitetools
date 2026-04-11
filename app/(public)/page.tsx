@@ -2,12 +2,15 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
 import { loadResolvedMediaSlots } from "@/lib/cms/publicMedia";
+import { getPublicModules, type AppModule } from "@/lib/modules";
 
 const SiteSignDemo = dynamic(() => import("@/components/animations/SiteSignDemo"), { ssr: false });
 const SitePlanDemo = dynamic(() => import("@/components/animations/SitePlanDemo"), { ssr: false });
 const SiteCaptureDemo = dynamic(() => import("@/components/animations/SiteCaptureDemo"), { ssr: false });
 const SiteITPDemo = dynamic(() => import("@/components/animations/SiteITPDemo"), { ssr: false });
+const SiteDocsDemo = dynamic(() => import("@/components/animations/SiteDocsDemo"), { ssr: false });
 
 export const metadata: Metadata = {
   title: "Buildstate — Civil Site Operations Platform",
@@ -23,6 +26,117 @@ function getFirstQueryValue(value: string | string[] | undefined): string | null
   if (!value) return null;
   if (Array.isArray(value)) return value[0] ?? null;
   return value;
+}
+
+
+const MODULE_DEMO_BY_SLUG: Partial<Record<AppModule["slug"], ComponentType>> = {
+  sitesign: SiteSignDemo,
+  siteplan: SitePlanDemo,
+  sitecapture: SiteCaptureDemo,
+  siteitp: SiteITPDemo,
+  sitedocs: SiteDocsDemo,
+};
+
+const MODULE_STYLE_BY_SLUG: Partial<Record<AppModule["slug"], {
+  badgeClassName: string;
+  iconWrapClassName: string;
+  cardClassName: string;
+  glowClassName: string;
+  chipClassName: string;
+  ctaClassName: string;
+}>> = {
+  sitesign: {
+    badgeClassName: "bg-amber-400 text-amber-950",
+    iconWrapClassName: "bg-amber-400 text-amber-950",
+    cardClassName: "hover:border-amber-400/30 hover:shadow-amber-400/5",
+    glowClassName: "bg-amber-400/5 group-hover:bg-amber-400/10",
+    chipClassName: "text-amber-400 bg-amber-400/10",
+    ctaClassName: "text-amber-400",
+  },
+  siteplan: {
+    badgeClassName: "bg-blue-600 text-white",
+    iconWrapClassName: "bg-blue-600 text-white",
+    cardClassName: "hover:border-blue-400/30 hover:shadow-blue-400/5",
+    glowClassName: "bg-blue-400/5 group-hover:bg-blue-400/10",
+    chipClassName: "text-blue-400 bg-blue-400/10",
+    ctaClassName: "text-blue-400",
+  },
+  sitecapture: {
+    badgeClassName: "bg-sky-500 text-white",
+    iconWrapClassName: "bg-sky-500 text-white",
+    cardClassName: "hover:border-sky-400/30 hover:shadow-sky-400/5",
+    glowClassName: "bg-sky-400/5 group-hover:bg-sky-400/10",
+    chipClassName: "text-sky-400 bg-sky-400/10",
+    ctaClassName: "text-sky-400",
+  },
+  siteitp: {
+    badgeClassName: "bg-violet-600 text-white",
+    iconWrapClassName: "bg-violet-600 text-white",
+    cardClassName: "hover:border-violet-400/30 hover:shadow-violet-400/5",
+    glowClassName: "bg-violet-400/5 group-hover:bg-violet-400/10",
+    chipClassName: "text-violet-400 bg-violet-400/10",
+    ctaClassName: "text-violet-400",
+  },
+  sitedocs: {
+    badgeClassName: "bg-cyan-500 text-cyan-950",
+    iconWrapClassName: "bg-cyan-500 text-cyan-950",
+    cardClassName: "hover:border-cyan-400/30 hover:shadow-cyan-400/5",
+    glowClassName: "bg-cyan-400/5 group-hover:bg-cyan-400/10",
+    chipClassName: "text-cyan-300 bg-cyan-400/10",
+    ctaClassName: "text-cyan-300",
+  },
+};
+
+const DEFAULT_MODULE_STYLE = {
+  badgeClassName: "bg-amber-400 text-amber-950",
+  iconWrapClassName: "bg-zinc-700 text-zinc-100",
+  iconClassName: "h-6 w-6",
+  cardClassName: "hover:border-amber-400/30 hover:shadow-amber-400/5",
+  glowClassName: "bg-zinc-500/10 group-hover:bg-zinc-400/20",
+  chipClassName: "text-zinc-300 bg-zinc-800",
+  ctaClassName: "text-amber-400",
+};
+
+function getModuleIcon(slug: AppModule["slug"]) {
+  if (slug === "sitesign") {
+    return (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+      </svg>
+    );
+  }
+  if (slug === "siteplan") {
+    return (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+      </svg>
+    );
+  }
+  if (slug === "sitecapture") {
+    return (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    );
+  }
+  if (slug === "siteitp") {
+    return (
+      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  );
+}
+
+function getPublicModuleHref(module: AppModule) {
+  if (module.slug === "sitesign" || module.slug === "siteplan") return `/${module.slug}`;
+  if (module.slug.startsWith("site")) return `/${module.slug.replace(/^site(?=[a-z])/, "site-")}`;
+  return module.route;
 }
 
 const TESTIMONIALS = [
@@ -187,128 +301,56 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
               Everything your site team needs.
             </h2>
             <p className="text-lg text-zinc-400 font-medium max-w-2xl mx-auto">
-              Four modules, one workspace. Each one purpose-built for the realities of civil site delivery.
+              Core modules, one workspace. Purpose-built for the realities of civil site delivery.
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            {/* SiteSign */}
-            <Link
-              href="/sitesign"
-              className="group relative rounded-3xl border border-zinc-700/50 bg-zinc-900 p-8 hover:border-amber-400/30 hover:shadow-xl hover:shadow-amber-400/5 transition-all overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-48 h-48 bg-amber-400/5 rounded-full -mr-16 -mt-16 group-hover:bg-amber-400/10 transition-colors" />
-              <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-amber-400 flex items-center justify-center text-amber-950 mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
-                  </svg>
-                </div>
-                <div className="inline-block bg-amber-400 text-amber-950 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
-                <h3 className="text-2xl font-black text-zinc-50 mb-2">SiteSign</h3>
-                <p className="text-zinc-400 font-medium leading-relaxed mb-4">
-                  QR-based digital gate sign-in. Workers scan with their phone — no app needed. Live headcount, compliance exports, and signature capture.
-                </p>
-                <div className="mb-6">
-                  <SiteSignDemo />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {["QR sign-in", "Live headcount", "CSV / PDF exports", "Signatures"].map((t) => (
-                    <span key={t} className="text-xs font-bold text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-full">{t}</span>
-                  ))}
-                </div>
-                <div className="mt-6 flex items-center gap-2 text-amber-400 font-bold text-sm group-hover:gap-3 transition-all">
-                  Explore SiteSign
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </div>
-              </div>
-            </Link>
+            {getPublicModules().map((module) => {
+              const DemoComponent = MODULE_DEMO_BY_SLUG[module.slug];
+              const style = MODULE_STYLE_BY_SLUG[module.slug] ?? DEFAULT_MODULE_STYLE;
 
-            {/* SitePlan */}
-            <Link
-              href="/siteplan"
-              className="group relative rounded-3xl border border-zinc-700/50 bg-zinc-900 p-8 hover:border-blue-400/30 hover:shadow-xl hover:shadow-blue-400/5 transition-all overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-48 h-48 bg-blue-400/5 rounded-full -mr-16 -mt-16 group-hover:bg-blue-400/10 transition-colors" />
-              <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                  </svg>
-                </div>
-                <div className="inline-block bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
-                <h3 className="text-2xl font-black text-zinc-50 mb-2">SitePlan</h3>
-                <p className="text-zinc-400 font-medium leading-relaxed mb-4">
-                  Civil programme planning and delivery tracking. Build your programme, track daily progress, manage delays, and keep field and office teams aligned.
-                </p>
-                <div className="mb-6">
-                  <SitePlanDemo />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {["Programme tracking", "Milestone management", "Delay flags", "Team alignment"].map((t) => (
-                    <span key={t} className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2.5 py-1 rounded-full">{t}</span>
-                  ))}
-                </div>
-                <div className="mt-6 flex items-center gap-2 text-blue-400 font-bold text-sm group-hover:gap-3 transition-all">
-                  Explore SitePlan
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </div>
-              </div>
-            </Link>
+              return (
+                <Link
+                  key={module.id}
+                  href={getPublicModuleHref(module)}
+                  className={`group relative rounded-3xl border border-zinc-700/50 bg-zinc-900 p-8 transition-all overflow-hidden hover:shadow-xl ${style.cardClassName}`}
+                >
+                  <div className={`absolute top-0 right-0 w-48 h-48 rounded-full -mr-16 -mt-16 transition-colors ${style.glowClassName}`} />
+                  <div className="relative">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform ${style.iconWrapClassName}`}>
+                      {getModuleIcon(module.slug)}
+                    </div>
+                    <div className={`inline-block text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3 ${style.badgeClassName}`}>
+                      Live
+                    </div>
+                    <h3 className="text-2xl font-black text-zinc-50 mb-2">{module.name}</h3>
+                    <p className="text-zinc-400 font-medium leading-relaxed mb-4">{module.shortDescription}</p>
 
-            {/* SiteCapture */}
-            <div className="group relative rounded-3xl border border-zinc-700/50 bg-zinc-900 p-8 overflow-hidden">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-sky-400/5 rounded-full -mr-16 -mt-16" />
-              <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-sky-500 flex items-center justify-center text-white mb-6">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="inline-block bg-sky-500 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
-                <h3 className="text-2xl font-black text-zinc-50 mb-2">SiteCapture</h3>
-                <p className="text-zinc-400 font-medium leading-relaxed mb-4">
-                  Daily weather conditions, work completed, delays, instructions, and photos. Generate professional reports for your principal contractor.
-                </p>
-                <div className="mb-6">
-                  <SiteCaptureDemo />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {["Daily records", "Weather logging", "Photo attachments", "PDF reports"].map((t) => (
-                    <span key={t} className="text-xs font-bold text-sky-400 bg-sky-400/10 px-2.5 py-1 rounded-full">{t}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
+                    {DemoComponent ? (
+                      <div className="mb-6">
+                        <DemoComponent />
+                      </div>
+                    ) : null}
 
-            {/* SiteITP */}
-            <div className="group relative rounded-3xl border border-zinc-700/50 bg-zinc-900 p-8 overflow-hidden">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-violet-400/5 rounded-full -mr-16 -mt-16" />
-              <div className="relative">
-                <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center text-white mb-6">
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="inline-block bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full mb-3">Live</div>
-                <h3 className="text-2xl font-black text-zinc-50 mb-2">SiteITP</h3>
-                <p className="text-zinc-400 font-medium leading-relaxed mb-4">
-                  Hold &amp; witness point checklists, AI-generated or built manually. Share QR codes for sign-off — no app or account required for inspectors.
-                </p>
-                <div className="mb-6">
-                  <SiteITPDemo />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {["ITP checklists", "AI generation", "QR sign-off", "Hold & witness"].map((t) => (
-                    <span key={t} className="text-xs font-bold text-violet-400 bg-violet-400/10 px-2.5 py-1 rounded-full">{t}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
+                    <div className="flex flex-wrap gap-2">
+                      {module.featureBullets.map((feature) => (
+                        <span key={feature} className={`text-xs font-bold px-2.5 py-1 rounded-full ${style.chipClassName}`}>
+                          {feature}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className={`mt-6 flex items-center gap-2 font-bold text-sm group-hover:gap-3 transition-all ${style.ctaClassName}`}>
+                      Explore {module.name}
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
