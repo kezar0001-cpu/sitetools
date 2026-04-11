@@ -8,7 +8,6 @@ const DIARY_TEXT =
 export default function SiteCaptureDemo() {
   const [displayText, setDisplayText] = useState('');
   const [cursorOn, setCursorOn] = useState(true);
-  const [showButtons, setShowButtons] = useState(false);
   const [btnVisible, setBtnVisible] = useState([false, false, false]);
   const [pulsePDF, setPulsePDF] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -19,7 +18,6 @@ export default function SiteCaptureDemo() {
   useEffect(() => {
     setDisplayText('');
     setCursorOn(true);
-    setShowButtons(false);
     setBtnVisible([false, false, false]);
     setPulsePDF(false);
     setShowToast(false);
@@ -36,7 +34,6 @@ export default function SiteCaptureDemo() {
         clearInterval(typingTimer);
 
         setTimeout(() => {
-          setShowButtons(true);
           setTimeout(() => setBtnVisible([true, false, false]), 60);
           setTimeout(() => setBtnVisible([true, true, false]), 220);
           setTimeout(() => setBtnVisible([true, true, true]), 380);
