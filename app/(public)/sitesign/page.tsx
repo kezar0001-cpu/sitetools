@@ -79,11 +79,11 @@ const features = [
   {
     icon: (
       <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16l-4 4m0 0h4m-4 0v-4m16-8V4m0 0h-4m4 0l-4 4M9 12a3 3 0 116 0v4a3 3 0 11-6 0v-4z" />
       </svg>
     ),
-    title: "WhatsApp checkout reminders",
-    desc: "Send an automatic WhatsApp reminder to workers who forgot to sign out at end of day.",
+    title: "Offline capable",
+    desc: "Works in low-connectivity site environments so teams can keep signing in when signal is unreliable.",
     color: "amber",
   },
 ];
@@ -98,7 +98,7 @@ const comparison = [
 
 export default function SiteSignPage() {
   return (
-    <div className="bg-white">
+    <div className="bg-zinc-950">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-amber-400 py-24 lg:py-32">
         <div className="pointer-events-none absolute inset-0 opacity-10">
@@ -141,21 +141,21 @@ export default function SiteSignPage() {
       </section>
 
       {/* ── How it works ─────────────────────────────────────────────────── */}
-      <section className="py-24 bg-slate-50">
+      <section className="py-24 bg-zinc-900">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3">
             <p className="text-xs font-black uppercase tracking-widest text-amber-600">How it works</p>
-            <h2 className="text-4xl font-black text-slate-900">From setup to live in minutes.</h2>
-            <p className="text-slate-500 font-medium text-lg">Three steps and your gate is digital.</p>
+            <h2 className="text-4xl font-black text-zinc-50">From setup to live in minutes.</h2>
+            <p className="text-zinc-400 font-medium text-lg">Three steps and your gate is digital.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {steps.map((step, index) => (
-              <article key={step.title} className="rounded-3xl border border-amber-100 bg-white p-8 shadow-sm hover:shadow-lg hover:border-amber-200 transition-all hover:-translate-y-1">
+              <article key={step.title} className="rounded-3xl border border-amber-100 bg-zinc-950 p-8 shadow-sm hover:shadow-lg hover:border-amber-200 transition-all hover:-translate-y-1">
                 <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400 text-amber-950 font-black text-xl">
                   {index + 1}
                 </span>
-                <h3 className="text-xl font-black text-slate-900 mt-6">{step.title}</h3>
-                <p className="text-slate-600 mt-3 font-medium leading-relaxed">{step.description}</p>
+                <h3 className="text-xl font-black text-zinc-50 mt-6">{step.title}</h3>
+                <p className="text-zinc-400 mt-3 font-medium leading-relaxed">{step.description}</p>
               </article>
             ))}
           </div>
@@ -163,20 +163,20 @@ export default function SiteSignPage() {
       </section>
 
       {/* ── Features ─────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-white">
+      <section className="py-24 bg-zinc-950">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center space-y-3">
             <p className="text-xs font-black uppercase tracking-widest text-amber-600">Features</p>
-            <h2 className="text-4xl font-black text-slate-900">Everything a site supervisor needs.</h2>
+            <h2 className="text-4xl font-black text-zinc-50">Everything a site supervisor needs.</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature) => (
-              <div key={feature.title} className="rounded-2xl border border-slate-100 bg-slate-50 p-7 space-y-4 hover:border-amber-200 hover:bg-amber-50/30 transition-colors">
+              <div key={feature.title} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-7 space-y-4 hover:border-amber-200 hover:bg-amber-50/30 transition-colors">
                 <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
                   {feature.icon}
                 </div>
-                <h3 className="text-lg font-black text-slate-900">{feature.title}</h3>
-                <p className="text-slate-600 text-sm font-medium leading-relaxed">{feature.desc}</p>
+                <h3 className="text-lg font-black text-zinc-50">{feature.title}</h3>
+                <p className="text-zinc-400 text-sm font-medium leading-relaxed">{feature.desc}</p>
               </div>
             ))}
           </div>
@@ -184,7 +184,7 @@ export default function SiteSignPage() {
       </section>
 
       {/* ── Comparison ───────────────────────────────────────────────────── */}
-      <section className="py-24 bg-slate-950">
+      <section className="py-24 bg-zinc-950">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-10">
           <div className="text-center space-y-3">
             <p className="text-xs font-black uppercase tracking-widest text-amber-400">SiteSign vs. paper</p>
@@ -202,7 +202,7 @@ export default function SiteSignPage() {
                 className={`grid grid-cols-3 gap-4 px-6 py-5 ${i % 2 === 0 ? "bg-white/5" : "bg-white/[0.02]"} border-b border-white/5 last:border-0`}
               >
                 <p className="text-sm font-bold text-slate-300">{row.item}</p>
-                <p className="text-sm text-slate-500 font-medium">{row.paper}</p>
+                <p className="text-sm text-zinc-400 font-medium">{row.paper}</p>
                 <p className="text-sm text-amber-300 font-bold">{row.sitesign}</p>
               </div>
             ))}
