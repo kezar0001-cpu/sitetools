@@ -89,6 +89,46 @@ export async function fetchEditableMediaOverrides(): Promise<Record<string, Publ
   return fetchEditableMediaOverridesCached();
 }
 
+/** Direct (uncached) query — use in CMS write paths and admin GET. */
+export async function fetchEditableMediaOverridesDirect(): Promise<Record<string, PublicSiteMediaRow>> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("public_site_media").select("*");
+  if (error || !data) {
+    console.warn("[publicSiteMedia] Direct fetch failed: ", error?.message);
+    return {};
+  }
+  return data.reduce<Record<string, PublicSiteMediaRow>>((acc, row) => {
+    acc[row.slot] = row as PublicSiteMediaRow;
+    return acc;
+  }, {});
+}
+
+/** Direct (uncached) resolved slots — use in CMS admin GET so it always reflects the latest save. */
+export async function loadResolvedMediaSlotsDirect(): Promise<ResolvedMediaSlots> {
+  const overrides = await fetchEditableMediaOverridesDirect();
+
+  const mediaSlots = Object.keys(PUBLIC_MEDIA_SLOTS).reduce((acc, key) => {
+    const typedKey = key as PublicMediaSlotKey;
+    const base = PUBLIC_MEDIA_SLOTS[typedKey];
+    const row = overrides[typedKey];
+    acc[typedKey] = row && row.type === "image" ? mergeMediaSlot(base, row) : base;
+    return acc;
+  }, {} as Record<PublicMediaSlotKey, PublicMediaSlot>);
+
+  const videoSlots = Object.keys(PUBLIC_VIDEO_SLOTS).reduce((acc, key) => {
+    const typedKey = key as PublicVideoSlotKey;
+    const base = PUBLIC_VIDEO_SLOTS[typedKey];
+    const row = overrides[typedKey];
+    acc[typedKey] = row && row.type === "video" ? mergeVideoSlot(base, row) : base;
+    return acc;
+  }, {} as Record<PublicVideoSlotKey, PublicVideoSlot>);
+
+  return { mediaSlots, videoSlots };
+}
+
+/** Cache tag used by unstable_cache — import this to revalidate after writes. */
+export const PUBLIC_MEDIA_CACHE_TAG = "public-site-media-overrides";
+
 export async function loadResolvedMediaSlots(): Promise<ResolvedMediaSlots> {
   const overrides = await fetchEditableMediaOverrides();
 
