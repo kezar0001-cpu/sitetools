@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
+import { getCmsCredentials } from "@/lib/cms-credentials";
 
 const CMS_COOKIE_NAME = "cms_admin_session";
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { username?: string; password?: string } | null;
 
-  const configuredUsername = process.env.CMS_ADMIN_USERNAME ?? "admin";
-  const configuredPassword = process.env.CMS_ADMIN_PASSWORD ?? "admin123";
-
   if (!body?.username || !body?.password) {
     return NextResponse.json({ error: "Username and password are required." }, { status: 400 });
   }
+
+  const { username: configuredUsername, password: configuredPassword } = getCmsCredentials();
 
   if (body.username !== configuredUsername || body.password !== configuredPassword) {
     return NextResponse.json({ error: "Invalid admin credentials." }, { status: 401 });

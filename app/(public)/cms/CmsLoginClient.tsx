@@ -89,6 +89,12 @@ export function CmsLoginClient() {
             {loading ? "Logging in..." : "Log in to CMS"}
           </button>
         </form>
+
+        <p className="text-center text-xs text-slate-500 font-medium pt-2">
+          <Link href="/cms/recover" className="text-amber-600 hover:text-amber-700 font-bold">
+            Forgot username or password?
+          </Link>
+        </p>
       </div>
     </div>
   );
