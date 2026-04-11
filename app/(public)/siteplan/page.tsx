@@ -95,6 +95,7 @@ export default function SitePlanPage() {
   return (
     <ModulePageTemplate
       moduleName="Buildstate SitePlan"
+      theme="blue"
       hero={{
         badge: "Buildstate SitePlan",
         title: (
