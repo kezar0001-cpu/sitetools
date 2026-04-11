@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getPrimaryNavModules, getSecondaryNavModules, getRoadmapModules } from "@/lib/modules";
+import {
+  getInternalNavModules,
+  getPrimaryNavModules,
+  getRoadmapModules,
+  getSecondaryNavModules,
+} from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
 import { setActiveCompany } from "@/lib/workspace/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -55,6 +60,8 @@ function SidebarContent({
   onCompanySwitch,
   onNavigate,
 }: SidebarContentProps) {
+  const internalModules = getInternalNavModules();
+
   return (
     <>
       {/* Brand bar */}
@@ -166,64 +173,32 @@ function SidebarContent({
 
       {/* Main nav */}
       <div className="flex-1 py-4 space-y-6 overflow-y-auto">
-        {/* General */}
+        {/* Workspace */}
         <div>
           <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-600 px-5 py-2">
-            General
+            Workspace
           </h3>
-          <nav className="space-y-0.5">
-            <Link
-              href="/dashboard"
-              onClick={onNavigate}
-              className={`${navItemBase} ${
-                pathname === "/dashboard"
-                  ? genericActiveClasses
-                  : inactiveNavClasses
-              }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-                />
-              </svg>
-              Workspace Dashboard
-            </Link>
-            <Link
-              href="/dashboard/sites"
-              onClick={onNavigate}
-              className={`${navItemBase} ${
-                pathname.startsWith("/dashboard/sites") ||
-                pathname === "/dashboard/projects"
-                  ? genericActiveClasses
-                  : inactiveNavClasses
-              }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                />
-              </svg>
-              Projects
-            </Link>
-          </nav>
+          <ul className="space-y-0.5">
+            {internalModules.map((m) => {
+              const active =
+                pathname.startsWith(m.href) ||
+                (m.id === "sites-projects" && pathname.startsWith("/dashboard/projects"));
+              return (
+                <li key={m.id}>
+                  <Link
+                    href={m.href}
+                    onClick={onNavigate}
+                    className={`${navItemBase} ${
+                      active ? genericActiveClasses : inactiveNavClasses
+                    }`}
+                  >
+                    <span className="shrink-0">{getIcon(m.icon, "h-4 w-4")}</span>
+                    {m.name}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </div>
 
         {/* Live Modules */}
@@ -360,35 +335,6 @@ function SidebarContent({
         </details>
       </div>
 
-      {/* Bottom section — settings/profile */}
-      <div className="px-2 py-3 border-t border-zinc-800 shrink-0 bg-zinc-950">
-        <Link
-          href="/dashboard"
-          onClick={onNavigate}
-          className={`${navItemBase} ${
-            pathname.startsWith("/dashboard/account") ||
-            pathname.startsWith("/dashboard/settings")
-              ? genericActiveClasses
-              : inactiveNavClasses
-          }`}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 8c-1.657 0-3 1.343-3 3s1.343 3 3 3 3-1.343 3-3-1.343-3-3-3zm0-6v2m0 16v2m10-10h-2M4 12H2m15.364 6.364-1.414-1.414M8.05 8.05 6.636 6.636m10.728 0-1.414 1.414M8.05 15.95l-1.414 1.414"
-            />
-          </svg>
-          Account
-        </Link>
-      </div>
     </>
   );
 }

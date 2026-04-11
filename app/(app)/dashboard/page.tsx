@@ -1,6 +1,6 @@
 "use client";
 
-import { getPrimaryNavModules } from "@/lib/modules";
+import { getLiveModules } from "@/lib/modules";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useEffect, useState } from "react";
 import { fetchCompanySites } from "@/lib/workspace/client";
@@ -15,10 +15,13 @@ import {
     CalendarDays,
     FileText,
     ListChecks,
+    LayoutDashboard,
+    Settings,
+    Building2,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-type ColorKey = "amber" | "indigo" | "sky" | "violet" | "cyan";
+type ColorKey = "amber" | "indigo" | "sky" | "violet" | "cyan" | "zinc";
 
 const MODULE_COLORS: Record<ColorKey, { icon: string; hoverBorder: string }> = {
     amber:  { icon: "text-amber-400",  hoverBorder: "hover:border-amber-400/50"  },
@@ -26,6 +29,7 @@ const MODULE_COLORS: Record<ColorKey, { icon: string; hoverBorder: string }> = {
     sky:    { icon: "text-sky-400",    hoverBorder: "hover:border-sky-400/50"    },
     violet: { icon: "text-violet-400", hoverBorder: "hover:border-violet-400/50" },
     cyan:   { icon: "text-cyan-400",   hoverBorder: "hover:border-cyan-400/50"   },
+    zinc:   { icon: "text-zinc-300",   hoverBorder: "hover:border-zinc-500/50"   },
 };
 
 function getModuleIcon(moduleId: string, className: string) {
@@ -35,6 +39,10 @@ function getModuleIcon(moduleId: string, className: string) {
         case "site-capture": return <BookOpen className={className} />;
         case "itp-builder":  return <ListChecks className={className} />;
         case "site-docs":    return <FileText className={className} />;
+        case "dashboard":    return <LayoutDashboard className={className} />;
+        case "sites-projects": return <Building2 className={className} />;
+        case "team": return <Users className={className} />;
+        case "settings": return <Settings className={className} />;
         default:             return <ClipboardCheck className={className} />;
     }
 }
@@ -73,8 +81,7 @@ export default function DashboardHome() {
     }, [activeCompanyId]);
 
     const isLoading = loading || (sitesLoading && hasSites === null);
-    const primaryModules = getPrimaryNavModules();
-    const quickLaunchModules = primaryModules.slice(0, 4);
+    const quickLaunchModules = getLiveModules().filter((module) => module.id !== "dashboard");
 
     return (
         <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -161,8 +168,8 @@ export default function DashboardHome() {
                 </div>
             )}
 
-            {/* ── Module Quick-Launch 2 × 2 ── */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* ── Module Quick-Launch ── */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 {quickLaunchModules.map((module) => {
                     const colors = MODULE_COLORS[module.color as ColorKey] ?? MODULE_COLORS.amber;
                     return (
