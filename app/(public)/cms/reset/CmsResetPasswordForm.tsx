@@ -35,13 +35,21 @@ export function CmsResetPasswordForm({ accessToken }: CmsResetPasswordFormProps)
     const { error: verifyError } = await supabase.auth.verifyOtp({
       token_hash: accessToken,
       type: "recovery",
-      options: { password: newPassword },
     });
 
     setLoading(false);
 
     if (verifyError) {
       setError(verifyError.message);
+      return;
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      setError(updateError.message);
       return;
     }
 
