@@ -83,7 +83,7 @@ export default function SiteCaptureDemo() {
       )}
 
       <div className="p-5 space-y-3">
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 font-mono text-sm text-zinc-200 min-h-[150px] whitespace-pre-wrap leading-relaxed">
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 font-mono text-sm text-zinc-200 h-[220px] overflow-hidden whitespace-pre-wrap leading-relaxed">
           {displayText}
           <span
             className={`transition-opacity duration-100 ${cursorOn ? 'opacity-100' : 'opacity-0'}`}

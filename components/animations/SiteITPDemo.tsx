@@ -106,8 +106,8 @@ export default function SiteITPDemo() {
           return (
             <div
               key={item.name}
-              className={`flex items-start gap-3 px-2 py-2.5 rounded-lg transition-colors duration-500 ${
-                isComplete ? 'bg-zinc-900/80 border border-amber-500/10' : ''
+              className={`flex items-start gap-3 px-2 py-2.5 rounded-lg border transition-colors duration-500 ${
+                isComplete ? 'bg-zinc-900/80 border-amber-500/10' : 'border-transparent'
               }`}
             >
               <div
