@@ -8,7 +8,6 @@ const DIARY_TEXT =
 export default function SiteCaptureDemo() {
   const [displayText, setDisplayText] = useState('');
   const [cursorOn, setCursorOn] = useState(true);
-  const [showButtons, setShowButtons] = useState(false);
   const [btnVisible, setBtnVisible] = useState([false, false, false]);
   const [pulsePDF, setPulsePDF] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -19,7 +18,6 @@ export default function SiteCaptureDemo() {
   useEffect(() => {
     setDisplayText('');
     setCursorOn(true);
-    setShowButtons(false);
     setBtnVisible([false, false, false]);
     setPulsePDF(false);
     setShowToast(false);
@@ -36,7 +34,6 @@ export default function SiteCaptureDemo() {
         clearInterval(typingTimer);
 
         setTimeout(() => {
-          setShowButtons(true);
           setTimeout(() => setBtnVisible([true, false, false]), 60);
           setTimeout(() => setBtnVisible([true, true, false]), 220);
           setTimeout(() => setBtnVisible([true, true, true]), 380);
@@ -86,7 +83,7 @@ export default function SiteCaptureDemo() {
       )}
 
       <div className="p-5 space-y-3">
-        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 font-mono text-sm text-zinc-200 min-h-28 whitespace-pre-wrap leading-relaxed">
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 font-mono text-sm text-zinc-200 min-h-[150px] whitespace-pre-wrap leading-relaxed">
           {displayText}
           <span
             className={`transition-opacity duration-100 ${cursorOn ? 'opacity-100' : 'opacity-0'}`}
@@ -95,33 +92,31 @@ export default function SiteCaptureDemo() {
           </span>
         </div>
 
-        {showButtons && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-300 ${
-                pulsePDF
-                  ? 'animate-pulse-amber bg-amber-500/20 text-amber-300 border-amber-500/60'
-                  : 'bg-zinc-900 text-amber-300 border-zinc-700'
-              } ${btnVisible[0] ? 'opacity-100' : 'opacity-0'}`}
-            >
-              <span>📄</span> Export PDF
-            </button>
-            <button
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-zinc-400 border border-zinc-700 transition-opacity duration-300 ${
-                btnVisible[1] ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <span>📊</span> Export CSV
-            </button>
-            <button
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-emerald-400 border border-zinc-700 transition-opacity duration-300 ${
-                btnVisible[2] ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <span>📗</span> Export Excel
-            </button>
-          </div>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all duration-300 ${
+              pulsePDF
+                ? 'animate-pulse-amber bg-amber-500/20 text-amber-300 border-amber-500/60'
+                : 'bg-zinc-900 text-amber-300 border-zinc-700'
+            } ${btnVisible[0] ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <span>📄</span> Export PDF
+          </button>
+          <button
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-zinc-400 border border-zinc-700 transition-opacity duration-300 ${
+              btnVisible[1] ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <span>📊</span> Export CSV
+          </button>
+          <button
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-900 text-emerald-400 border border-zinc-700 transition-opacity duration-300 ${
+              btnVisible[2] ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <span>📗</span> Export Excel
+          </button>
+        </div>
       </div>
     </div>
   );

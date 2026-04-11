@@ -16,7 +16,6 @@ export default function SitePlanDemo() {
   const [drainageWidth, setDrainageWidth] = useState(65);
   const [drainageLabel, setDrainageLabel] = useState<DrainageLabel>('In Progress');
   const [showDelta, setShowDelta] = useState(false);
-  const [showDelayCard, setShowDelayCard] = useState(false);
   const [delayCardVisible, setDelayCardVisible] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [cycle, setCycle] = useState(0);
@@ -25,7 +24,6 @@ export default function SitePlanDemo() {
     setDrainageWidth(65);
     setDrainageLabel('In Progress');
     setShowDelta(false);
-    setShowDelayCard(false);
     setDelayCardVisible(false);
     setFadeOut(false);
 
@@ -35,13 +33,12 @@ export default function SitePlanDemo() {
       setShowDelta(true);
     }, 1700);
 
-    const t2 = setTimeout(() => setShowDelayCard(true), 3400);
-    const t2b = setTimeout(() => setDelayCardVisible(true), 3480);
+    const t2 = setTimeout(() => setDelayCardVisible(true), 3400);
 
     const t3 = setTimeout(() => setFadeOut(true), 5200);
     const t4 = setTimeout(() => setCycle(c => c + 1), 5800);
 
-    return () => [t1, t2, t2b, t3, t4].forEach(clearTimeout);
+    return () => [t1, t2, t3, t4].forEach(clearTimeout);
   }, [cycle]);
 
   return (
@@ -99,23 +96,21 @@ export default function SitePlanDemo() {
           </div>
         </div>
 
-        {showDelayCard && (
-          <div
-            className={`border border-amber-500/40 bg-amber-950/25 rounded-xl p-3 transition-all duration-500 ${
-              delayCardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-            }`}
-          >
-            <div className="flex items-start gap-2">
-              <span className="text-base leading-none mt-0.5">⚠️</span>
-              <div>
-                <p className="text-amber-300 text-sm font-medium">
-                  Delay flagged: Concrete pour — weather hold
-                </p>
-                <p className="text-zinc-400 text-xs mt-0.5">Critical path impact: +2 days</p>
-              </div>
+        <div
+          className={`border border-amber-500/40 bg-amber-950/25 rounded-xl p-3 transition-all duration-500 ${
+            delayCardVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <span className="text-base leading-none mt-0.5">⚠️</span>
+            <div>
+              <p className="text-amber-300 text-sm font-medium">
+                Delay flagged: Concrete pour — weather hold
+              </p>
+              <p className="text-zinc-400 text-xs mt-0.5">Critical path impact: +2 days</p>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

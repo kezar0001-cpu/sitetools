@@ -38,9 +38,7 @@ export default function SiteITPDemo() {
     'pending',
     'pending',
   ]);
-  const [showHoldBadge, setShowHoldBadge] = useState(false);
   const [holdBadgeVisible, setHoldBadgeVisible] = useState(false);
-  const [showBanner, setShowBanner] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [cycle, setCycle] = useState(0);
@@ -54,9 +52,7 @@ export default function SiteITPDemo() {
 
   useEffect(() => {
     setStatuses(['pending', 'pending', 'pending', 'pending']);
-    setShowHoldBadge(false);
     setHoldBadgeVisible(false);
-    setShowBanner(false);
     setBannerVisible(false);
     setFadeOut(false);
 
@@ -75,16 +71,12 @@ export default function SiteITPDemo() {
 
     const t4 = setTimeout(() => {
       tick(2);
-      setShowHoldBadge(true);
-      setTimeout(() => setHoldBadgeVisible(true), 50);
+      setHoldBadgeVisible(true);
     }, 3900);
 
     const t5 = setTimeout(() => tick(3), 4700);
 
-    const t6 = setTimeout(() => {
-      setShowBanner(true);
-      setTimeout(() => setBannerVisible(true), 50);
-    }, 5400);
+    const t6 = setTimeout(() => setBannerVisible(true), 5400);
 
     const t7 = setTimeout(() => setFadeOut(true), 7300);
     const t8 = setTimeout(() => setCycle(c => c + 1), 7900);
@@ -154,7 +146,7 @@ export default function SiteITPDemo() {
                 )}
               </div>
 
-              {item.isHoldPoint && showHoldBadge && (
+              {item.isHoldPoint && (
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full bg-emerald-900 text-emerald-400 font-medium shrink-0 self-center transition-all duration-500 ${
                     holdBadgeVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'
@@ -167,17 +159,15 @@ export default function SiteITPDemo() {
           );
         })}
 
-        {showBanner && (
-          <div
-            className={`mt-2 p-3 bg-emerald-950 border border-emerald-800 rounded-xl transition-all duration-500 ${
-              bannerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
-            }`}
-          >
-            <p className="text-emerald-300 text-sm font-medium text-center">
-              ITP Complete ✓ — All 4 items signed off
-            </p>
-          </div>
-        )}
+        <div
+          className={`mt-2 p-3 bg-emerald-950 border border-emerald-800 rounded-xl transition-all duration-500 ${
+            bannerVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'
+          }`}
+        >
+          <p className="text-emerald-300 text-sm font-medium text-center">
+            ITP Complete ✓ — All 4 items signed off
+          </p>
+        </div>
       </div>
     </div>
   );
