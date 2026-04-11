@@ -15,7 +15,7 @@ const SiteDocsDemo = dynamic(() => import("@/components/animations/SiteDocsDemo"
 export const metadata: Metadata = {
   title: "Buildstate — Civil Site Operations Platform",
   description:
-    "Replace clipboards and paper registers with one digital workspace. SiteSign, SitePlan, SiteCapture, and ITP management for civil construction teams.",
+    "Replace clipboards and paper registers with one digital workspace. SiteSign, SitePlan, SiteCapture, SiteITP, and SiteDocs for civil construction teams.",
 };
 
 interface LandingPageProps {

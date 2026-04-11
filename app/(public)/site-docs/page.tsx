@@ -3,9 +3,9 @@ import SiteDocsDemo from "@/components/animations/SiteDocsDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
 
 export const metadata: Metadata = {
-  title: "Site Docs — Controlled Construction Document Workflow | Buildstate",
+  title: "SiteDocs — Controlled Construction Document Workflow | Buildstate",
   description:
-    "Manage construction documents from draft to approval with version control, digital reviews, and issue tracking. Keep teams aligned on the latest approved documents.",
+    "SiteDocs manages construction documents from draft to approval with revision control, digital reviews, and issue tracking for aligned project teams.",
 };
 
 const steps = [

@@ -3,9 +3,9 @@ import SiteITPDemo from "@/components/animations/SiteITPDemo";
 import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
 
 export const metadata: Metadata = {
-  title: "Site ITP — Digital ITP Checklists, Hold Points & Sign-Offs | Buildstate",
+  title: "SiteITP — Digital ITP Checklists, Hold Points & Sign-Offs | Buildstate",
   description:
-    "Manage inspection and test plans with digital checklists, hold points, witness points, and audit-ready sign-offs. Track QA progress in real time from field to office.",
+    "SiteITP manages inspection and test plans with digital checklists, hold points, witness points, and audit-ready sign-offs from field to office.",
 };
 
 const steps = [
