@@ -95,6 +95,7 @@ export default function SiteSignPage() {
   return (
     <ModulePageTemplate
       moduleName="Buildstate SiteSign"
+      theme="amber"
       hero={{
         badge: "Buildstate SiteSign",
         title: (
