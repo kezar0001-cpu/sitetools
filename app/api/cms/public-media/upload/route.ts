@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { revalidateTag } from "next/cache";
 import { CMS_COOKIE_NAME, getExpectedCmsSessionToken } from "@/lib/cms/constants";
+import { PUBLIC_MEDIA_CACHE_TAG } from "@/lib/cms/publicMedia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,8 +85,12 @@ export async function POST(request: NextRequest) {
   const path = `${slot}/${kind}.${safeExt}`;
 
   const buf = Buffer.from(await file.arrayBuffer());
+  // Always store video as video/mp4 regardless of what the browser reported
+  // (iOS sends video/quicktime even for .mp4 files; storing with the wrong
+  // content-type causes playback failures when the file is served back).
+  const storedContentType = isVideo ? "video/mp4" : file.type;
   const { error: uploadErr } = await supabase.storage.from(BUCKET).upload(path, buf, {
-    contentType: file.type,
+    contentType: storedContentType,
     upsert: true,
   });
 
@@ -110,6 +116,9 @@ export async function POST(request: NextRequest) {
   if (upsertErr) {
     return NextResponse.json({ error: upsertErr.message }, { status: 500 });
   }
+
+  // Bust the public-site cache so the live site reflects the new file immediately.
+  revalidateTag(PUBLIC_MEDIA_CACHE_TAG);
 
   return NextResponse.json({ url: publicUrl, slot, kind });
 }

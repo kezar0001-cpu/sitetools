@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { PUBLIC_MEDIA_SLOT_KEYS, PUBLIC_VIDEO_SLOT_KEYS } from "@/lib/publicSiteMedia";
 
@@ -52,22 +51,24 @@ function useSlots() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<SlotsResponse | null>(null);
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/cms/public-media", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to load media slots");
       setData((await res.json()) as SlotsResponse);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load media slots");
+      // On silent refresh don't overwrite good data with an error
+      if (!silent) setError(err instanceof Error ? err.message : "Failed to load media slots");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => { load(); }, []);
-  return { loading, error, data, reload: load };
+  // reload is always silent — editors stay mounted, local state is preserved
+  return { loading, error, data, reload: () => load(true) };
 }
 
 async function saveSlot(payload: Record<string, unknown>) {
@@ -202,9 +203,11 @@ function ImageEditor({ slot, value, onSaved }: { slot: string; value: MediaSlot;
   return (
     <div className="space-y-4">
       {src && (
-        <div className="relative w-full h-40 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-          <Image src={src} alt={alt || "preview"} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
-        </div>
+        // Plain img — next/image requires external domains to be whitelisted in
+        // next.config.mjs which is not configured for Supabase URLs.
+        // Admin preview doesn't need optimisation.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt || "preview"} className="w-full h-40 rounded-xl object-cover border border-slate-200 bg-slate-50" />
       )}
       <div className="space-y-3">
         <UrlField label="Image URL" value={src} onChange={setSrc} placeholder="https://…image.png" />

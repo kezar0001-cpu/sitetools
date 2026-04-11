@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { revalidateTag } from "next/cache";
 import { CMS_COOKIE_NAME, getExpectedCmsSessionToken } from "@/lib/cms/constants";
 import { PUBLIC_MEDIA_SLOT_KEYS, PUBLIC_VIDEO_SLOT_KEYS, PublicMediaSlotKey, PublicVideoSlotKey } from "@/lib/publicSiteMedia";
-import { fetchEditableMediaOverrides, loadResolvedMediaSlots } from "@/lib/cms/publicMedia";
+import {
+  fetchEditableMediaOverridesDirect,
+  loadResolvedMediaSlotsDirect,
+  PUBLIC_MEDIA_CACHE_TAG,
+} from "@/lib/cms/publicMedia";
 
 const TABLE = "public_site_media";
 
@@ -49,8 +54,9 @@ export async function GET(request: NextRequest) {
   const auth = assertCms(request);
   if (auth) return auth;
 
-  const overrides = await fetchEditableMediaOverrides();
-  const resolved = await loadResolvedMediaSlots();
+  // Always fetch fresh data for the CMS — no cache here.
+  const overrides = await fetchEditableMediaOverridesDirect();
+  const resolved = await loadResolvedMediaSlotsDirect();
 
   return NextResponse.json({
     mediaSlots: resolved.mediaSlots,
@@ -104,7 +110,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const resolved = await loadResolvedMediaSlots();
+  // Bust the public-site cache so the live site picks up the change immediately.
+  revalidateTag(PUBLIC_MEDIA_CACHE_TAG);
+
+  const resolved = await loadResolvedMediaSlotsDirect();
   return NextResponse.json({
     success: true,
     mediaSlots: resolved.mediaSlots,
