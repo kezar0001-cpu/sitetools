@@ -160,6 +160,8 @@ interface ModulePageTemplateProps {
     primaryCta: ModulePageTemplateCta;
     secondaryCta?: ModulePageTemplateCta;
     helperText?: string;
+    /** Optional hero image rendered to the right of the text on desktop. */
+    heroImage?: { src: string; alt: string };
   };
   demoPanel: {
     eyebrow?: string;
@@ -216,40 +218,82 @@ export default function ModulePageTemplate({
           </svg>
         </div>
 
-        <div className="relative mx-auto flex max-w-6xl flex-col items-center space-y-8 px-4 text-center sm:px-6 lg:px-8">
-          <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${t.badgeClass}`}>
-            <span className="text-xs font-black uppercase tracking-widest">{hero.badge}</span>
+        {hero.heroImage ? (
+          /* ── Split layout: text left, image right ── */
+          <div className="relative mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8">
+            <div className="space-y-8">
+              <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${t.badgeClass}`}>
+                <span className="text-xs font-black uppercase tracking-widest">{hero.badge}</span>
+              </div>
+              <h1 className={`text-5xl font-black leading-[1.05] sm:text-6xl lg:text-7xl ${t.heroText}`}>
+                {hero.title}
+              </h1>
+              <p className={`text-xl font-medium leading-relaxed ${t.heroDesc}`}>
+                {hero.description}
+              </p>
+              <div className="flex flex-col gap-4 sm:flex-row">
+                <Link
+                  href={hero.primaryCta.href}
+                  className={`rounded-2xl px-8 py-4 text-lg font-black transition-all hover:scale-105 ${t.primaryBtn}`}
+                >
+                  {hero.primaryCta.label}
+                </Link>
+                {hero.secondaryCta ? (
+                  <Link
+                    href={hero.secondaryCta.href}
+                    className={`rounded-2xl border px-8 py-4 text-lg font-bold transition-colors ${t.secondaryBtn}`}
+                  >
+                    {hero.secondaryCta.label}
+                  </Link>
+                ) : null}
+              </div>
+              {hero.helperText ? (
+                <p className={`text-xs font-semibold ${t.helperText}`}>{hero.helperText}</p>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-center">
+              {/* Plain img — next/image requires Supabase domains in next.config */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={hero.heroImage.src}
+                alt={hero.heroImage.alt}
+                className="w-full rounded-2xl object-cover shadow-2xl"
+              />
+            </div>
           </div>
-
-          <h1 className={`max-w-4xl text-5xl font-black leading-[1.05] sm:text-6xl lg:text-7xl ${t.heroText}`}>
-            {hero.title}
-          </h1>
-
-          <p className={`max-w-2xl text-xl font-medium leading-relaxed ${t.heroDesc}`}>
-            {hero.description}
-          </p>
-
-          <div className="flex w-full flex-col items-center justify-center gap-4 pt-2 sm:flex-row">
-            <Link
-              href={hero.primaryCta.href}
-              className={`w-full rounded-2xl px-8 py-4 text-lg font-black transition-all hover:scale-105 sm:w-auto ${t.primaryBtn}`}
-            >
-              {hero.primaryCta.label}
-            </Link>
-            {hero.secondaryCta ? (
+        ) : (
+          /* ── Centred layout (no image) ── */
+          <div className="relative mx-auto flex max-w-6xl flex-col items-center space-y-8 px-4 text-center sm:px-6 lg:px-8">
+            <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${t.badgeClass}`}>
+              <span className="text-xs font-black uppercase tracking-widest">{hero.badge}</span>
+            </div>
+            <h1 className={`max-w-4xl text-5xl font-black leading-[1.05] sm:text-6xl lg:text-7xl ${t.heroText}`}>
+              {hero.title}
+            </h1>
+            <p className={`max-w-2xl text-xl font-medium leading-relaxed ${t.heroDesc}`}>
+              {hero.description}
+            </p>
+            <div className="flex w-full flex-col items-center justify-center gap-4 pt-2 sm:flex-row">
               <Link
-                href={hero.secondaryCta.href}
-                className={`w-full rounded-2xl border px-8 py-4 text-lg font-bold transition-colors sm:w-auto ${t.secondaryBtn}`}
+                href={hero.primaryCta.href}
+                className={`w-full rounded-2xl px-8 py-4 text-lg font-black transition-all hover:scale-105 sm:w-auto ${t.primaryBtn}`}
               >
-                {hero.secondaryCta.label}
+                {hero.primaryCta.label}
               </Link>
+              {hero.secondaryCta ? (
+                <Link
+                  href={hero.secondaryCta.href}
+                  className={`w-full rounded-2xl border px-8 py-4 text-lg font-bold transition-colors sm:w-auto ${t.secondaryBtn}`}
+                >
+                  {hero.secondaryCta.label}
+                </Link>
+              ) : null}
+            </div>
+            {hero.helperText ? (
+              <p className={`text-xs font-semibold ${t.helperText}`}>{hero.helperText}</p>
             ) : null}
           </div>
-
-          {hero.helperText ? (
-            <p className={`text-xs font-semibold ${t.helperText}`}>{hero.helperText}</p>
-          ) : null}
-        </div>
+        )}
       </section>
 
       {/* ── Demo panel ──────────────────────────────────────── */}
