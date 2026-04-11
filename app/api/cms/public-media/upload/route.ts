@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 const BUCKET = "public-site-media";
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
-const VIDEO_TYPES = ["video/mp4"];
+// iOS/Safari reports .mp4 files as video/quicktime; accept both and any video/* as a fallback
+const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/x-m4v", "video/mov"];
 
 function getSupabaseAdmin() {
   return createClient(
@@ -54,8 +55,16 @@ export async function POST(request: NextRequest) {
 
   const isVideo = kind === "video";
   const allowedTypes = isVideo ? VIDEO_TYPES : IMAGE_TYPES;
-  if (!allowedTypes.includes(file.type)) {
-    return NextResponse.json({ error: `Allowed types: ${allowedTypes.join(", ")}` }, { status: 400 });
+  // For video we also allow any video/* type since browsers/devices can report
+  // the same file under different subtypes (e.g. iOS reports mp4 as video/quicktime)
+  const typeOk = isVideo
+    ? allowedTypes.includes(file.type) || file.type.startsWith("video/")
+    : allowedTypes.includes(file.type);
+  if (!typeOk) {
+    return NextResponse.json(
+      { error: isVideo ? "Upload an MP4 video file." : "Upload a PNG, JPG, WebP, or SVG image." },
+      { status: 400 }
+    );
   }
 
   const supabase = getSupabaseAdmin();
@@ -80,7 +89,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (uploadErr) {
-    return NextResponse.json({ error: uploadErr.message || "Upload failed." }, { status: 500 });
+    return NextResponse.json({ error: uploadErr.message || "Supabase upload failed. Check bucket permissions." }, { status: 500 });
   }
 
   const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;

@@ -143,10 +143,10 @@ function VideoEditor({ slot, value, onSaved }: { slot: string; value: VideoSlot;
         />
       )}
       <div className="space-y-3">
-        <UrlField label="Video URL" value={src} onChange={setSrc} placeholder="https://…mp4" />
+        <UrlField label="Video URL" value={src} onChange={setSrc} placeholder="Direct .mp4 link — e.g. https://cdn.example.com/video.mp4" />
         <FileInput
           label="Upload video"
-          accept="video/mp4"
+          accept="video/mp4,video/quicktime,video/*"
           hint="MP4 · max 50 MB"
           onChange={(f) => handleUpload("video", f)}
         />
