@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import ModulePageTemplate from "@/components/modules/ModulePageTemplate";
 
 export const metadata: Metadata = {
   title: "SiteSign — Digital Site Sign-In for Construction | Buildstate",
@@ -33,8 +33,7 @@ const features = [
       </svg>
     ),
     title: "QR gate sign-in",
-    desc: "One poster at the gate. Workers scan with their phone camera — no app install. Works on every phone.",
-    color: "amber",
+    description: "One poster at the gate. Workers scan with their phone camera — no app install. Works on every phone.",
   },
   {
     icon: (
@@ -43,8 +42,7 @@ const features = [
       </svg>
     ),
     title: "Live headcount",
-    desc: "See exactly who is on site right now from your dashboard. Track workers, subcontractors, visitors, and deliveries.",
-    color: "amber",
+    description: "See exactly who is on site right now from your dashboard. Track workers, subcontractors, visitors, and deliveries.",
   },
   {
     icon: (
@@ -53,8 +51,7 @@ const features = [
       </svg>
     ),
     title: "Digital signatures",
-    desc: "Capture a digital signature from every worker on sign-in. Touch-friendly, works on any mobile.",
-    color: "amber",
+    description: "Capture a digital signature from every worker on sign-in. Touch-friendly, works on any mobile.",
   },
   {
     icon: (
@@ -63,8 +60,7 @@ const features = [
       </svg>
     ),
     title: "Compliance exports",
-    desc: "Download signed attendance registers as CSV, Excel, or PDF — instantly formatted for site audits.",
-    color: "amber",
+    description: "Download signed attendance registers as CSV, Excel, or PDF — instantly formatted for site audits.",
   },
   {
     icon: (
@@ -73,8 +69,7 @@ const features = [
       </svg>
     ),
     title: "Time & date stamped",
-    desc: "Every sign-in and sign-out is timestamped. Workers can correct their arrival time with an audit reason.",
-    color: "amber",
+    description: "Every sign-in and sign-out is timestamped. Workers can correct their arrival time with an audit reason.",
   },
   {
     icon: (
@@ -83,152 +78,68 @@ const features = [
       </svg>
     ),
     title: "Offline capable",
-    desc: "Works in low-connectivity site environments so teams can keep signing in when signal is unreliable.",
-    color: "amber",
+    description: "Works in low-connectivity site environments so teams can keep signing in when signal is unreliable.",
   },
 ];
 
 const comparison = [
-  { item: "Worker sign-in time", paper: "60–90 sec at the gate", sitesign: "< 10 seconds by phone" },
-  { item: "Live headcount", paper: "Manual count required", sitesign: "Instant, from your phone" },
-  { item: "Compliance record", paper: "Physical clipboard, filed manually", sitesign: "Automatic, digital, downloadable" },
-  { item: "Signature capture", paper: "Pen on paper", sitesign: "Digital, stored forever" },
-  { item: "Audit preparation", paper: "Hours of data entry", sitesign: "One-click export" },
+  { item: "Worker sign-in time", baseline: "60–90 sec at the gate", module: "< 10 seconds by phone" },
+  { item: "Live headcount", baseline: "Manual count required", module: "Instant, from your phone" },
+  { item: "Compliance record", baseline: "Physical clipboard, filed manually", module: "Automatic, digital, downloadable" },
+  { item: "Signature capture", baseline: "Pen on paper", module: "Digital, stored forever" },
+  { item: "Audit preparation", baseline: "Hours of data entry", module: "One-click export" },
 ];
 
 export default function SiteSignPage() {
   return (
-    <div className="bg-zinc-950">
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-amber-400 py-24 lg:py-32">
-        <div className="pointer-events-none absolute inset-0 opacity-10">
-          <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="sitesign-grid" width="60" height="60" patternUnits="userSpaceOnUse">
-                <path d="M0 60V0H60V60z" fill="none" stroke="black" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#sitesign-grid)" />
-          </svg>
-        </div>
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 flex flex-col items-center text-center space-y-8">
-          <div className="inline-flex items-center gap-2 bg-amber-950/10 border border-amber-950/10 px-4 py-2 rounded-full">
-            <span className="text-xs font-black uppercase tracking-widest text-amber-950/70">Buildstate SiteSign</span>
-          </div>
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-amber-950 leading-[1.05] max-w-4xl">
-            Gate sign-in.{" "}
-            <span className="text-white/90">No more paper.</span>
-          </h1>
-          <p className="text-xl text-amber-950/75 font-medium max-w-2xl leading-relaxed">
-            Replace your paper logbooks with a phone-based QR sign-in system. Workers are at the gate in seconds. You see live headcount and have audit-ready records — instantly.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center gap-4 pt-2 w-full justify-center">
-            <Link
-              href="/login?signup=1&intent=sitesign"
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-amber-950 hover:bg-black text-amber-50 font-black text-lg transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-amber-950/20"
-            >
-              Start SiteSign free
-            </Link>
-            <Link
-              href="/login"
-              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-white/25 hover:bg-white/35 text-amber-950 font-bold text-lg transition-colors border border-amber-950/10 backdrop-blur-sm"
-            >
-              Log in
-            </Link>
-          </div>
-          <p className="text-xs text-amber-950/50 font-semibold">Free tier available · No credit card · Set up in under 10 min</p>
-        </div>
-      </section>
-
-      {/* ── How it works ─────────────────────────────────────────────────── */}
-      <section className="py-24 bg-zinc-900">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
-          <div className="text-center space-y-3">
-            <p className="text-xs font-black uppercase tracking-widest text-amber-600">How it works</p>
-            <h2 className="text-4xl font-black text-zinc-50">From setup to live in minutes.</h2>
-            <p className="text-zinc-400 font-medium text-lg">Three steps and your gate is digital.</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {steps.map((step, index) => (
-              <article key={step.title} className="rounded-3xl border border-amber-100 bg-zinc-950 p-8 shadow-sm hover:shadow-lg hover:border-amber-200 transition-all hover:-translate-y-1">
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400 text-amber-950 font-black text-xl">
-                  {index + 1}
-                </span>
-                <h3 className="text-xl font-black text-zinc-50 mt-6">{step.title}</h3>
-                <p className="text-zinc-400 mt-3 font-medium leading-relaxed">{step.description}</p>
+    <ModulePageTemplate
+      moduleName="Buildstate SiteSign"
+      hero={{
+        badge: "Buildstate SiteSign",
+        title: (
+          <>
+            Gate sign-in. <span className="text-white/90">No more paper.</span>
+          </>
+        ),
+        description:
+          "Replace your paper logbooks with a phone-based QR sign-in system. Workers are at the gate in seconds. You see live headcount and have audit-ready records — instantly.",
+        primaryCta: { href: "/login?signup=1&intent=sitesign", label: "Start SiteSign free" },
+        secondaryCta: { href: "/login", label: "Log in" },
+        helperText: "Free tier available · No credit card · Set up in under 10 min",
+      }}
+      demoPanel={{
+        title: "From setup to live in minutes.",
+        description: "Three steps and your gate is digital.",
+        bullets: steps.map((step, index) => `${index + 1}. ${step.title}`),
+        panelTitle: "How it works",
+        panelContent: (
+          <div className="space-y-4">
+            {steps.map((step) => (
+              <article key={step.title} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+                <h3 className="text-sm font-black text-zinc-100">{step.title}</h3>
+                <p className="mt-1 text-sm font-medium leading-relaxed text-zinc-400">{step.description}</p>
               </article>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ── Features ─────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-zinc-950">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 space-y-12">
-          <div className="text-center space-y-3">
-            <p className="text-xs font-black uppercase tracking-widest text-amber-600">Features</p>
-            <h2 className="text-4xl font-black text-zinc-50">Everything a site supervisor needs.</h2>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature) => (
-              <div key={feature.title} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-7 space-y-4 hover:border-amber-200 hover:bg-amber-50/30 transition-colors">
-                <div className="w-11 h-11 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
-                  {feature.icon}
-                </div>
-                <h3 className="text-lg font-black text-zinc-50">{feature.title}</h3>
-                <p className="text-zinc-400 text-sm font-medium leading-relaxed">{feature.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Comparison ───────────────────────────────────────────────────── */}
-      <section className="py-24 bg-zinc-950">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-10">
-          <div className="text-center space-y-3">
-            <p className="text-xs font-black uppercase tracking-widest text-amber-400">SiteSign vs. paper</p>
-            <h2 className="text-4xl font-black text-white">Why switch from clipboards?</h2>
-          </div>
-          <div className="rounded-3xl overflow-hidden border border-white/10">
-            <div className="grid grid-cols-3 bg-white/5 border-b border-white/10 px-6 py-4">
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Scenario</p>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Paper / Clipboard</p>
-              <p className="text-xs font-black uppercase tracking-widest text-amber-400">SiteSign</p>
-            </div>
-            {comparison.map((row, i) => (
-              <div
-                key={row.item}
-                className={`grid grid-cols-3 gap-4 px-6 py-5 ${i % 2 === 0 ? "bg-white/5" : "bg-white/[0.02]"} border-b border-white/5 last:border-0`}
-              >
-                <p className="text-sm font-bold text-slate-300">{row.item}</p>
-                <p className="text-sm text-zinc-400 font-medium">{row.paper}</p>
-                <p className="text-sm text-amber-300 font-bold">{row.sitesign}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── CTA ──────────────────────────────────────────────────────────── */}
-      <section className="py-24 bg-amber-400">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center space-y-8">
-          <h2 className="text-4xl sm:text-5xl font-black text-amber-950">
-            Start using SiteSign on your next project.
-          </h2>
-          <p className="text-xl text-amber-950/70 font-medium">
-            No credit card required. Set up your first site in under 10 minutes.
-          </p>
-          <div className="pt-4">
-            <Link
-              href="/login?signup=1&intent=sitesign"
-              className="inline-flex px-10 py-5 rounded-2xl bg-amber-950 hover:bg-black text-amber-50 font-black text-xl transition-all hover:scale-105 active:scale-95 shadow-2xl shadow-amber-950/20"
-            >
-              Start SiteSign free
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
+        ),
+      }}
+      features={{
+        eyebrow: "Features",
+        title: "Everything a site supervisor needs.",
+        items: features,
+      }}
+      comparison={{
+        eyebrow: "SiteSign vs. paper",
+        title: "Why switch from clipboards?",
+        baselineLabel: "Paper / Clipboard",
+        moduleLabel: "SiteSign",
+        rows: comparison,
+      }}
+      finalCta={{
+        title: "Start using SiteSign on your next project.",
+        description: "No credit card required. Set up your first site in under 10 minutes.",
+        primaryCta: { href: "/login?signup=1&intent=sitesign", label: "Start SiteSign free" },
+      }}
+    />
   );
 }
