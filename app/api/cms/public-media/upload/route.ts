@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidateTag } from "next/cache";
 import { CMS_COOKIE_NAME, getExpectedCmsSessionToken } from "@/lib/cms/constants";
 import { PUBLIC_MEDIA_CACHE_TAG } from "@/lib/cms/publicMedia";
+import { PUBLIC_VIDEO_SLOT_KEYS } from "@/lib/publicSiteMedia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -100,9 +101,14 @@ export async function POST(request: NextRequest) {
 
   const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 
+  // Determine slot type from the slot definition, not from the upload kind.
+  // A poster upload (kind === "poster") is part of a video slot — setting
+  // type: "image" here would corrupt the DB record and cause the video
+  // override to be silently ignored by loadResolvedMediaSlots.
+  const slotIsVideo = (PUBLIC_VIDEO_SLOT_KEYS as string[]).includes(slot);
   const patch: Record<string, unknown> = {
     slot,
-    type: isVideo ? "video" : "image",
+    type: slotIsVideo ? "video" : "image",
   };
   if (isVideo) {
     patch.src = publicUrl;
