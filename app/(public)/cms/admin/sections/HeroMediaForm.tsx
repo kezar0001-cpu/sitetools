@@ -373,9 +373,9 @@ export function HeroMediaForm() {
         </div>
       )}
 
-      {/* Image slots — all 7 in a responsive grid */}
+      {/* Image slots — excludes clientLogo slots (managed in the Client Logos section) */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {PUBLIC_MEDIA_SLOT_KEYS.map((key) => {
+        {PUBLIC_MEDIA_SLOT_KEYS.filter((key) => !key.startsWith("clientLogo")).map((key) => {
           const slot = data.mediaSlots[key];
           if (!slot) return null;
           return (
