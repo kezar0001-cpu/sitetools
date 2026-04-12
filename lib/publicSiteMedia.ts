@@ -82,6 +82,16 @@ export const PUBLIC_MEDIA_SLOTS: Record<string, PublicMediaSlot> = {
     license: "Buildstate proprietary placeholder slot",
     notes: "Primary media slot for Site Docs public module and document control messaging.",
   },
+  // ── Client logo slots ───────────────────────────────────────────────────────
+  // Managed via the CMS admin → Client Logos section.
+  // sourceName = company display name, sourceUrl = company website (optional).
+  // Slots with empty sourceName and src are hidden on the landing page.
+  clientLogo1: { key: "clientLogo1", src: "", alt: "", width: 200, height: 80, sourceName: "", sourceUrl: "", license: "", notes: "Client logo slot 1." },
+  clientLogo2: { key: "clientLogo2", src: "", alt: "", width: 200, height: 80, sourceName: "", sourceUrl: "", license: "", notes: "Client logo slot 2." },
+  clientLogo3: { key: "clientLogo3", src: "", alt: "", width: 200, height: 80, sourceName: "", sourceUrl: "", license: "", notes: "Client logo slot 3." },
+  clientLogo4: { key: "clientLogo4", src: "", alt: "", width: 200, height: 80, sourceName: "", sourceUrl: "", license: "", notes: "Client logo slot 4." },
+  clientLogo5: { key: "clientLogo5", src: "", alt: "", width: 200, height: 80, sourceName: "", sourceUrl: "", license: "", notes: "Client logo slot 5." },
+  clientLogo6: { key: "clientLogo6", src: "", alt: "", width: 200, height: 80, sourceName: "", sourceUrl: "", license: "", notes: "Client logo slot 6." },
 };
 
 export const PUBLIC_VIDEO_SLOTS: Record<string, PublicVideoSlot> = {
