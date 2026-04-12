@@ -99,7 +99,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: uploadErr.message || "Supabase upload failed. Check bucket permissions." }, { status: 500 });
   }
 
-  const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
+  // Append a version timestamp so every upload produces a unique URL.
+  // Without this, the Supabase CDN serves the old cached image when the
+  // storage file is overwritten at the same path (same URL = cache hit).
+  const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}?v=${Date.now()}`;
 
   // Determine slot type from the slot definition, not from the upload kind.
   // A poster upload (kind === "poster") is part of a video slot — setting
