@@ -35,8 +35,9 @@ export function cacheWorkspaceSummary(summary: WorkspaceSummary): void {
 }
 
 export function getAnyCachedWorkspaceSummary(userId: string): WorkspaceSummary | null {
-  for (const [key, entry] of memoryCache.entries()) {
-    if (key.startsWith(`${userId}:`) && isFresh(entry)) {
+  const prefix = `${userId}:`;
+  for (const [key, entry] of Array.from(memoryCache.entries())) {
+    if (key.startsWith(prefix) && isFresh(entry)) {
       return entry.summary;
     }
   }
