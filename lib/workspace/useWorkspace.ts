@@ -1,11 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { loadWorkspaceSummary } from "@/lib/workspace/client";
-import { cacheWorkspaceSummary, clearWorkspaceSummaryCache } from "@/lib/workspace/summaryCache";
+import { cacheWorkspaceSummary, clearWorkspaceSummaryCache, getAnyCachedWorkspaceSummary } from "@/lib/workspace/summaryCache";
 import { WorkspaceSummary } from "@/lib/workspace/types";
+
+function seedFromCache(): WorkspaceSummary | null {
+  try {
+    // supabase GoTrueClient exposes the in-memory user synchronously
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userId = (supabase as any).auth?.currentUser?.id ?? null;
+    if (!userId) return null;
+    return getAnyCachedWorkspaceSummary(userId);
+  } catch {
+    return null;
+  }
+}
 
 function isNetworkError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message.toLowerCase() : "";
@@ -41,12 +53,15 @@ export function useWorkspace(options: UseWorkspaceOptions = {}) {
   } = options;
 
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<WorkspaceSummary | null>(seedFromCache);
+  const [loading, setLoading] = useState(() => seedFromCache() === null);
   const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<WorkspaceSummary | null>(null);
+  const summaryRef = useRef(summary);
+  useEffect(() => { summaryRef.current = summary; }, [summary]);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    // Only show a loading spinner if we have no cached data to display yet.
+    if (!summaryRef.current) setLoading(true);
     setError(null);
 
     const {

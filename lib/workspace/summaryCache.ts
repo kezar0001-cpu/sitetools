@@ -34,6 +34,15 @@ export function cacheWorkspaceSummary(summary: WorkspaceSummary): void {
   });
 }
 
+export function getAnyCachedWorkspaceSummary(userId: string): WorkspaceSummary | null {
+  for (const [key, entry] of memoryCache.entries()) {
+    if (key.startsWith(`${userId}:`) && isFresh(entry)) {
+      return entry.summary;
+    }
+  }
+  return null;
+}
+
 export function clearWorkspaceSummaryCache(userId?: string, companyId?: string): void {
   if (userId !== undefined && companyId !== undefined) {
     memoryCache.delete(`${userId}:${companyId}`);
