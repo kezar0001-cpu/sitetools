@@ -139,6 +139,22 @@ function getPublicModuleHref(module: AppModule) {
   return module.route;
 }
 
+// ── Client logos ──────────────────────────────────────────────────────────────
+// Add your client company names and logo image paths here.
+// • Set logoSrc to a path under /public/client-logos/ once you have real assets
+//   e.g. logoSrc: "/client-logos/acme-civil.svg"
+// • Leave logoSrc as null to display the initials fallback instead.
+// • Remove, reorder, or add entries freely — the section hides automatically
+//   when this array is empty.
+const CLIENT_LOGOS: Array<{ name: string; abbr: string; logoSrc: string | null }> = [
+  { name: "Client One", abbr: "C1", logoSrc: "/client-logos/client-1.svg" },
+  { name: "Client Two", abbr: "C2", logoSrc: "/client-logos/client-2.svg" },
+  { name: "Client Three", abbr: "C3", logoSrc: "/client-logos/client-3.svg" },
+  { name: "Client Four", abbr: "C4", logoSrc: "/client-logos/client-4.svg" },
+  { name: "Client Five", abbr: "C5", logoSrc: "/client-logos/client-5.svg" },
+  { name: "Client Six", abbr: "C6", logoSrc: "/client-logos/client-6.svg" },
+];
+
 const TESTIMONIALS = [
   {
     quote: "Replaced our paper sign-in book the first day. Inspectors love the QR ITPs.",
@@ -291,6 +307,42 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
           </div>
         </div>
       </div>
+
+      {/* ── Client Logos ─────────────────────────────────────────────────── */}
+      {CLIENT_LOGOS.length > 0 && (
+        <section className="py-14 border-b border-zinc-800/60 bg-zinc-950">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-xs font-black uppercase tracking-widest text-zinc-600 mb-10">
+              Trusted by
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-8 sm:gap-x-14">
+              {CLIENT_LOGOS.map((client) => (
+                <div
+                  key={client.name}
+                  className="flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity duration-300 grayscale hover:grayscale-0"
+                  title={client.name}
+                >
+                  {client.logoSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={client.logoSrc}
+                      alt={client.name}
+                      className="h-8 w-auto max-w-[140px] object-contain"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-zinc-700 border border-zinc-600 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-black text-zinc-300 tracking-wider">{client.abbr}</span>
+                      </div>
+                      <span className="text-sm font-black text-zinc-400 tracking-wide whitespace-nowrap">{client.name}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Module Showcase ───────────────────────────────────────────────── */}
       <section className="py-24 lg:py-32 bg-zinc-950">
