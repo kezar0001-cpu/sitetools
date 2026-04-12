@@ -37,10 +37,8 @@ const VIDEO_SLOT_KEY = PUBLIC_VIDEO_SLOT_KEYS[0];
 
 const SLOT_LABELS: Record<string, { section: string; title: string }> = {
   siteSignHeroBackground: { section: "Video", title: "Background Video" },
-  siteSignHero:           { section: "Image", title: "Hero Image" },
-  siteSignHeroCardImage:  { section: "Image", title: "Card Image" },
+  siteSignHero:           { section: "Image", title: "SiteSign" },
   sitePlanWorkflow:       { section: "Image", title: "SitePlan" },
-  workspaceApps:          { section: "Image", title: "Workspace Apps" },
   siteCaptureWorkflow:    { section: "Image", title: "SiteCapture" },
   siteItpWorkflow:        { section: "Image", title: "Site ITP" },
   siteDocsWorkflow:       { section: "Image", title: "Site Docs" },
