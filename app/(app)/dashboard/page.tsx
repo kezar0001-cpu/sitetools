@@ -54,6 +54,109 @@ const STAT_CARDS = [
     { label: "Photos This Week", Icon: Camera,         iconColor: "text-sky-400"    },
 ] as const;
 
+function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
+    const STEPS = [
+        {
+            number: "01",
+            title: "Create your first site",
+            description: "Sites are the foundation. Register a physical location to start tracking attendance, records, and plans.",
+            href: "/dashboard/sites",
+            icon: <Building2 className="h-5 w-5 text-amber-400" />,
+            adminOnly: true,
+            cta: "Create site →",
+        },
+        {
+            number: "02",
+            title: "Invite your team",
+            description: "Add site managers, supervisors, and workers so they can access the modules they need.",
+            href: "/dashboard/team",
+            icon: <Users className="h-5 w-5 text-sky-400" />,
+            adminOnly: false,
+            cta: "Invite members →",
+        },
+        {
+            number: "03",
+            title: "Open a module",
+            description: "SiteSign tracks attendance, SitePlan manages your programme, SiteCapture records daily activity.",
+            href: "/dashboard/site-sign-in",
+            icon: <ClipboardCheck className="h-5 w-5 text-violet-400" />,
+            adminOnly: false,
+            cta: "Explore modules →",
+        },
+    ];
+
+    const visibleSteps = STEPS.filter((s) => isAdmin || !s.adminOnly);
+
+    return (
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 space-y-8">
+            {/* Header */}
+            <div className="space-y-3">
+                <div className="inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 px-3 py-1.5 rounded-full">
+                    <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
+                    <span className="text-amber-400 text-xs font-black uppercase tracking-widest">
+                        Getting Started
+                    </span>
+                </div>
+                <h2 className="text-2xl font-black text-zinc-50 tracking-tight">
+                    Welcome to Buildstate.
+                </h2>
+                <p className="text-sm text-zinc-400 max-w-lg leading-relaxed">
+                    {isAdmin
+                        ? "Your workspace is ready. Follow these steps to get your first site operational."
+                        : "Your workspace is set up. An admin will create your first site — meanwhile, explore the modules below."}
+                </p>
+            </div>
+
+            {/* Step cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {visibleSteps.map((step) => (
+                    <Link
+                        key={step.number}
+                        href={step.href}
+                        className="group flex flex-col gap-4 bg-zinc-800/50 border border-zinc-700 hover:border-amber-400/40 rounded-xl p-5 transition-all"
+                    >
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs font-black text-zinc-600 tabular-nums">{step.number}</span>
+                            <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center">
+                                {step.icon}
+                            </div>
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-zinc-100 mb-1">{step.title}</p>
+                            <p className="text-xs text-zinc-500 leading-relaxed">{step.description}</p>
+                        </div>
+                        <span className="text-xs font-bold text-amber-400 group-hover:underline">
+                            {step.cta}
+                        </span>
+                    </Link>
+                ))}
+            </div>
+
+            {/* Primary CTA — admin only */}
+            {isAdmin && (
+                <div className="flex">
+                    <Link
+                        href="/dashboard/sites"
+                        className="inline-flex items-center gap-3 bg-amber-400 hover:bg-amber-300 text-amber-950 font-black px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-400/20"
+                    >
+                        Create your first site
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
+                    </Link>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function DashboardHome() {
     const { loading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
     const [sitesLoading, setSitesLoading] = useState(true);
@@ -62,6 +165,11 @@ export default function DashboardHome() {
     const activeCompanyId = summary?.activeMembership?.company_id;
     const userRole = summary?.activeMembership?.role;
     const isAdmin = canManageSites(userRole);
+
+    const userName = summary?.profile?.full_name
+        ? summary.profile.full_name.split(" ")[0]
+        : summary?.profile?.email?.split("@")[0] ?? "there";
+    const companyName = summary?.activeMembership?.companies?.name ?? "";
 
     useEffect(() => {
         if (!activeCompanyId) return;
@@ -86,106 +194,84 @@ export default function DashboardHome() {
     return (
         <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
 
-            {/* ── Stat Cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {STAT_CARDS.map(({ label, Icon, iconColor }) => (
-                    <div
-                        key={label}
-                        className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3"
-                    >
-                        <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
-                            <Icon className={`h-5 w-5 ${iconColor}`} />
+            {/* ── Welcome Header ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                    {isLoading ? (
+                        <div className="space-y-2">
+                            <Skeleton className="h-8 w-48 rounded" />
+                            <Skeleton className="h-4 w-32 rounded" />
                         </div>
-                        {isLoading ? (
-                            <div className="space-y-2">
-                                <Skeleton className="h-8 w-14 rounded" />
-                                <Skeleton className="h-3 w-24 rounded" />
-                            </div>
-                        ) : (
-                            <div>
-                                <p className="text-3xl font-black text-zinc-50">–</p>
-                                <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 mt-1">
-                                    {label}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                    ) : (
+                        <>
+                            <h1 className="text-2xl font-black text-zinc-50 tracking-tight">
+                                Hey, {userName}.
+                            </h1>
+                            {companyName && (
+                                <p className="text-sm text-zinc-500 mt-0.5 font-medium">{companyName}</p>
+                            )}
+                        </>
+                    )}
+                </div>
             </div>
 
-            {/* ── Empty-state banner (admin, no sites yet) ── */}
-            {!isLoading && !hasSites && isAdmin && (
-                <div className="bg-zinc-900 border border-amber-400/20 rounded-2xl p-8 relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-[0.04] pointer-events-none select-none">
-                        <svg
-                            className="h-full w-full text-zinc-400"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
+            {/* ── Stat Cards (returning users with sites) ── */}
+            {(isLoading || hasSites) && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {STAT_CARDS.map(({ label, Icon, iconColor }) => (
+                        <div
+                            key={label}
+                            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3"
                         >
-                            <defs>
-                                <pattern id="dashGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-                                    <path d="M0 40V0H40V40z" fill="none" stroke="currentColor" strokeWidth="1" />
-                                </pattern>
-                            </defs>
-                            <rect width="100%" height="100%" fill="url(#dashGrid)" />
-                        </svg>
-                    </div>
-                    <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-6">
-                        <div className="flex-1 space-y-3">
-                            <div className="inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 px-3 py-1.5 rounded-full">
-                                <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-                                <span className="text-amber-400 text-xs font-black uppercase tracking-widest">
-                                    Setup Required
-                                </span>
+                            <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
+                                <Icon className={`h-5 w-5 ${iconColor}`} />
                             </div>
-                            <h2 className="text-2xl md:text-3xl font-black text-zinc-50 tracking-tight">
-                                Your workspace is{" "}
-                                <span className="text-amber-400">waiting.</span>
-                            </h2>
-                            <p className="text-zinc-400 text-sm font-medium max-w-lg leading-relaxed">
-                                Buildstate is site-first. Register your first physical site to start
-                                tracking workforce occupancy, building project plans, and recording
-                                daily progress.
-                            </p>
+                            {isLoading ? (
+                                <div className="space-y-2">
+                                    <Skeleton className="h-8 w-14 rounded" />
+                                    <Skeleton className="h-3 w-24 rounded" />
+                                </div>
+                            ) : (
+                                <div>
+                                    <p className="text-3xl font-black text-zinc-50">–</p>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 mt-1">
+                                        {label}
+                                    </p>
+                                </div>
+                            )}
                         </div>
-                        <Link
-                            href="/dashboard/sites"
-                            className="inline-flex items-center gap-3 bg-amber-400 hover:bg-amber-300 text-amber-950 font-black px-6 py-4 rounded-2xl transition-all hover:scale-105 active:scale-95 shrink-0 shadow-lg shadow-amber-400/20"
-                        >
-                            Create your first site
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                strokeWidth={3}
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                            </svg>
-                        </Link>
-                    </div>
+                    ))}
                 </div>
             )}
 
+            {/* ── Getting Started (new workspaces only) ── */}
+            {!isLoading && !hasSites && (
+                <GettingStartedGuide isAdmin={isAdmin} />
+            )}
+
             {/* ── Module Quick-Launch ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                {quickLaunchModules.map((module) => {
-                    const colors = MODULE_COLORS[module.color as ColorKey] ?? MODULE_COLORS.amber;
-                    return (
-                        <Link
-                            key={module.id}
-                            href={module.href}
-                            className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:bg-zinc-800/50 ${colors.hoverBorder} transition-all cursor-pointer block`}
-                        >
-                            <div className="mb-4">
-                                {getModuleIcon(module.id, `h-8 w-8 ${colors.icon}`)}
-                            </div>
-                            <p className="text-base font-black text-zinc-50 mb-1">{module.name}</p>
-                            <p className="text-sm text-zinc-400 line-clamp-1">{module.tagline}</p>
-                        </Link>
-                    );
-                })}
+            <div className="space-y-4">
+                <h2 className="text-sm font-black text-zinc-400 uppercase tracking-widest">
+                    {!isLoading && !hasSites ? "Explore Modules" : "Quick Launch"}
+                </h2>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    {quickLaunchModules.map((module) => {
+                        const colors = MODULE_COLORS[module.color as ColorKey] ?? MODULE_COLORS.amber;
+                        return (
+                            <Link
+                                key={module.id}
+                                href={module.href}
+                                className={`bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:bg-zinc-800/50 ${colors.hoverBorder} transition-all cursor-pointer block`}
+                            >
+                                <div className="mb-4">
+                                    {getModuleIcon(module.id, `h-8 w-8 ${colors.icon}`)}
+                                </div>
+                                <p className="text-base font-black text-zinc-50 mb-1">{module.name}</p>
+                                <p className="text-sm text-zinc-400 line-clamp-1">{module.tagline}</p>
+                            </Link>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* ── Recent Activity Feed ── */}

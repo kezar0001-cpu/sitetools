@@ -20,10 +20,14 @@ export default function AppLayout({
 
   if (loading && !summary) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
-        <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold text-slate-700">Preparing your workspace…</p>
-          <p className="mt-2 text-sm text-slate-500">This should only take a moment.</p>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
+        <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-center shadow-xl">
+          <div className="w-2 h-2 rounded-sm bg-amber-400 mx-auto mb-5" />
+          <p className="text-sm font-bold text-zinc-100">Preparing your workspace…</p>
+          <p className="mt-1.5 text-sm text-zinc-500">This should only take a moment.</p>
+          <div className="mt-5 h-0.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-full w-2/5 bg-amber-400 rounded-full animate-pulse" />
+          </div>
         </div>
       </div>
     );
