@@ -6,6 +6,7 @@ import { ReactNode } from "react";
 const THEMES = {
   amber: {
     heroBg: "bg-amber-400",
+    heroOverlay: "bg-amber-500/80",
     heroText: "text-amber-950",
     badgeClass: "border-amber-950/10 bg-amber-950/10 text-amber-950/70",
     heroDesc: "text-amber-950/75",
@@ -31,6 +32,7 @@ const THEMES = {
   },
   blue: {
     heroBg: "bg-blue-600",
+    heroOverlay: "bg-blue-700/75",
     heroText: "text-white",
     badgeClass: "border-white/20 bg-white/10 text-white/70",
     heroDesc: "text-blue-100",
@@ -56,6 +58,7 @@ const THEMES = {
   },
   sky: {
     heroBg: "bg-sky-500",
+    heroOverlay: "bg-sky-600/75",
     heroText: "text-white",
     badgeClass: "border-white/20 bg-white/10 text-white/70",
     heroDesc: "text-sky-100",
@@ -81,6 +84,7 @@ const THEMES = {
   },
   violet: {
     heroBg: "bg-violet-600",
+    heroOverlay: "bg-violet-700/75",
     heroText: "text-white",
     badgeClass: "border-white/20 bg-white/10 text-white/70",
     heroDesc: "text-violet-100",
@@ -106,6 +110,7 @@ const THEMES = {
   },
   cyan: {
     heroBg: "bg-cyan-500",
+    heroOverlay: "bg-cyan-600/75",
     heroText: "text-cyan-950",
     badgeClass: "border-cyan-950/10 bg-cyan-950/10 text-cyan-950/70",
     heroDesc: "text-cyan-950/75",
@@ -206,94 +211,78 @@ export default function ModulePageTemplate({
     <div className="bg-zinc-950">
       {/* ── Hero ────────────────────────────────────────────── */}
       <section className={`relative overflow-hidden ${t.heroBg} py-24 lg:py-32`}>
-        {/* Subtle grid overlay */}
-        <div className="pointer-events-none absolute inset-0 opacity-10">
-          <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="module-grid" width="60" height="60" patternUnits="userSpaceOnUse">
-                <path d="M0 60V0H60V60z" fill="none" stroke="currentColor" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#module-grid)" />
-          </svg>
-        </div>
-
         {hero.heroImage ? (
-          /* ── Split layout: text left, image right ── */
-          <div className="relative mx-auto grid max-w-6xl gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8">
-            <div className="space-y-8">
-              <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${t.badgeClass}`}>
-                <span className="text-xs font-black uppercase tracking-widest">{hero.badge}</span>
-              </div>
-              <h1 className={`text-5xl font-black leading-[1.05] sm:text-6xl lg:text-7xl ${t.heroText}`}>
-                {hero.title}
-              </h1>
-              <p className={`text-xl font-medium leading-relaxed ${t.heroDesc}`}>
-                {hero.description}
-              </p>
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <Link
-                  href={hero.primaryCta.href}
-                  className={`rounded-2xl px-8 py-4 text-lg font-black transition-all hover:scale-105 ${t.primaryBtn}`}
-                >
-                  {hero.primaryCta.label}
-                </Link>
-                {hero.secondaryCta ? (
-                  <Link
-                    href={hero.secondaryCta.href}
-                    className={`rounded-2xl border px-8 py-4 text-lg font-bold transition-colors ${t.secondaryBtn}`}
-                  >
-                    {hero.secondaryCta.label}
-                  </Link>
-                ) : null}
-              </div>
-              {hero.helperText ? (
-                <p className={`text-xs font-semibold ${t.helperText}`}>{hero.helperText}</p>
-              ) : null}
+          <>
+            {/* Full-bleed background image */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={hero.heroImage.src}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            {/* Theme-coloured overlay — keeps brand identity + legibility */}
+            <div className={`absolute inset-0 ${t.heroOverlay}`} />
+            {/* Decorative grid */}
+            <div className="pointer-events-none absolute inset-0 opacity-[0.06]">
+              <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="module-grid" width="60" height="60" patternUnits="userSpaceOnUse">
+                    <path d="M0 60V0H60V60z" fill="none" stroke="white" strokeWidth="1" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#module-grid)" />
+              </svg>
             </div>
-            <div className="flex items-center justify-center">
-              {/* Plain img — next/image requires Supabase domains in next.config */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={hero.heroImage.src}
-                alt={hero.heroImage.alt}
-                className="w-full rounded-2xl object-cover shadow-2xl"
-              />
-            </div>
-          </div>
+            {/* Glow blobs */}
+            <div className="pointer-events-none absolute -left-40 -top-40 h-80 w-80 rounded-full bg-white/10 blur-[120px]" />
+            <div className="pointer-events-none absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-white/10 blur-[100px]" />
+          </>
         ) : (
-          /* ── Centred layout (no image) ── */
-          <div className="relative mx-auto flex max-w-6xl flex-col items-center space-y-8 px-4 text-center sm:px-6 lg:px-8">
-            <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${t.badgeClass}`}>
-              <span className="text-xs font-black uppercase tracking-widest">{hero.badge}</span>
-            </div>
-            <h1 className={`max-w-4xl text-5xl font-black leading-[1.05] sm:text-6xl lg:text-7xl ${t.heroText}`}>
-              {hero.title}
-            </h1>
-            <p className={`max-w-2xl text-xl font-medium leading-relaxed ${t.heroDesc}`}>
-              {hero.description}
-            </p>
-            <div className="flex w-full flex-col items-center justify-center gap-4 pt-2 sm:flex-row">
-              <Link
-                href={hero.primaryCta.href}
-                className={`w-full rounded-2xl px-8 py-4 text-lg font-black transition-all hover:scale-105 sm:w-auto ${t.primaryBtn}`}
-              >
-                {hero.primaryCta.label}
-              </Link>
-              {hero.secondaryCta ? (
-                <Link
-                  href={hero.secondaryCta.href}
-                  className={`w-full rounded-2xl border px-8 py-4 text-lg font-bold transition-colors sm:w-auto ${t.secondaryBtn}`}
-                >
-                  {hero.secondaryCta.label}
-                </Link>
-              ) : null}
-            </div>
-            {hero.helperText ? (
-              <p className={`text-xs font-semibold ${t.helperText}`}>{hero.helperText}</p>
-            ) : null}
+          /* Subtle grid overlay (no image) */
+          <div className="pointer-events-none absolute inset-0 opacity-10">
+            <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="module-grid" width="60" height="60" patternUnits="userSpaceOnUse">
+                  <path d="M0 60V0H60V60z" fill="none" stroke="currentColor" strokeWidth="1" />
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#module-grid)" />
+            </svg>
           </div>
         )}
+
+        {/* Hero content — centred in both cases */}
+        <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center space-y-8 px-4 text-center sm:px-6 lg:px-8">
+          <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 ${t.badgeClass}`}>
+            <span className="text-xs font-black uppercase tracking-widest">{hero.badge}</span>
+          </div>
+          <h1 className={`max-w-4xl text-5xl font-black leading-[1.05] sm:text-6xl lg:text-7xl ${t.heroText}`}>
+            {hero.title}
+          </h1>
+          <p className={`max-w-2xl text-xl font-medium leading-relaxed ${t.heroDesc}`}>
+            {hero.description}
+          </p>
+          <div className="flex w-full flex-col items-center justify-center gap-4 pt-2 sm:flex-row">
+            <Link
+              href={hero.primaryCta.href}
+              className={`w-full rounded-2xl px-8 py-4 text-lg font-black transition-all hover:scale-105 sm:w-auto ${t.primaryBtn}`}
+            >
+              {hero.primaryCta.label}
+            </Link>
+            {hero.secondaryCta ? (
+              <Link
+                href={hero.secondaryCta.href}
+                className={`w-full rounded-2xl border px-8 py-4 text-lg font-bold transition-colors sm:w-auto ${t.secondaryBtn}`}
+              >
+                {hero.secondaryCta.label}
+              </Link>
+            ) : null}
+          </div>
+          {hero.helperText ? (
+            <p className={`text-xs font-semibold ${t.helperText}`}>{hero.helperText}</p>
+          ) : null}
+        </div>
       </section>
 
       {/* ── Demo panel ──────────────────────────────────────── */}
