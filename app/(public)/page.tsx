@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import { loadResolvedMediaSlots } from "@/lib/cms/publicMedia";
+import type { PublicMediaSlot } from "@/lib/publicSiteMedia";
 import { getPublicModules, type AppModule } from "@/lib/modules";
 
 const SiteSignDemo = dynamic(() => import("@/components/animations/SiteSignDemo"), { ssr: false });
@@ -139,21 +140,16 @@ function getPublicModuleHref(module: AppModule) {
   return module.route;
 }
 
-// ── Client logos ──────────────────────────────────────────────────────────────
-// Add your client company names and logo image paths here.
-// • Set logoSrc to a path under /public/client-logos/ once you have real assets
-//   e.g. logoSrc: "/client-logos/acme-civil.svg"
-// • Leave logoSrc as null to display the initials fallback instead.
-// • Remove, reorder, or add entries freely — the section hides automatically
-//   when this array is empty.
-const CLIENT_LOGOS: Array<{ name: string; abbr: string; logoSrc: string | null }> = [
-  { name: "Client One", abbr: "C1", logoSrc: "/client-logos/client-1.svg" },
-  { name: "Client Two", abbr: "C2", logoSrc: "/client-logos/client-2.svg" },
-  { name: "Client Three", abbr: "C3", logoSrc: "/client-logos/client-3.svg" },
-  { name: "Client Four", abbr: "C4", logoSrc: "/client-logos/client-4.svg" },
-  { name: "Client Five", abbr: "C5", logoSrc: "/client-logos/client-5.svg" },
-  { name: "Client Six", abbr: "C6", logoSrc: "/client-logos/client-6.svg" },
-];
+const CLIENT_LOGO_KEYS = [
+  "clientLogo1", "clientLogo2", "clientLogo3",
+  "clientLogo4", "clientLogo5", "clientLogo6",
+] as const;
+
+/** Derive a 1-2 letter abbreviation from a company name for the initials fallback. */
+function logoAbbr(name: string): string {
+  const initials = name.trim().split(/\s+/).map((w) => w[0] ?? "").join("").toUpperCase();
+  return initials.slice(0, 2) || "?";
+}
 
 const TESTIMONIALS = [
   {
@@ -202,7 +198,12 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
     redirect(`/sign-in?${forwardParams.toString()}`);
   }
 
-  const { videoSlots } = await loadResolvedMediaSlots();
+  const { videoSlots, mediaSlots } = await loadResolvedMediaSlots();
+
+  // Client logos — only slots where a company name or logo URL has been set via CMS.
+  const activeClientLogos = CLIENT_LOGO_KEYS
+    .map((key) => mediaSlots[key as keyof typeof mediaSlots] as PublicMediaSlot | undefined)
+    .filter((slot): slot is PublicMediaSlot => !!slot && !!(slot.sourceName || slot.src));
 
   return (
     <div className="bg-zinc-950">
@@ -309,36 +310,52 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
       </div>
 
       {/* ── Client Logos ─────────────────────────────────────────────────── */}
-      {CLIENT_LOGOS.length > 0 && (
+      {activeClientLogos.length > 0 && (
         <section className="py-14 border-b border-zinc-800/60 bg-zinc-950">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
             <p className="text-center text-xs font-black uppercase tracking-widest text-zinc-600 mb-10">
               Trusted by
             </p>
             <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-8 sm:gap-x-14">
-              {CLIENT_LOGOS.map((client) => (
-                <div
-                  key={client.name}
-                  className="flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity duration-300 grayscale hover:grayscale-0"
-                  title={client.name}
-                >
-                  {client.logoSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={client.logoSrc}
-                      alt={client.name}
-                      className="h-8 w-auto max-w-[140px] object-contain"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-zinc-700 border border-zinc-600 flex items-center justify-center shrink-0">
-                        <span className="text-xs font-black text-zinc-300 tracking-wider">{client.abbr}</span>
-                      </div>
-                      <span className="text-sm font-black text-zinc-400 tracking-wide whitespace-nowrap">{client.name}</span>
+              {activeClientLogos.map((slot) => {
+                const name = slot.sourceName || slot.alt;
+                const abbr = logoAbbr(name);
+                const inner = slot.src ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={slot.src}
+                    alt={name || "Client logo"}
+                    className="h-8 w-auto max-w-[140px] object-contain"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-zinc-700 border border-zinc-600 flex items-center justify-center shrink-0">
+                      <span className="text-xs font-black text-zinc-300 tracking-wider">{abbr}</span>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <span className="text-sm font-black text-zinc-400 tracking-wide whitespace-nowrap">{name}</span>
+                  </div>
+                );
+                return slot.sourceUrl ? (
+                  <a
+                    key={slot.key}
+                    href={slot.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity duration-300 grayscale hover:grayscale-0"
+                    title={name}
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  <div
+                    key={slot.key}
+                    className="flex items-center justify-center opacity-40 hover:opacity-80 transition-opacity duration-300 grayscale hover:grayscale-0"
+                    title={name}
+                  >
+                    {inner}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
