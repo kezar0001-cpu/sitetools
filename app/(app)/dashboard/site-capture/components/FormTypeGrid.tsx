@@ -1,6 +1,6 @@
 "use client";
 
-import { FORM_TYPE_CONFIG, type FormType } from "@/lib/site-capture/types";
+import { FORM_TYPE_CONFIG, CREATABLE_FORM_TYPES, type FormType } from "@/lib/site-capture/types";
 import { 
   BookOpen, 
   ClipboardCheck, 
@@ -58,14 +58,7 @@ interface FormTypeGridProps {
 }
 
 export function FormTypeGrid({ onNewEntry }: FormTypeGridProps) {
-  const formTypes: FormType[] = [
-    "daily-diary",
-    "prestart-checklist",
-    "site-induction",
-    "toolbox-talk",
-    "incident-report",
-    "site-inspection",
-  ];
+  const formTypes: FormType[] = CREATABLE_FORM_TYPES;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

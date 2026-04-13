@@ -458,6 +458,14 @@ export function getAllFormTypes(): FormType[] {
   return Object.keys(ACTIVITY_FORM_CONFIGS) as FormType[];
 }
 
+/**
+ * Form types available for creating new records.
+ * Toolbox talks and site inductions have moved to SiteSign.
+ * Incident reports have moved to SiteDocs.
+ * Site inspections are covered by SiteITP.
+ */
+export const CREATABLE_FORM_TYPES: FormType[] = ["daily-diary", "prestart-checklist"];
+
 export function getFormConfig(id: string): ActivityFormConfig | undefined {
   return ACTIVITY_FORM_CONFIGS[id as FormType];
 }

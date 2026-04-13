@@ -101,3 +101,58 @@ export interface WorkspaceSummary {
   memberships: CompanyMembership[];
   activeMembership: CompanyMembership | null;
 }
+
+// ── SiteSign — Daily Briefings & Site Inductions ──────────────────────────────
+
+export type BriefingCategory = "Safety" | "Environment" | "Quality" | "General";
+
+export interface SiteDailyBriefing {
+  id: string;
+  site_id: string;
+  company_id: string;
+  date: string; // ISO date YYYY-MM-DD
+  title: string;
+  content: string;
+  category: BriefingCategory | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SiteInductionStep {
+  step_number: number;
+  title: string;
+  content: string;
+  requires_acknowledgement: boolean;
+}
+
+export interface SiteInduction {
+  id: string;
+  site_id: string;
+  company_id: string;
+  title: string;
+  steps: SiteInductionStep[];
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertBriefingPayload {
+  id?: string;
+  site_id: string;
+  company_id: string;
+  date: string;
+  title: string;
+  content: string;
+  category?: BriefingCategory | null;
+}
+
+export interface UpsertInductionPayload {
+  id?: string;
+  site_id: string;
+  company_id: string;
+  title: string;
+  steps: SiteInductionStep[];
+}

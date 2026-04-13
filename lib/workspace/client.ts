@@ -7,7 +7,11 @@ import {
   Project,
   ProjectWithCounts,
   Site,
+  SiteDailyBriefing,
+  SiteInduction,
   SiteVisit,
+  UpsertBriefingPayload,
+  UpsertInductionPayload,
   WorkspaceSummary,
 } from "@/lib/workspace/types";
 import { clearWorkspaceSummaryCache } from "@/lib/workspace/summaryCache";
@@ -655,6 +659,148 @@ export async function deleteCompany(companyId: string): Promise<void> {
     .from("companies")
     .delete()
     .eq("id", companyId);
-  
+
+  if (error) throw error;
+}
+
+// ── SiteSign — Daily Briefings ────────────────────────────────────────────────
+
+/**
+ * Fetch the currently active briefing for a site (anon-safe).
+ * Returns null if no active briefing exists.
+ */
+export async function getActiveBriefingForSite(siteId: string): Promise<SiteDailyBriefing | null> {
+  const { data, error } = await supabase
+    .from("site_daily_briefings")
+    .select("*")
+    .eq("site_id", siteId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/** Fetch all briefings for a site (authenticated). */
+export async function getBriefingsForSite(siteId: string): Promise<SiteDailyBriefing[]> {
+  const { data, error } = await supabase
+    .from("site_daily_briefings")
+    .select("*")
+    .eq("site_id", siteId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Create or update a briefing. Pass id to update, omit to create. */
+export async function upsertBriefing(payload: UpsertBriefingPayload): Promise<SiteDailyBriefing> {
+  const { data, error } = await supabase
+    .from("site_daily_briefings")
+    .upsert(payload, { onConflict: "id" })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Activate a briefing for a site, deactivating any others first.
+ * Safe to call even if the briefing is already active.
+ */
+export async function activateBriefing(id: string, siteId: string): Promise<void> {
+  // Deactivate all briefings for this site first
+  const { error: deactivateError } = await supabase
+    .from("site_daily_briefings")
+    .update({ is_active: false })
+    .eq("site_id", siteId)
+    .neq("id", id);
+
+  if (deactivateError) throw deactivateError;
+
+  // Activate the target briefing
+  const { error } = await supabase
+    .from("site_daily_briefings")
+    .update({ is_active: true })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/** Deactivate a briefing. */
+export async function deactivateBriefing(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("site_daily_briefings")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+// ── SiteSign — Site Inductions ────────────────────────────────────────────────
+
+/**
+ * Fetch the currently active induction for a site (anon-safe).
+ * Returns null if no active induction exists.
+ */
+export async function getActiveInductionForSite(siteId: string): Promise<SiteInduction | null> {
+  const { data, error } = await supabase
+    .from("site_inductions")
+    .select("*")
+    .eq("site_id", siteId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/** Fetch the induction record for a site (authenticated, regardless of active state). */
+export async function getInductionForSite(siteId: string): Promise<SiteInduction | null> {
+  const { data, error } = await supabase
+    .from("site_inductions")
+    .select("*")
+    .eq("site_id", siteId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+/** Create or update a site induction. Pass id to update, omit to create. */
+export async function upsertInduction(payload: UpsertInductionPayload): Promise<SiteInduction> {
+  const { data, error } = await supabase
+    .from("site_inductions")
+    .upsert(payload, { onConflict: "id" })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/** Activate the induction for a site. */
+export async function activateInduction(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("site_inductions")
+    .update({ is_active: true })
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+/** Deactivate the induction for a site. */
+export async function deactivateInduction(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("site_inductions")
+    .update({ is_active: false })
+    .eq("id", id);
+
   if (error) throw error;
 }
