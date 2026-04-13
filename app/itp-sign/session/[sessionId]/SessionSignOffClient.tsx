@@ -426,7 +426,7 @@ export default function SessionSignOffClient({ session, initialItems, initialSig
     setActiveHoldItemId(null);
   }
 
-  const signedCount = items.filter((i) => i.status === "signed").length;
+  const signedCount = items.filter((i) => i.status === "signed" || i.status === "waived").length;
   const totalCount = items.length;
   const allComplete = totalCount > 0 && signedCount === totalCount;
   const progressPct = totalCount > 0 ? (signedCount / totalCount) * 100 : 0;
@@ -597,19 +597,19 @@ export default function SessionSignOffClient({ session, initialItems, initialSig
               </div>
 
               {/* Action buttons */}
-              {(isPending || isClientHold) && !isActive && !isHolding && (
+              {(isPending || isClientHold || isSigned) && !isActive && !isHolding && (
                 <div className="shrink-0 flex flex-col gap-2">
                   <button
                     onClick={() => { setActiveItemId(item.id); setActiveHoldItemId(null); }}
                     className={`text-sm font-bold px-3 py-1.5 rounded-xl transition-colors active:scale-95 ${
-                      isHold
-                        ? "bg-red-500 hover:bg-red-600 text-white"
-                        : isSigned
-                          ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800"
+                      isSigned
+                        ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300"
+                        : isHold
+                          ? "bg-red-500 hover:bg-red-600 text-white"
                           : "bg-amber-400 hover:bg-amber-500 text-amber-900"
                     }`}
                   >
-                    Sign Off
+                    {isSigned ? "Add Signature" : "Sign Off"}
                   </button>
                   {isPending && (
                     <button
