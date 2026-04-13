@@ -13,6 +13,8 @@ import { fetchCompanySites, fetchSiteVisitsForCompanySite, setActiveSite } from 
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Site, SiteVisit, VisitorType } from "@/lib/workspace/types";
+import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
+import { SiteInductionPanel } from "./components/SiteInductionPanel";
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
 type ExportRange = "all" | "today" | "week" | "month";
@@ -99,6 +101,7 @@ export default function SiteSignInModulePage() {
 
   const [showBulkSignOutModal, setShowBulkSignOutModal] = useState(false);
   const [bulkSigningOut, setBulkSigningOut] = useState(false);
+  const [siteManagementTab, setSiteManagementTab] = useState<"briefing" | "induction">("briefing");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFullName, setEditFullName] = useState("");
@@ -942,6 +945,47 @@ export default function SiteSignInModulePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Site Management: Daily Briefing + Site Induction */}
+      {selectedSiteId && activeCompanyId && (
+        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="border-b border-slate-200 px-6 pt-5 pb-0">
+            <h2 className="text-lg font-bold text-slate-900 mb-3">Site Configuration</h2>
+            <div className="flex gap-0">
+              {(["briefing", "induction"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setSiteManagementTab(tab)}
+                  className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                    siteManagementTab === tab
+                      ? "border-amber-400 text-slate-900"
+                      : "border-transparent text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {tab === "briefing" ? "Daily Briefing" : "Site Induction"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-6">
+            {siteManagementTab === "briefing" ? (
+              <div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Create a daily safety briefing (toolbox talk). Workers will see and acknowledge it when signing in each morning.
+                </p>
+                <DailyBriefingPanel siteId={selectedSiteId} companyId={activeCompanyId} />
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Set up a multi-step site induction. First-time visitors to this site will complete it before signing in.
+                </p>
+                <SiteInductionPanel siteId={selectedSiteId} companyId={activeCompanyId} />
+              </div>
+            )}
+          </div>
+        </section>
       )}
     </div>
   );

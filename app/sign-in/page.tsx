@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
+import { getActiveBriefingForSite, getActiveInductionForSite } from "@/lib/workspace/client";
+import type { SiteDailyBriefing, SiteInduction, BriefingCategory } from "@/lib/workspace/types";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
@@ -253,6 +255,26 @@ function SiteArchivedScreen({ site }: { site: Site }) {
 
 // ─── Sign-In view for a specific site ────────────────────────────────────────
 
+// localStorage key helpers
+const VISITOR_KEY = (siteId: string) => `sitesign_visitor_${siteId}`;
+
+interface StoredVisitorData {
+  full_name: string;
+  phone_number: string;
+  company_name: string;
+  visitor_type: VisitorType;
+  induction_completed: boolean;
+}
+
+const BRIEFING_CATEGORY_BADGE: Record<BriefingCategory, string> = {
+  Safety: "bg-red-100 text-red-700",
+  Environment: "bg-emerald-100 text-emerald-700",
+  Quality: "bg-blue-100 text-blue-700",
+  General: "bg-slate-100 text-slate-700",
+};
+
+type SignInStep = "loading" | "returning" | "form" | "induction" | "briefing" | "signature";
+
 function SiteSignIn({ site }: { site: Site }) {
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -275,30 +297,77 @@ function SiteSignIn({ site }: { site: Site }) {
   const [editReason, setEditReason] = useState("");
   const [editTimeSaving, setEditTimeSaving] = useState(false);
 
-  // Check for existing active visit on mount
+  // Sign-in flow
+  const [signInStep, setSignInStep] = useState<SignInStep>("loading");
+  const [returningVisitor, setReturningVisitor] = useState<StoredVisitorData | null>(null);
+  const [activeBriefing, setActiveBriefing] = useState<SiteDailyBriefing | null>(null);
+  const [activeInduction, setActiveInduction] = useState<SiteInduction | null>(null);
+  const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
+  const [currentInductionStep, setCurrentInductionStep] = useState(0);
+  const [inductionStepAcknowledged, setInductionStepAcknowledged] = useState(false);
+
+  // After briefing/induction IDs are resolved, used when inserting the visit
+  const pendingBriefingId = useRef<string | null>(null);
+  const pendingInductionId = useRef<string | null>(null);
+  const isInductionCompleted = useRef(false);
+
+  // On mount: check for active visit, returning-worker data, and site briefing/induction
   useEffect(() => {
-    const storedVisitId = localStorage.getItem(`active_visit_${site.id}`);
-    if (!storedVisitId) {
-      setLoadingSession(false);
-      return;
-    }
-    // Fetch the visit from DB to verify it's still active
-    supabase.from("site_visits")
-      .select("*")
-      .eq("id", storedVisitId)
-      .eq("site_id", site.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    async function init() {
+      // 1. Fetch briefing and induction in parallel (anon-safe)
+      const [briefing, induction] = await Promise.all([
+        getActiveBriefingForSite(site.id).catch(() => null),
+        getActiveInductionForSite(site.id).catch(() => null),
+      ]);
+      setActiveBriefing(briefing);
+      setActiveInduction(induction);
+
+      // 2. Check for an active session (already signed in today)
+      const storedVisitId = localStorage.getItem(`active_visit_${site.id}`);
+      if (storedVisitId) {
+        const { data, error } = await supabase
+          .from("site_visits")
+          .select("*")
+          .eq("id", storedVisitId)
+          .eq("site_id", site.id)
+          .maybeSingle();
+
         if (!error && data && !data.signed_out_at) {
-          // Visit exists and is still active
           setMyVisit(data as SiteVisit);
-        } else {
-          // Visit doesn't exist or already signed out - clear localStorage
-          localStorage.removeItem(`active_visit_${site.id}`);
+          setLoadingSession(false);
+          setSignInStep("loading"); // myVisit drives the "already signed in" view
+          return;
         }
-        setLoadingSession(false);
-      });
-  }, [site.id]);
+        // Visit stale — clear it
+        localStorage.removeItem(`active_visit_${site.id}`);
+      }
+
+      // 3. Check for returning-worker data
+      const raw = localStorage.getItem(VISITOR_KEY(site.id));
+      if (raw) {
+        try {
+          const stored: StoredVisitorData = JSON.parse(raw);
+          setReturningVisitor(stored);
+          // Pre-fill state so confirmSignIn can use it
+          setFullName(stored.full_name);
+          setPhoneNumber(stored.phone_number);
+          setCompanyName(stored.company_name);
+          setVisitorType(stored.visitor_type);
+          setLoadingSession(false);
+          setSignInStep("returning");
+          return;
+        } catch {
+          localStorage.removeItem(VISITOR_KEY(site.id));
+        }
+      }
+
+      // 4. New/unknown visitor — show full form
+      setLoadingSession(false);
+      setSignInStep("form");
+    }
+
+    init();
+  }, [site.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startEditTime(v: SiteVisit) {
     const d = new Date(v.signed_in_at);
@@ -354,7 +423,44 @@ function SiteSignIn({ site }: { site: Site }) {
       setFormError("Please enter a valid mobile number.");
       return;
     }
-    // Open signature modal instead of signing in directly
+    // Route new visitors through induction (if active) then briefing before signature
+    if (activeInduction) {
+      setCurrentInductionStep(0);
+      setInductionStepAcknowledged(false);
+      setSignInStep("induction");
+    } else if (activeBriefing) {
+      setBriefingAcknowledged(false);
+      setSignInStep("briefing");
+    } else {
+      setShowSignModal(true);
+    }
+  }
+
+  // Called when returning worker taps "Sign In" quick button
+  function handleReturningSignIn() {
+    if (activeBriefing) {
+      setBriefingAcknowledged(false);
+      setSignInStep("briefing");
+    } else {
+      setShowSignModal(true);
+    }
+  }
+
+  // Called when induction wizard completes
+  function handleInductionComplete() {
+    isInductionCompleted.current = true;
+    if (activeInduction) pendingInductionId.current = activeInduction.id;
+    if (activeBriefing) {
+      setBriefingAcknowledged(false);
+      setSignInStep("briefing");
+    } else {
+      setShowSignModal(true);
+    }
+  }
+
+  // Called when briefing is acknowledged
+  function handleBriefingContinue() {
+    if (activeBriefing) pendingBriefingId.current = activeBriefing.id;
     setShowSignModal(true);
   }
 
@@ -386,6 +492,15 @@ function SiteSignIn({ site }: { site: Site }) {
     if (signatureData) {
       insertPayload.signature = signatureData;
     }
+    // Include briefing/induction tracking
+    if (pendingBriefingId.current) {
+      insertPayload.briefing_id = pendingBriefingId.current;
+      insertPayload.briefing_acknowledged = true;
+    }
+    if (pendingInductionId.current) {
+      insertPayload.induction_id = pendingInductionId.current;
+      insertPayload.induction_completed = true;
+    }
     const { error } = await supabase.from("site_visits").insert(insertPayload);
     setSubmitting(false);
     if (error) {
@@ -406,11 +521,23 @@ function SiteSignIn({ site }: { site: Site }) {
       signature: signatureData,
     };
     setMyVisit(newVisit);
-    // Store visit ID in localStorage for session persistence
+    // Persist active visit for session continuity
     localStorage.setItem(`active_visit_${site.id}`, visitId);
+    // Persist visitor profile for returning-worker recognition
+    const visitorData: StoredVisitorData = {
+      full_name: fullName.trim(),
+      phone_number: phoneNumber.trim(),
+      company_name: companyName.trim(),
+      visitor_type: visitorType,
+      induction_completed: isInductionCompleted.current || (returningVisitor?.induction_completed ?? false),
+    };
+    localStorage.setItem(VISITOR_KEY(site.id), JSON.stringify(visitorData));
+    // Reset flow refs
+    pendingBriefingId.current = null;
+    pendingInductionId.current = null;
+    isInductionCompleted.current = false;
     setShowSignModal(false);
     setSuccess(true);
-    setFullName(""); setPhoneNumber(""); setCompanyName(""); setVisitorType("Worker");
     setTimeout(() => setSuccess(false), 4000);
   }
 
@@ -443,9 +570,11 @@ function SiteSignIn({ site }: { site: Site }) {
       setFormError(`Sign-out failed: ${error.message}`);
       return;
     }
-    // Clear localStorage session
+    // Clear active visit from localStorage (keep visitor profile for next sign-in)
     localStorage.removeItem(`active_visit_${site.id}`);
     setMyVisit(null);
+    // Return to returning-worker screen if we have their data, otherwise form
+    setSignInStep(returningVisitor ? "returning" : "form");
   }
 
   // One-time cleanup: unregister any old service workers from the geofence era
@@ -487,15 +616,168 @@ function SiteSignIn({ site }: { site: Site }) {
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 pt-5 pb-10 space-y-6">
         {/* Loading state while checking for existing session */}
-        {loadingSession && (
+        {(loadingSession || signInStep === "loading") && !myVisit && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-amber-400 border-t-transparent"></div>
             <p className="mt-4 text-sm font-bold text-slate-500 uppercase tracking-widest">Checking Registry...</p>
           </div>
         )}
 
+        {/* Returning-worker quick sign-in */}
+        {!loadingSession && !myVisit && signInStep === "returning" && returningVisitor && (
+          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-200 p-6 sm:p-10">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="bg-amber-400 text-amber-950 rounded-2xl p-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Returning Visitor</p>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5 mb-6 space-y-1">
+              <p className="text-xl font-black text-slate-900">{returningVisitor.full_name}</p>
+              <p className="text-sm font-bold text-slate-500">{returningVisitor.company_name}</p>
+              <span className={`inline-block mt-1 text-xs font-bold px-2.5 py-1 rounded-full ${TYPE_COLOURS[returningVisitor.visitor_type]}`}>
+                {returningVisitor.visitor_type}
+              </span>
+            </div>
+            {activeBriefing && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span className="font-bold">Today&apos;s briefing:</span> {activeBriefing.title} — you&apos;ll read it before signing in.
+              </div>
+            )}
+            <button
+              onClick={handleReturningSignIn}
+              className="w-full bg-amber-400 hover:bg-amber-500 text-amber-950 font-black py-5 rounded-[1.5rem] transition-all text-xl shadow-xl shadow-amber-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => {
+                setReturningVisitor(null);
+                localStorage.removeItem(VISITOR_KEY(site.id));
+                setFullName(""); setPhoneNumber(""); setCompanyName(""); setVisitorType("Worker");
+                setSignInStep("form");
+              }}
+              className="mt-3 w-full text-sm font-semibold text-slate-400 hover:text-slate-600 transition-colors py-2"
+            >
+              Not me?
+            </button>
+          </div>
+        )}
+
+        {/* Site Induction wizard */}
+        {!loadingSession && !myVisit && signInStep === "induction" && activeInduction && (
+          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-200 p-6 sm:p-10">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="bg-violet-100 text-violet-700 rounded-2xl p-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">{activeInduction.title}</h2>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Step {currentInductionStep + 1} of {activeInduction.steps.length}</p>
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mb-6">
+              <div
+                className="bg-violet-500 h-1.5 rounded-full transition-all"
+                style={{ width: `${((currentInductionStep + 1) / activeInduction.steps.length) * 100}%` }}
+              />
+            </div>
+            {activeInduction.steps[currentInductionStep] && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold text-slate-900">{activeInduction.steps[currentInductionStep].title}</h3>
+                <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {activeInduction.steps[currentInductionStep].content}
+                </div>
+                {activeInduction.steps[currentInductionStep].requires_acknowledgement && (
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={inductionStepAcknowledged}
+                      onChange={(e) => setInductionStepAcknowledged(e.target.checked)}
+                      className="mt-0.5 h-5 w-5 rounded"
+                    />
+                    <span className="text-sm font-semibold text-slate-700">
+                      I have read and understood this section
+                    </span>
+                  </label>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                const step = activeInduction.steps[currentInductionStep];
+                if (step.requires_acknowledgement && !inductionStepAcknowledged) return;
+                if (currentInductionStep < activeInduction.steps.length - 1) {
+                  setCurrentInductionStep((p) => p + 1);
+                  setInductionStepAcknowledged(false);
+                } else {
+                  handleInductionComplete();
+                }
+              }}
+              disabled={
+                activeInduction.steps[currentInductionStep]?.requires_acknowledgement &&
+                !inductionStepAcknowledged
+              }
+              className="mt-6 w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-black py-4 rounded-[1.5rem] transition-all text-lg shadow-lg"
+            >
+              {currentInductionStep < activeInduction.steps.length - 1 ? "Next →" : "Complete Induction"}
+            </button>
+          </div>
+        )}
+
+        {/* Daily Briefing acknowledgement */}
+        {!loadingSession && !myVisit && signInStep === "briefing" && activeBriefing && (
+          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-200 p-6 sm:p-10">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="bg-amber-100 text-amber-700 rounded-2xl p-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Today&apos;s Safety Briefing</h2>
+                {activeBriefing.category && (
+                  <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full ${BRIEFING_CATEGORY_BADGE[activeBriefing.category as BriefingCategory]}`}>
+                    {activeBriefing.category}
+                  </span>
+                )}
+              </div>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-3">{activeBriefing.title}</h3>
+            <div className="rounded-2xl bg-amber-50 border border-amber-100 p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-6">
+              {activeBriefing.content}
+            </div>
+            <label className="flex items-start gap-3 cursor-pointer mb-6">
+              <input
+                type="checkbox"
+                checked={briefingAcknowledged}
+                onChange={(e) => setBriefingAcknowledged(e.target.checked)}
+                className="mt-0.5 h-5 w-5 rounded"
+              />
+              <span className="text-sm font-semibold text-slate-700">
+                I have read and understood today&apos;s safety briefing
+              </span>
+            </label>
+            <button
+              onClick={handleBriefingContinue}
+              disabled={!briefingAcknowledged}
+              className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-950 font-black py-5 rounded-[1.5rem] transition-all text-xl shadow-xl shadow-amber-200 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Continue to Sign In →
+            </button>
+          </div>
+        )}
+
         {/* Sign In Form - only show if not loading and no active visit */}
-        {!loadingSession && !myVisit && (
+        {!loadingSession && !myVisit && signInStep === "form" && (
           <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-200 p-6 sm:p-10">
             <div className="flex items-center gap-4 mb-8">
               <div className="bg-amber-400 text-amber-950 rounded-2xl p-2.5">
@@ -583,7 +865,7 @@ function SiteSignIn({ site }: { site: Site }) {
               </div>
               <button type="submit" disabled={submitting}
                 className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 disabled:opacity-60 text-amber-950 font-black py-5 rounded-[1.5rem] transition-all text-xl shadow-xl shadow-amber-200 mt-2 hover:scale-[1.02] active:scale-[0.98]">
-                {submitting ? "Signing In…" : "Confirm Sign In"}
+                {submitting ? "Signing In…" : activeInduction ? "Continue →" : activeBriefing ? "Continue →" : "Confirm Sign In"}
               </button>
             </form>
           </div>

@@ -142,6 +142,37 @@ export default function DiaryDetailPage() {
   const statusLabel = DIARY_STATUS_LABELS[diary.status] ?? diary.status;
   const statusBadge = DIARY_STATUS_BADGE[diary.status] ?? "bg-slate-100 text-slate-500 border-slate-200";
 
+  const formType = (diary as { form_type?: FormType }).form_type ?? "daily-diary";
+
+  const DEPRECATED_FORM_BANNERS: Partial<Record<FormType, { message: string; link: string; linkLabel: string; color: string }>> = {
+    "toolbox-talk": {
+      message: "Toolbox talks are now managed in SiteSign as part of the morning sign-in.",
+      link: "/dashboard/site-sign-in",
+      linkLabel: "Go to SiteSign",
+      color: "bg-amber-50 border-amber-200 text-amber-800",
+    },
+    "site-induction": {
+      message: "Site inductions are now managed in SiteSign and shown to new workers at sign-in.",
+      link: "/dashboard/site-sign-in",
+      linkLabel: "Go to SiteSign",
+      color: "bg-violet-50 border-violet-200 text-violet-800",
+    },
+    "incident-report": {
+      message: "New incident reports are created in SiteDocs.",
+      link: "/dashboard/site-docs",
+      linkLabel: "Go to SiteDocs",
+      color: "bg-red-50 border-red-200 text-red-800",
+    },
+    "site-inspection": {
+      message: "For formal inspection records, use SiteITP.",
+      link: "/dashboard/site-itp",
+      linkLabel: "Go to SiteITP",
+      color: "bg-cyan-50 border-cyan-200 text-cyan-800",
+    },
+  };
+
+  const deprecatedBanner = DEPRECATED_FORM_BANNERS[formType];
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-2xl px-4 pb-24">
@@ -206,6 +237,21 @@ export default function DiaryDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Deprecation banner for form types that have moved to other modules */}
+        {deprecatedBanner && (
+          <div className={`mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${deprecatedBanner.color}`}>
+            <svg className="mt-0.5 h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>
+              {deprecatedBanner.message}{" "}
+              <Link href={deprecatedBanner.link} className="font-semibold underline underline-offset-2">
+                {deprecatedBanner.linkLabel} →
+              </Link>
+            </span>
+          </div>
+        )}
 
         {/* The entry form - conditional based on form_type */}
         {(() => {
