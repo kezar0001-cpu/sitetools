@@ -308,7 +308,6 @@ export default function SignOffForm({
   }
 
   // ── Sign-off form ──────────────────────────────────────────────────────────
-  const isHold = type === "hold";
   const canSubmit = name.trim().length > 0 && hasDrawn && !submitting;
 
   return (
