@@ -14,6 +14,7 @@ export interface SignoffRecord {
   name: string;
   role: string;
   signed_at: string;
+  notes?: string;
 }
 
 interface ItemSignOffFormProps {
@@ -67,6 +68,7 @@ function ItemSignOffForm({
 }: ItemSignOffFormProps) {
   const [name, setName] = useState(defaultName);
   const [role, setRole] = useState("superintendent");
+  const [notes, setNotes] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,15 +109,18 @@ function ItemSignOffForm({
     setError(null);
 
     try {
+      const fetchBody: Record<string, unknown> = {
+        slug: item.slug,
+        name: name.trim(),
+        role,
+        signature: signatureData,
+      };
+      if (notes.trim()) fetchBody.notes = notes.trim();
+
       const res = await fetch("/api/itp-sign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug: item.slug,
-          name: name.trim(),
-          role,
-          signature: signatureData,
-        }),
+        body: JSON.stringify(fetchBody),
       });
 
       if (!res.ok) {
@@ -129,6 +134,7 @@ function ItemSignOffForm({
         name: name.trim(),
         role,
         signed_at: new Date().toISOString(),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
 
       onSigned(
@@ -225,6 +231,21 @@ function ItemSignOffForm({
         >
           Clear
         </button>
+      </div>
+
+      {/* Notes (optional) */}
+      <div className="space-y-1.5">
+        <label className="block text-sm font-semibold text-slate-700">
+          Notes <span className="font-normal text-slate-400">(optional)</span>
+        </label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Add a comment or note…"
+          rows={2}
+          style={{ fontSize: "16px" }}
+          className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-amber-400 transition-colors bg-white text-sm resize-none"
+        />
       </div>
 
       {error && (
@@ -541,14 +562,19 @@ export default function SessionSignOffClient({ session, initialItems, initialSig
 
                 {/* Sign-off records */}
                 {itemSignoffs.length > 0 && (
-                  <div className="mt-3 space-y-1.5">
+                  <div className="mt-3 space-y-2">
                     {itemSignoffs.map((s) => (
-                      <div key={s.id} className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-                        <span className="font-semibold text-slate-700">{s.name}</span>
-                        <span className="text-slate-400">—</span>
-                        <span>{roleLabel(s.role)}</span>
-                        <span className="text-slate-400 ml-auto shrink-0">{formatSignedAt(s.signed_at)}</span>
+                      <div key={s.id}>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                          <span className="font-semibold text-slate-700">{s.name}</span>
+                          <span className="text-slate-400">—</span>
+                          <span>{roleLabel(s.role)}</span>
+                          <span className="text-slate-400 ml-auto shrink-0">{formatSignedAt(s.signed_at)}</span>
+                        </div>
+                        {s.notes && (
+                          <p className="text-xs text-slate-400 italic ml-4 mt-0.5">{s.notes}</p>
+                        )}
                       </div>
                     ))}
                   </div>
