@@ -162,7 +162,7 @@ export function SiteInductionPanel({ siteId, companyId }: SiteInductionPanelProp
                   onChange={(e) => updateStep(i, { requires_acknowledgement: e.target.checked })}
                   className="rounded"
                 />
-                <span className="text-xs text-slate-600">Require worker to tick "I acknowledge" on this step</span>
+                <span className="text-xs text-slate-600">Require worker to tick &ldquo;I acknowledge&rdquo; on this step</span>
               </label>
             </div>
           ))}
