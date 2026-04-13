@@ -13,7 +13,20 @@ const ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "contractor", label: "Contractor" },
 ];
 
-const VALID_ROLES = new Set(ROLE_OPTIONS.map((r) => r.value));
+const ROLE_LABELS: Record<string, string> = {
+  superintendent: "Superintendent",
+  third_party: "Third Party",
+  contractor: "Contractor",
+  designer: "Designer",
+  inspector: "Inspector",
+};
+
+interface ExistingSignoff {
+  id: string;
+  name: string;
+  role: string;
+  signed_at: string;
+}
 
 interface Props {
   slug: string;
@@ -22,8 +35,8 @@ interface Props {
   type: "hold" | "witness";
   taskDescription: string | null;
   referenceStandard?: string | null;
-  responsibility?: string | null;
   acceptanceCriteria?: string | null;
+  existingSignoffs?: ExistingSignoff[];
 }
 
 interface SignOffResult {
@@ -40,29 +53,23 @@ export default function SignOffForm({
   type,
   taskDescription,
   referenceStandard,
-  responsibility,
   acceptanceCriteria,
+  existingSignoffs,
 }: Props) {
-  const defaultRole =
-    responsibility && VALID_ROLES.has(responsibility) ? responsibility : "superintendent";
   const [name, setName] = useState("");
-  const [role, setRole] = useState(defaultRole);
+  const [role, setRole] = useState("superintendent");
+  const [notes, setNotes] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>("capturing");
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<SignOffResult | null>(null);
-  const [alreadySigned, setAlreadySigned] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sigPadRef = useRef<SignatureCanvas>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [canvasWidth, setCanvasWidth] = useState(340);
   const canvasWidthRef = useRef(340);
-  const [waiveOpen, setWaiveOpen] = useState(false);
-  const [waiveReason, setWaiveReason] = useState("");
-  const [waiving, setWaiving] = useState(false);
-  const [waiveError, setWaiveError] = useState<string | null>(null);
-  const [waived, setWaived] = useState(false);
   const [clientHoldOpen, setClientHoldOpen] = useState(false);
   const [clientHoldReason, setClientHoldReason] = useState("");
   const [placingHold, setPlacingHold] = useState(false);
@@ -128,6 +135,9 @@ export default function SignOffForm({
         body.lat = gpsCoords.lat;
         body.lng = gpsCoords.lng;
       }
+      if (notes.trim()) {
+        body.notes = notes.trim();
+      }
 
       const res = await fetch("/api/itp-sign", {
         method: "POST",
@@ -136,7 +146,7 @@ export default function SignOffForm({
       });
 
       if (res.status === 409) {
-        setAlreadySigned(true);
+        setUnavailable(true);
         return;
       }
 
@@ -182,7 +192,7 @@ export default function SignOffForm({
       });
 
       if (res.status === 409) {
-        setAlreadySigned(true);
+        setUnavailable(true);
         return;
       }
       if (!res.ok) throw new Error("network");
@@ -194,72 +204,16 @@ export default function SignOffForm({
     }
   }
 
-
-  async function handleWaive() {
-    const trimmed = waiveReason.trim();
-    if (!trimmed) return;
-    setWaiving(true);
-    setWaiveError(null);
-    try {
-      const res = await fetch("/api/itp-sign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, status: "waived", waive_reason: trimmed }),
-      });
-      if (res.status === 409) {
-        setAlreadySigned(true);
-        return;
-      }
-      if (!res.ok) throw new Error("network");
-      setWaived(true);
-    } catch {
-      setWaiveError("Waiver failed — please check your connection and try again.");
-    } finally {
-      setWaiving(false);
-    }
-  }
-
-  // ── Already signed (409 race) ──────────────────────────────────────────────
-  if (alreadySigned) {
+  // ── No longer available (waived — 409 race) ───────────────────────────────
+  if (unavailable) {
     return (
-      <div className="bg-emerald-50 rounded-2xl border-2 border-emerald-200 p-8 text-center space-y-4">
-        <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
-          <svg
-            className="h-8 w-8 text-emerald-600"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+      <div className="bg-amber-50 rounded-2xl border-2 border-amber-200 p-8 text-center space-y-4">
+        <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto text-2xl">
+          ⚠️
         </div>
-        <h2 className="text-xl font-bold text-slate-900">Already Signed Off</h2>
+        <h2 className="text-xl font-bold text-slate-900">No Longer Available</h2>
         <p className="text-slate-500 text-sm">
-          This inspection point has already been signed off. You can close this page.
-        </p>
-      </div>
-    );
-  }
-
-  // ── Waived ─────────────────────────────────────────────────────────────────
-  if (waived) {
-    return (
-      <div className="bg-slate-50 rounded-2xl border-2 border-slate-200 p-8 text-center space-y-4">
-        <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto">
-          <svg
-            className="h-8 w-8 text-slate-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h2 className="text-xl font-bold text-slate-900">Point Waived</h2>
-        <p className="text-slate-500 text-sm">
-          This inspection point has been waived. You can close this page.
+          This inspection point has been waived and is no longer accepting sign-offs.
         </p>
       </div>
     );
@@ -380,8 +334,35 @@ export default function SignOffForm({
         <h1 className="text-xl font-bold text-slate-900">{title}</h1>
         {description && <p className="text-base text-slate-600">{description}</p>}
 
+        {/* Existing signers panel */}
+        {existingSignoffs && existingSignoffs.length > 0 && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
+              Already signed by
+            </p>
+            {existingSignoffs.map((s) => (
+              <div key={s.id} className="flex items-start gap-2 text-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
+                <div>
+                  <span className="font-semibold text-slate-800">{s.name}</span>
+                  <span className="text-slate-500"> — {ROLE_LABELS[s.role] ?? s.role}</span>
+                  <p className="text-xs text-slate-400">
+                    {new Date(s.signed_at).toLocaleString("en-AU", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Structured ITP details */}
-        {(referenceStandard || acceptanceCriteria || responsibility) && (
+        {(referenceStandard || acceptanceCriteria) && (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
             {referenceStandard && (
               <p className="text-xs text-slate-600">
@@ -393,12 +374,6 @@ export default function SignOffForm({
               <p className="text-xs text-slate-600">
                 <span className="font-semibold">Acceptance criteria:</span>{" "}
                 {acceptanceCriteria}
-              </p>
-            )}
-            {responsibility && (
-              <p className="text-xs text-slate-600">
-                <span className="font-semibold">Verification by:</span>{" "}
-                {responsibility === "superintendent" ? "Superintendent" : responsibility === "third_party" ? "Third Party" : "Contractor"}
               </p>
             )}
           </div>
@@ -464,6 +439,21 @@ export default function SignOffForm({
           </button>
         </div>
 
+        {/* Notes (optional) */}
+        <div className="space-y-1.5">
+          <label className="block text-sm font-semibold text-slate-700">
+            Notes <span className="font-normal text-slate-400">(optional)</span>
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add a comment or note…"
+            rows={3}
+            style={{ fontSize: "16px" }}
+            className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 outline-none focus:border-amber-400 transition-colors bg-white text-sm resize-none"
+          />
+        </div>
+
         {/* GPS status */}
         <p
           className={`text-sm ${
@@ -482,65 +472,12 @@ export default function SignOffForm({
           </div>
         )}
 
-        {/* Waive this point (witness only) */}
-        {!isHold && (
-          <div className="pt-2">
-            {!waiveOpen ? (
-              <button
-                type="button"
-                onClick={() => setWaiveOpen(true)}
-                className="w-full text-sm text-slate-400 hover:text-slate-600 transition-colors py-2"
-              >
-                Waive this point
-              </button>
-            ) : (
-              <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50">
-                <p className="text-sm font-semibold text-slate-700">Waive reason (required)</p>
-                <textarea
-                  value={waiveReason}
-                  onChange={(e) => setWaiveReason(e.target.value)}
-                  placeholder="Describe why this point is being waived…"
-                  rows={3}
-                  style={{ fontSize: "16px" }}
-                  className="w-full border-2 border-slate-200 focus:border-slate-400 rounded-xl px-4 py-3 outline-none text-sm resize-none bg-white transition-colors"
-                />
-                {waiveError && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-                    {waiveError}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleWaive}
-                    disabled={waiving || !waiveReason.trim()}
-                    className="flex-1 bg-slate-700 hover:bg-slate-800 disabled:opacity-40 text-white font-bold py-3 rounded-2xl text-sm transition-all active:scale-95 disabled:active:scale-100"
-                  >
-                    {waiving ? "Waiving…" : "Confirm Waiver"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setWaiveOpen(false);
-                      setWaiveReason("");
-                      setWaiveError(null);
-                    }}
-                    className="px-4 py-3 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl text-sm hover:bg-slate-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Client Hold this point */}
         <div className="pt-2">
           {!clientHoldOpen ? (
             <button
               type="button"
-              onClick={() => { setClientHoldOpen(true); setWaiveOpen(false); }}
+              onClick={() => setClientHoldOpen(true)}
               className="w-full text-sm font-semibold text-orange-600 border border-orange-200 bg-orange-50 rounded-2xl py-3 hover:bg-orange-100 transition-colors mt-2"
             >
               Place on Client Hold

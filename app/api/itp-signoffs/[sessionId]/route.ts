@@ -56,7 +56,7 @@ export async function GET(
   // Fetch all sign-off records for the session
   const { data: signoffs, error: signoffsErr } = await supabaseAdmin
     .from("itp_item_signoffs")
-    .select("id, item_id, name, role, signed_at, signature_path")
+    .select("id, item_id, name, role, signed_at, signature_path, notes")
     .eq("session_id", sessionId)
     .order("signed_at", { ascending: true });
 
@@ -71,6 +71,7 @@ export async function GET(
     name: string;
     role: string;
     signed_at: string;
+    notes?: string;
     dataUrl?: string;
   }[] = [];
 
@@ -96,6 +97,7 @@ export async function GET(
       name: signoff.name,
       role: signoff.role,
       signed_at: signoff.signed_at,
+      ...(signoff.notes ? { notes: signoff.notes } : {}),
       dataUrl,
     });
   }

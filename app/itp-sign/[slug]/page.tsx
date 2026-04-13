@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import SignOffForm from "./SignOffForm";
 
 type ItemType = "hold" | "witness";
-type ItemStatus = "pending" | "signed" | "waived";
+type ItemStatus = "pending" | "signed" | "waived" | "client_hold";
 
 interface ItpItem {
   id: string;
@@ -20,6 +20,13 @@ interface ItpItem {
   responsibility: string | null;
   acceptance_criteria: string | null;
   itp_sessions: { task_description: string | null } | null;
+}
+
+interface ExistingSignoff {
+  id: string;
+  name: string;
+  role: string;
+  signed_at: string;
 }
 
 function getSupabaseAdmin() {
@@ -105,71 +112,16 @@ export default async function ItpSignPage({
     );
   }
 
-  // ── Already signed ───────────────────────────────────────────────────────
-  if (item.status === "signed") {
-    const signedAt = item.signed_off_at
-      ? new Date(item.signed_off_at).toLocaleString("en-AU", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "—";
+  // ── Fetch existing signoffs (for pending, signed, client_hold) ───────────
+  const { data: signoffsData } = await supabase
+    .from("itp_item_signoffs")
+    .select("id, name, role, signed_at")
+    .eq("item_id", item.id)
+    .order("signed_at", { ascending: true });
 
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-4">
-        <div className="max-w-sm w-full">
-          <div className="bg-emerald-50 rounded-2xl border-2 border-emerald-200 shadow-lg p-8 text-center space-y-4">
-            <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
-              <svg
-                className="h-8 w-8 text-emerald-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-slate-900">Already Signed Off</h2>
-            <div className="bg-white rounded-xl border border-emerald-200 p-4 text-left space-y-3">
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  Signed by
-                </p>
-                <p className="font-bold text-slate-800">
-                  {item.signed_off_by_name ?? "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                  Date &amp; Time
-                </p>
-                <p className="text-slate-700">{signedAt}</p>
-              </div>
-              {item.sign_off_lat != null && item.sign_off_lng != null && (
-                <div>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
-                    Location
-                  </p>
-                  <p className="text-slate-700 text-sm font-mono">
-                    {item.sign_off_lat.toFixed(5)}, {item.sign_off_lng.toFixed(5)}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const existingSignoffs = (signoffsData ?? []) as ExistingSignoff[];
 
-  // ── Pending — show sign-off form ─────────────────────────────────────────
+  // ── Show sign-off form (pending, signed, client_hold) ────────────────────
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-sm mx-auto px-4 py-8">
@@ -180,8 +132,8 @@ export default async function ItpSignPage({
           type={item.type}
           taskDescription={taskDescription}
           referenceStandard={item.reference_standard}
-          responsibility={item.responsibility}
           acceptanceCriteria={item.acceptance_criteria}
+          existingSignoffs={existingSignoffs}
         />
       </div>
     </div>

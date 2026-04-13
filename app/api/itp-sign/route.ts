@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     status?: string;
     waive_reason?: string;
     client_hold_reason?: string;
+    notes?: string;
   };
   try {
     body = await req.json();
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { slug, name, role, signature, status: requestedStatus, waive_reason, client_hold_reason } = body;
+  const { slug, name, role, signature, status: requestedStatus, waive_reason, client_hold_reason, notes } = body;
   const isWaiver = requestedStatus === 'waived';
   const isClientHold = requestedStatus === 'client_hold';
 
@@ -110,10 +111,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  if (item.status !== 'pending' && item.status !== 'client_hold') {
-    return NextResponse.json({ error: 'Already signed' }, { status: 409 });
+  // Waived is the only terminal state — block all actions on waived items
+  if (item.status === 'waived') {
+    return NextResponse.json({ error: 'Item has been waived' }, { status: 409 });
   }
-  // Normal sign-offs: allow multiple people to sign the same item
+  // Normal sign-offs: allow multiple people to sign the same item (pending, signed, client_hold)
 
   const trimmedName = typeof name === 'string' ? name.trim() : '';
   const signedAt = new Date().toISOString();
@@ -148,6 +150,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert sign-off record
+    const trimmedNotes = typeof notes === 'string' ? notes.trim() : '';
     const { error: signoffErr } = await supabase
       .from('itp_item_signoffs')
       .insert({
@@ -157,6 +160,7 @@ export async function POST(req: NextRequest) {
         role: role as string,
         signed_at: signedAt,
         signature_path: signaturePath,
+        ...(trimmedNotes ? { notes: trimmedNotes } : {}),
       });
 
     if (signoffErr) {

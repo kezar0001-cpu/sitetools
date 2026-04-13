@@ -11,7 +11,6 @@ import { supabase } from "@/lib/supabase";
 
 type ItemType = "hold" | "witness";
 type ItemStatus = "pending" | "signed" | "waived" | "client_hold";
-type Responsibility = "contractor" | "superintendent" | "third_party";
 
 export interface ItpItem {
   id: string;
@@ -28,7 +27,7 @@ export interface ItpItem {
   waive_reason?: string | null;
   signature?: string | null;
   reference_standard?: string | null;
-  responsibility?: Responsibility | null;
+  responsibility?: string | null;
   records_required?: string | null;
   acceptance_criteria?: string | null;
 }
@@ -52,6 +51,7 @@ interface SignoffRecord {
   name: string;
   role: string;
   signed_at: string;
+  notes?: string;
   dataUrl?: string;
 }
 
@@ -71,12 +71,6 @@ function formatAU(iso: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
-}
-
-function responsibilityLabel(r?: Responsibility | null): string {
-  if (r === "superintendent") return "Supt.";
-  if (r === "third_party") return "3rd Party";
-  return "Contractor";
 }
 
 function roleLabel(role: string): string {
@@ -133,10 +127,12 @@ export default function ItpPdfExport({ session }: Props) {
         signoffsByItem.set(s.item_id, existing);
       }
 
-      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      // Portrait A4
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
+      const margin = 12;
+      const contentWidth = pageWidth - margin * 2;
       const generatedAt = formatAU(new Date().toISOString());
       const companyName = session.company_name ?? "";
       const projectSite = [session.project_name, session.site_name]
@@ -146,14 +142,14 @@ export default function ItpPdfExport({ session }: Props) {
       // ── Header ──────────────────────────────────────────────────────────────
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
-      doc.text("INSPECTION & TEST PLAN", margin, 14);
+      doc.text("INSPECTION & TEST PLAN", margin, 16);
 
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(100);
-      doc.text(session.task_description, margin, 21);
+      doc.text(session.task_description, margin, 23);
 
-      let nextY = 21;
+      let nextY = 23;
       if (companyName) {
         nextY += 5;
         doc.text(companyName, margin, nextY);
@@ -177,12 +173,13 @@ export default function ItpPdfExport({ session }: Props) {
       nextY += 5;
       doc.setFontSize(7);
       doc.setTextColor(120);
-      doc.text("H = Hold Point (mandatory stop)    W = Witness Point (notification)    C = Contractor    S = Superintendent    TP = Third Party", margin, nextY);
+      doc.text("H = Hold Point (mandatory stop)    W = Witness Point (notification)", margin, nextY);
 
       doc.setTextColor(0);
       const startY = nextY + 4;
 
       // ── ITP Summary Table ─────────────────────────────────────────────────
+      // Columns: # | Type | Activity/Inspection | Reference Standard | Acceptance Criteria | Status | Signed By
       const hasPhases = items.some((i) => i.phase && i.phase.trim());
       type RowMeta = { kind: "phase"; phase: string } | { kind: "item"; item: ItpItem; num: number };
       const rowMeta: RowMeta[] = [];
@@ -195,7 +192,7 @@ export default function ItpPdfExport({ session }: Props) {
           const phase = item.phase?.trim() || "General";
           if (phase !== lastPhase) {
             rowMeta.push({ kind: "phase", phase });
-            bodyRows.push([{ content: phase, colSpan: 10 } as unknown as string, "", "", "", "", "", "", "", "", ""]);
+            bodyRows.push([{ content: phase, colSpan: 7 } as unknown as string, "", "", "", "", "", ""]);
             lastPhase = phase;
           }
           itemNum++;
@@ -210,11 +207,8 @@ export default function ItpPdfExport({ session }: Props) {
             item.title,
             item.reference_standard || "—",
             item.acceptance_criteria || item.description || "—",
-            responsibilityLabel(item.responsibility),
-            item.records_required || "—",
             isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
             signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : ""),
-            (isSigned || isWaived) && item.signed_off_at ? formatAU(item.signed_off_at) : "",
           ]);
         }
       } else {
@@ -230,22 +224,19 @@ export default function ItpPdfExport({ session }: Props) {
             item.title,
             item.reference_standard || "—",
             item.acceptance_criteria || item.description || "—",
-            responsibilityLabel(item.responsibility),
-            item.records_required || "—",
             isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
             signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : ""),
-            (isSigned || isWaived) && item.signed_off_at ? formatAU(item.signed_off_at) : "",
           ]);
         });
       }
 
       autoTable(doc, {
-        head: [["#", "Type", "Activity / Inspection", "Reference Standard", "Acceptance Criteria", "Resp.", "Records Required", "Status", "Signed By", "Date/Time"]],
+        head: [["#", "Type", "Activity / Inspection", "Reference Standard", "Acceptance Criteria", "Status", "Signed By"]],
         body: bodyRows,
         startY,
         styles: {
-          fontSize: 6.5,
-          cellPadding: 1.8,
+          fontSize: 7,
+          cellPadding: 2,
           overflow: "linebreak",
           lineWidth: 0.1,
           lineColor: [200, 200, 200],
@@ -255,19 +246,16 @@ export default function ItpPdfExport({ session }: Props) {
           textColor: [255, 255, 255],
           fontStyle: "bold",
           halign: "center",
-          fontSize: 6.5,
+          fontSize: 7,
         },
         columnStyles: {
-          0: { cellWidth: 7, halign: "center" },
+          0: { cellWidth: 8, halign: "center" },
           1: { cellWidth: 10, halign: "center", fontStyle: "bold" },
-          2: { cellWidth: 40 },
-          3: { cellWidth: 30, fontStyle: "italic", fontSize: 6 },
-          4: { cellWidth: 50 },
-          5: { cellWidth: 16, halign: "center" },
-          6: { cellWidth: 40 },
-          7: { cellWidth: 14, halign: "center" },
-          8: { cellWidth: 24 },
-          9: { cellWidth: 28 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 30, fontStyle: "italic", fontSize: 6.5 },
+          4: { cellWidth: 55 },
+          5: { cellWidth: 15, halign: "center" },
+          6: { cellWidth: "auto" },
         },
         margin: { left: margin, right: margin },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -304,7 +292,7 @@ export default function ItpPdfExport({ session }: Props) {
           }
 
           // Status column styling
-          if (data.column.index === 7) {
+          if (data.column.index === 5) {
             if (item.status === "signed") {
               data.cell.styles.textColor = [22, 101, 52];
               data.cell.styles.fontStyle = "bold";
@@ -317,7 +305,6 @@ export default function ItpPdfExport({ session }: Props) {
       });
 
       // ── Sign-Off Records ─────────────────────────────────────────────────────
-      // Use sign-offs from itp_item_signoffs table; fall back to legacy item field
       const itemsWithSignoffs = items.filter((item) => {
         const hasSigs = (signoffsByItem.get(item.id) ?? []).length > 0;
         const isResolved = item.status === "signed" || item.status === "waived";
@@ -326,57 +313,48 @@ export default function ItpPdfExport({ session }: Props) {
 
       if (itemsWithSignoffs.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let y = (doc as any).lastAutoTable.finalY + 12;
+        let y = (doc as any).lastAutoTable.finalY + 14;
 
         if (y + 20 > pageHeight - 20) {
           doc.addPage();
-          y = 16;
+          y = 18;
         }
 
         doc.setFontSize(11);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(15, 23, 42);
         doc.text("SIGN-OFF RECORDS", margin, y);
-        y += 8;
+        y += 10;
 
         for (const item of itemsWithSignoffs) {
           const isHold = item.type === "hold";
           const itemSigs = signoffsByItem.get(item.id) ?? [];
           const isWaived = item.status === "waived";
 
-          // Determine signatories to display
-          // Prefer itp_item_signoffs; fall back to legacy signed_off_by_name
-          const signatories: { name: string; role: string; signed_at: string; dataUrl?: string }[] =
+          const signatories: { name: string; role: string; signed_at: string; notes?: string; dataUrl?: string }[] =
             itemSigs.length > 0
-              ? itemSigs.map((s) => ({ name: s.name, role: s.role, signed_at: s.signed_at, dataUrl: s.dataUrl ?? undefined }))
+              ? itemSigs.map((s) => ({ name: s.name, role: s.role, signed_at: s.signed_at, notes: s.notes, dataUrl: s.dataUrl ?? undefined }))
               : item.signed_off_by_name
-              ? [{ name: item.signed_off_by_name, role: "", signed_at: item.signed_off_at ?? "", dataUrl: undefined }]
+              ? [{ name: item.signed_off_by_name, role: "", signed_at: item.signed_off_at ?? "" }]
               : [];
 
           if (signatories.length === 0 && !isWaived) continue;
 
-          const noteLines =
-            item.waive_reason
-              ? (doc.splitTextToSize(
-                  `Notes: ${item.waive_reason}`,
-                  pageWidth - margin * 2 - 4
-                ) as string[])
-              : [];
+          const sigH = 20;
+          const sigW = 65;
 
-          // Calculate block height
-          const sigH = 22;
-          const sigW = 70;
-          const sigsWithImg = signatories.filter((s) => s.dataUrl);
-          const blockH =
-            7 + // title line
-            signatories.length * 6 + // one line per signatory (name, role, date)
-            (sigsWithImg.length > 0 ? sigsWithImg.length * (sigH + 3) : 0) +
-            (noteLines.length > 0 ? noteLines.length * 4 + 2 : 0) +
-            5;
+          // Estimate block height
+          let blockH = 8; // title
+          for (const sig of signatories) {
+            blockH += 6; // signer line
+            if (sig.notes) blockH += 5; // notes line
+            if (sig.dataUrl) blockH += sigH + 4; // signature image
+          }
+          blockH += 4; // bottom padding
 
           if (y + blockH > pageHeight - 16) {
             doc.addPage();
-            y = 16;
+            y = 18;
           }
 
           // Card background
@@ -385,62 +363,55 @@ export default function ItpPdfExport({ session }: Props) {
             isHold ? 242 : 251,
             isHold ? 242 : 235
           );
-          doc.roundedRect(margin, y - 3, pageWidth - margin * 2, blockH, 2, 2, "F");
+          doc.roundedRect(margin, y - 3, contentWidth, blockH, 2, 2, "F");
 
           // Type badge
           doc.setFontSize(7);
           doc.setFont("helvetica", "bold");
-          doc.setTextColor(
-            isHold ? 185 : 146,
-            isHold ? 28 : 64,
-            isHold ? 28 : 14
-          );
-          doc.text(typeCode(item.type), margin + 2, y + 1);
+          doc.setTextColor(isHold ? 185 : 146, isHold ? 28 : 64, isHold ? 28 : 14);
+          doc.text(typeCode(item.type), margin + 2, y + 2);
 
           // Title
-          doc.setFontSize(8);
+          doc.setFontSize(8.5);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(15, 23, 42);
-          const titleLine = doc.splitTextToSize(
-            item.title,
-            pageWidth - margin * 2 - 26
-          ) as string[];
-          doc.text(titleLine[0], margin + 14, y + 1);
-          y += 7;
+          const titleLine = doc.splitTextToSize(item.title, contentWidth - 20) as string[];
+          doc.text(titleLine[0], margin + 12, y + 2);
+          y += 8;
 
           // Signatories
           for (const sig of signatories) {
-            doc.setFontSize(7);
+            doc.setFontSize(7.5);
             doc.setFont("helvetica", "normal");
-            doc.setTextColor(100, 116, 139);
+            doc.setTextColor(71, 85, 105); // slate-600
             const parts: string[] = [];
             if (sig.signed_at) parts.push(formatAU(sig.signed_at));
             if (sig.name) parts.push(sig.name);
             if (sig.role) parts.push(roleLabel(sig.role));
-            if (isWaived) parts.push("Waived");
-            else parts.push("Signed");
-            doc.text(parts.join("  ·  "), margin + 2, y);
+            parts.push(isWaived ? "Waived" : "Signed ✓");
+            doc.text(parts.join("  ·  "), margin + 4, y);
             y += 6;
+
+            // Notes
+            if (sig.notes) {
+              doc.setFontSize(7);
+              doc.setFont("helvetica", "italic");
+              doc.setTextColor(100, 116, 139); // slate-500
+              const noteLines = doc.splitTextToSize(`Notes: ${sig.notes}`, contentWidth - 12) as string[];
+              doc.text(noteLines[0], margin + 4, y);
+              y += 5;
+            }
 
             // Signature image
             if (sig.dataUrl) {
               doc.setFillColor(255, 255, 255);
-              doc.roundedRect(margin + 2, y, sigW, sigH, 1, 1, "F");
-              doc.addImage(sig.dataUrl, "PNG", margin + 2, y, sigW, sigH);
-              y += sigH + 3;
+              doc.roundedRect(margin + 4, y, sigW, sigH, 1, 1, "F");
+              doc.addImage(sig.dataUrl, "PNG", margin + 4, y, sigW, sigH);
+              y += sigH + 4;
             }
           }
 
-          // Notes (waiver reason)
-          if (noteLines.length > 0) {
-            doc.setFontSize(7);
-            doc.setFont("helvetica", "italic");
-            doc.setTextColor(100, 116, 139);
-            doc.text(noteLines, margin + 2, y);
-            y += noteLines.length * 4 + 2;
-          }
-
-          y += 5;
+          y += 4;
           doc.setTextColor(0);
         }
       }
@@ -453,8 +424,8 @@ export default function ItpPdfExport({ session }: Props) {
           doc.setPage(p);
           doc.saveGraphicsState();
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (doc as any).setGState(new (doc as any).GState({ opacity: 0.08 }));
-          doc.setFontSize(60);
+          (doc as any).setGState(new (doc as any).GState({ opacity: 0.07 }));
+          doc.setFontSize(52);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(150, 0, 0);
           doc.text("DRAFT — IN PROGRESS", pageWidth / 2, pageHeight / 2, {
