@@ -1,8 +1,6 @@
-import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { createElement } from 'react'
-import { MSADocument } from '@/lib/site-docs/pdf-template'
+import { jsPDF } from 'jspdf'
 import { mapSiteDocToMSA } from '@/lib/site-docs/pdf'
 import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
 
@@ -16,6 +14,68 @@ const supabaseAdmin = createClient(
 
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').slice(0, 60)
+}
+
+function buildPdfBytes(data: ReturnType<typeof mapSiteDocToMSA>): Uint8Array {
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const marginX = 48
+  const topStart = 52
+  const lineHeight = 16
+  const maxWidth = doc.internal.pageSize.getWidth() - marginX * 2
+
+  let y = topStart
+
+  const ensureSpace = (needed = lineHeight * 2) => {
+    if (y + needed <= pageHeight - 48) return
+    doc.addPage()
+    y = topStart
+  }
+
+  const writeLine = (text: string, opts?: { size?: number; bold?: boolean; spacing?: number }) => {
+    ensureSpace(opts?.spacing ?? lineHeight)
+    doc.setFont('helvetica', opts?.bold ? 'bold' : 'normal')
+    doc.setFontSize(opts?.size ?? 10)
+    const lines = doc.splitTextToSize(text || '—', maxWidth)
+    doc.text(lines, marginX, y)
+    y += (opts?.spacing ?? lineHeight) + (lines.length - 1) * (opts?.size ?? 10)
+  }
+
+  writeLine(data.title, { size: 18, bold: true, spacing: 22 })
+  writeLine(data.subtitle || data.documentType, { size: 11, spacing: 18 })
+  writeLine(`Document No: ${data.documentNo}`, { bold: true })
+  writeLine(`Revision: ${data.revision}`)
+  writeLine(`Date: ${data.date}`)
+  writeLine(`Project: ${data.project}`)
+  writeLine(`Client: ${data.client}`)
+  writeLine(`Prepared By: ${data.preparedBy}`)
+  y += 8
+
+  for (const section of data.sections) {
+    writeLine(section.title, { size: 12, bold: true, spacing: 18 })
+    for (const item of section.items) {
+      if (item.type === 'paragraph') {
+        writeLine(item.text, { size: 10, spacing: 14 })
+        continue
+      }
+
+      if (item.type === 'table') {
+        for (const row of item.rows) {
+          writeLine(`• ${row.join(' | ')}`, { size: 9, spacing: 13 })
+        }
+        continue
+      }
+
+      if (item.type === 'status_table') {
+        for (const row of item.rows) {
+          writeLine(`• ${row.cells.join(' | ')} [${row.status}]`, { size: 9, spacing: 13 })
+        }
+      }
+    }
+    y += 8
+  }
+
+  return new Uint8Array(doc.output('arraybuffer'))
 }
 
 export async function GET(
@@ -77,9 +137,8 @@ export async function GET(
       typedDocument.company?.logo_url ?? null
     )
 
-    const buffer = await renderToBuffer(createElement(MSADocument, pdfData))
+    const pdfBytes = buildPdfBytes(pdfData)
     const filename = sanitizeFilename(pdfData.documentNo || typedDocument.title || 'site-document')
-    const pdfBytes = new Uint8Array(buffer)
 
     return new NextResponse(pdfBytes, {
       headers: {
