@@ -14,8 +14,8 @@ interface SiteTaskListProps {
   projectId: string;
 }
 
-interface PhaseGroup {
-  phase: SitePlanTaskNode;
+interface TaskGroup {
+  parentTask: SitePlanTaskNode;
   children: SitePlanTaskNode[];
   completionCount: number;
   totalCount: number;
@@ -29,7 +29,7 @@ const STATUS_DOT: Record<SitePlanTask["status"], string> = {
   on_hold: "bg-amber-500",
 };
 
-const PHASE_DOT: string[] = [
+const GROUP_DOT: string[] = [
   "bg-blue-500",
   "bg-violet-500",
   "bg-emerald-500",
@@ -57,22 +57,22 @@ function flatten(nodes: SitePlanTaskNode[]): SitePlanTaskNode[] {
 
 export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: SiteTaskListProps) {
   const router = useRouter();
-  const [collapsedPhaseIds, setCollapsedPhaseIds] = useState<Set<string>>(new Set());
-  const [inlinePhaseId, setInlinePhaseId] = useState<string | null>(null);
-  const [activePhaseId, setActivePhaseId] = useState<string | null>(null);
+  const [collapsedParentIds, setCollapsedParentIds] = useState<Set<string>>(new Set());
+  const [inlineParentId, setInlineParentId] = useState<string | null>(null);
+  const [activeParentId, setActiveParentId] = useState<string | null>(null);
   const rowRefMap = useRef<Record<string, HTMLButtonElement | null>>({});
-  const phaseHeaderRefMap = useRef<Record<string, HTMLButtonElement | null>>({});
+  const groupHeaderRefMap = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const tree = useMemo(() => buildTaskTree(tasks), [tasks]);
 
-  const phaseGroups = useMemo<PhaseGroup[]>(() => {
-    return tree.map((phase) => {
-      const descendants = flatten(phase.children);
-      const leafTasks = descendants.filter((item) => item.type !== "phase");
+  const taskGroups = useMemo<TaskGroup[]>(() => {
+    return tree.map((parentTask) => {
+      const descendants = flatten(parentTask.children);
+      const leafTasks = descendants.filter((item) => item.children.length === 0);
       const totalCount = leafTasks.length;
       const completionCount = leafTasks.filter((item) => item.progress >= 100).length;
       return {
-        phase,
+        parentTask,
         children: descendants,
         completionCount,
         totalCount,
@@ -83,8 +83,9 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
   const today = useMemo(() => dayStamp(new Date()), []);
 
   const todaysFocusTasks = useMemo(() => {
+    const parentIds = new Set(tasks.filter((task) => task.parent_id).map((task) => task.parent_id as string));
     return tasks.filter((task) => {
-      if (task.type === "phase") return false;
+      if (parentIds.has(task.id)) return false;
       const start = dayStamp(task.start_date);
       const end = dayStamp(task.end_date);
       return start <= today && today <= end;
@@ -101,24 +102,24 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
   };
 
   const collapseAll = () => {
-    setCollapsedPhaseIds(new Set(phaseGroups.map((group) => group.phase.id)));
-    setInlinePhaseId(null);
+    setCollapsedParentIds(new Set(taskGroups.map((group) => group.parentTask.id)));
+    setInlineParentId(null);
   };
 
-  const firstInProgressPhase = useMemo(() => {
+  const firstActiveParentTask = useMemo(() => {
     return (
-      phaseGroups.find((group) => group.phase.status === "in_progress") ??
-      phaseGroups[0] ??
+      taskGroups.find((group) => group.parentTask.progress < 100) ??
+      taskGroups[0] ??
       null
     );
-  }, [phaseGroups]);
+  }, [taskGroups]);
 
-  const firstInProgressSortOrder = useMemo(() => {
-    if (!firstInProgressPhase) return 0;
-    const directChildren = tasks.filter((task) => task.parent_id === firstInProgressPhase.phase.id);
+  const firstActiveSortOrder = useMemo(() => {
+    if (!firstActiveParentTask) return 0;
+    const directChildren = tasks.filter((task) => task.parent_id === firstActiveParentTask.parentTask.id);
     if (directChildren.length === 0) return 0;
     return Math.max(...directChildren.map((task) => task.sort_order)) + 1;
-  }, [firstInProgressPhase, tasks]);
+  }, [firstActiveParentTask, tasks]);
 
   const delayCountByTaskId = useMemo(() => {
     const counts = new Map<string, number>();
@@ -136,16 +137,16 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
         const current = visibleEntries[0];
         if (!current) return;
-        const phaseId = current.target.getAttribute("data-phase-id");
-        if (phaseId) setActivePhaseId(phaseId);
+        const parentId = current.target.getAttribute("data-parent-id");
+        if (parentId) setActiveParentId(parentId);
       },
       { threshold: [0.25, 0.5, 0.75], rootMargin: "-20% 0px -55% 0px" }
     );
 
-    const headers = Object.values(phaseHeaderRefMap.current).filter(Boolean) as HTMLButtonElement[];
+    const headers = Object.values(groupHeaderRefMap.current).filter(Boolean) as HTMLButtonElement[];
     headers.forEach((header) => observer.observe(header));
     return () => observer.disconnect();
-  }, [phaseGroups]);
+  }, [taskGroups]);
 
   function fmtDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-AU", { day: "numeric", month: "short" });
@@ -173,29 +174,29 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
         ) : null}
 
         <div className="space-y-2 pb-3">
-          {phaseGroups.map((group, phaseIndex) => {
-            const isCollapsed = collapsedPhaseIds.has(group.phase.id);
-            const pct = group.totalCount > 0 ? Math.round((group.completionCount / group.totalCount) * 100) : group.phase.progress;
+          {taskGroups.map((group, groupIndex) => {
+            const isCollapsed = collapsedParentIds.has(group.parentTask.id);
+            const pct = group.totalCount > 0 ? Math.round((group.completionCount / group.totalCount) * 100) : group.parentTask.progress;
             return (
-              <section key={group.phase.id} className="bg-white">
+              <section key={group.parentTask.id} className="bg-white">
                 <button
                   type="button"
-                  data-phase-id={group.phase.id}
+                  data-parent-id={group.parentTask.id}
                   ref={(el) => {
-                    phaseHeaderRefMap.current[group.phase.id] = el;
+                    groupHeaderRefMap.current[group.parentTask.id] = el;
                   }}
                   className="sticky top-0 z-10 flex h-10 w-full items-center gap-2 border-b border-slate-200 bg-white px-3"
                   onClick={() => {
-                    setCollapsedPhaseIds((prev) => {
+                    setCollapsedParentIds((prev) => {
                       const next = new Set(prev);
-                      if (next.has(group.phase.id)) next.delete(group.phase.id);
-                      else next.add(group.phase.id);
+                      if (next.has(group.parentTask.id)) next.delete(group.parentTask.id);
+                      else next.add(group.parentTask.id);
                       return next;
                     });
                   }}
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${PHASE_DOT[phaseIndex % PHASE_DOT.length]}`} />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{group.phase.name}</span>
+                  <span className={`h-2.5 w-2.5 rounded-full ${GROUP_DOT[groupIndex % GROUP_DOT.length]}`} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{group.parentTask.name}</span>
                   <span className="text-xs text-slate-500">{group.completionCount}/{group.totalCount}</span>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{pct}%</span>
                   {isCollapsed ? <ChevronRight className="h-4 w-4 text-slate-500" /> : <ChevronDown className="h-4 w-4 text-slate-500" />}
@@ -228,15 +229,15 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
                         ) : null}
                       </button>
                     ))}
-                    {inlinePhaseId === group.phase.id ? (
+                    {inlineParentId === group.parentTask.id ? (
                       <InlineTaskCreateRow
                         mobile
                         projectId={projectId}
-                        parentId={group.phase.id}
+                        parentId={group.parentTask.id}
                         type="task"
-                        sortOrder={firstInProgressSortOrder}
-                        onCancel={() => setInlinePhaseId(null)}
-                        onCreated={() => setInlinePhaseId(null)}
+                        sortOrder={firstActiveSortOrder}
+                        onCancel={() => setInlineParentId(null)}
+                        onCreated={() => setInlineParentId(null)}
                       />
                     ) : null}
                   </div>
@@ -254,8 +255,8 @@ export function SiteTaskList({ tasks, delayLogs, onTaskSelect, projectId }: Site
         <button
           type="button"
           className="flex flex-1 items-center justify-center"
-          onClick={() => setInlinePhaseId(activePhaseId ?? firstInProgressPhase?.phase.id ?? null)}
-          disabled={!firstInProgressPhase}
+          onClick={() => setInlineParentId(activeParentId ?? firstActiveParentTask?.parentTask.id ?? null)}
+          disabled={!firstActiveParentTask}
         >
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-md">
             <Plus className="h-5 w-5" />

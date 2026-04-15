@@ -48,7 +48,6 @@ export function InlineTaskCreateRow({
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState(todayISO);
   const [endDate, setEndDate] = useState(todayISO);
-  const [assignedTo, setAssignedTo] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
   const createTask = useCreateTask();
 
@@ -76,13 +75,11 @@ export function InlineTaskCreateRow({
         type,
         start_date: startDate,
         end_date: endDate,
-        assigned_to: assignedTo.trim() || undefined,
         sort_order: sortOrder,
       },
       {
         onSuccess: (task) => {
           setName("");
-          setAssignedTo("");
           setStartDate(todayISO());
           setEndDate(todayISO());
           onCreated?.(task);
@@ -138,12 +135,6 @@ export function InlineTaskCreateRow({
               className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none min-h-[44px]"
             />
           </div>
-          <input
-            value={assignedTo}
-            onChange={(e) => setAssignedTo(e.target.value)}
-            placeholder="Assigned To"
-            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm outline-none min-h-[44px]"
-          />
           <div className="flex items-center gap-2">
             <button
               type="submit"
@@ -235,16 +226,6 @@ export function InlineTaskCreateRow({
         </div>
       )}
 
-      {show("assigned") && (
-        <div className="shrink-0 flex items-center px-1" style={{ width: colW("assigned", 140) }}>
-          <input
-            value={assignedTo}
-            onChange={(e) => setAssignedTo(e.target.value)}
-            placeholder="Assigned To"
-            className="w-full text-xs bg-white border border-blue-200 rounded px-1 py-0.5 outline-none"
-          />
-        </div>
-      )}
     </div>
   );
 }

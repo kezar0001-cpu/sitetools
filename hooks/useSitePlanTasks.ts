@@ -19,6 +19,7 @@ export interface TaskPredecessorRow {
   predecessor_id: string;
 }
 import { computeTaskStatus } from "@/types/siteplan";
+import { getAncestorIds, wouldCreateHierarchyCycle } from "@/lib/siteplanTree";
 
 const tasksKey = sitePlanKeys.tasks;
 const progressLogKey = sitePlanKeys.progressLog;
@@ -325,15 +326,26 @@ export function useUpdateTask() {
       projectId: string;
       updates: UpdateTaskPayload;
     }) => {
+      const cachedTasks = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId)) ?? [];
+      const cachedTask = cachedTasks.find((task) => task.id === id);
+
+      // Guard rail: structural mutation must never introduce a cycle.
+      if (
+        cachedTask &&
+        updates.parent_id !== undefined &&
+        wouldCreateHierarchyCycle(cachedTasks, id, updates.parent_id ?? null)
+      ) {
+        const error = new Error("Invalid hierarchy: this move would create a cycle");
+        error.name = "HierarchyCycleError";
+        throw error;
+      }
+
       // Auto-compute status based on progress (read from cache, no extra DB call)
-      if (updates.progress !== undefined) {
-        const cached = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId))?.find(t => t.id === id);
-        if (cached && cached.status !== "on_hold") {
-          updates.status = computeTaskStatus(
-            updates.progress,
-            updates.end_date ?? cached.end_date
-          );
-        }
+      if (updates.progress !== undefined && cachedTask && cachedTask.status !== "on_hold") {
+        updates.status = computeTaskStatus(
+          updates.progress,
+          updates.end_date ?? cachedTask.end_date
+        );
       }
 
       const { data, error } = await supabase
@@ -346,23 +358,33 @@ export function useUpdateTask() {
       return data as SitePlanTask;
     },
     onMutate: async ({ id, projectId, updates }) => {
-      // Optimistic update
+      // Optimistic update (patch only changed task + ancestor chain)
       await qc.cancelQueries({ queryKey: tasksKey(projectId) });
       const prev = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId));
       if (prev) {
-        qc.setQueryData(
-          tasksKey(projectId),
-          prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
-        );
+        const byId = new Map(prev.map((task) => [task.id, task]));
+        const current = byId.get(id);
+        if (current) {
+          byId.set(id, { ...current, ...updates });
+          const touched = new Set([id, ...getAncestorIds(prev, id)]);
+          qc.setQueryData(
+            tasksKey(projectId),
+            prev.map((task) => (touched.has(task.id) ? byId.get(task.id) ?? task : task))
+          );
+        }
       }
       return { prev };
     },
     onSuccess: () => {
       toast.success("Task updated", { duration: 3000 });
     },
-    onError: (_err, { projectId }, context) => {
+    onError: (err, { projectId }, context) => {
       if (context?.prev) {
         qc.setQueryData(tasksKey(projectId), context.prev);
+      }
+      if (err.name === "HierarchyCycleError") {
+        toast.error("Invalid hierarchy: task cannot be moved under itself or its descendants", { duration: Infinity });
+        return;
       }
       toast.error("Failed to save — please retry", { duration: Infinity });
     },
@@ -465,6 +487,21 @@ export function useReorderTask() {
       projectId: string;
       moves: { id: string; sort_order: number; parent_id: string | null }[];
     }) => {
+      const cachedTasks = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId)) ?? [];
+      const moveMap = new Map(moves.map((move) => [move.id, move.parent_id ?? null]));
+
+      for (const move of moves) {
+        const nextParentId = moveMap.get(move.id) ?? move.parent_id ?? null;
+        const projected = cachedTasks.map((task) =>
+          task.id === move.id ? { ...task, parent_id: nextParentId } : task
+        );
+        if (wouldCreateHierarchyCycle(projected, move.id, nextParentId)) {
+          const error = new Error("Invalid hierarchy: this move would create a cycle");
+          error.name = "HierarchyCycleError";
+          throw error;
+        }
+      }
+
       // Atomic reorder via Postgres RPC — single transaction
       const { error } = await supabase.rpc("reorder_siteplan_tasks", {
         updates: moves.map(({ id, sort_order, parent_id }) => ({
@@ -490,9 +527,13 @@ export function useReorderTask() {
       }
       return { prev };
     },
-    onError: (_err, { projectId }, context) => {
+    onError: (err, { projectId }, context) => {
       if (context?.prev) {
         qc.setQueryData(tasksKey(projectId), context.prev);
+      }
+      if (err.name === "HierarchyCycleError") {
+        toast.error("Invalid hierarchy: task cannot be moved under itself or its descendants", { duration: Infinity });
+        return;
       }
       toast.error("Failed to save — please retry", { duration: Infinity });
     },
