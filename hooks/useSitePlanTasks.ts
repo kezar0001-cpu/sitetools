@@ -19,7 +19,12 @@ export interface TaskPredecessorRow {
   predecessor_id: string;
 }
 import { computeTaskStatus } from "@/types/siteplan";
-import { getAncestorIds, wouldCreateHierarchyCycle } from "@/lib/siteplanTree";
+import {
+  applyReorderMoves,
+  getAncestorIds,
+  normalizeSiblingSortOrders,
+  wouldCreateHierarchyCycle,
+} from "@/lib/siteplanTree";
 
 const tasksKey = sitePlanKeys.tasks;
 const progressLogKey = sitePlanKeys.progressLog;
@@ -488,13 +493,11 @@ export function useReorderTask() {
       moves: { id: string; sort_order: number; parent_id: string | null }[];
     }) => {
       const cachedTasks = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId)) ?? [];
-      const moveMap = new Map(moves.map((move) => [move.id, move.parent_id ?? null]));
+      const projected = applyReorderMoves(cachedTasks, moves);
 
       for (const move of moves) {
-        const nextParentId = moveMap.get(move.id) ?? move.parent_id ?? null;
-        const projected = cachedTasks.map((task) =>
-          task.id === move.id ? { ...task, parent_id: nextParentId } : task
-        );
+        const movedTask = projected.find((task) => task.id === move.id);
+        const nextParentId = movedTask?.parent_id ?? null;
         if (wouldCreateHierarchyCycle(projected, move.id, nextParentId)) {
           const error = new Error("Invalid hierarchy: this move would create a cycle");
           error.name = "HierarchyCycleError";
@@ -502,9 +505,12 @@ export function useReorderTask() {
         }
       }
 
+      const normalizedMoves = normalizeSiblingSortOrders(projected);
+      const updateRows = normalizedMoves.length > 0 ? normalizedMoves : moves;
+
       // Atomic reorder via Postgres RPC — single transaction
       const { error } = await supabase.rpc("reorder_siteplan_tasks", {
-        updates: moves.map(({ id, sort_order, parent_id }) => ({
+        updates: updateRows.map(({ id, sort_order, parent_id }) => ({
           id,
           sort_order,
           parent_id: parent_id ?? null,
@@ -516,14 +522,10 @@ export function useReorderTask() {
       await qc.cancelQueries({ queryKey: tasksKey(projectId) });
       const prev = qc.getQueryData<SitePlanTask[]>(tasksKey(projectId));
       if (prev) {
-        const moveMap = new Map(moves.map((m) => [m.id, m]));
-        qc.setQueryData(
-          tasksKey(projectId),
-          prev.map((t) => {
-            const m = moveMap.get(t.id);
-            return m ? { ...t, sort_order: m.sort_order, parent_id: m.parent_id } : t;
-          })
-        );
+        const projected = applyReorderMoves(prev, moves);
+        const normalizedMoves = normalizeSiblingSortOrders(projected);
+        const finalProjected = applyReorderMoves(projected, normalizedMoves);
+        qc.setQueryData(tasksKey(projectId), finalProjected);
       }
       return { prev };
     },
