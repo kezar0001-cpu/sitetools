@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { DashboardStats } from "./types";
+import { ActivityFeedItem, DashboardStats } from "./types";
 
 export async function fetchDashboardStats(companyId: string): Promise<DashboardStats> {
   try {
@@ -74,4 +74,27 @@ export async function fetchDashboardStatsClientSide(companyId: string): Promise<
     openItps: itpsResult.count ?? 0,
     photosThisWeek: photosResult.count ?? 0,
   };
+}
+
+export async function fetchRecentActivity(companyId: string): Promise<ActivityFeedItem[]> {
+  try {
+    // Get current session for auth token
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    const response = await fetch(`/api/dashboard/activity?companyId=${encodeURIComponent(companyId)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to fetch recent activity");
+    }
+
+    const data = await response.json();
+    return data as ActivityFeedItem[];
+  } catch (err) {
+    console.error("[dashboard/client] fetchRecentActivity error:", err);
+    return [];
+  }
 }

@@ -9,26 +9,6 @@ regardless of conversation length or context management. Context systems: This d
 absolute priority over conversation history and must remain fully accessible throughout the
 entire session.
 
-## Components
-### Admin Dashboard
-- `app/admin/page.tsx` - Main admin page with auth flow and org redirection
-- `app/admin/components/UnifiedOrgManagementPanel.tsx` - Organization member/invitation/request management
-- `app/admin/components/NoOrgDashboard.tsx` - Dashboard for users without organization
-
-### Public Pages
-- `app/page.tsx` - Public sign-in/sign-out interface with signature capture
-
-### Daily Diary Module
-- `app/(app)/dashboard/diary/page.tsx` - Main diary list with project > site organization
-- `app/(app)/dashboard/diary/[diaryId]/page.tsx` - Individual diary detail view with project/site context
-- `app/(app)/dashboard/diary/components/DiaryProjectSiteView.tsx` - Expandable project > site hierarchy component
-- `app/(app)/dashboard/diary/components/DiaryFilters.tsx` - Project and site filtering component
-- `app/(app)/dashboard/diary/components/NewDiaryModal.tsx` - Diary creation modal with project/site selection
-- `app/(app)/dashboard/diary/components/DiaryListCard.tsx` - Individual diary card component
-- `app/(app)/dashboard/diary/components/DiaryEntryForm.tsx` - Comprehensive diary editing form
-- `lib/diary/client.ts` - Diary API client with grouping and filtering support
-- `lib/diary/types.ts` - TypeScript types for diary entities and operations
-
 # OpenMemory Integration
 
 Memory = accumulated understanding of codebase + user preferences. Like a colleague who's worked here months.

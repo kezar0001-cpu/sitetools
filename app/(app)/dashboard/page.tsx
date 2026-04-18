@@ -18,10 +18,18 @@ import {
     LayoutDashboard,
     Settings,
     Building2,
+    LogIn,
+    LogOut,
+    CheckCircle,
+    AlertTriangle,
+    MessageSquare,
+    SearchCheck,
+    PenTool,
+    Image,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { fetchDashboardStats } from "@/lib/dashboard/client";
-import { DashboardStats } from "@/lib/dashboard/types";
+import { fetchDashboardStats, fetchRecentActivity } from "@/lib/dashboard/client";
+import { ActivityFeedItem, ActivityType, DashboardStats } from "@/lib/dashboard/types";
 
 type ColorKey = "amber" | "indigo" | "sky" | "violet" | "cyan" | "zinc";
 
@@ -159,12 +167,125 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
     );
 }
 
+function getActivityIcon(type: ActivityType) {
+    const iconClass = "h-4 w-4";
+    switch (type) {
+        case "diary_created":
+        case "diary_completed":
+            return <BookOpen className={`${iconClass} text-sky-400`} />;
+        case "photo_uploaded":
+            return <Image className={`${iconClass} text-sky-400`} />;
+        case "prestart_submitted":
+            return <ClipboardCheck className={`${iconClass} text-emerald-400`} />;
+        case "inspection_completed":
+            return <SearchCheck className={`${iconClass} text-cyan-400`} />;
+        case "incident_reported":
+            return <AlertTriangle className={`${iconClass} text-red-400`} />;
+        case "toolbox_talk":
+            return <MessageSquare className={`${iconClass} text-amber-400`} />;
+        case "sign_in":
+            return <LogIn className={`${iconClass} text-green-400`} />;
+        case "sign_out":
+            return <LogOut className={`${iconClass} text-zinc-400`} />;
+        case "itp_signed":
+            return <PenTool className={`${iconClass} text-violet-400`} />;
+        case "defect_reported":
+            return <AlertTriangle className={`${iconClass} text-orange-400`} />;
+        default:
+            return <CheckCircle className={`${iconClass} text-zinc-400`} />;
+    }
+}
+
+function getActivityColor(type: ActivityType): string {
+    switch (type) {
+        case "diary_created":
+        case "diary_completed":
+        case "photo_uploaded":
+            return "bg-sky-400";
+        case "prestart_submitted":
+            return "bg-emerald-400";
+        case "inspection_completed":
+            return "bg-cyan-400";
+        case "incident_reported":
+        case "defect_reported":
+            return "bg-red-400";
+        case "toolbox_talk":
+            return "bg-amber-400";
+        case "sign_in":
+            return "bg-green-400";
+        case "sign_out":
+            return "bg-zinc-400";
+        case "itp_signed":
+            return "bg-violet-400";
+        default:
+            return "bg-zinc-400";
+    }
+}
+
+function formatRelativeTime(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
+function ActivityRow({ activity }: { activity: ActivityFeedItem }) {
+    const icon = getActivityIcon(activity.type);
+    const colorClass = getActivityColor(activity.type);
+
+    return (
+        <div className="flex items-start gap-4 px-6 py-4 hover:bg-zinc-800/50 transition-colors">
+            <div className={`mt-0.5 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center shrink-0`}>
+                {icon}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-zinc-200 truncate">
+                    {activity.title}
+                </p>
+                {activity.description && (
+                    <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
+                        {activity.description}
+                    </p>
+                )}
+                {(activity.siteName || activity.projectName) && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                        {activity.siteName && (
+                            <span className="text-xs text-zinc-600 flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {activity.siteName}
+                            </span>
+                        )}
+                        {activity.projectName && (
+                            <span className="text-xs text-zinc-600">
+                                {activity.siteName ? "•" : ""} {activity.projectName}
+                            </span>
+                        )}
+                    </div>
+                )}
+            </div>
+            <span className="text-xs text-zinc-600 shrink-0 tabular-nums">
+                {formatRelativeTime(activity.createdAt)}
+            </span>
+        </div>
+    );
+}
+
 export default function DashboardHome() {
     const { loading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
     const [sitesLoading, setSitesLoading] = useState(true);
     const [hasSites, setHasSites] = useState<boolean | null>(null);
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [statsLoading, setStatsLoading] = useState(false);
+    const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
+    const [activitiesLoading, setActivitiesLoading] = useState(false);
 
     const activeCompanyId = summary?.activeMembership?.company_id;
     const userRole = summary?.activeMembership?.role;
@@ -212,6 +333,24 @@ export default function DashboardHome() {
             })
             .finally(() => {
                 setStatsLoading(false);
+            });
+    }, [activeCompanyId]);
+
+    // Fetch recent activity
+    useEffect(() => {
+        if (!activeCompanyId) return;
+
+        setActivitiesLoading(true);
+        fetchRecentActivity(activeCompanyId)
+            .then(data => {
+                setActivities(data);
+            })
+            .catch(err => {
+                console.error("Failed to fetch recent activity", err);
+                setActivities([]);
+            })
+            .finally(() => {
+                setActivitiesLoading(false);
             });
     }, [activeCompanyId]);
 
@@ -309,7 +448,7 @@ export default function DashboardHome() {
                 <div className="px-6 py-4 border-b border-zinc-800">
                     <h2 className="text-base font-black text-zinc-50">Recent Activity</h2>
                 </div>
-                {isLoading ? (
+                {isLoading || activitiesLoading ? (
                     <div className="divide-y divide-zinc-800">
                         {Array.from({ length: 5 }).map((_, i) => (
                             <div key={i} className="flex items-center gap-4 px-6 py-4">
@@ -319,9 +458,15 @@ export default function DashboardHome() {
                             </div>
                         ))}
                     </div>
-                ) : (
+                ) : activities.length === 0 ? (
                     <div className="px-6 py-10 text-center">
                         <p className="text-zinc-500 text-sm font-medium">No recent activity yet</p>
+                    </div>
+                ) : (
+                    <div className="divide-y divide-zinc-800">
+                        {activities.map((activity) => (
+                            <ActivityRow key={activity.id} activity={activity} />
+                        ))}
                     </div>
                 )}
             </div>
