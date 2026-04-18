@@ -30,23 +30,23 @@ export default function FreeToolsPage() {
     }));
 
     return (
-        <div className="bg-slate-50 min-h-full py-12">
+        <div className="bg-zinc-950 min-h-full py-12">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-                <section className="rounded-2xl bg-slate-900 text-white p-7 sm:p-10 overflow-hidden">
+                <section className="rounded-2xl bg-zinc-900 text-white p-7 sm:p-10 overflow-hidden">
                     <div className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr] items-center">
                         <div>
                             <p className="text-xs uppercase tracking-[0.2em] font-bold text-amber-300">Civil tools library</p>
                             <h1 className="text-3xl sm:text-4xl font-black tracking-tight mt-2">Calculators and practical tools for civil teams in the field and office.</h1>
-                            <p className="text-slate-300 mt-3 max-w-3xl">
+                            <p className="text-zinc-400 mt-3 max-w-3xl">
                                 Use instant tools with no login for quick checks, then move into SiteSign for attendance records or SitePlan for delivery planning in your workspace.
                             </p>
                             <div className="mt-5 flex flex-wrap gap-3">
                                 <Link href="/tools/site-sign-in" className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-950 hover:bg-amber-500">Open SiteSign</Link>
-                                <Link href="/tools/planner" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Explore SitePlan</Link>
-                                <Link href="/login" className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white">Log in</Link>
+                                <Link href="/tools/planner" className="rounded-xl border border-zinc-700 px-4 py-2.5 text-sm font-bold text-zinc-200 hover:bg-zinc-800">Explore SitePlan</Link>
+                                <Link href="/login" className="rounded-xl border border-zinc-700 px-4 py-2.5 text-sm font-bold text-zinc-200 hover:bg-zinc-800">Log in</Link>
                             </div>
                         </div>
-                        <div className="relative rounded-2xl border border-slate-700 overflow-hidden">
+                        <div className="relative rounded-2xl border border-zinc-800 overflow-hidden">
                             <Image src="/branding/hero-site-team.svg" alt="Civil construction crew coordinating site quantities and planning tasks" width={900} height={600} className="h-full w-full object-cover" priority />
                         </div>
                     </div>
@@ -54,26 +54,26 @@ export default function FreeToolsPage() {
 
                 <section className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {featuredTools.map((tool) => (
-                        <Link key={tool.slug} href={`/free-tools/${tool.slug}`} className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 transition-colors">
-                            <p className="text-xs uppercase tracking-widest font-bold text-amber-700">Instant use</p>
-                            <p className="font-bold text-slate-900 mt-2">{tool.name}</p>
-                            <p className="text-sm text-slate-600 mt-1">{tool.shortDescription}</p>
+                        <Link key={tool.slug} href={`/free-tools/${tool.slug}`} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 hover:border-zinc-700 hover:bg-zinc-800 transition-colors">
+                            <p className="text-xs uppercase tracking-widest font-bold text-amber-400">Instant use</p>
+                            <p className="font-bold text-zinc-100 mt-2">{tool.name}</p>
+                            <p className="text-sm text-zinc-400 mt-1">{tool.shortDescription}</p>
                         </Link>
                     ))}
                 </section>
 
                 <section className="grid lg:grid-cols-[1fr,2fr] gap-6">
                     <div className="space-y-4 h-fit">
-                        <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-                            <h2 className="text-lg font-bold text-slate-900">Tool categories</h2>
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 space-y-4">
+                            <h2 className="text-lg font-bold text-zinc-100">Tool categories</h2>
                             {visibleCategories.map((category) => (
-                                <div key={category.id} className="border border-slate-200 rounded-xl p-3">
-                                    <p className="text-sm font-bold text-slate-900">{category.label}</p>
-                                    <p className="text-xs text-slate-600 mt-1">{category.description}</p>
+                                <div key={category.id} className="border border-zinc-800 rounded-xl p-3">
+                                    <p className="text-sm font-bold text-zinc-300">{category.label}</p>
+                                    <p className="text-xs text-zinc-500 mt-1">{category.description}</p>
                                 </div>
                             ))}
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-3">
                             <Image src="/branding/hero-dashboard-summary.svg" alt="Project engineer reviewing saved quantities in a workspace dashboard" width={900} height={560} className="rounded-xl w-full h-auto" />
                         </div>
                     </div>
@@ -83,16 +83,16 @@ export default function FreeToolsPage() {
 
                 <section className="space-y-4">
                     <div>
-                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-slate-500">Roadmap preview</p>
-                        <h2 className="text-2xl font-black text-slate-900 mt-1">Coming next</h2>
-                        <p className="text-sm text-slate-600 mt-1">Planned calculators with strong commercial intent that are queued after the live toolset.</p>
+                        <p className="text-xs uppercase tracking-[0.2em] font-bold text-zinc-500">Roadmap preview</p>
+                        <h2 className="text-2xl font-black text-zinc-100 mt-1">Coming next</h2>
+                        <p className="text-sm text-zinc-400 mt-1">Planned calculators with strong commercial intent that are queued after the live toolset.</p>
                     </div>
                     <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                         {comingNextTools.map((tool) => (
-                            <article key={tool.slug} className="rounded-2xl border border-slate-200 bg-white p-5">
-                                <p className="text-xs uppercase tracking-widest font-bold text-slate-500">{tool.category.replace("-", " ")}</p>
-                                <p className="font-bold text-slate-900 mt-2">{tool.name}</p>
-                                <p className="text-sm text-slate-600 mt-1">{tool.shortDescription}</p>
+                            <article key={tool.slug} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+                                <p className="text-xs uppercase tracking-widest font-bold text-zinc-500">{tool.category.replace("-", " ")}</p>
+                                <p className="font-bold text-zinc-100 mt-2">{tool.name}</p>
+                                <p className="text-sm text-zinc-400 mt-1">{tool.shortDescription}</p>
                             </article>
                         ))}
                     </div>

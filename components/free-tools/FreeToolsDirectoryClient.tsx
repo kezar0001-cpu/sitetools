@@ -44,18 +44,18 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
 
     return (
         <div className="space-y-6">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 space-y-4">
                 <input
                     type="search"
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search calculators and tools (e.g. concrete, trench, asphalt)"
-                    className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm"
+                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500"
                 />
                 <div className="flex flex-wrap gap-2">
                     <button
                         type="button"
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border ${activeCategory === "all" ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-300"}`}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${activeCategory === "all" ? "bg-zinc-100 text-zinc-900 border-zinc-100" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700"}`}
                         onClick={() => setActiveCategory("all")}
                     >
                         All categories
@@ -64,7 +64,7 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
                         <button
                             key={category.id}
                             type="button"
-                            className={`px-3 py-1.5 rounded-full text-xs font-bold border ${activeCategory === category.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-300"}`}
+                            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${activeCategory === category.id ? "bg-zinc-100 text-zinc-900 border-zinc-100" : "bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700"}`}
                             onClick={() => setActiveCategory(category.id)}
                         >
                             {category.label}
@@ -75,20 +75,20 @@ export function FreeToolsDirectoryClient({ categories, tools }: FreeToolsDirecto
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredTools.map((tool) => (
-                    <article key={tool.slug} className="rounded-2xl border border-slate-200 bg-white p-5 flex flex-col gap-3">
+                    <article key={tool.slug} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 flex flex-col gap-3">
                         <div className="flex items-center justify-between gap-2">
-                            <span className="text-[11px] uppercase tracking-widest font-bold text-slate-500">{tool.category.replace("-", " ")}</span>
+                            <span className="text-[11px] uppercase tracking-widest font-bold text-zinc-500">{tool.category.replace("-", " ")}</span>
                             <div className="flex items-center gap-1.5">
-                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${tool.status === "planned" ? "bg-slate-100 text-slate-700" : tool.access === "public" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"}`}>
+                                <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${tool.status === "planned" ? "bg-zinc-800 text-zinc-400" : tool.access === "public" ? "bg-emerald-900/50 text-emerald-400" : "bg-blue-900/50 text-blue-400"}`}>
                                     {tool.status === "planned" ? "Planned" : tool.access === "public" ? "Public" : "Workspace"}
                                 </span>
-                                {tool.capability === "advanced" && tool.status !== "planned" ? <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Advanced</span> : null}
+                                {tool.capability === "advanced" && tool.status !== "planned" ? <span className="text-[11px] font-bold px-2 py-1 rounded-full bg-amber-900/50 text-amber-400">Advanced</span> : null}
                             </div>
                         </div>
-                        <h2 className="text-lg font-bold text-slate-900">{tool.name}</h2>
-                        <p className="text-sm text-slate-600 flex-grow">{tool.shortDescription}</p>
-                        <div className="text-xs text-slate-500">{tool.status === "planned" ? "Roadmap" : tool.access === "public" ? "No login required" : "Login required for saved workflows"}</div>
-                        <Link href={`/free-tools/${tool.slug}`} className="mt-1 inline-flex justify-center rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:border-slate-400">
+                        <h2 className="text-lg font-bold text-zinc-100">{tool.name}</h2>
+                        <p className="text-sm text-zinc-400 flex-grow">{tool.shortDescription}</p>
+                        <div className="text-xs text-zinc-500">{tool.status === "planned" ? "Roadmap" : tool.access === "public" ? "No login required" : "Login required for saved workflows"}</div>
+                        <Link href={`/free-tools/${tool.slug}`} className="mt-1 inline-flex justify-center rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-bold text-zinc-300 hover:border-zinc-600 hover:bg-zinc-700">
                             {tool.status === "live" ? (tool.access === "public" ? "Open tool" : "Use in workspace") : "View roadmap"}
                         </Link>
                     </article>
