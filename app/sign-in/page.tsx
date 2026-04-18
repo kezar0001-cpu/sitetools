@@ -438,6 +438,14 @@ function SiteSignIn({ site }: { site: Site }) {
 
   // Called when returning worker taps "Sign In" quick button
   function handleReturningSignIn() {
+    const requiresInduction = !!activeInduction && !(returningVisitor?.induction_completed ?? false);
+    if (requiresInduction) {
+      setCurrentInductionStep(0);
+      setInductionStepAcknowledged(false);
+      setSignInStep("induction");
+      return;
+    }
+
     if (activeBriefing) {
       setBriefingAcknowledged(false);
       setSignInStep("briefing");
@@ -647,6 +655,11 @@ function SiteSignIn({ site }: { site: Site }) {
             {activeBriefing && (
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <span className="font-bold">Today&apos;s briefing:</span> {activeBriefing.title} — you&apos;ll read it before signing in.
+              </div>
+            )}
+            {activeInduction && !returningVisitor.induction_completed && (
+              <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
+                <span className="font-bold">Site induction required:</span> please complete the induction before signing in.
               </div>
             )}
             <button

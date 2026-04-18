@@ -20,6 +20,8 @@ import {
     Building2,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { fetchDashboardStats } from "@/lib/dashboard/client";
+import { DashboardStats } from "@/lib/dashboard/types";
 
 type ColorKey = "amber" | "indigo" | "sky" | "violet" | "cyan" | "zinc";
 
@@ -48,10 +50,10 @@ function getModuleIcon(moduleId: string, className: string) {
 }
 
 const STAT_CARDS = [
-    { label: "Active Sites",     Icon: MapPin,         iconColor: "text-amber-400"  },
-    { label: "On Site Today",    Icon: Users,          iconColor: "text-blue-400"   },
-    { label: "Open ITPs",        Icon: ClipboardCheck, iconColor: "text-violet-400" },
-    { label: "Photos This Week", Icon: Camera,         iconColor: "text-sky-400"    },
+    { label: "Active Sites",     Icon: MapPin,         iconColor: "text-amber-400",  key: "activeSites" as const },
+    { label: "On Site Today",    Icon: Users,          iconColor: "text-blue-400",   key: "onSiteToday" as const },
+    { label: "Open ITPs",        Icon: ClipboardCheck, iconColor: "text-violet-400", key: "openItps" as const },
+    { label: "Photos This Week", Icon: Camera,         iconColor: "text-sky-400",    key: "photosThisWeek" as const },
 ] as const;
 
 function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
@@ -161,6 +163,8 @@ export default function DashboardHome() {
     const { loading, summary } = useWorkspace({ requireAuth: true, requireCompany: true });
     const [sitesLoading, setSitesLoading] = useState(true);
     const [hasSites, setHasSites] = useState<boolean | null>(null);
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsLoading, setStatsLoading] = useState(false);
 
     const activeCompanyId = summary?.activeMembership?.company_id;
     const userRole = summary?.activeMembership?.role;
@@ -188,7 +192,31 @@ export default function DashboardHome() {
             });
     }, [activeCompanyId]);
 
+    // Fetch dashboard stats
+    useEffect(() => {
+        if (!activeCompanyId) return;
+
+        setStatsLoading(true);
+        fetchDashboardStats(activeCompanyId)
+            .then(data => {
+                setStats(data);
+            })
+            .catch(err => {
+                console.error("Failed to fetch dashboard stats", err);
+                setStats({
+                    activeSites: 0,
+                    onSiteToday: 0,
+                    openItps: 0,
+                    photosThisWeek: 0,
+                });
+            })
+            .finally(() => {
+                setStatsLoading(false);
+            });
+    }, [activeCompanyId]);
+
     const isLoading = loading || (sitesLoading && hasSites === null);
+    const isStatsLoading = statsLoading || loading;
     const quickLaunchModules = getLiveModules().filter((module) => module.id !== "dashboard");
 
     return (
@@ -218,7 +246,7 @@ export default function DashboardHome() {
             {/* ── Stat Cards (returning users with sites) ── */}
             {(isLoading || hasSites) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {STAT_CARDS.map(({ label, Icon, iconColor }) => (
+                    {STAT_CARDS.map(({ label, Icon, iconColor, key }) => (
                         <div
                             key={label}
                             className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3"
@@ -226,14 +254,16 @@ export default function DashboardHome() {
                             <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center">
                                 <Icon className={`h-5 w-5 ${iconColor}`} />
                             </div>
-                            {isLoading ? (
+                            {isStatsLoading ? (
                                 <div className="space-y-2">
                                     <Skeleton className="h-8 w-14 rounded" />
                                     <Skeleton className="h-3 w-24 rounded" />
                                 </div>
                             ) : (
                                 <div>
-                                    <p className="text-3xl font-black text-zinc-50">–</p>
+                                    <p className="text-3xl font-black text-zinc-50">
+                                        {stats?.[key] ?? 0}
+                                    </p>
                                     <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 mt-1">
                                         {label}
                                     </p>

@@ -112,6 +112,7 @@ function OnboardingClient() {
   const [formError, setFormError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [success, setSuccess] = useState<{ type: "create" | "join"; name: string } | null>(null);
+  const [onboardingSubmitted, setOnboardingSubmitted] = useState(false);
 
   useEffect(() => {
     const token = searchParams.get("token") ?? searchParams.get("code");
@@ -121,10 +122,10 @@ function OnboardingClient() {
   }, [inviteValue, searchParams]);
 
   useEffect(() => {
-    if (summary && summary.memberships.length > 0 && !success) {
+    if (summary && summary.memberships.length > 0 && !success && !onboardingSubmitted) {
       router.replace(productHome);
     }
-  }, [productHome, router, summary, success]);
+  }, [onboardingSubmitted, productHome, router, summary, success]);
 
   // Handle auto-redirect after success
   useEffect(() => {
@@ -143,8 +144,11 @@ function OnboardingClient() {
 
     if (!companyName.trim()) {
       setFormError("Company name is required.");
+      setOnboardingSubmitted(false);
       return;
     }
+
+    setOnboardingSubmitted(true);
 
     setCreateLoading(true);
     try {
@@ -153,6 +157,7 @@ function OnboardingClient() {
       setSuccess({ type: "create", name: companyName.trim() });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to create company.");
+      setOnboardingSubmitted(false);
     } finally {
       setCreateLoading(false);
     }
@@ -165,8 +170,11 @@ function OnboardingClient() {
 
     if (!inviteValue.trim()) {
       setFormError("Invitation token or code is required.");
+      setOnboardingSubmitted(false);
       return;
     }
+
+    setOnboardingSubmitted(true);
 
     setJoinLoading(true);
     try {
@@ -186,6 +194,7 @@ function OnboardingClient() {
         } else {
           setFormError(result.message ?? "Unable to join company.");
         }
+        setOnboardingSubmitted(false);
         return;
       }
       
@@ -203,6 +212,7 @@ function OnboardingClient() {
       setSuccess({ type: "join", name });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Unable to join company.");
+      setOnboardingSubmitted(false);
     } finally {
       setJoinLoading(false);
     }

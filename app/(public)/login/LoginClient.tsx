@@ -7,6 +7,23 @@ import Link from "next/link";
 import { getIcon } from "@/components/icons/getIcon";
 import { parseProductIntent } from "@/lib/routing";
 
+function mapAuthError(message: string): string {
+    const lower = message.toLowerCase();
+    if (lower.includes("already registered") || lower.includes("already been registered")) {
+        return "An account with this email already exists. Try logging in instead.";
+    }
+    if (lower.includes("password should be at least") || lower.includes("weak password")) {
+        return "Your password is too weak. Please use at least 8 characters with a mix of letters and numbers.";
+    }
+    if (lower.includes("invalid login credentials")) {
+        return "Incorrect email or password. Please try again.";
+    }
+    if (lower.includes("email not confirmed")) {
+        return "Please confirm your email address before logging in.";
+    }
+    return message;
+}
+
 export function LoginClient() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -16,6 +33,7 @@ export function LoginClient() {
     const [mode, setMode] = useState<"login" | "signup" | "reset">(initialMode);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [info, setInfo] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -32,7 +50,7 @@ export function LoginClient() {
             });
             setLoading(false);
             if (error) {
-                setError(error.message);
+                setError(mapAuthError(error.message));
                 return;
             }
             setInfo("Check your email for a password reset link.");
@@ -40,13 +58,37 @@ export function LoginClient() {
         }
 
         if (mode === "signup") {
-            const { error } = await supabase.auth.signUp({ email, password });
-            setLoading(false);
-            if (error) {
-                setError(error.message);
+            if (password.length < 8) {
+                setLoading(false);
+                setError("Please use a password with at least 8 characters.");
                 return;
             }
-            setInfo("Check your email to confirm your account, then log in.");
+
+            if (password !== confirmPassword) {
+                setLoading(false);
+                setError("Passwords do not match.");
+                return;
+            }
+
+            const confirmParams = new URLSearchParams();
+            if (intent) confirmParams.set("intent", intent);
+            const emailRedirectTo = confirmParams.size > 0
+                ? `${window.location.origin}/auth/post-login?${confirmParams.toString()}`
+                : `${window.location.origin}/auth/post-login`;
+
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo,
+                },
+            });
+            setLoading(false);
+            if (error) {
+                setError(mapAuthError(error.message));
+                return;
+            }
+            setInfo("Check your email to confirm your account. You'll return to your workspace after confirmation.");
             setMode("login");
             return;
         }
@@ -54,7 +96,7 @@ export function LoginClient() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         setLoading(false);
         if (error) {
-            setError(error.message);
+            setError(mapAuthError(error.message));
             return;
         }
 
@@ -81,7 +123,10 @@ export function LoginClient() {
                     </Link>
                     <div>
                         <h1 className="text-2xl font-black text-zinc-50 tracking-tight">{mode === "login" ? "Welcome back" : mode === "signup" ? "Create your account" : "Reset your password"}</h1>
-                        <p className="text-sm font-medium text-zinc-400 mt-1">Sign in to the Buildstate platform</p>
+                        <p className="text-sm font-medium text-zinc-400 mt-1">Admin & team access for Buildstate workspace</p>
+                        <p className="text-xs text-zinc-500 mt-2">
+                            On-site visitor register? Use the site QR sign-in page.
+                        </p>
                     </div>
                 </div>
 
@@ -105,17 +150,36 @@ export function LoginClient() {
                         <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full border-2 border-zinc-700 bg-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-zinc-100 placeholder:text-zinc-500" placeholder="you@company.com.au" />
                     </div>
                     {mode !== "reset" && (
-                        <div>
-                            <div className="flex items-center justify-between mb-1.5">
-                                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide" htmlFor="password">Password</label>
-                                {mode === "login" && (
-                                    <button type="button" onClick={() => { setMode("reset"); setError(null); setInfo(null); }} className="text-xs font-semibold text-amber-400 hover:text-amber-300 hover:underline">
-                                        Forgot password?
-                                    </button>
+                        <>
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide" htmlFor="password">Password</label>
+                                    {mode === "login" && (
+                                        <button type="button" onClick={() => { setMode("reset"); setError(null); setInfo(null); }} className="text-xs font-semibold text-amber-400 hover:text-amber-300 hover:underline">
+                                            Forgot password?
+                                        </button>
+                                    )}
+                                </div>
+                                <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border-2 border-zinc-700 bg-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-zinc-100 placeholder:text-zinc-500" placeholder="••••••••" />
+                                {mode === "signup" && (
+                                    <p className="mt-1.5 text-[11px] text-zinc-500">Use at least 8 characters.</p>
                                 )}
                             </div>
-                            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="w-full border-2 border-zinc-700 bg-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-zinc-100 placeholder:text-zinc-500" placeholder="••••••••" />
-                        </div>
+                            {mode === "signup" && (
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide mb-1.5" htmlFor="confirm_password">Confirm Password</label>
+                                    <input
+                                        id="confirm_password"
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                        className="w-full border-2 border-zinc-700 bg-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-400/20 transition-all font-medium text-zinc-100 placeholder:text-zinc-500"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                            )}
+                        </>
                     )}
 
                     <button type="submit" disabled={loading} className="w-full bg-amber-400 hover:bg-amber-300 disabled:opacity-70 text-amber-950 font-bold px-4 py-3.5 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-sm">

@@ -57,14 +57,24 @@ export function PostLoginClient() {
   }, [router, searchParams]);
 
   if (error) {
+    const intent = parseProductIntent(searchParams.get("intent"));
+    const retryParams = new URLSearchParams();
+    if (intent) retryParams.set("intent", intent);
+    const retryHref = retryParams.size > 0 ? `/auth/post-login?${retryParams.toString()}` : "/auth/post-login";
+
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
         <div className="bg-zinc-900 border border-red-900/50 rounded-2xl p-8 w-full max-w-sm text-center shadow-xl">
           <p className="text-base font-bold text-red-400">Unable to load your workspace</p>
           <p className="mt-2 text-sm text-zinc-400">{error}</p>
-          <a href="/login" className="mt-4 inline-block text-sm font-semibold text-amber-400 hover:underline">
-            Back to sign in
-          </a>
+          <div className="mt-5 flex flex-col gap-2 items-center">
+            <a href={retryHref} className="inline-block text-sm font-semibold text-amber-400 hover:underline">
+              Try again
+            </a>
+            <a href="/login" className="inline-block text-sm font-semibold text-zinc-500 hover:text-zinc-300 hover:underline">
+              Back to sign in
+            </a>
+          </div>
         </div>
       </div>
     );
