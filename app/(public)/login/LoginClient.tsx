@@ -109,7 +109,7 @@ export function LoginClient() {
                             <div className="flex items-center justify-between mb-1.5">
                                 <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wide" htmlFor="password">Password</label>
                                 {mode === "login" && (
-                                    <button type="button" onClick={() => { setMode("reset"); setError(null); setInfo(null); }} className="text-xs font-semibold text-amber-600 hover:text-amber-700 hover:underline">
+                                    <button type="button" onClick={() => { setMode("reset"); setError(null); setInfo(null); }} className="text-xs font-semibold text-amber-400 hover:text-amber-300 hover:underline">
                                         Forgot password?
                                     </button>
                                 )}

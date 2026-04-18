@@ -50,8 +50,27 @@ const faq = [
 ];
 
 export default function PricingPage() {
+  // FAQ structured data for rich snippets
+  const faqStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faq.map((item) => ({
+      "@type": "Question",
+      "name": item.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": item.a,
+      },
+    })),
+  };
+
   return (
     <main className="bg-zinc-950 min-h-screen">
+      {/* FAQ Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqStructuredData) }}
+      />
       {/* Header */}
       <div className="border-b border-zinc-800 py-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center space-y-4">

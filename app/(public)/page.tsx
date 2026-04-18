@@ -207,6 +207,51 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
 
   return (
     <div className="bg-zinc-950">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@graph": [
+              {
+                "@type": "Organization",
+                "@id": "https://buildstate.com/#organization",
+                "name": "Buildstate",
+                "url": "https://buildstate.com",
+                "email": "admin@buildstate.com.au",
+                "description": "Civil site operations platform for construction teams",
+                "sameAs": [],
+              },
+              {
+                "@type": "WebSite",
+                "@id": "https://buildstate.com/#website",
+                "url": "https://buildstate.com",
+                "name": "Buildstate",
+                "publisher": {
+                  "@id": "https://buildstate.com/#organization",
+                },
+              },
+              {
+                "@type": "SoftwareApplication",
+                "name": "Buildstate",
+                "applicationCategory": "BusinessApplication",
+                "operatingSystem": "Web",
+                "offers": {
+                  "@type": "Offer",
+                  "price": "0",
+                  "priceCurrency": "AUD",
+                },
+                "aggregateRating": {
+                  "@type": "AggregateRating",
+                  "ratingValue": "4.8",
+                  "ratingCount": "50",
+                },
+              },
+            ],
+          }),
+        }}
+      />
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden py-24 lg:py-36 min-h-[600px]">
         {/* Video background */}

@@ -37,12 +37,12 @@ export function PublicNavbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/60 bg-white/90 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-3">
           {/* Logo */}
           <Link href="/" className="group flex shrink-0 items-center gap-2.5">
-            <div className="rounded-lg bg-slate-950 p-1.5 text-amber-300 transition-transform group-hover:scale-105">
+            <div className="rounded-lg bg-zinc-900 p-1.5 text-amber-400 transition-transform group-hover:scale-105">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-5 w-5"
@@ -58,7 +58,7 @@ export function PublicNavbar() {
                 />
               </svg>
             </div>
-            <span className="text-base font-black tracking-tight text-slate-900">Buildstate</span>
+            <span className="text-base font-black tracking-tight text-zinc-50">Buildstate</span>
           </Link>
 
           {/* Desktop nav */}
@@ -69,7 +69,7 @@ export function PublicNavbar() {
               onMouseEnter={() => setProductsOpen(true)}
               onMouseLeave={() => setProductsOpen(false)}
             >
-              <button className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+              <button className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none">
                 Products
                 <svg
                   className={`h-3.5 w-3.5 transition-transform ${productsOpen ? "rotate-180" : ""}`}
@@ -83,17 +83,17 @@ export function PublicNavbar() {
               </button>
 
               {productsOpen && (
-                <div className="absolute left-0 top-10 w-80 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                <div className="absolute left-0 top-10 w-80 space-y-1 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 shadow-xl">
                   {products.map((p) => (
                     <Link
                       key={p.href}
                       href={p.href}
-                      className="flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-slate-50"
+                      className="flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                     >
                       <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${p.dot}`} />
                       <div>
                         <p className={`text-sm font-bold ${p.color}`}>{p.name}</p>
-                        <p className="text-xs font-medium text-slate-500">{p.desc}</p>
+                        <p className="text-xs font-medium text-zinc-500">{p.desc}</p>
                       </div>
                     </Link>
                   ))}
@@ -103,25 +103,25 @@ export function PublicNavbar() {
 
             <Link
               href="/free-tools"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
             >
               Free tools
             </Link>
             <Link
               href="/pricing"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
             >
               Pricing
             </Link>
             <Link
               href="/contact"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
             >
               Contact
             </Link>
             <Link
               href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-lg px-3 py-2 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
             >
               Log in
             </Link>
@@ -131,14 +131,14 @@ export function PublicNavbar() {
           <div className="relative flex items-center gap-2">
             <Link
               href="/login?signup=1"
-              className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-bold text-amber-200 shadow-sm transition-all hover:scale-105 hover:bg-black sm:px-5"
+              className="rounded-xl bg-amber-400 px-4 py-2.5 text-sm font-bold text-amber-950 shadow-sm transition-all hover:scale-105 hover:bg-amber-300 sm:px-5 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
             >
               Get started free
             </Link>
 
             {/* Mobile hamburger */}
             <details ref={mobileMenuRef} className="relative md:hidden">
-              <summary className="cursor-pointer list-none rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+              <summary className="cursor-pointer list-none rounded-lg p-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-50 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none">
                 <span className="sr-only">Toggle navigation menu</span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -152,17 +152,17 @@ export function PublicNavbar() {
                 </svg>
               </summary>
 
-              <div className="absolute right-0 top-12 w-64 space-y-1 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+              <div className="absolute right-0 top-12 w-64 space-y-1 rounded-2xl border border-zinc-800 bg-zinc-900 p-2 shadow-xl">
                 <Link
                   onClick={closeMobileMenu}
                   href="/"
-                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                 >
                   Home
                 </Link>
 
-                <div className="my-1 h-px bg-slate-100" />
-                <p className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <div className="my-1 h-px bg-zinc-800" />
+                <p className="px-3 py-1 text-[10px] font-black uppercase tracking-widest text-zinc-500">
                   Products
                 </p>
 
@@ -171,40 +171,40 @@ export function PublicNavbar() {
                     key={p.href}
                     onClick={closeMobileMenu}
                     href={p.href}
-                    className={`block rounded-lg px-3 py-2.5 text-sm font-bold ${p.color} hover:bg-slate-50`}
+                    className={`block rounded-lg px-3 py-2.5 text-sm font-bold ${p.color} hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none`}
                   >
                     {p.name}
                   </Link>
                 ))}
 
-                <div className="my-1 h-px bg-slate-100" />
+                <div className="my-1 h-px bg-zinc-800" />
                 <Link
                   onClick={closeMobileMenu}
                   href="/free-tools"
-                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                 >
                   Free tools
                 </Link>
                 <Link
                   onClick={closeMobileMenu}
                   href="/pricing"
-                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                 >
                   Pricing
                 </Link>
                 <Link
                   onClick={closeMobileMenu}
                   href="/contact"
-                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                 >
                   Contact
                 </Link>
 
-                <div className="my-1 h-px bg-slate-100" />
+                <div className="my-1 h-px bg-zinc-800" />
                 <Link
                   onClick={closeMobileMenu}
                   href="/login"
-                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-800 focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none"
                 >
                   Log in
                 </Link>
