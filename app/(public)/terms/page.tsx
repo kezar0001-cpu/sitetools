@@ -7,12 +7,12 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="bg-white py-16">
+    <main className="bg-zinc-950 min-h-screen py-16">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 space-y-6">
-        <h1 className="text-3xl font-black tracking-tight text-slate-900">Terms of Service</h1>
-        <p className="text-sm text-slate-500">Last updated: 8 March 2026</p>
+        <h1 className="text-3xl font-black tracking-tight text-zinc-50">Terms of Service</h1>
+        <p className="text-sm text-zinc-500">Last updated: 8 March 2026</p>
 
-        <section className="space-y-3 text-slate-700 leading-relaxed">
+        <section className="space-y-3 text-zinc-400 leading-relaxed">
           <p>
             By using Buildstate, you agree to use the platform lawfully and protect your account credentials. You are
             responsible for activity under your account.
@@ -27,8 +27,8 @@ export default function TermsPage() {
           </p>
           <p>
             Questions about these terms can be sent to{" "}
-            <a className="text-amber-700 hover:text-amber-800" href="mailto:support@buildstate.com">
-              support@buildstate.com
+            <a className="text-amber-400 hover:text-amber-300" href="mailto:admin@buildstate.com.au">
+              admin@buildstate.com.au
             </a>
             .
           </p>

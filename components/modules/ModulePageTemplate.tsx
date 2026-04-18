@@ -217,8 +217,7 @@ export default function ModulePageTemplate({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={hero.heroImage.src}
-              alt=""
-              aria-hidden="true"
+              alt={hero.heroImage.alt}
               className="absolute inset-0 h-full w-full object-cover"
             />
             {/* Theme-coloured overlay — keeps brand identity + legibility */}
@@ -354,8 +353,8 @@ export default function ModulePageTemplate({
 
           <div className="overflow-hidden rounded-3xl border border-white/10">
             <div className="grid grid-cols-3 border-b border-white/10 bg-white/5 px-6 py-4">
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Scenario</p>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+              <p className="text-xs font-black uppercase tracking-widest text-zinc-400">Scenario</p>
+              <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
                 {comparison.baselineLabel}
               </p>
               <p className={`text-xs font-black uppercase tracking-widest ${t.compColHeader}`}>

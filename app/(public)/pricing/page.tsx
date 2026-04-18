@@ -51,16 +51,16 @@ const faq = [
 
 export default function PricingPage() {
   return (
-    <main className="bg-zinc-900 min-h-screen">
+    <main className="bg-zinc-950 min-h-screen">
       {/* Header */}
-      <div className="bg-zinc-950 border-b border-zinc-800 py-16">
+      <div className="border-b border-zinc-800 py-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center space-y-4">
-          <p className="text-xs font-black uppercase tracking-widest text-amber-600">Pricing</p>
+          <p className="text-xs font-black uppercase tracking-widest text-amber-400">Pricing</p>
           <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-zinc-50">
             Start free. Scale as you grow.
           </h1>
           <p className="text-xl text-zinc-400 font-medium max-w-2xl mx-auto">
-            Simple, transparent pricing for civil teams of every size. No lock-in, no hidden fees.
+            Simple, transparent pricing for civil teams of every size. No lock-in contracts, no hidden fees.
           </p>
         </div>
       </div>
@@ -69,15 +69,16 @@ export default function PricingPage() {
         {/* Pricing cards */}
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
           {/* Free */}
-          <div className="bg-zinc-950 rounded-3xl border border-slate-200 p-8 shadow-sm flex flex-col">
+          <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-8 flex flex-col">
             <div className="mb-6">
               <h2 className="text-2xl font-black text-zinc-50">Free</h2>
               <p className="text-zinc-400 text-sm mt-1">Perfect for trialling on a single site.</p>
             </div>
-            <div className="text-4xl font-black text-zinc-50 mb-6">
+            <div className="text-4xl font-black text-zinc-50 mb-2">
               $0{" "}
               <span className="text-lg font-medium text-zinc-400">/ forever</span>
             </div>
+            <p className="text-xs text-zinc-500 mb-6">Free tier includes 1 active site</p>
             <ul className="space-y-3 mb-8 flex-1">
               {freeFeatures.map((feature) => (
                 <li key={feature} className="flex items-center gap-3 text-zinc-400 font-medium text-sm">
@@ -90,14 +91,14 @@ export default function PricingPage() {
             </ul>
             <Link
               href="/login?signup=1"
-              className="w-full py-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-zinc-50 font-bold text-center transition-colors"
+              className="w-full py-4 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-50 font-bold text-center transition-colors border border-zinc-700"
             >
               Start for free
             </Link>
           </div>
 
           {/* Pro */}
-          <div className="bg-zinc-950 rounded-3xl border-2 border-amber-400 p-8 shadow-xl relative flex flex-col">
+          <div className="rounded-3xl border-2 border-amber-400 bg-zinc-900 p-8 relative flex flex-col">
             <div className="absolute top-0 right-8 -translate-y-1/2 bg-amber-400 text-amber-950 text-xs font-black uppercase tracking-wider px-3 py-1 rounded-full">
               Most Popular
             </div>
@@ -109,7 +110,7 @@ export default function PricingPage() {
               $49{" "}
               <span className="text-lg font-medium text-zinc-400">/ project / month</span>
             </div>
-            <p className="text-xs text-slate-400 mb-6">Billed monthly. Cancel anytime.</p>
+            <p className="text-xs text-zinc-500 mb-6">Billed monthly. Cancel anytime.</p>
             <ul className="space-y-3 mb-8 flex-1">
               {proFeatures.map((feature) => (
                 <li key={feature} className="flex items-center gap-3 text-zinc-400 font-bold text-sm">
@@ -122,7 +123,7 @@ export default function PricingPage() {
             </ul>
             <Link
               href="/login?signup=1"
-              className="w-full py-4 rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-950 font-black text-center transition-all hover:scale-105 shadow-lg shadow-amber-200"
+              className="w-full py-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-center transition-all hover:scale-105 shadow-lg shadow-amber-400/20"
             >
               Start Workspace Pro
             </Link>
@@ -130,7 +131,7 @@ export default function PricingPage() {
         </div>
 
         {/* What's included in Pro — module callout */}
-        <div className="bg-zinc-950 rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
+        <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-8 space-y-6">
           <h2 className="text-2xl font-black text-zinc-50">Pro includes the full Buildstate suite</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
@@ -142,17 +143,17 @@ export default function PricingPage() {
               <div
                 key={m.name}
                 className={`rounded-2xl border p-5 ${
-                  m.color === "amber" ? "border-amber-100 bg-amber-50" :
-                  m.color === "blue" ? "border-blue-100 bg-blue-50" :
-                  m.color === "sky" ? "border-sky-100 bg-sky-50" :
-                  "border-violet-100 bg-violet-50"
+                  m.color === "amber" ? "border-amber-400/30 bg-amber-400/10" :
+                  m.color === "blue" ? "border-blue-400/30 bg-blue-400/10" :
+                  m.color === "sky" ? "border-sky-400/30 bg-sky-400/10" :
+                  "border-violet-400/30 bg-violet-400/10"
                 }`}
               >
                 <p className={`text-sm font-black mb-1 ${
-                  m.color === "amber" ? "text-amber-700" :
-                  m.color === "blue" ? "text-blue-700" :
-                  m.color === "sky" ? "text-sky-700" :
-                  "text-violet-700"
+                  m.color === "amber" ? "text-amber-400" :
+                  m.color === "blue" ? "text-blue-400" :
+                  m.color === "sky" ? "text-sky-400" :
+                  "text-violet-400"
                 }`}>{m.name}</p>
                 <p className="text-xs text-zinc-400 font-medium">{m.desc}</p>
               </div>
@@ -161,13 +162,13 @@ export default function PricingPage() {
         </div>
 
         {/* Enterprise */}
-        <div className="max-w-3xl mx-auto rounded-3xl border border-slate-200 bg-zinc-950 p-8 sm:p-12 text-center space-y-6">
+        <div className="max-w-3xl mx-auto rounded-3xl border border-zinc-800 bg-zinc-900 p-8 sm:p-12 text-center space-y-6">
           <h2 className="text-2xl font-black text-zinc-50">Enterprise or framework pricing?</h2>
           <p className="text-zinc-400 font-medium">
             Multiple projects, long-term delivery frameworks, or custom integrations? We offer flexible pricing for large organisations and alliances.
           </p>
           <div className="pt-2">
-            <Link href="/contact" className="text-amber-600 font-bold hover:text-amber-700 flex items-center justify-center gap-2">
+            <Link href="/contact" className="text-amber-400 font-bold hover:text-amber-300 flex items-center justify-center gap-2">
               Contact our team
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -181,7 +182,7 @@ export default function PricingPage() {
           <h2 className="text-2xl font-black text-zinc-50 text-center">Frequently asked questions</h2>
           <div className="space-y-4">
             {faq.map((item) => (
-              <div key={item.q} className="rounded-2xl border border-slate-200 bg-zinc-950 p-6">
+              <div key={item.q} className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
                 <p className="font-black text-zinc-50 mb-2">{item.q}</p>
                 <p className="text-sm text-zinc-400 font-medium leading-relaxed">{item.a}</p>
               </div>
