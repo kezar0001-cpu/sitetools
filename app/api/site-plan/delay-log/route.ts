@@ -56,6 +56,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Task not found." }, { status: 404 });
   }
 
+  // Verify user has access to the project's company
+  const { data: project } = await supabaseAdmin
+    .from("projects")
+    .select("company_id")
+    .eq("id", targetTask.project_id)
+    .single();
+
+  if (!project) {
+    return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  }
+
+  const { data: membership } = await supabaseAdmin
+    .from("org_members")
+    .select("role")
+    .eq("org_id", project.company_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!membership) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+  }
+
   const { data: delayLog, error: insertErr } = await supabaseAdmin
     .from("siteplan_delay_logs")
     .insert({
