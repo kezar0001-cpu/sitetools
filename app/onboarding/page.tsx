@@ -2,7 +2,8 @@
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { acceptCompanyInvitation, createCompany } from "@/lib/workspace/client";
+import { acceptCompanyInvitation, createCompany, inspectCompanyInvitation } from "@/lib/workspace/client";
+import { resolveInvitationAcceptanceError } from "@/lib/workspace/invitations";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { parseProductIntent, resolveProductHome } from "@/lib/routing";
 import { supabase } from "@/lib/supabase";
@@ -180,20 +181,8 @@ function OnboardingClient() {
     try {
       const result = await acceptCompanyInvitation(inviteValue.trim());
       if (!result.success) {
-        const trimmed = inviteValue.trim();
-        const { data: invite } = await supabase
-          .from("company_invitations")
-          .select("expires_at")
-          .or(`token.eq.${trimmed},invite_code.eq.${trimmed}`)
-          .maybeSingle();
-
-        if (!invite) {
-          setFormError("This code is invalid.");
-        } else if (new Date(invite.expires_at) < new Date()) {
-          setFormError("This invite has expired — ask your admin to send a new one");
-        } else {
-          setFormError(result.message ?? "Unable to join company.");
-        }
+        const invitation = await inspectCompanyInvitation(inviteValue.trim());
+        setFormError(resolveInvitationAcceptanceError(result, invitation));
         setOnboardingSubmitted(false);
         return;
       }

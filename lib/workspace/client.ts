@@ -15,6 +15,10 @@ import {
   WorkspaceSummary,
 } from "@/lib/workspace/types";
 import { clearWorkspaceSummaryCache } from "@/lib/workspace/summaryCache";
+import {
+  AcceptCompanyInvitationResult,
+  CompanyInvitationInspection,
+} from "@/lib/workspace/invitations";
 
 type SupabaseErrorLike = {
   code?: string;
@@ -283,7 +287,7 @@ export async function createCompany(companyName: string): Promise<string> {
   return data as string;
 }
 
-export async function acceptCompanyInvitation(tokenOrCode: string): Promise<{ success: boolean; message?: string; company_id?: string }> {
+export async function acceptCompanyInvitation(tokenOrCode: string): Promise<AcceptCompanyInvitationResult> {
   const { data, error } = await supabase.rpc("accept_company_invitation", {
     p_token_or_code: tokenOrCode,
   });
@@ -295,6 +299,36 @@ export async function acceptCompanyInvitation(tokenOrCode: string): Promise<{ su
     success: !!payload?.success,
     message: payload?.message,
     company_id: payload?.company_id,
+  };
+}
+
+export async function inspectCompanyInvitation(tokenOrCode: string): Promise<CompanyInvitationInspection> {
+  const trimmed = tokenOrCode.trim();
+
+  const { data, error } = await supabase
+    .from("company_invitations")
+    .select("company_id, expires_at, status")
+    .or(`token.eq.${trimmed},invite_code.eq.${trimmed}`)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data) {
+    return {
+      exists: false,
+      isExpired: false,
+      status: null,
+      expiresAt: null,
+      companyId: null,
+    };
+  }
+
+  return {
+    exists: true,
+    isExpired: new Date(data.expires_at).getTime() < Date.now(),
+    status: data.status as CompanyInvitation["status"],
+    expiresAt: data.expires_at as string,
+    companyId: (data.company_id as string | null) ?? null,
   };
 }
 

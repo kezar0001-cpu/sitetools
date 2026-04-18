@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { acceptCompanyInvitation } from "@/lib/workspace/client";
+import { acceptCompanyInvitation, inspectCompanyInvitation } from "@/lib/workspace/client";
+import { resolveInvitationAcceptanceError } from "@/lib/workspace/invitations";
 import { supabase } from "@/lib/supabase";
 
 export default function InviteAcceptPage() {
@@ -28,7 +29,8 @@ export default function InviteAcceptPage() {
       try {
         const result = await acceptCompanyInvitation(token);
         if (!result.success) {
-          setError(result.message ?? "Could not accept invitation.");
+          const invitation = await inspectCompanyInvitation(token);
+          setError(resolveInvitationAcceptanceError(result, invitation));
           return;
         }
         setSuccess(true);
