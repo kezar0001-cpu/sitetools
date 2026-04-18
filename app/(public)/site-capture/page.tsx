@@ -91,8 +91,31 @@ const comparison = [
 
 export default async function SiteCapturePage() {
   const heroImage = await resolveMediaSlot("siteCaptureWorkflow");
+
+  // Structured data for SoftwareApplication with features
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SiteCapture",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "AUD",
+    },
+    "featureList": features.map(f => f.title).join(", "),
+    "description": "Digital daily site diary and records for construction teams.",
+  };
+
   return (
-    <ModulePageTemplate
+    <>
+      {/* Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <ModulePageTemplate
       moduleName="Buildstate SiteCapture"
       theme="sky"
       hero={{
@@ -137,5 +160,6 @@ export default async function SiteCapturePage() {
         secondaryCta: { href: "/login", label: "Log in" },
       }}
     />
+    </>
   );
 }

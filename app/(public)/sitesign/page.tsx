@@ -94,8 +94,31 @@ const comparison = [
 
 export default async function SiteSignPage() {
   const heroImage = await resolveMediaSlot("siteSignHero");
+
+  // Structured data for SoftwareApplication with features
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SiteSign",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "AUD",
+    },
+    "featureList": features.map(f => f.title).join(", "),
+    "description": "QR-based digital site sign-in for construction. Replace paper logbooks with phone-based attendance tracking.",
+  };
+
   return (
-    <ModulePageTemplate
+    <>
+      {/* Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <ModulePageTemplate
       moduleName="Buildstate SiteSign"
       theme="amber"
       hero={{
@@ -137,5 +160,6 @@ export default async function SiteSignPage() {
         primaryCta: { href: "/login?signup=1&intent=sitesign", label: "Start SiteSign free" },
       }}
     />
+    </>
   );
 }

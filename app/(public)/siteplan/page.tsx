@@ -94,8 +94,31 @@ const comparison = [
 
 export default async function SitePlanPage() {
   const heroImage = await resolveMediaSlot("sitePlanWorkflow");
+
+  // Structured data for SoftwareApplication with features
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SitePlan",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "AUD",
+    },
+    "featureList": features.map(f => f.title).join(", "),
+    "description": "Civil programme planning and daily delivery tracking for construction teams.",
+  };
+
   return (
-    <ModulePageTemplate
+    <>
+      {/* Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <ModulePageTemplate
       moduleName="Buildstate SitePlan"
       theme="blue"
       hero={{
@@ -137,5 +160,6 @@ export default async function SitePlanPage() {
         primaryCta: { href: "/login?signup=1&intent=siteplan", label: "Start SitePlan free" },
       }}
     />
+    </>
   );
 }

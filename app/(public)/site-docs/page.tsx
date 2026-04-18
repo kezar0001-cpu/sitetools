@@ -91,8 +91,31 @@ const comparison = [
 
 export default async function SiteDocsPage() {
   const heroImage = await resolveMediaSlot("siteDocsWorkflow");
+
+  // Structured data for SoftwareApplication with features
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SiteDocs",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "AUD",
+    },
+    "featureList": features.map(f => f.title).join(", "),
+    "description": "Document control and approval workflows for construction project teams.",
+  };
+
   return (
-    <ModulePageTemplate
+    <>
+      {/* Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <ModulePageTemplate
       moduleName="Buildstate SiteDocs"
       theme="cyan"
       hero={{
@@ -137,5 +160,6 @@ export default async function SiteDocsPage() {
         secondaryCta: { href: "/login", label: "Log in" },
       }}
     />
+    </>
   );
 }

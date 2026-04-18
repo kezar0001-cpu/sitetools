@@ -92,8 +92,31 @@ const comparison = [
 
 export default async function SiteItpPage() {
   const heroImage = await resolveMediaSlot("siteItpWorkflow");
+
+  // Structured data for SoftwareApplication with features
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SiteITP",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "AUD",
+    },
+    "featureList": features.map(f => f.title).join(", "),
+    "description": "Digital ITP checklists and QA sign-offs for construction quality assurance.",
+  };
+
   return (
-    <ModulePageTemplate
+    <>
+      {/* Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
+      <ModulePageTemplate
       moduleName="Buildstate SiteITP"
       theme="violet"
       hero={{
@@ -138,5 +161,6 @@ export default async function SiteItpPage() {
         secondaryCta: { href: "/login", label: "Log in" },
       }}
     />
+    </>
   );
 }
