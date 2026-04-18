@@ -140,7 +140,12 @@ async function addOverlayToImage(
 ): Promise<File> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
+    const objectUrl = URL.createObjectURL(file);
+
     img.onload = () => {
+      // Revoke the object URL as soon as the image is loaded to free memory
+      URL.revokeObjectURL(objectUrl);
+
       const canvas = document.createElement("canvas");
       canvas.width = img.width;
       canvas.height = img.height;
@@ -173,10 +178,10 @@ async function addOverlayToImage(
       ctx.fillStyle = "#ffffff";
       ctx.font = "bold 24px system-ui, -apple-system, sans-serif";
       ctx.textBaseline = "bottom";
-      
+
       // Timestamp
       ctx.fillText(dateStr, padding, canvas.height - padding - (address ? lineHeight : 0));
-      
+
       // Address (truncated if too long)
       if (address) {
         ctx.font = "18px system-ui, -apple-system, sans-serif";
@@ -200,8 +205,12 @@ async function addOverlayToImage(
         resolve(newFile);
       }, file.type, 0.95);
     };
-    img.onerror = () => reject(new Error("Could not load image"));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      // Revoke the object URL on error to prevent memory leak
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not load image"));
+    };
+    img.src = objectUrl;
   });
 }
 
