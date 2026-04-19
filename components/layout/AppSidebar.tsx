@@ -246,10 +246,10 @@ function SidebarContent({
           </ul>
         </div>
 
-        {/* Connected toolkit — extends SiteSign value */}
+        {/* Connected site workflows — quality, docs, and field records */}
         <details className="group" open>
           <summary className="cursor-pointer list-none flex items-center justify-between px-5 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-colors">
-            <span>Toolkit</span>
+            <span>Site Tools</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-3.5 w-3.5 transition-transform group-open:rotate-180"

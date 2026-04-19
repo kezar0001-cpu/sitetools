@@ -272,7 +272,7 @@ export const FREE_TOOLS: FreeTool[] = [
         launchPriority: "now",
         trafficPotential: "medium",
         funnelTarget: "Feeds into setout and planning workflows in Buildstate project modules.",
-        primaryWorkspaceModuleId: "inspections",
+        primaryWorkspaceModuleId: "site-capture",
         keywords: ["slope calculator", "gradient calculator", "rise run calculator"],
         assumptions: ["Rise and run are measured in the same units."],
         notes: ["Use a positive rise for uphill and negative for downhill grades."],

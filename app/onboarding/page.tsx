@@ -252,7 +252,7 @@ function OnboardingClient() {
         <div className="mb-8">
           <h1 className="text-3xl font-black tracking-tight text-slate-900">Set up your workspace</h1>
           <p className="mt-2 text-slate-600 font-medium">
-            Buildstate connects your projects, sites, and team in one workspace. Start with SiteSign, then layer in quality and documentation workflows.
+            One workspace connecting your projects, sites, and team. Start with SiteSign for site access, then add ITPs, site docs, and field records.
           </p>
         </div>
 

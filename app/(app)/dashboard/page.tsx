@@ -428,7 +428,7 @@ export default function DashboardHome() {
             {/* ── Module Quick-Launch ── */}
             <div className="space-y-4">
                 <h2 className="text-sm font-black text-zinc-400 uppercase tracking-widest">
-                    Connected Workflows
+                    Site Operations
                 </h2>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     {quickLaunchModules.map((module: AppModule) => {
@@ -476,7 +476,7 @@ export default function DashboardHome() {
                 ) : activities.length === 0 ? (
                     <div className="px-6 py-10 text-center">
                         <p className="text-zinc-500 text-sm font-medium">No recent activity yet</p>
-                        <p className="text-zinc-600 text-xs mt-1">Activity will appear once your team starts using SiteSign and the connected workflows.</p>
+                        <p className="text-zinc-600 text-xs mt-1">Activity appears as your team uses SiteSign, SiteITP, and other site tools.</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-zinc-800">

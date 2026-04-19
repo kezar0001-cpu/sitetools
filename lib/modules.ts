@@ -1,10 +1,11 @@
 /**
- * Buildstate Module Registry
+ * Buildstate construction operations toolkit
  * 
- * Defines the product hierarchy:
- * - PRIMARY: SiteSign (entry wedge)
- * - SUPPORTING: SiteCapture, SiteITP, SiteDocs (connected toolkit)
- * - INTERNAL: Admin utilities required for operation
+ * Connected workflows for site access, quality, records, and documentation.
+ * - SiteSign: entry workflow for site attendance and inductions
+ * - SiteITP, SiteDocs: quality and documentation layer
+ * - SiteCapture: supporting field records
+ * - Dashboard, Sites/Projects, Team, Settings: operational backbone
  */
 
 export type ModuleStatus = "live" | "coming-soon" | "beta";
@@ -67,9 +68,7 @@ export interface AppModule {
   color: string;
 }
 
-// Product hierarchy: SiteSign is the entry wedge, toolkit extends value
-
-// PRIMARY: Entry wedge to the platform
+// Entry workflow: SiteSign for site attendance and inductions
 const PRIMARY_MODULES: AppModule[] = [
   {
     id: "site-sign-in",
@@ -98,7 +97,7 @@ const PRIMARY_MODULES: AppModule[] = [
   },
 ];
 
-// SUPPORTING: Connected toolkit ranked by workflow value
+// Connected site workflows: quality, docs, and field records
 const SUPPORTING_MODULES: AppModule[] = [
   {
     id: "itp-builder",
@@ -290,7 +289,7 @@ const SUPPORTING_MODULES: AppModule[] = [
   },
 ];
 
-// INTERNAL: Admin utilities (defined inline in SUPPORTING_MODULES for now)
+// Operational backbone: projects, sites, team, and workspace settings
 const INTERNAL_MODULES: AppModule[] = [];
 
 // All live modules (excludes future roadmap items)
