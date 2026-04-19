@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getModule } from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
@@ -14,6 +15,7 @@ interface Props {
 export function AppTopbar({ onMenuToggle }: Props) {
   const pathname = usePathname();
   const { summary } = useWorkspace({ requireAuth: false, requireCompany: false });
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const segments = pathname.split("/").filter(Boolean);
   const moduleId = segments[1];
@@ -101,7 +103,17 @@ export function AppTopbar({ onMenuToggle }: Props) {
     };
   }, [isDashboardHome, moduleId, pathname]);
 
-  const userEmail = summary?.profile?.email ?? null;
+  const profile = summary?.profile ?? null;
+  const userEmail = profile?.email ?? null;
+  const displayName = profile?.full_name?.trim() || userEmail?.split("@")[0] || "Buildstate User";
+  const activeCompanyName = summary?.activeMembership?.companies?.name ?? null;
+  const membershipCount = summary?.memberships?.length ?? 0;
+  const avatarLabel = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "B";
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -166,43 +178,82 @@ export function AppTopbar({ onMenuToggle }: Props) {
           />
         </div>
 
-        {/* Notification bell */}
-        <button className="relative p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50 rounded-lg transition-colors">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
+        {/* User menu */}
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen((open) => !open)}
+            className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 py-1.5 text-left hover:bg-zinc-800/70 transition-colors"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-            />
-          </svg>
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-400 rounded-full" />
-        </button>
-
-        {/* User avatar + email */}
-        {userEmail && (
-          <div className="hidden sm:flex items-center gap-2 text-sm ml-1">
-            <div className="w-8 h-8 bg-zinc-800 text-zinc-100 rounded-full flex items-center justify-center font-bold ring-2 ring-amber-400/30 shrink-0">
-              {userEmail.charAt(0).toUpperCase()}
+            <div className="w-9 h-9 bg-zinc-800 text-zinc-100 rounded-full flex items-center justify-center font-black ring-2 ring-amber-400/20 shrink-0">
+              {avatarLabel}
             </div>
-            <span className="text-zinc-400 font-medium max-w-[180px] lg:max-w-[220px] truncate hidden lg:block">
-              {userEmail}
-            </span>
-          </div>
-        )}
+            <div className="hidden sm:block min-w-0">
+              <p className="text-sm font-semibold text-zinc-100 truncate max-w-[180px]">
+                {displayName}
+              </p>
+              <p className="text-xs text-zinc-500 truncate max-w-[180px]">
+                {activeCompanyName ?? userEmail ?? "Account"}
+              </p>
+            </div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className={`hidden sm:block h-4 w-4 text-zinc-500 transition-transform ${menuOpen ? "rotate-180" : ""}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-        <button
-          onClick={handleLogout}
-          className="text-sm font-bold text-zinc-400 hover:text-red-400 transition-colors bg-zinc-900 hover:bg-red-950/50 border border-zinc-700 hover:border-red-800/50 rounded-lg px-3 py-1.5"
-        >
-          Logout
-        </button>
+          {menuOpen && (
+            <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/40 overflow-hidden z-50">
+              <div className="px-4 py-4 border-b border-zinc-800 bg-zinc-900/60">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 bg-zinc-800 text-zinc-100 rounded-full flex items-center justify-center text-sm font-black ring-2 ring-amber-400/20 shrink-0">
+                    {avatarLabel}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-zinc-100 truncate">{displayName}</p>
+                    {userEmail && <p className="text-xs text-zinc-500 truncate">{userEmail}</p>}
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Workspace</p>
+                  <p className="text-sm font-semibold text-zinc-100 mt-1 truncate">
+                    {activeCompanyName ?? "No active company"}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {membershipCount > 1 ? `${membershipCount} workspaces available` : "Single workspace account"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-2 space-y-1">
+                <Link
+                  href="/dashboard/settings"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors"
+                >
+                  <span>Profile & settings</span>
+                  <span className="text-zinc-600">→</span>
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-medium text-red-300 hover:bg-red-950/40 hover:text-red-200 transition-colors"
+                >
+                  <span>Logout</span>
+                  <span className="text-red-500">↗</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

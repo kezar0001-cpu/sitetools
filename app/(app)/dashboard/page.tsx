@@ -1,6 +1,6 @@
 "use client";
 
-import { getSecondaryNavModules, type AppModule } from "@/lib/modules";
+import { getPrimaryNavModules, getSecondaryNavModules, type AppModule } from "@/lib/modules";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useEffect, useState } from "react";
 import { fetchCompanySites } from "@/lib/workspace/client";
@@ -352,8 +352,10 @@ export default function DashboardHome() {
 
     const isLoading = loading || (sitesLoading && hasSites === null);
     const isStatsLoading = statsLoading || loading;
-    // Show all live secondary modules (SiteCapture, SiteITP, SiteDocs) as connected toolkit
-    const quickLaunchModules = getSecondaryNavModules().filter((m: AppModule) => m.id !== "planner" && m.id !== "dashboard");
+    // Show SiteSign plus all live secondary modules as the connected toolkit
+    const quickLaunchModules = [...getPrimaryNavModules(), ...getSecondaryNavModules()].filter(
+        (m: AppModule) => m.id !== "planner" && m.id !== "dashboard",
+    );
 
     return (
         <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
