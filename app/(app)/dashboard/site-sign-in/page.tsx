@@ -12,6 +12,8 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteVisit } from "@/lib/workspace/types";
 import { useCompanySites } from "@/hooks/useSites";
 import { useSiteVisits, useVisitMutations } from "@/hooks/useSiteVisits";
+import { useQueryClient } from "@tanstack/react-query";
+import { visitKeys } from "@/lib/workspace/client";
 import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
 import { SiteInductionPanel } from "./components/SiteInductionPanel";
 import {
@@ -83,6 +85,7 @@ function fmtDuration(totalMinutes: number) {
 }
 
 export default function SiteSignInModulePage() {
+  const queryClient = useQueryClient();
   const { loading, summary, refresh } = useWorkspace({ requireAuth: true, requireCompany: true });
   const activeCompanyId = summary?.activeMembership?.company_id ?? null;
   const activeRole = summary?.activeMembership?.role ?? null;
@@ -269,8 +272,41 @@ export default function SiteSignInModulePage() {
   async function handleAddVisit(data: VisitEntryFormData) {
     if (!activeCompanyId || !selectedSiteId) return;
 
-    createVisit.mutate(
-      {
+    // Create optimistic visit with temporary ID
+    const tempId = `temp-${Date.now()}`;
+    const optimisticVisit: SiteVisit = {
+      id: tempId,
+      company_id: activeCompanyId,
+      site_id: selectedSiteId,
+      project_id: null,
+      full_name: data.fullName.trim(),
+      phone_number: data.phoneNumber?.trim() || null,
+      company_name: data.companyName.trim(),
+      visitor_type: data.visitorType,
+      signature: null,
+      signed_in_at: data.signedInAt ? new Date(data.signedInAt).toISOString() : new Date().toISOString(),
+      signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
+      created_by_user_id: null,
+      signed_in_by_user_id: null,
+    };
+
+    // Immediately add to visits for optimistic UI
+    const currentVisits = visits;
+    queryClient.setQueryData<SiteVisit[]>(visitKeys.site(activeCompanyId, selectedSiteId), (old) => {
+      return [optimisticVisit, ...(old ?? [])];
+    });
+
+    resetAdd({
+      fullName: "",
+      phoneNumber: "",
+      companyName: "",
+      visitorType: "Worker",
+      signedInAt: "",
+      signedOutAt: "",
+    });
+
+    try {
+      await createVisit.mutateAsync({
         company_id: activeCompanyId,
         site_id: selectedSiteId,
         full_name: data.fullName.trim(),
@@ -279,24 +315,16 @@ export default function SiteSignInModulePage() {
         visitor_type: data.visitorType,
         signed_in_at: data.signedInAt ? new Date(data.signedInAt).toISOString() : null,
         signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
-      },
-      {
-        onSuccess: () => {
-          resetAdd({
-            fullName: "",
-            phoneNumber: "",
-            companyName: "",
-            visitorType: "Worker",
-            signedInAt: "",
-            signedOutAt: "",
-          });
-          toast.success("Visitor record added.");
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Failed to add visitor.");
-        },
-      }
-    );
+      });
+
+      // Refresh to get server-generated ID
+      queryClient.invalidateQueries({ queryKey: visitKeys.site(activeCompanyId, selectedSiteId) });
+      toast.success("Visitor record added.");
+    } catch (err) {
+      // Rollback: remove optimistic entry on error
+      queryClient.setQueryData<SiteVisit[]>(visitKeys.site(activeCompanyId, selectedSiteId), currentVisits);
+      toast.error(err instanceof Error ? err.message : "Failed to add visitor.");
+    }
   }
 
   async function handleSaveEdit(data: VisitEditFormData, visitId: string) {

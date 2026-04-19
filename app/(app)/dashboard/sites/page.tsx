@@ -12,7 +12,8 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCompanySites, useInvalidateSites } from "@/hooks/useSites";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { siteKeys } from "@/lib/workspace/client";
 import {
   siteCreationSchema,
   siteEditSchema,
@@ -55,6 +56,7 @@ export default function SitesPage() {
 
   // For cache invalidation after mutations
   const { invalidateCompanySites } = useInvalidateSites();
+  const queryClient = useQueryClient();
 
   const pageLoading = loading || sitesLoading || projectsLoading;
 
@@ -126,8 +128,36 @@ export default function SitesPage() {
   async function handleCreateSite(data: SiteCreationFormData) {
     if (!activeCompanyId || !canEditSites) return;
 
+    // Create optimistic site with temporary ID
+    const tempId = `temp-${Date.now()}`;
+    const slug = toSlug(data.name);
+    const projectName = data.projectId ? projects.find(p => p.id === data.projectId)?.name ?? null : null;
+
+    const optimisticSite: Site = {
+      id: tempId,
+      company_id: activeCompanyId,
+      project_id: data.projectId || null,
+      name: data.name.trim(),
+      slug,
+      logo_url: null,
+      is_active: true,
+      timezone: null,
+      created_at: new Date().toISOString(),
+      // Optimistic indicator
+      _optimistic: true,
+    } as Site;
+
+    // Get current sites for rollback
+    const currentSites = queryClient.getQueryData<Site[]>(siteKeys.company(activeCompanyId)) ?? [];
+
+    // Immediately add optimistic site to cache
+    queryClient.setQueryData<Site[]>(siteKeys.company(activeCompanyId), (old) => {
+      return [optimisticSite, ...(old ?? [])];
+    });
+
+    resetCreate();
+
     try {
-      const slug = toSlug(data.name);
       const { error: insertError } = await supabase.from("sites").insert({
         company_id: activeCompanyId,
         name: data.name.trim(),
@@ -137,13 +167,13 @@ export default function SitesPage() {
 
       if (insertError) throw insertError;
 
-      const projectName = data.projectId ? projects.find(p => p.id === data.projectId)?.name ?? null : null;
-      resetCreate();
-      // Invalidate sites cache to trigger refetch
+      // Invalidate to get server-generated ID and full data
       invalidateCompanySites(activeCompanyId);
       setCreateSuccess({ siteName: data.name.trim(), projectName });
       toast.success("Site created.");
     } catch (err) {
+      // Rollback: restore previous sites on error
+      queryClient.setQueryData(siteKeys.company(activeCompanyId), currentSites);
       toast.error(err instanceof Error ? err.message : "Could not create site.");
     }
   }

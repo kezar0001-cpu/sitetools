@@ -3,9 +3,10 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { getDiaries, createDiary } from "@/lib/site-capture/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
+import type { SiteDiaryWithCounts, FormType, SiteDiary } from "@/lib/site-capture/types";
 import { FORM_TYPE_CONFIG } from "@/lib/site-capture/types";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import DiaryListCard from "./components/DiaryListCard";
@@ -100,19 +101,83 @@ export default function SiteCaptureHubPage() {
     if (!companyId) return;
     setCreating(true);
     setError(null);
+
+    // Create optimistic diary with temporary ID
+    const tempId = `temp-${Date.now()}`;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const optimisticDiary = {
+      id: tempId,
+      company_id: companyId,
+      project_id: projectId,
+      site_id: siteId,
+      date: todayIso,
+      weather: { conditions: "sunny", temp_min: null, temp_max: null, wind: null },
+      notes: null,
+      work_completed: null,
+      planned_works: null,
+      status: "draft" as const,
+      completed_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      form_type: selectedFormType,
+      // Base SiteDiary properties
+      created_by: null,
+      completed_by: null,
+      auto_archive_at: null,
+      // Optimistic indicators (transient)
+      _optimistic: true,
+      _creating: true,
+      // Counts
+      photo_count: 0,
+      labor_count: 0,
+      equipment_count: 0,
+      issue_count: 0,
+      // Required SiteDiaryWithCounts properties
+      total_workers: 0,
+      total_labor_rows: 0,
+      total_equipment_rows: 0,
+      total_photos: 0,
+    } as SiteDiaryWithCounts;
+
+    // Store previous state for rollback
+    const previousDiaries = [...diaries];
+
+    // Immediately add optimistic diary to state
+    setDiaries((prev) => [optimisticDiary, ...prev]);
+    setShowModal(false);
+
     try {
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const diary = await createDiary({ 
-        company_id: companyId, 
-        project_id: projectId, 
-        site_id: siteId, 
+      const diary = await createDiary({
+        company_id: companyId,
+        project_id: projectId,
+        site_id: siteId,
         date: todayIso,
         form_type: selectedFormType,
       });
-      setShowModal(false);
+
+      // Replace optimistic diary with real one
+      const diaryWithCounts: SiteDiaryWithCounts = {
+        ...diary,
+        photo_count: 0,
+        labor_count: 0,
+        equipment_count: 0,
+        issue_count: 0,
+        total_workers: 0,
+        total_labor_rows: 0,
+        total_equipment_rows: 0,
+        total_photos: 0,
+        form_type: selectedFormType,
+      } as SiteDiaryWithCounts;
+      setDiaries((prev) => prev.map((d) => (d.id === tempId ? diaryWithCounts : d)));
+
+      toast.success("Entry created successfully.");
       router.push(`/dashboard/site-capture/${diary.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create entry.");
+      // Rollback: remove optimistic entry on error
+      setDiaries(previousDiaries);
+      const errorMessage = err instanceof Error ? err.message : "Could not create entry.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setCreating(false);
     }
