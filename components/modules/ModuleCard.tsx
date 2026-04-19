@@ -26,7 +26,7 @@ export function ModuleCard({ module, hrefOverride }: ModuleCardProps) {
                 <div className={`p-3 rounded-xl inline-flex ${isLive ? "bg-amber-100 text-amber-700 group-hover:bg-amber-400 group-hover:text-amber-950 transition-colors" : "bg-gray-100 text-gray-500"}`}>
                     {getIcon(module.icon, "h-6 w-6")}
                 </div>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${isLive ? "bg-green-100 text-green-800 border-green-200" : "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${isLive ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-gray-100 text-gray-600 border-gray-200"}`}>
                     {isLive ? "Workspace" : "Coming Soon"}
                 </span>
             </div>

@@ -5,9 +5,9 @@ import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus, FolderInput, AlertCircle, Users, CheckSquare, Square } from "lucide-react";
+import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus, FolderInput, AlertCircle, Users, CheckSquare, Square, FolderPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys, uploadSiteLogo, removeSiteLogo, countActiveWorkersForSites, performBulkSiteOperation } from "@/lib/workspace/client";
+import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys, uploadSiteLogo, removeSiteLogo, countActiveWorkersForSites, performBulkSiteOperation, createProject } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
@@ -24,6 +24,7 @@ import {
   type SiteCreationFormData,
   type SiteEditFormData,
 } from "@/lib/validation/schemas";
+import { z } from "zod";
 import { getDefaultTimezone, getTimezoneShortCode } from "@/lib/timezone";
 
 function toSlug(value: string) {
@@ -87,11 +88,8 @@ export default function SitesPage() {
   // Quick Add form state per project group
   const [quickAddValues, setQuickAddValues] = useState<Record<string, string>>({});
 
-  // Project field lock and highlight state
+  // Project field lock state for create modal
   const [projectLocked, setProjectLocked] = useState(false);
-  const [projectPulse, setProjectPulse] = useState(false);
-  const createSiteSectionRef = useRef<HTMLElement>(null);
-  const projectSelectRef = useRef<HTMLSelectElement>(null);
 
   // Edit modal state
   const [editingSite, setEditingSite] = useState<Site | null>(null);
@@ -106,6 +104,10 @@ export default function SitesPage() {
   const [archivingSiteId, setArchivingSiteId] = useState<string | null>(null);
   const [confirmArchiveSite, setConfirmArchiveSite] = useState<Site | null>(null);
 
+  // Create modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalProjectId, setCreateModalProjectId] = useState<string | null>(null);
+
   // Bulk operations state
   const [selectedSiteIds, setSelectedSiteIds] = useState<Set<string>>(new Set());
   const [isBulkMode, setIsBulkMode] = useState(false);
@@ -119,6 +121,12 @@ export default function SitesPage() {
 
   // Search filter state
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Create project modal state
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
 
   // Mobile detection for bottom sheet pattern
   const [isMobile, setIsMobile] = useState(false);
@@ -395,7 +403,6 @@ export default function SitesPage() {
     setCreateLogoFile(null);
     setCreateLogoPreview(null);
     setProjectLocked(false);
-    setProjectPulse(false);
 
     try {
       const { data: insertedSite, error: insertError } = await supabase.from("sites").insert({
@@ -863,11 +870,36 @@ export default function SitesPage() {
             >
               Manage Team
             </Link>
+            {canEditSites && (
+              <button
+                onClick={() => setShowCreateProjectModal(true)}
+                className="hidden sm:flex items-center gap-2 text-sm font-bold text-amber-700 hover:text-amber-800 px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 transition-colors"
+              >
+                <FolderPlus className="h-4 w-4" />
+                New Project
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <div className={`p-6 md:p-10 space-y-8 ${isBulkMode && selectedSiteIds.size > 0 ? "pb-32" : ""}`}>
+        {/* Create Site Button - Header Area */}
+        {canEditSites && (
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setCreateModalProjectId(null);
+                setShowCreateModal(true);
+              }}
+              className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              Create Site
+            </button>
+          </div>
+        )}
+
         {/* Bulk mode hint */}
         {canEditSites && !isBulkMode && (
           <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-100/50 rounded-lg px-3 py-2 w-fit">
@@ -1007,11 +1039,8 @@ export default function SitesPage() {
                           setCreateValue("projectId", group.projectId || "");
                           setProjectLocked(!!group.projectId);
                           setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: "" }));
-                          createSiteSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                          setTimeout(() => {
-                            setProjectPulse(true);
-                            setTimeout(() => setProjectPulse(false), 1200);
-                          }, 400);
+                          setCreateModalProjectId(group.projectId);
+                          setShowCreateModal(true);
                         }
                       }}
                       className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all"
@@ -1023,11 +1052,8 @@ export default function SitesPage() {
                         setCreateValue("projectId", group.projectId || "");
                         setProjectLocked(!!group.projectId);
                         setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: "" }));
-                        createSiteSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                        setTimeout(() => {
-                          setProjectPulse(true);
-                          setTimeout(() => setProjectPulse(false), 1200);
-                        }, 400);
+                        setCreateModalProjectId(group.projectId);
+                        setShowCreateModal(true);
                       }}
                       disabled={!quickAddValues[group.projectId || "unassigned"]?.trim()}
                       className="bg-amber-400 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed text-amber-950 font-bold rounded-xl px-4 py-2.5 text-sm transition-all flex items-center gap-1.5"
@@ -1327,32 +1353,33 @@ export default function SitesPage() {
           </section>
         ))}
       </div>
+      </div>
 
-      <section ref={createSiteSectionRef} id="create-site-section" className="bg-slate-900 rounded-3xl p-8 md:p-10 text-white shadow-2xl relative overflow-hidden scroll-mt-24">
-        {/* Pattern decor */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-            <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <pattern id="dotPattern" width="30" height="30" patternUnits="userSpaceOnUse">
-                        <circle cx="2" cy="2" r="1.5" fill="currentColor" />
-                    </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#dotPattern)" />
-            </svg>
-        </div>
-
-        <div className="relative z-10 max-w-2xl">
-            <h2 className="text-2xl font-black tracking-tight">Create a Site</h2>
-            <p className="mt-2 text-slate-400 font-medium">
-                Sites are physical work locations. Each site gets a unique QR code for SiteSign and becomes the hub for ITPs, diaries, and field records. Choose an active site to start working.
-            </p>
+      {/* Create Site Modal - Bottom Sheet on Mobile */}
+      {showCreateModal && (
+        <div 
+          className={`fixed inset-0 z-50 flex ${isMobile ? "items-end" : "items-center justify-center"} bg-black/60 px-4 ${isMobile ? "pb-0" : ""}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreateModal(false);
+          }}
+        >
+          <div className={`bg-white shadow-2xl w-full ${isMobile ? "rounded-t-2xl max-w-none" : "rounded-2xl max-w-lg"} p-6 space-y-5 ${isMobile ? "animate-in slide-in-from-bottom duration-200" : ""} max-h-[90vh] overflow-y-auto`}>
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-100 text-amber-700 p-2 rounded-xl">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Create Site</h3>
+                <p className="text-sm text-slate-500">Add a new site with QR code for SiteSign</p>
+              </div>
+            </div>
 
             {!canEditSites ? (
-            <div className="mt-6 bg-white/10 rounded-2xl p-4 text-sm text-slate-300 border border-white/5">
+              <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 border border-slate-200">
                 Only Workspace Owner or Managers can add new sites.
-            </div>
+              </div>
             ) : createSuccess ? (
-              <div className="mt-8 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
                     <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1360,8 +1387,8 @@ export default function SitesPage() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-white">{createSuccess.siteName} is ready</p>
-                    <p className="text-sm text-slate-400 mt-1">
+                    <p className="font-bold text-slate-900">{createSuccess.siteName} is ready</p>
+                    <p className="text-sm text-slate-500 mt-1">
                       {createSuccess.projectName ? `Added to ${createSuccess.projectName}. ` : ""}
                       Your site has a unique QR code for SiteSign.
                     </p>
@@ -1373,209 +1400,193 @@ export default function SitesPage() {
                         }}
                         className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl px-4 py-2 text-sm transition-colors"
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                        </svg>
+                        <QrCode className="h-4 w-4" />
                         Print QR Code
-                      </button>
-                      <button
-                        onClick={() => setCreateSuccess(null)}
-                        className="text-sm text-slate-400 hover:text-white font-medium transition-colors"
-                      >
-                        Create another site →
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
             ) : (
-            <form
-                className={`mt-8 space-y-4 ${shakeForm ? "animate-shake" : ""}`}
-                onSubmit={handleSubmitCreate(handleCreateSite, () => triggerShake())}
-            >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                            Site Name <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                            {...registerCreate("name")}
-                            placeholder="e.g. South End Stormwater"
-                            className={`w-full bg-white/10 border-2 ${createErrors.name ? "border-red-400 focus:border-red-400" : "border-white/10 focus:border-amber-400"} outline-none rounded-2xl px-5 py-3.5 text-white placeholder-slate-500 transition-all font-medium`}
-                            aria-invalid={createErrors.name ? "true" : "false"}
-                        />
-                        {createErrors.name && (
-                            <div className="mt-2 ml-1 flex items-start gap-1.5">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-red-400 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                <p className="text-xs text-red-400 font-medium">{createErrors.name.message}</p>
-                            </div>
-                        )}
-                    </div>
-                    <div>
-                        <label className={`block text-xs font-bold uppercase tracking-widest mb-2 ml-1 ${projectLocked ? "text-amber-400" : "text-slate-500"}`}>
-                          Allocated Project
-                          {projectLocked && (
-                            <span className="ml-2 text-xs font-medium text-amber-400/80">(Locked)</span>
-                          )}
-                        </label>
-                        <div className="relative">
-                          <select
-                            {...registerCreate("projectId")}
-                            ref={projectSelectRef}
-                            disabled={projectLocked}
-                            onChange={(e) => {
-                              registerCreate("projectId").onChange(e);
-                              if (projectLocked) setProjectLocked(false);
-                            }}
-                            className={`w-full bg-white/10 outline-none rounded-2xl px-5 py-3.5 text-white appearance-none cursor-pointer transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
-                              projectPulse || projectLocked
-                                ? "border-2 border-amber-400 ring-2 ring-amber-400/30"
-                                : "border border-white/10 focus:border-amber-400"
-                            } ${projectPulse ? "animate-pulse" : ""}`}
-                          >
-                              <option value="" className="bg-slate-900 border-none">Unassigned Site</option>
-                              {projects.map((project) => (
-                                  <option key={project.id} value={project.id} className="bg-slate-900 border-none">
-                                      {project.name}
-                                  </option>
-                              ))}
-                          </select>
-                          {projectLocked && (
-                            <button
-                              type="button"
-                              onClick={() => setProjectLocked(false)}
-                              className="absolute right-10 top-1/2 -translate-y-1/2 text-xs text-amber-400 hover:text-amber-300 font-medium transition-colors"
-                              title="Unlock project selection"
-                            >
-                              Change
-                            </button>
-                          )}
-                        </div>
-                        {projectLocked && (
-                          <p className="mt-1.5 ml-1 text-xs text-amber-400/70">
-                            Project pre-selected from group. Click &ldquo;Change&rdquo; to select a different project.
-                          </p>
-                        )}
-                    </div>
+              <form onSubmit={handleSubmitCreate(handleCreateSite, () => triggerShake())} className="space-y-4">
+                {/* Site Name */}
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    Site Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    {...registerCreate("name")}
+                    placeholder="e.g. South End Stormwater"
+                    className={`w-full border-2 ${createErrors.name ? "border-red-300 focus:border-red-400" : "border-slate-100 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm font-bold focus:outline-none bg-slate-50 transition-colors text-slate-900 min-h-[44px]`}
+                    autoFocus={!isMobile}
+                  />
+                  {createErrors.name && (
+                    <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      {createErrors.name.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Project Selector */}
+                <div>
+                  <label className={`block text-xs font-black uppercase tracking-widest mb-1.5 ${projectLocked ? "text-amber-600" : "text-slate-500"}`}>
+                    Allocated Project
+                    {projectLocked && <span className="ml-2 text-xs font-medium text-amber-600">(Locked)</span>}
+                  </label>
+                  <div className="relative">
+                    <select
+                      {...registerCreate("projectId")}
+                      disabled={projectLocked}
+                      onChange={(e) => {
+                        registerCreate("projectId").onChange(e);
+                        if (projectLocked) setProjectLocked(false);
+                      }}
+                      className={`w-full border-2 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none bg-slate-50 transition-colors text-slate-900 appearance-none cursor-pointer min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed ${
+                        projectLocked ? "border-amber-400 ring-2 ring-amber-400/20" : "border-slate-100 focus:border-amber-400"
+                      }`}
+                    >
+                      <option value="">Unassigned (No Project)</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </select>
+                    {projectLocked && (
+                      <button
+                        type="button"
+                        onClick={() => setProjectLocked(false)}
+                        className="absolute right-10 top-1/2 -translate-y-1/2 text-xs text-amber-600 hover:text-amber-700 font-medium transition-colors"
+                      >
+                        Change
+                      </button>
+                    )}
+                  </div>
+                  {projectLocked && (
+                    <p className="mt-1 text-xs text-amber-600/80">
+                      Project pre-selected from group. Click "Change" to select a different project.
+                    </p>
+                  )}
+                </div>
+
+                {/* Timezone */}
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    Timezone
+                    {createTimezone && <span className="ml-2 text-amber-600">({getTimezoneShortCode(createTimezone)})</span>}
+                  </label>
+                  <select
+                    {...registerCreate("timezone")}
+                    className="w-full border-2 border-slate-100 focus:border-amber-400 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none bg-slate-50 transition-colors text-slate-900 appearance-none cursor-pointer min-h-[44px]"
+                  >
+                    <optgroup label="Australia - Eastern">
+                      <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+                      <option value="Australia/Melbourne">Melbourne (AEST/AEDT)</option>
+                      <option value="Australia/Brisbane">Brisbane (AEST)</option>
+                      <option value="Australia/Canberra">Canberra (AEST/AEDT)</option>
+                      <option value="Australia/Hobart">Hobart (AEST/AEDT)</option>
+                    </optgroup>
+                    <optgroup label="Australia - Central">
+                      <option value="Australia/Adelaide">Adelaide (ACST/ACDT)</option>
+                      <option value="Australia/Darwin">Darwin (ACST)</option>
+                    </optgroup>
+                    <optgroup label="Australia - Western">
+                      <option value="Australia/Perth">Perth (AWST)</option>
+                    </optgroup>
+                    <optgroup label="New Zealand">
+                      <option value="Pacific/Auckland">Auckland (NZST/NZDT)</option>
+                      <option value="Pacific/Wellington">Wellington (NZST/NZDT)</option>
+                      <option value="Pacific/Christchurch">Christchurch (NZST/NZDT)</option>
+                    </optgroup>
+                  </select>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Used for timestamps in SiteSign and all site records.
+                  </p>
                 </div>
 
                 {/* Logo Upload */}
                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                        Site Logo
-                    </label>
-                    <input
-                        ref={createFileInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                        onChange={handleCreateLogoChange}
-                        className="hidden"
-                    />
-                    <div className="flex items-center gap-4">
-                        {createLogoPreview ? (
-                            <div className="relative">
-                                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/10 border border-white/10">
-                                    <img 
-                                        src={createLogoPreview} 
-                                        alt="Logo preview" 
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setCreateLogoFile(null);
-                                        setCreateLogoPreview(null);
-                                        if (createFileInputRef.current) {
-                                            createFileInputRef.current.value = "";
-                                        }
-                                    }}
-                                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                                    title="Remove logo"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => createFileInputRef.current?.click()}
-                                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 border-dashed rounded-2xl px-5 py-3.5 text-slate-400 hover:text-white transition-all"
-                            >
-                                <ImageIcon className="h-5 w-5" />
-                                <span className="text-sm font-medium">Choose logo (optional)</span>
-                            </button>
-                        )}
-                        <p className="text-xs text-slate-500">
-                            PNG, JPG, WebP, or SVG. Max 2MB.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Timezone selector */}
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                        Timezone
-                        {createTimezone && (
-                            <span className="ml-2 text-amber-400 font-medium">({getTimezoneShortCode(createTimezone)})</span>
-                        )}
-                    </label>
-                    <select
-                        {...registerCreate("timezone")}
-                        className="w-full bg-white/10 border border-white/10 focus:border-amber-400 outline-none rounded-2xl px-5 py-3.5 text-white appearance-none cursor-pointer transition-all font-medium md:w-1/2"
-                    >
-                        <optgroup label="Australia - Eastern" className="bg-slate-900">
-                            <option value="Australia/Sydney" className="bg-slate-900">Sydney (AEST/AEDT)</option>
-                            <option value="Australia/Melbourne" className="bg-slate-900">Melbourne (AEST/AEDT)</option>
-                            <option value="Australia/Brisbane" className="bg-slate-900">Brisbane (AEST)</option>
-                            <option value="Australia/Canberra" className="bg-slate-900">Canberra (AEST/AEDT)</option>
-                            <option value="Australia/Hobart" className="bg-slate-900">Hobart (AEST/AEDT)</option>
-                        </optgroup>
-                        <optgroup label="Australia - Central" className="bg-slate-900">
-                            <option value="Australia/Adelaide" className="bg-slate-900">Adelaide (ACST/ACDT)</option>
-                            <option value="Australia/Darwin" className="bg-slate-900">Darwin (ACST)</option>
-                        </optgroup>
-                        <optgroup label="Australia - Western" className="bg-slate-900">
-                            <option value="Australia/Perth" className="bg-slate-900">Perth (AWST)</option>
-                        </optgroup>
-                        <optgroup label="New Zealand" className="bg-slate-900">
-                            <option value="Pacific/Auckland" className="bg-slate-900">Auckland (NZST/NZDT)</option>
-                            <option value="Pacific/Wellington" className="bg-slate-900">Wellington (NZST/NZDT)</option>
-                            <option value="Pacific/Christchurch" className="bg-slate-900">Christchurch (NZST/NZDT)</option>
-                        </optgroup>
-                    </select>
-                    <p className="mt-1.5 ml-1 text-xs text-slate-500">
-                        Used for timestamps in SiteSign and all site records. Defaults to your browser timezone.
-                    </p>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                    <button
+                  <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                    Site Logo
+                  </label>
+                  <input
+                    ref={createFileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleCreateLogoChange}
+                    className="hidden"
+                  />
+                  <div className="flex items-center gap-3">
+                    {createLogoPreview ? (
+                      <>
+                        <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                          <img src={createLogoPreview} alt="Logo preview" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => createFileInputRef.current?.click()}
+                            className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                          >
+                            <Upload className="h-4 w-4" />
+                            Change logo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCreateLogoFile(null);
+                              setCreateLogoPreview(null);
+                              if (createFileInputRef.current) createFileInputRef.current.value = "";
+                            }}
+                            className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Remove
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <button
                         type="button"
-                        onClick={() => {
-                          resetCreate();
-                          setProjectLocked(false);
-                          setProjectPulse(false);
-                        }}
-                        className="mr-3 px-5 py-3.5 text-sm font-bold text-slate-400 hover:text-white transition-colors"
-                    >
-                        Reset
-                    </button>
-                    <button
-                        type="submit"
-                        disabled={creating || !createIsValid}
-                        className="bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-black rounded-2xl px-8 py-3.5 text-sm transition-all shadow-lg shadow-amber-400/20"
-                    >
-                        {creating ? "Saving Site..." : "Create Site Record"}
-                    </button>
+                        onClick={() => createFileInputRef.current?.click()}
+                        className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 border-dashed rounded-xl px-4 py-2.5 text-slate-500 hover:text-slate-700 transition-all"
+                      >
+                        <ImageIcon className="h-5 w-5" />
+                        <span className="text-sm font-medium">Add logo (optional)</span>
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    PNG, JPG, WebP, or SVG. Max 2MB.
+                  </p>
                 </div>
-            </form>
+
+                <div className={`flex gap-3 pt-2 ${isMobile ? "flex-col" : ""}`}>
+                  <button
+                    type="submit"
+                    disabled={creating || !createIsValid}
+                    className="flex-1 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98] min-h-[44px]"
+                  >
+                    {creating ? "Creating..." : "Create Site"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      resetCreate();
+                      setCreateLogoFile(null);
+                      setCreateLogoPreview(null);
+                      setProjectLocked(false);
+                    }}
+                    className={`${isMobile ? "w-full" : "px-6"} py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98] min-h-[44px]`}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             )}
+          </div>
         </div>
-      </section>
-      </div>
+      )}
 
       {/* Edit Site Modal - Bottom Sheet on Mobile */}
       {editingSite && (
@@ -1887,6 +1898,114 @@ export default function SitesPage() {
                 Cancel
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create Project Modal ───────────────────────────────────────────────── */}
+      {showCreateProjectModal && (
+        <div
+          className={`fixed inset-0 z-50 flex ${isMobile ? "items-end" : "items-center justify-center"} bg-black/60 px-4 ${isMobile ? "pb-0" : ""}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCreateProjectModal(false);
+          }}
+        >
+          <div className={`bg-white shadow-2xl w-full ${isMobile ? "rounded-t-2xl max-w-none" : "rounded-2xl max-w-md"} p-6 space-y-5 ${isMobile ? "animate-in slide-in-from-bottom duration-200" : ""}`}>
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-100 text-amber-700 p-2 rounded-xl">
+                <FolderPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Create Project</h3>
+                <p className="text-sm text-slate-500">Projects group related sites together</p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!activeCompanyId || !canEditSites) return;
+                if (!projectName.trim()) return;
+
+                setCreatingProject(true);
+                try {
+                  const newProject = await createProject(
+                    activeCompanyId,
+                    projectName.trim(),
+                    projectDescription.trim() || null,
+                    summary?.userId
+                  );
+
+                  // Invalidate projects cache to update the list
+                  queryClient.invalidateQueries({ queryKey: projectKeys.company(activeCompanyId) });
+
+                  // Auto-select the new project in the site creation form and open it
+                  setCreateValue("projectId", newProject.id);
+                  setProjectLocked(true);
+                  setCreateModalProjectId(newProject.id);
+                  setShowCreateModal(true);
+
+                  toast.success(`Project "${newProject.name}" created`);
+                  setShowCreateProjectModal(false);
+                  setProjectName("");
+                  setProjectDescription("");
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Could not create project");
+                } finally {
+                  setCreatingProject(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  Project Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="e.g., Riverside Apartments"
+                  className="w-full border-2 border-slate-100 focus:border-amber-400 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none bg-slate-50 transition-colors text-slate-900 min-h-[44px]"
+                  autoFocus={!isMobile}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  Description <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <textarea
+                  value={projectDescription}
+                  onChange={(e) => setProjectDescription(e.target.value)}
+                  placeholder="Brief description of the project..."
+                  rows={3}
+                  className="w-full border-2 border-slate-100 focus:border-amber-400 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none bg-slate-50 transition-colors text-slate-900 resize-none"
+                />
+              </div>
+
+              <div className={`flex gap-3 pt-1 ${isMobile ? "flex-col" : ""}`}>
+                <button
+                  type="submit"
+                  disabled={creatingProject || !projectName.trim()}
+                  className="flex-1 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98] min-h-[44px]"
+                >
+                  {creatingProject ? "Creating..." : "Create Project"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateProjectModal(false);
+                    setProjectName("");
+                    setProjectDescription("");
+                  }}
+                  disabled={creatingProject}
+                  className={`${isMobile ? "w-full" : "px-6"} py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98] min-h-[44px]`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
