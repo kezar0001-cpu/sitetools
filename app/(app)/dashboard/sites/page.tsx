@@ -5,9 +5,9 @@ import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys } from "@/lib/workspace/client";
+import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys, uploadSiteLogo, removeSiteLogo } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
@@ -63,6 +63,8 @@ export default function SitesPage() {
   const queryClient = useQueryClient();
 
   const [createSuccess, setCreateSuccess] = useState<{ siteName: string; projectName: string | null } | null>(null);
+  const [createLogoFile, setCreateLogoFile] = useState<File | null>(null);
+  const [createLogoPreview, setCreateLogoPreview] = useState<string | null>(null);
   const [switchingSiteId, setSwitchingSiteId] = useState<string | null>(null);
   const [moveErrorSiteId, setMoveErrorSiteId] = useState<string | null>(null);
 
@@ -81,8 +83,23 @@ export default function SitesPage() {
     setTimeout(() => setShakeForm(false), 400);
   }, []);
 
+  // Quick Add form state per project group
+  const [quickAddValues, setQuickAddValues] = useState<Record<string, string>>({});
+
+  // Project field lock and highlight state
+  const [projectLocked, setProjectLocked] = useState(false);
+  const [projectPulse, setProjectPulse] = useState(false);
+  const createSiteSectionRef = useRef<HTMLElement>(null);
+  const projectSelectRef = useRef<HTMLSelectElement>(null);
+
   // Edit modal state
   const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [editLogoFile, setEditLogoFile] = useState<File | null>(null);
+  const [editLogoPreview, setEditLogoPreview] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const createFileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   // Archive confirmation state
   const [archivingSiteId, setArchivingSiteId] = useState<string | null>(null);
@@ -230,6 +247,73 @@ export default function SitesPage() {
     );
   }
 
+  // Logo file validation
+  function validateLogoFile(file: File): string | null {
+    const MAX_SIZE_MB = 2;
+    const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
+    
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      return `File must be under ${MAX_SIZE_MB} MB`;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      return "Allowed types: PNG, JPEG, WebP, SVG";
+    }
+    return null;
+  }
+
+  // Handle logo file selection for creation form
+  function handleCreateLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const error = validateLogoFile(file);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    setCreateLogoFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setCreateLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  // Handle logo file selection for edit form
+  function handleEditLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const error = validateLogoFile(file);
+    if (error) {
+      setLogoUploadError(error);
+      return;
+    }
+
+    setLogoUploadError(null);
+    setEditLogoFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setEditLogoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  // Remove logo from edit form
+  async function handleRemoveLogo() {
+    if (!editingSite || !canEditSites) return;
+    
+    setIsUploadingLogo(true);
+    try {
+      await removeSiteLogo(editingSite.id);
+      invalidateCompanySites(activeCompanyId);
+      setEditLogoFile(null);
+      setEditLogoPreview(null);
+      toast.success("Logo removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not remove logo");
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  }
+
   async function handleCreateSite(data: SiteCreationFormData) {
     if (!activeCompanyId || !canEditSites) return;
 
@@ -261,18 +345,33 @@ export default function SitesPage() {
       return [optimisticSite, ...(old ?? [])];
     });
 
+    // Store logo file for upload after site creation
+    const logoFileToUpload = createLogoFile;
+    
     resetCreate();
+    setCreateLogoFile(null);
+    setCreateLogoPreview(null);
+    setProjectLocked(false);
+    setProjectPulse(false);
 
     try {
-      const { error: insertError } = await supabase.from("sites").insert({
+      const { data: insertedSite, error: insertError } = await supabase.from("sites").insert({
         company_id: activeCompanyId,
         name: data.name.trim(),
         slug,
         project_id: data.projectId || null,
         timezone: timezone,
-      });
+      }).select("id").single();
 
       if (insertError) throw insertError;
+
+      // Upload logo if provided
+      if (logoFileToUpload && insertedSite?.id) {
+        const result = await uploadSiteLogo(insertedSite.id, logoFileToUpload);
+        if (!result.success) {
+          toast.error(`Site created but logo upload failed: ${result.error}`);
+        }
+      }
 
       // Invalidate to get server-generated ID and full data
       invalidateCompanySites(activeCompanyId);
@@ -401,11 +500,17 @@ export default function SitesPage() {
 
   function openEditModal(site: Site) {
     setEditingSite(site);
+    setEditLogoFile(null);
+    setEditLogoPreview(null);
+    setLogoUploadError(null);
     resetEdit({ name: site.name, timezone: site.timezone || "Australia/Sydney" });
   }
 
   async function handleSaveEdit(data: SiteEditFormData) {
     if (!editingSite || !canEditSites) return;
+
+    setIsUploadingLogo(true);
+    setLogoUploadError(null);
 
     try {
       const newSlug = toSlug(data.name);
@@ -414,12 +519,27 @@ export default function SitesPage() {
         slug: newSlug,
         timezone: data.timezone || "Australia/Sydney",
       });
+
+      // Upload new logo if selected
+      if (editLogoFile) {
+        const result = await uploadSiteLogo(editingSite.id, editLogoFile);
+        if (!result.success) {
+          setLogoUploadError(result.error);
+          setIsUploadingLogo(false);
+          return;
+        }
+      }
+
       // Invalidate sites cache to trigger refetch
       invalidateCompanySites(activeCompanyId);
       setEditingSite(null);
+      setEditLogoFile(null);
+      setEditLogoPreview(null);
       toast.success("Site updated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update site.");
+    } finally {
+      setIsUploadingLogo(false);
     }
   }
 
@@ -616,21 +736,82 @@ export default function SitesPage() {
             </div>
 
             {group.sites.length === 0 ? (
-              <EmptyState
-                icon="🏗️"
-                title={group.project ? "Add your first site to this project" : "Create your first site"}
-                description={group.project 
-                  ? "Sites are physical locations with QR codes for sign-in. Create a site to activate SiteSign."
-                  : "Sites belong to projects and get QR codes for SiteSign. Create a project first if you haven't already."}
-                action={canEditSites ? {
-                  label: "+ Create site",
-                  onClick: () => {
-                    setCreateValue("projectId", group.projectId || "");
-                    document.getElementById("create-site-section")?.scrollIntoView({ behavior: "smooth" });
-                  },
-                } : undefined}
-                className="bg-white border-2 border-dashed border-slate-200 rounded-3xl"
-              />
+              canEditSites ? (
+                <div className="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center shrink-0">
+                      <Building2 className="h-6 w-6 text-slate-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-900">
+                        {group.project ? "Add your first site to this project" : "Create your first site"}
+                      </h3>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {group.project
+                          ? "Sites are physical locations with QR codes for sign-in."
+                          : "Sites belong to projects and get QR codes for SiteSign."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-3">
+                    <input
+                      type="text"
+                      placeholder={group.project ? "e.g., Building A" : "Site name..."}
+                      value={quickAddValues[group.projectId || "unassigned"] || ""}
+                      onChange={(e) => {
+                        setQuickAddValues(prev => ({
+                          ...prev,
+                          [group.projectId || "unassigned"]: e.target.value
+                        }));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && quickAddValues[group.projectId || "unassigned"]?.trim()) {
+                          e.preventDefault();
+                          const siteName = quickAddValues[group.projectId || "unassigned"].trim();
+                          setCreateValue("name", siteName);
+                          setCreateValue("projectId", group.projectId || "");
+                          setProjectLocked(!!group.projectId);
+                          setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: "" }));
+                          createSiteSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          setTimeout(() => {
+                            setProjectPulse(true);
+                            setTimeout(() => setProjectPulse(false), 1200);
+                          }, 400);
+                        }
+                      }}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 transition-all"
+                    />
+                    <button
+                      onClick={() => {
+                        const siteName = quickAddValues[group.projectId || "unassigned"]?.trim() || "";
+                        setCreateValue("name", siteName);
+                        setCreateValue("projectId", group.projectId || "");
+                        setProjectLocked(!!group.projectId);
+                        setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: "" }));
+                        createSiteSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        setTimeout(() => {
+                          setProjectPulse(true);
+                          setTimeout(() => setProjectPulse(false), 1200);
+                        }, 400);
+                      }}
+                      disabled={!quickAddValues[group.projectId || "unassigned"]?.trim()}
+                      className="bg-amber-400 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed text-amber-950 font-bold rounded-xl px-4 py-2.5 text-sm transition-all flex items-center gap-1.5"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Create
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  icon="🏗️"
+                  title={group.project ? "Add your first site to this project" : "Create your first site"}
+                  description={group.project
+                    ? "Sites are physical locations with QR codes for sign-in. Create a site to activate SiteSign."
+                    : "Sites belong to projects and get QR codes for SiteSign. Create a project first if you haven't already."}
+                  className="bg-white border-2 border-dashed border-slate-200 rounded-3xl"
+                />
+              )
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {group.sites.map((site) => {
@@ -651,11 +832,19 @@ export default function SitesPage() {
                     >
                       {/* Card Header */}
                       <div className="flex items-start gap-3 mb-3">
-                        <div className={`p-2.5 rounded-2xl shrink-0 ${isArchived ? "bg-slate-100 text-slate-300" : isActive ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600 transition-colors"}`}>
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                             <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                           </svg>
+                        <div className={`w-11 h-11 rounded-2xl shrink-0 overflow-hidden flex items-center justify-center ${isArchived ? "bg-slate-100 text-slate-300" : isActive ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600 transition-colors"}`}>
+                          {site.logo_url ? (
+                            <img 
+                              src={site.logo_url} 
+                              alt={`${site.name} logo`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -829,7 +1018,7 @@ export default function SitesPage() {
         ))}
       </div>
 
-      <section id="create-site-section" className="bg-slate-900 rounded-3xl p-8 md:p-10 text-white shadow-2xl relative overflow-hidden">
+      <section ref={createSiteSectionRef} id="create-site-section" className="bg-slate-900 rounded-3xl p-8 md:p-10 text-white shadow-2xl relative overflow-hidden scroll-mt-24">
         {/* Pattern decor */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
             <svg className="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -915,18 +1104,103 @@ export default function SitesPage() {
                         )}
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Allocated Project</label>
-                        <select
+                        <label className={`block text-xs font-bold uppercase tracking-widest mb-2 ml-1 ${projectLocked ? "text-amber-400" : "text-slate-500"}`}>
+                          Allocated Project
+                          {projectLocked && (
+                            <span className="ml-2 text-xs font-medium text-amber-400/80">(Locked)</span>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <select
                             {...registerCreate("projectId")}
-                            className="w-full bg-white/10 border border-white/10 focus:border-amber-400 outline-none rounded-2xl px-5 py-3.5 text-white appearance-none cursor-pointer transition-all font-medium"
-                        >
-                            <option value="" className="bg-slate-900 border-none">Unassigned Site</option>
-                            {projects.map((project) => (
-                                <option key={project.id} value={project.id} className="bg-slate-900 border-none">
-                                    {project.name}
-                                </option>
-                            ))}
-                        </select>
+                            ref={projectSelectRef}
+                            disabled={projectLocked}
+                            onChange={(e) => {
+                              registerCreate("projectId").onChange(e);
+                              if (projectLocked) setProjectLocked(false);
+                            }}
+                            className={`w-full bg-white/10 outline-none rounded-2xl px-5 py-3.5 text-white appearance-none cursor-pointer transition-all font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
+                              projectPulse || projectLocked
+                                ? "border-2 border-amber-400 ring-2 ring-amber-400/30"
+                                : "border border-white/10 focus:border-amber-400"
+                            } ${projectPulse ? "animate-pulse" : ""}`}
+                          >
+                              <option value="" className="bg-slate-900 border-none">Unassigned Site</option>
+                              {projects.map((project) => (
+                                  <option key={project.id} value={project.id} className="bg-slate-900 border-none">
+                                      {project.name}
+                                  </option>
+                              ))}
+                          </select>
+                          {projectLocked && (
+                            <button
+                              type="button"
+                              onClick={() => setProjectLocked(false)}
+                              className="absolute right-10 top-1/2 -translate-y-1/2 text-xs text-amber-400 hover:text-amber-300 font-medium transition-colors"
+                              title="Unlock project selection"
+                            >
+                              Change
+                            </button>
+                          )}
+                        </div>
+                        {projectLocked && (
+                          <p className="mt-1.5 ml-1 text-xs text-amber-400/70">
+                            Project pre-selected from group. Click &ldquo;Change&rdquo; to select a different project.
+                          </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Logo Upload */}
+                <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                        Site Logo
+                    </label>
+                    <input
+                        ref={createFileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        onChange={handleCreateLogoChange}
+                        className="hidden"
+                    />
+                    <div className="flex items-center gap-4">
+                        {createLogoPreview ? (
+                            <div className="relative">
+                                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white/10 border border-white/10">
+                                    <img 
+                                        src={createLogoPreview} 
+                                        alt="Logo preview" 
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setCreateLogoFile(null);
+                                        setCreateLogoPreview(null);
+                                        if (createFileInputRef.current) {
+                                            createFileInputRef.current.value = "";
+                                        }
+                                    }}
+                                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                                    title="Remove logo"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => createFileInputRef.current?.click()}
+                                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 border-dashed rounded-2xl px-5 py-3.5 text-slate-400 hover:text-white transition-all"
+                            >
+                                <ImageIcon className="h-5 w-5" />
+                                <span className="text-sm font-medium">Choose logo (optional)</span>
+                            </button>
+                        )}
+                        <p className="text-xs text-slate-500">
+                            PNG, JPG, WebP, or SVG. Max 2MB.
+                        </p>
                     </div>
                 </div>
 
@@ -968,6 +1242,17 @@ export default function SitesPage() {
                 </div>
 
                 <div className="flex justify-end pt-2">
+                    <button
+                        type="button"
+                        onClick={() => {
+                          resetCreate();
+                          setProjectLocked(false);
+                          setProjectPulse(false);
+                        }}
+                        className="mr-3 px-5 py-3.5 text-sm font-bold text-slate-400 hover:text-white transition-colors"
+                    >
+                        Reset
+                    </button>
                     <button
                         type="submit"
                         disabled={creating || !createIsValid}
@@ -1052,13 +1337,87 @@ export default function SitesPage() {
                 </p>
               </div>
 
+              {/* Logo Upload */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  Site Logo
+                </label>
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  onChange={handleEditLogoChange}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-3">
+                  {(editLogoPreview || editingSite.logo_url) ? (
+                    <>
+                      <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+                        <img 
+                          src={editLogoPreview || editingSite.logo_url || ""} 
+                          alt="Site logo" 
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          disabled={isUploadingLogo}
+                          className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                        >
+                          <Upload className="h-4 w-4" />
+                          Change logo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveLogo}
+                          disabled={isUploadingLogo}
+                          className="flex items-center gap-1.5 text-sm font-medium text-red-500 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove logo
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => editFileInputRef.current?.click()}
+                      disabled={isUploadingLogo}
+                      className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 border-dashed rounded-xl px-4 py-2.5 text-slate-500 hover:text-slate-700 transition-all"
+                    >
+                      <ImageIcon className="h-5 w-5" />
+                      <span className="text-sm font-medium">Add logo</span>
+                    </button>
+                  )}
+                </div>
+                {logoUploadError && (
+                  <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    {logoUploadError}
+                  </p>
+                )}
+                {isUploadingLogo && (
+                  <p className="mt-1.5 text-xs text-amber-600 flex items-center gap-1">
+                    <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Uploading...
+                  </p>
+                )}
+              </div>
+
               <div className={`flex gap-3 pt-1 ${isMobile ? "flex-col" : ""}`}>
                 <button
                   type="submit"
-                  disabled={editSaving || !editIsValid}
+                  disabled={editSaving || !editIsValid || isUploadingLogo}
                   className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98] min-h-[44px]"
                 >
-                  {editSaving ? "Saving..." : "Save Changes"}
+                  {editSaving || isUploadingLogo ? "Saving..." : "Save Changes"}
                 </button>
                 <button
                   type="button"

@@ -710,6 +710,62 @@ export async function getSiteById(siteId: string): Promise<Site | null> {
   return data as Site;
 }
 
+export interface UploadSiteLogoResult {
+  success: true;
+  logo_url: string;
+}
+
+export interface UploadSiteLogoError {
+  success: false;
+  error: string;
+}
+
+export async function uploadSiteLogo(
+  siteId: string,
+  file: File
+): Promise<UploadSiteLogoResult | UploadSiteLogoError> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const formData = new FormData();
+  formData.append("site_id", siteId);
+  formData.append("file", file);
+
+  try {
+    const response = await fetch("/api/upload-site-logo", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `Upload failed: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return { success: true, logo_url: data.logo_url };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Upload failed. Please try again.",
+    };
+  }
+}
+
+export async function removeSiteLogo(siteId: string): Promise<void> {
+  const { error } = await supabase.from("sites").update({ logo_url: null }).eq("id", siteId);
+  if (error) throw error;
+}
+
 // Simple wrappers for diary creation modal
 export async function getProjects(companyId: string): Promise<Project[]> {
   return fetchCompanyProjects(companyId);
