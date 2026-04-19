@@ -20,29 +20,26 @@ function SuccessView({
   type,
   companyName,
   productHome,
-  intent,
 }: {
   type: "create" | "join";
   companyName: string;
   productHome: string;
-  intent: string | null;
 }) {
-  const intentLabel =
-    intent === "siteplan" ? "Site Planner" : intent === "sitesign" ? "Site Sign In" : "Dashboard";
+  const isCreate = type === "create";
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
       <div className="max-w-md w-full animate-zoom-in opacity-0">
-        <div className="relative mb-12 flex justify-center">
+        <div className="relative mb-10 flex justify-center">
           {/* Decorative background glow */}
           <div className="absolute inset-0 bg-amber-400/20 blur-3xl rounded-full scale-150 -z-10" />
-          
-          <div className="w-24 h-24 bg-white rounded-[2rem] shadow-2xl shadow-amber-200/50 flex items-center justify-center rotate-3 hover:rotate-0 transition-transform duration-500">
-            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
-              <svg 
-                className="w-10 h-10 text-white fill-none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor" 
+
+          <div className="w-20 h-20 bg-white rounded-[2rem] shadow-2xl shadow-amber-200/50 flex items-center justify-center rotate-3 hover:rotate-0 transition-transform duration-500">
+            <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
+              <svg
+                className="w-8 h-8 text-white fill-none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
                 strokeWidth={3}
               >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -51,47 +48,52 @@ function SuccessView({
           </div>
         </div>
 
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-            Workspace Ready!
+        <div className="text-center space-y-3">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+            {isCreate ? "Workspace created" : "You're in"}
           </h1>
-          <p className="text-slate-500 font-medium text-lg leading-relaxed">
-            {type === "create"
-              ? "Your premium workspace has been initialized and is ready for your team."
-              : "You've successfully joined the workspace. Your access is now active."}
+          <p className="text-slate-500 font-medium leading-relaxed">
+            {isCreate
+              ? `${companyName} is ready. Complete the next steps to activate SiteSign.`
+              : `You've joined ${companyName}. Access your site tools from the dashboard.`}
           </p>
         </div>
 
-        <div className="mt-10 bg-white/70 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-3xl p-8 text-center">
-          <div className="inline-block px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-full mb-3">
-            Active Workspace
+        {/* Next steps - actionable guidance */}
+        {isCreate && (
+          <div className="mt-8 bg-white border border-slate-200 rounded-2xl p-6">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4">
+              Next steps to activate
+            </p>
+            <ol className="space-y-3">
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-5 h-5 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                <span className="text-sm text-slate-700">Create your first project and site</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-5 h-5 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                <span className="text-sm text-slate-700">Invite your team members</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-5 h-5 bg-amber-400 text-amber-950 rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                <span className="text-sm font-medium text-slate-900">Launch SiteSign for QR sign-in</span>
+              </li>
+            </ol>
           </div>
-          <div className="text-2xl font-black text-slate-900 break-words">
-            {companyName}
-          </div>
-        </div>
+        )}
 
-        <div className="mt-10">
+        <div className="mt-8">
           <a
             href={productHome}
-            className="group relative flex items-center justify-center w-full bg-slate-900 hover:bg-black text-white font-bold rounded-2xl px-8 py-5 text-lg transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xl shadow-slate-200 overflow-hidden"
+            className="group relative flex items-center justify-center w-full bg-slate-900 hover:bg-black text-white font-bold rounded-2xl px-8 py-4 text-base transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xl shadow-slate-200 overflow-hidden"
           >
             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             <span className="relative z-10 flex items-center gap-3">
-              Continue to {intentLabel}
-              <svg 
-                className="w-5 h-5 transition-transform group-hover:translate-x-1" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor" 
-                strokeWidth={2.5}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
+              {isCreate ? "Start setup →" : "Go to dashboard →"}
             </span>
           </a>
-          <p className="mt-6 text-center text-slate-400 text-sm font-medium">
-            Redirecting automatically in a moment...
+          <p className="mt-4 text-center text-slate-400 text-xs font-medium">
+            You can return to this page anytime from your profile menu
           </p>
         </div>
       </div>
@@ -214,7 +216,6 @@ function OnboardingClient() {
           type={success.type}
           companyName={success.name}
           productHome={productHome}
-          intent={intent}
         />
       </div>
     );

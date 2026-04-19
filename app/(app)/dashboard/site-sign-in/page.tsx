@@ -508,8 +508,8 @@ export default function SiteSignInModulePage() {
       <div className="p-6 md:p-10 max-w-4xl mx-auto">
         <EmptyState
           icon="🏗️"
-          title="Site Sign In requires a site"
-          description="Create a company site first, then launch Site Sign In records from here."
+          title="Create a site to activate SiteSign"
+          description="SiteSign runs on physical sites. Create a project and site first, then return here to launch QR sign-in and view records."
           action={{ label: "Go to Sites", href: "/dashboard/sites" }}
           className="bg-white border border-slate-200 rounded-2xl shadow-sm"
         />
@@ -519,40 +519,50 @@ export default function SiteSignInModulePage() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
+      {/* Site selector - primary activation step */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-black text-slate-900">Site Sign In</h1>
-            <p className="mt-1 text-sm text-slate-600">Company-scoped visitor records for the selected site.</p>
+            <h1 className="text-2xl font-black text-slate-900">SiteSign</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              QR-based site sign-in with inductions and daily briefings. Workers scan to check in; you manage records here.
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={selectedSiteId}
-              onChange={(e) => handleSwitchSite(e.target.value)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium"
-            >
-              {sites.map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.name}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Site</span>
+              <select
+                value={selectedSiteId}
+                onChange={(e) => handleSwitchSite(e.target.value)}
+                className="border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white"
+              >
+                {sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             {selectedSite && (
               <Link
                 href={`/print-qr/${selectedSite.slug}`}
-                className="bg-slate-900 hover:bg-black text-white font-bold px-4 py-2 rounded-lg text-sm"
+                className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
               >
-                Print QR
+                Print QR Code
               </Link>
             )}
           </div>
         </div>
       </section>
 
-      <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900">Add Sign In Record</h2>
-        <form className="mt-4 grid grid-cols-1 md:grid-cols-6 gap-3" onSubmit={handleAddVisit}>
+      {/* Manual entry - for admin corrections and backup sign-ins */}
+      <section className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-base font-bold text-slate-700">Manual Sign-In Entry</h2>
+          <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Admin</span>
+        </div>
+        <form className="grid grid-cols-1 md:grid-cols-6 gap-3" onSubmit={handleAddVisit}>
           <input
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
@@ -700,16 +710,20 @@ export default function SiteSignInModulePage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="Active Site" value={selectedSite?.name ?? "-"} />
-          <Stat label="Currently On Site" value={String(onSiteCount)} />
-          <Stat label="Signed In Today" value={String(todayCount)} />
-          <Stat label="Showing" value={String(filteredVisits.length)} />
+        {/* Daily operation stats */}
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="On Site Now" value={String(onSiteCount)} />
+          <Stat label="Sign-Ins Today" value={String(todayCount)} />
+          <Stat label="Records Shown" value={String(filteredVisits.length)} />
         </div>
       </section>
 
+      {/* Daily records - operational view with admin controls */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900 mb-4">Records</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900">Sign-In Records</h2>
+          <span className="text-xs text-slate-500">View, edit, and export visitor records</span>
+        </div>
 
         {visitsLoading ? (
           <p className="text-sm text-slate-500">Loading records...</p>
@@ -947,11 +961,14 @@ export default function SiteSignInModulePage() {
         </div>
       )}
 
-      {/* Site Management: Daily Briefing + Site Induction */}
+      {/* Site setup - configure inductions and briefings for this site */}
       {selectedSiteId && activeCompanyId && (
-        <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-          <div className="border-b border-slate-200 px-6 pt-5 pb-0">
-            <h2 className="text-lg font-bold text-slate-900 mb-3">Site Configuration</h2>
+        <section className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="border-b border-slate-200 px-6 pt-5 pb-0 bg-white">
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-lg font-bold text-slate-900">Site Setup</h2>
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Configure once</span>
+            </div>
             <div className="flex gap-0">
               {(["briefing", "induction"] as const).map((tab) => (
                 <button

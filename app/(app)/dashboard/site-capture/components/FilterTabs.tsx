@@ -7,17 +7,13 @@ type FilterTab = "all" | FormType;
 interface FilterTabsProps {
   activeTab: FilterTab;
   onTabChange: (tab: FilterTab) => void;
-  counts?: Record<FilterTab, number>;
+  counts?: Record<"all" | "daily-diary" | "prestart-checklist", number>;
 }
 
 const TAB_CONFIG: { id: FilterTab; label: string }[] = [
   { id: "all", label: "All" },
   { id: "daily-diary", label: "Daily Diary" },
   { id: "prestart-checklist", label: "Prestart" },
-  { id: "site-induction", label: "Induction" },
-  { id: "toolbox-talk", label: "Toolbox Talk" },
-  { id: "incident-report", label: "Incident" },
-  { id: "site-inspection", label: "Inspection" },
 ];
 
 export function FilterTabs({ activeTab, onTabChange, counts }: FilterTabsProps) {
@@ -25,7 +21,9 @@ export function FilterTabs({ activeTab, onTabChange, counts }: FilterTabsProps) 
     <div className="flex flex-wrap gap-2">
       {TAB_CONFIG.map((tab) => {
         const isActive = activeTab === tab.id;
-        const count = counts?.[tab.id] ?? 0;
+        const count = (tab.id === 'all' || tab.id === 'daily-diary' || tab.id === 'prestart-checklist') 
+          ? (counts?.[tab.id] ?? 0) 
+          : 0;
         
         return (
           <button

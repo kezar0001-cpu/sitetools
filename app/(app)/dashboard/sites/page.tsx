@@ -33,6 +33,7 @@ export default function SitesPage() {
   const [name, setName] = useState("");
   const [targetProjectId, setTargetProjectId] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createSuccess, setCreateSuccess] = useState<{ siteName: string; projectName: string | null } | null>(null);
   const [switchingSiteId, setSwitchingSiteId] = useState<string | null>(null);
   const [allocatingSiteId, setAllocatingSiteId] = useState<string | null>(null);
 
@@ -101,10 +102,13 @@ export default function SitesPage() {
 
       if (insertError) throw insertError;
 
+      const createdSiteName = name.trim();
+      const projectName = targetProjectId ? projects.find(p => p.id === targetProjectId)?.name ?? null : null;
       setName("");
       setTargetProjectId("");
       const siteRows = await fetchCompanySites(activeCompanyId);
       setSites(siteRows);
+      setCreateSuccess({ siteName: createdSiteName, projectName });
       toast.success("Site created.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create site.");
@@ -224,9 +228,9 @@ export default function SitesPage() {
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Projects</h1>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Sites</h1>
           <p className="mt-1 text-slate-500 font-medium">
-            Manage your company projects and their physical site locations.
+            Sites are physical locations where work happens. Each site gets a QR code for SiteSign and powers all field workflows.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -262,9 +266,12 @@ export default function SitesPage() {
             {group.sites.length === 0 ? (
               <EmptyState
                 icon="🏗️"
-                title="No sites allocated to this project."
+                title={group.project ? "Add your first site to this project" : "Create your first site"}
+                description={group.project 
+                  ? "Sites are physical locations with QR codes for sign-in. Create a site to activate SiteSign."
+                  : "Sites belong to projects and get QR codes for SiteSign. Create a project first if you haven't already."}
                 action={canEditSites ? {
-                  label: "+ Add a site here",
+                  label: "+ Create site",
                   onClick: () => {
                     setTargetProjectId(group.projectId || "");
                     document.getElementById("create-site-section")?.scrollIntoView({ behavior: "smooth" });
@@ -300,7 +307,7 @@ export default function SitesPage() {
                             <span className="bg-slate-200 text-slate-500 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Archived</span>
                           )}
                           {isActive && !isArchived && (
-                            <span className="bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Active</span>
+                            <span className="bg-amber-400 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Working Site</span>
                           )}
                         </div>
                       </div>
@@ -332,7 +339,7 @@ export default function SitesPage() {
                                         : "bg-slate-900 text-white hover:bg-black shadow-sm"
                                     }`}
                                 >
-                                    {switchingSiteId === site.id ? "Setting..." : isActive ? "Current Default" : "Set as Active"}
+                                    {switchingSiteId === site.id ? "Setting..." : isActive ? "Active Site" : "Make Active"}
                                 </button>
                                 <Link
                                     href={`/print-qr/${site.slug}`}
@@ -407,15 +414,52 @@ export default function SitesPage() {
         </div>
 
         <div className="relative z-10 max-w-2xl">
-            <h2 className="text-2xl font-black tracking-tight">Create New Site</h2>
+            <h2 className="text-2xl font-black tracking-tight">Create a Site</h2>
             <p className="mt-2 text-slate-400 font-medium">
-                Add a physical location to your company profile. You can allocate it to a project now or leave it unassigned.
+                Sites are physical work locations. Each site gets a unique QR code for SiteSign and becomes the hub for ITPs, diaries, and field records. Choose an active site to start working.
             </p>
 
             {!canEditSites ? (
             <div className="mt-6 bg-white/10 rounded-2xl p-4 text-sm text-slate-300 border border-white/5">
                 Only Workspace Owner or Managers can add new sites.
             </div>
+            ) : createSuccess ? (
+              <div className="mt-8 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-white">{createSuccess.siteName} is ready</p>
+                    <p className="text-sm text-slate-400 mt-1">
+                      {createSuccess.projectName ? `Added to ${createSuccess.projectName}. ` : ""}
+                      Your site has a unique QR code for SiteSign.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-3 mt-4">
+                      <button
+                        onClick={() => {
+                          const newSite = sites.find(s => s.name === createSuccess.siteName);
+                          if (newSite) window.open(`/print-qr/${newSite.slug}`, '_blank');
+                        }}
+                        className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl px-4 py-2 text-sm transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                        Print QR Code
+                      </button>
+                      <button
+                        onClick={() => setCreateSuccess(null)}
+                        className="text-sm text-slate-400 hover:text-white font-medium transition-colors"
+                      >
+                        Create another site →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ) : (
             <form className="mt-8 space-y-4" onSubmit={handleCreateSite}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

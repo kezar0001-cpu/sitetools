@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useRouter } from "next/navigation";
-import { getDiaries, createDiary, getDiariesGroupedByProjectSite } from "@/lib/site-capture/client";
+import { getDiaries, createDiary } from "@/lib/site-capture/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
 import { FORM_TYPE_CONFIG } from "@/lib/site-capture/types";
@@ -11,8 +11,8 @@ import DiaryListCard from "./components/DiaryListCard";
 import { FormTypeGrid } from "./components/FormTypeGrid";
 import { FilterTabs } from "./components/FilterTabs";
 import { NewDiaryModal } from "./components/NewDiaryModal";
-import { DiaryProjectSiteView } from "./components/DiaryProjectSiteView";
 import { DiaryFilters } from "./components/DiaryFilters";
+import { TodayDiaryCard } from "./components/TodayDiaryCard";
 
 type FilterTab = "all" | FormType;
 
@@ -23,13 +23,11 @@ export default function SiteCaptureHubPage() {
   const companyId = summary?.activeMembership?.company_id ?? null;
 
   const [diaries, setDiaries] = useState<SiteDiaryWithCounts[]>([]);
-  const [groupedDiaries, setGroupedDiaries] = useState<Awaited<ReturnType<typeof getDiariesGroupedByProjectSite>> | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedFormType, setSelectedFormType] = useState<FormType>("daily-diary");
-  const [viewMode, setViewMode] = useState<'list' | 'grouped'>('grouped');
   const [filterProjectId, setFilterProjectId] = useState<string | null>(null);
   const [filterSiteId, setFilterSiteId] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState<boolean>(false);
@@ -52,17 +50,21 @@ export default function SiteCaptureHubPage() {
     return result;
   }, [diaries, showArchived, activeTab]);
 
-  // Calculate counts for filter tabs
+  // Calculate counts for filter tabs (only creatable form types shown)
   const tabCounts = useMemo(() => {
-    const counts: Record<FilterTab, number> = { all: 0, "daily-diary": 0, "prestart-checklist": 0, "site-induction": 0, "toolbox-talk": 0, "incident-report": 0, "site-inspection": 0 };
+    const counts: Record<"all" | "daily-diary" | "prestart-checklist", number> = { 
+      all: 0, 
+      "daily-diary": 0, 
+      "prestart-checklist": 0 
+    };
     
     for (const diary of diaries) {
       if (!showArchived && diary.status === 'archived') continue;
       
       const formType = (diary as { form_type?: FormType }).form_type ?? 'daily-diary';
       counts.all++;
-      if (formType in counts) {
-        counts[formType as FilterTab]++;
+      if (formType === 'daily-diary' || formType === 'prestart-checklist') {
+        counts[formType]++;
       }
     }
     
@@ -73,40 +75,15 @@ export default function SiteCaptureHubPage() {
     if (!companyId) return;
     setBusy(true);
     try {
-      if (viewMode === 'grouped') {
-        const grouped = await getDiariesGroupedByProjectSite(companyId, projectId);
-        const filteredGrouped = siteId
-          ? {
-              ...grouped,
-              projects: grouped.projects
-                .map((project) => ({
-                  ...project,
-                  sites: project.sites
-                    .map((site) => ({ ...site, diaries: site.diaries.filter((diary) => diary.site_id === siteId) }))
-                    .filter((site) => site.id === siteId || site.diaries.length > 0),
-                  unassignedDiaries: project.unassignedDiaries.filter((diary) => diary.site_id === siteId),
-                }))
-                .filter((project) => project.sites.length > 0 || project.unassignedDiaries.length > 0),
-              unassignedDiaries: grouped.unassignedDiaries.filter((diary) => diary.site_id === siteId),
-            }
-          : grouped;
-        setGroupedDiaries(filteredGrouped);
-        // Also set flat diaries for today's diary check
-        const flat = await getDiaries(companyId, projectId);
-        const filteredFlat = siteId ? flat.filter((diary) => diary.site_id === siteId) : flat;
-        setDiaries(filteredFlat);
-      } else {
-        const flat = await getDiaries(companyId, projectId);
-        const filteredFlat = siteId ? flat.filter((diary) => diary.site_id === siteId) : flat;
-        setDiaries(filteredFlat);
-        setGroupedDiaries(null);
-      }
+      const flat = await getDiaries(companyId, projectId);
+      const filteredFlat = siteId ? flat.filter((diary) => diary.site_id === siteId) : flat;
+      setDiaries(filteredFlat);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load diaries.");
     } finally {
       setBusy(false);
     }
-  }, [companyId, viewMode]);
+  }, [companyId]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -163,7 +140,7 @@ export default function SiteCaptureHubPage() {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-slate-900">SiteCapture</h1>
-          <p className="text-sm text-slate-500 mt-0.5">All your site forms in one place — diaries, checklists, inspections, and reports.</p>
+          <p className="text-sm text-slate-500 mt-0.5">Field records that complement SiteSign — daily diaries and prestart checklists.</p>
         </div>
 
         {/* Error */}
@@ -173,9 +150,17 @@ export default function SiteCaptureHubPage() {
           </div>
         )}
 
-        {/* Form Type Grid */}
+        {/* Today's Diary - Primary Quick Action */}
+        <TodayDiaryCard 
+          diaries={diaries} 
+          onOpenDiary={(id: string) => router.push(`/dashboard/site-capture/${id}`)}
+          onCreateDiary={() => handleNewEntry('daily-diary')}
+          loading={busy}
+        />
+
+        {/* Create New */}
         <section>
-          <h2 className="text-sm font-semibold text-slate-700 mb-3">Start New Entry</h2>
+          <h2 className="text-sm font-semibold text-slate-700 mb-3">Create New</h2>
           <FormTypeGrid onNewEntry={handleNewEntry} />
         </section>
 
@@ -183,38 +168,7 @@ export default function SiteCaptureHubPage() {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700">Recent Entries</h2>
-            
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200 p-1">
-              <button
-                onClick={() => setViewMode('grouped')}
-                disabled={busy}
-                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                  viewMode === 'grouped' 
-                    ? 'bg-amber-400 text-slate-900' 
-                    : 'text-slate-600 hover:text-slate-900'
-                } disabled:opacity-50`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
-                By Project
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                disabled={busy}
-                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-amber-400 text-slate-900' 
-                    : 'text-slate-600 hover:text-slate-900'
-                } disabled:opacity-50`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-                List
-              </button>
-            </div>
+            <span className="text-xs text-slate-400">{filteredDiaries.length} total</span>
           </div>
 
           {/* Filter Tabs */}
@@ -224,7 +178,7 @@ export default function SiteCaptureHubPage() {
             counts={tabCounts}
           />
 
-          {/* Project/Site Filters */}
+          {/* Compact Filters */}
           <DiaryFilters
             companyId={companyId ?? ""}
             onFilterChange={handleFilterChange}
@@ -239,11 +193,6 @@ export default function SiteCaptureHubPage() {
                 <div key={i} className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
               ))}
             </div>
-          ) : viewMode === 'grouped' && groupedDiaries ? (
-            <DiaryProjectSiteView 
-              groupedDiaries={groupedDiaries} 
-              showArchived={showArchived}
-            />
           ) : filteredDiaries.length === 0 ? (
             <EmptyState
               icon="📋"
@@ -251,18 +200,13 @@ export default function SiteCaptureHubPage() {
               description={showArchived 
                 ? "No archived entries match your filters." 
                 : activeTab !== 'all' 
-                  ? `No ${FORM_TYPE_CONFIG[activeTab as FormType]?.label ?? 'entries'} found. Select a form type above to create one.`
-                  : "Select a form type above to create your first entry."
+                  ? `No ${FORM_TYPE_CONFIG[activeTab as FormType]?.label ?? 'entries'} found. Create one above.`
+                  : "Daily diaries and prestart checklists appear here. Create your first record above."
               }
               className="py-12 bg-white rounded-2xl border border-slate-200"
             />
           ) : (
             <div className="space-y-3">
-              {filteredDiaries.length > 0 && (
-                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide px-1">
-                  {showArchived ? 'Archived entries' : `${filteredDiaries.length} entries`}
-                </p>
-              )}
               {filteredDiaries.map((diary) => (
                 <DiaryListCard key={diary.id} diary={diary} />
               ))}

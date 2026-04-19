@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileSearch } from "lucide-react";
+import { FileSearch, AlertCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import {
@@ -29,8 +29,10 @@ export interface CreateItpModalProps {
   filterProjectName: string | null;
   templates: ITPTemplate[];
   templatesLoading: boolean;
+  templatesError: string | null;
   onSessionCreated: (session: ITPSession, items: ITPItem[]) => void;
   onTemplateDeleted: (id: string) => void;
+  onRetryLoadTemplates?: () => void;
   /** Pre-select a creation mode when the modal opens. Defaults to "ai". */
   initialMode?: CreationMode;
 }
@@ -49,8 +51,10 @@ export default function CreateItpModal({
   filterProjectName,
   templates,
   templatesLoading,
+  templatesError,
   onSessionCreated,
   onTemplateDeleted,
+  onRetryLoadTemplates,
   initialMode = "ai",
 }: CreateItpModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -915,8 +919,26 @@ export default function CreateItpModal({
         {/* ── Template mode ── */}
         {creationMode === "template" && !creating && (
           <div className="space-y-2">
-            {templatesLoading ? (
+            {templatesLoading && !templatesError ? (
               <div className="text-center py-6 text-sm text-slate-400">Loading templates…</div>
+            ) : templatesError ? (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center space-y-2">
+                <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center mx-auto">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                </div>
+                <p className="text-sm font-semibold text-slate-800">Failed to load templates</p>
+                <p className="text-xs text-slate-500">{templatesError}</p>
+                {onRetryLoadTemplates && (
+                  <button
+                    onClick={onRetryLoadTemplates}
+                    disabled={templatesLoading}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 hover:text-amber-700 disabled:opacity-50 mt-1"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${templatesLoading ? "animate-spin" : ""}`} />
+                    {templatesLoading ? "Retrying…" : "Try again"}
+                  </button>
+                )}
+              </div>
             ) : templates.length === 0 ? (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center space-y-1">
                 <p className="text-sm font-semibold text-slate-600">No templates yet</p>

@@ -43,6 +43,7 @@ export default function ProjectsPage() {
     const [newName, setNewName] = useState("");
     const [newDesc, setNewDesc] = useState("");
     const [creating, setCreating] = useState(false);
+    const [createSuccess, setCreateSuccess] = useState<string | null>(null);
 
     // Edit form
     const [editName, setEditName] = useState("");
@@ -70,12 +71,13 @@ export default function ProjectsPage() {
         if (!companyId || !newName.trim()) return;
         setCreating(true);
         try {
-            await createProject(companyId, newName.trim(), newDesc.trim() || null, userId);
+            const createdName = newName.trim();
+            await createProject(companyId, createdName, newDesc.trim() || null, userId);
             setNewName("");
             setNewDesc("");
             setShowCreate(false);
             await load();
-            toast.success("Project created.");
+            setCreateSuccess(createdName);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "Failed to create project.");
         } finally {
@@ -157,8 +159,7 @@ export default function ProjectsPage() {
                     </div>
                     <h1 className="text-3xl md:text-4xl font-black tracking-tight">Projects</h1>
                     <p className="text-slate-400 mt-2 text-sm md:text-base max-w-xl">
-                        Projects are your top-level work containers. Each project holds its own sites and
-                        planning programmes.
+                        Projects organize your work. Create a project first, then add sites to it. Sites enable SiteSign, SiteITP, and all field workflows.
                     </p>
                     <div className="mt-5 grid grid-cols-3 gap-3 max-w-sm">
                         {[
@@ -251,7 +252,39 @@ export default function ProjectsPage() {
                 </section>
             )}
 
-            {/* Project list */}
+            {/* Inline success state */}
+            {createSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-emerald-900">{createSuccess} created</p>
+                            <p className="text-sm text-emerald-700 mt-0.5">
+                                Your project is ready. Now add a site to activate SiteSign.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-3 mt-3">
+                                <Link
+                                    href="/dashboard/sites"
+                                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+                                >
+                                    Create a site →
+                                </Link>
+                                <button
+                                    onClick={() => setCreateSuccess(null)}
+                                    className="text-sm text-emerald-600 hover:text-emerald-700"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {busy ? (
                 <div className="flex items-center justify-center py-16">
                     <div className="h-7 w-7 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
@@ -259,8 +292,9 @@ export default function ProjectsPage() {
             ) : visible.length === 0 ? (
                 <EmptyState
                     icon="🏗️"
-                    title="No projects yet."
-                    action={canManage ? { label: "Create your first project", onClick: () => setShowCreate(true) } : undefined}
+                    title="Start with your first project"
+                    description="Projects group your sites together. Create a project, then add sites to activate SiteSign and site workflows."
+                    action={canManage ? { label: "Create project", onClick: () => setShowCreate(true) } : undefined}
                     className="bg-white border border-slate-200 rounded-2xl shadow-sm"
                 />
             ) : (

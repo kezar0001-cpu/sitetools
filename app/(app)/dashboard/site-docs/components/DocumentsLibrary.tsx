@@ -240,13 +240,40 @@ export function DocumentsLibrary({ companyId, onDocumentClick }: DocumentsLibrar
 
             {/* Document List */}
             {filteredDocuments.length === 0 ? (
-                <div className="text-center py-12">
-                    <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">
-                        {hasActiveFilters 
-                            ? "No documents match your filters." 
-                            : "No documents yet. Select a template to get started."}
-                    </p>
+                <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                    {hasActiveFilters ? (
+                        <>
+                            <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                            <p className="text-slate-500 font-medium">No documents match your filters</p>
+                            <button
+                                onClick={clearFilters}
+                                className="mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                Clear all filters
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <FileText className="h-8 w-8 text-blue-600" />
+                            </div>
+                            <p className="text-slate-700 font-medium">No documents yet</p>
+                            <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
+                                Select a template below to create your first professional document from your notes.
+                            </p>
+                            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-400">
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                                    AI-powered formatting
+                                </span>
+                                <span className="w-1 h-1 bg-slate-300 rounded-full" />
+                                <span className="flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                                    Instant PDF export
+                                </span>
+                            </div>
+                        </>
+                    )}
                 </div>
             ) : (
                 <div className="space-y-2">

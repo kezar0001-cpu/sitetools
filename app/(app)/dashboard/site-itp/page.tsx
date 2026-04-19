@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, AlertCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchCompanyProjects } from "@/lib/workspace/client";
@@ -173,6 +173,7 @@ function SiteITPDashboardInner() {
 
   const [stats, setStats] = useState<ProjectITPStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
 
   useEffect(() => {
@@ -182,6 +183,7 @@ function SiteITPDashboardInner() {
 
   async function loadStats(companyId: string) {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const projects = await fetchCompanyProjects(companyId);
 
@@ -291,8 +293,9 @@ function SiteITPDashboardInner() {
       }
 
       setStats(result);
-    } catch {
-      // Non-critical — show empty state
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load ITP data";
+      setLoadError(message);
     } finally {
       setIsLoading(false);
     }
@@ -302,6 +305,41 @@ function SiteITPDashboardInner() {
     return (
       <div className="p-8 flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
+      </div>
+    );
+  }
+
+  // Error state — show clear error with retry option
+  if (loadError) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">SiteITP</h1>
+            <p className="text-sm text-slate-500">
+              Select a project to manage its inspection &amp; test plans
+            </p>
+          </div>
+        </div>
+        <div className="border-2 border-dashed border-red-200 rounded-xl p-16 text-center bg-red-50/50">
+          <div className="flex justify-center mb-4">
+            <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </div>
+          </div>
+          <p className="text-slate-900 font-bold">Failed to load ITP data</p>
+          <p className="text-slate-500 text-sm mt-1 max-w-sm mx-auto">
+            {loadError}. Check your connection and try again.
+          </p>
+          <button
+            onClick={() => activeCompanyId && loadStats(activeCompanyId)}
+            disabled={isLoading}
+            className="mt-5 inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold rounded-xl px-5 py-2.5 text-sm transition-colors active:scale-95"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "Retrying…" : "Try again"}
+          </button>
+        </div>
       </div>
     );
   }

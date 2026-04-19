@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { ITPSession, ProjectOption, SiteOption, ProjectGroup } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -121,6 +122,7 @@ function SessionCard({ session, isActive, onSelect }: SessionCardProps) {
 export interface SessionSidebarProps {
   sessions: ITPSession[];
   sessionsLoading: boolean;
+  sessionsError: string | null;
   loadingMore: boolean;
   totalSessionCount: number;
   searchQuery: string;
@@ -129,10 +131,12 @@ export interface SessionSidebarProps {
   showArchived: boolean;
   projects: ProjectOption[];
   allSites: SiteOption[];
+  referenceDataError: string | null;
   activeSessionId: string | null;
   onSelectSession: (session: ITPSession) => void;
   onNewITP: () => void;
   onLoadMore: () => void;
+  onRetryLoad: () => void;
   onSearchChange: (q: string) => void;
   onStatusFilterChange: (status: string) => void;
   onSortOrderChange: (sort: string) => void;
@@ -142,6 +146,7 @@ export interface SessionSidebarProps {
 export default function SessionSidebar({
   sessions,
   sessionsLoading,
+  sessionsError,
   loadingMore,
   totalSessionCount,
   searchQuery,
@@ -150,10 +155,12 @@ export default function SessionSidebar({
   showArchived,
   projects,
   allSites,
+  referenceDataError,
   activeSessionId,
   onSelectSession,
   onNewITP,
   onLoadMore,
+  onRetryLoad,
   onSearchChange,
   onStatusFilterChange,
   onSortOrderChange,
@@ -236,11 +243,27 @@ export default function SessionSidebar({
 
       {/* Session list — scrollable */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-        {sessionsLoading ? (
+        {sessionsLoading && !sessionsError ? (
           <div className="space-y-2 px-1">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />
             ))}
+          </div>
+        ) : sessionsError ? (
+          <div className="text-center py-8 px-2">
+            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+            </div>
+            <p className="text-sm font-medium text-slate-700 mb-1">Failed to load ITPs</p>
+            <p className="text-xs text-slate-400 mb-3">{sessionsError}</p>
+            <button
+              onClick={onRetryLoad}
+              disabled={sessionsLoading}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600 hover:text-amber-700 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3 w-3 ${sessionsLoading ? "animate-spin" : ""}`} />
+              {sessionsLoading ? "Retrying…" : "Try again"}
+            </button>
           </div>
         ) : grouped.length === 0 ? (
           <div className="text-center py-8 text-sm text-slate-400">

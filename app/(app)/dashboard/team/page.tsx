@@ -41,7 +41,7 @@ export default function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<CompanyRole>("member");
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteResult, setInviteResult] = useState<{ token: string; inviteCode: string } | null>(null);
+  const [inviteResult, setInviteResult] = useState<{ token: string; inviteCode: string; email: string; role: CompanyRole } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
   const canEditTeam = useMemo(() => canManageTeam(activeRole), [activeRole]);
@@ -115,7 +115,7 @@ export default function TeamPage() {
     setInviteLoading(true);
     try {
       const created = await createCompanyInvitation(activeCompanyId, inviteEmail.trim(), inviteRole);
-      setInviteResult({ token: created.token, inviteCode: created.invite_code });
+      setInviteResult({ token: created.token, inviteCode: created.invite_code, email: inviteEmail.trim(), role: inviteRole });
       setInviteEmail("");
       toast.success("Invitation created.");
 
@@ -143,9 +143,9 @@ export default function TeamPage() {
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto space-y-6">
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h1 className="text-2xl font-black text-slate-900">Team Management</h1>
+        <h1 className="text-2xl font-black text-slate-900">Team</h1>
         <p className="mt-1 text-sm text-slate-600">
-          Company: <span className="font-semibold text-slate-900">{activeCompany?.name}</span> | Your role: <span className="font-semibold uppercase">{activeRole}</span>
+          Invite team members to access <span className="font-semibold text-slate-900">{activeCompany?.name}</span>. They&apos;ll receive an invite link to join your workspace.
         </p>
       </div>
 
@@ -247,43 +247,58 @@ export default function TeamPage() {
             </form>
 
             {inviteResult && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800 space-y-1">
-                <p className="font-semibold">Invitation created.</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span>Invite link:</span>
-                  <span className="font-mono break-all">{typeof window !== "undefined" ? `${window.location.origin}/invite/${inviteResult.token}` : `/invite/${inviteResult.token}`}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const link = typeof window !== "undefined" ? `${window.location.origin}/invite/${inviteResult.token}` : `/invite/${inviteResult.token}`;
-                      navigator.clipboard.writeText(link).then(() => {
-                        setLinkCopied(true);
-                        setTimeout(() => setLinkCopied(false), 2000);
-                      });
-                    }}
-                    className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-xs font-semibold transition-colors shrink-0"
-                    title="Copy invite link"
-                  >
-                    {linkCopied ? (
-                      <>
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                        Copy
-                      </>
-                    )}
-                  </button>
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-emerald-900">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-emerald-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <p className="font-bold text-emerald-900">Invitation ready</p>
+                      <p className="text-sm text-emerald-700 mt-0.5">
+                        Share this link with <span className="font-semibold">{inviteResult.email}</span>. They&apos;ll join as a <span className="font-semibold uppercase">{inviteResult.role}</span>.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap bg-white rounded-lg px-3 py-2 border border-emerald-200">
+                      <span className="font-mono text-sm text-slate-600 break-all flex-1">
+                        {typeof window !== "undefined" ? `${window.location.origin}/invite/${inviteResult.token}` : `/invite/${inviteResult.token}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const link = typeof window !== "undefined" ? `${window.location.origin}/invite/${inviteResult.token}` : `/invite/${inviteResult.token}`;
+                          navigator.clipboard.writeText(link).then(() => {
+                            setLinkCopied(true);
+                            setTimeout(() => setLinkCopied(false), 2000);
+                          });
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
+                        title="Copy invite link"
+                      >
+                        {linkCopied ? (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Copy link
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-emerald-600">
+                      Code: <span className="font-mono font-semibold">{inviteResult.inviteCode}</span> · They can also join by entering this code on the sign-in page
+                    </p>
+                  </div>
                 </div>
-                <p>
-                  Invite code: <span className="font-mono font-bold">{inviteResult.inviteCode}</span>
-                </p>
               </div>
             )}
           </>
@@ -291,20 +306,46 @@ export default function TeamPage() {
       </section>
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900 mb-3">Pending Invitations</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-slate-900">Pending Invitations</h2>
+          <span className="text-sm text-slate-500">
+            {invitations.filter((inv) => inv.status === "pending").length} waiting
+          </span>
+        </div>
         {invitations.filter((inv) => inv.status === "pending").length === 0 ? (
-          <EmptyState icon="✉️" title="No pending invitations." className="py-4" />
+          <EmptyState
+            icon="✉️"
+            title="No pending invitations"
+            description="Invitations you create will appear here until they're accepted."
+            className="py-4"
+          />
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {invitations
               .filter((inv) => inv.status === "pending")
               .map((inv) => (
-                <li key={inv.id} className="border border-slate-200 rounded-lg px-3 py-2 text-sm flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-slate-800">{inv.email}</p>
-                    <p className="text-xs text-slate-500 uppercase">Role: {inv.role} | Code: {inv.invite_code}</p>
+                <li key={inv.id} className="border border-slate-200 rounded-xl px-4 py-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-900 truncate">{inv.email}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Join as <span className="font-medium uppercase">{inv.role}</span> · Expires {new Date(inv.expires_at).toLocaleDateString("en-AU")}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(inv.invite_code);
+                        toast.success("Code copied to clipboard");
+                      }}
+                      className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+                      title="Copy invite code"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                      </svg>
+                      <span className="font-mono">{inv.invite_code}</span>
+                    </button>
                   </div>
-                  <p className="text-xs text-slate-500">Expires {new Date(inv.expires_at).toLocaleDateString("en-AU")}</p>
                 </li>
               ))}
           </ul>

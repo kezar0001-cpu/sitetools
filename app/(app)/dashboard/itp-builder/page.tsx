@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, AlertCircle, RefreshCw } from "lucide-react";
 import { DropResult } from "@hello-pangea/dnd";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { supabase } from "@/lib/supabase";
@@ -147,13 +147,18 @@ function ITPBuilderPageInner() {
   // ── Templates ──────────────────────────────────────────────────────────────
   const [templates, setTemplates] = useState<ITPTemplate[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
 
   // ── Session list state ─────────────────────────────────────────────────────
   const [sessions, setSessions] = useState<ITPSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // ── Reference data errors ──────────────────────────────────────────────────
+  const [referenceDataError, setReferenceDataError] = useState<string | null>(null);
 
   // ── Generating skeleton (for AI generation in-progress display) ────────────
   const [generating] = useState(false);
@@ -227,6 +232,7 @@ function ITPBuilderPageInner() {
 
   async function loadTemplates(companyId: string) {
     setTemplatesLoading(true);
+    setTemplatesError(null);
     try {
       const { data: { session: authSession } } = await supabase.auth.getSession();
       const res = await fetch(`/api/itp-templates?company_id=${companyId}`, {
@@ -235,13 +241,18 @@ function ITPBuilderPageInner() {
       if (res.ok) {
         const data = await res.json() as { templates: ITPTemplate[] };
         setTemplates(data.templates ?? []);
+      } else {
+        throw new Error(`Failed to load templates (${res.status})`);
       }
-    } catch { /* non-critical */ } finally {
+    } catch (err) {
+      setTemplatesError(err instanceof Error ? err.message : "Failed to load templates");
+    } finally {
       setTemplatesLoading(false);
     }
   }
 
   async function loadReferenceData(companyId: string) {
+    setReferenceDataError(null);
     try {
       const [fetchedProjects, fetchedSites] = await Promise.all([
         fetchCompanyProjects(companyId),
@@ -249,12 +260,17 @@ function ITPBuilderPageInner() {
       ]);
       setProjects(fetchedProjects.map((p) => ({ id: p.id, name: p.name })));
       setAllSites(fetchedSites.map((s) => ({ id: s.id, name: s.name, project_id: s.project_id ?? null })));
-    } catch { /* non-critical */ }
+    } catch (err) {
+      setReferenceDataError(err instanceof Error ? err.message : "Failed to load projects and sites");
+    }
   }
 
   async function loadSessions(companyId: string, pageNum = 0, append = false) {
     if (append) setLoadingMore(true);
-    else setSessionsLoading(true);
+    else {
+      setSessionsLoading(true);
+      setSessionsError(null);
+    }
     try {
       const PAGE_SIZE = 50;
       let query = supabase
@@ -291,7 +307,11 @@ function ITPBuilderPageInner() {
       const newSessions = sessionList.map((s) => ({ ...s, items: itemsBySession.get(s.id) ?? [] }));
       if (append) setSessions((prev) => [...prev, ...newSessions]);
       else setSessions(newSessions);
-    } catch { /* fail silently */ } finally {
+    } catch (err) {
+      if (!append) {
+        setSessionsError(err instanceof Error ? err.message : "Failed to load ITPs");
+      }
+    } finally {
       setSessionsLoading(false);
       setLoadingMore(false);
     }
@@ -632,6 +652,25 @@ function ITPBuilderPageInner() {
             />
           </ItpErrorBoundary>
         </div>
+      ) : sessionsError ? (
+        /* Error state — failed to load sessions */
+        <div className="h-full flex flex-col items-center justify-center text-center px-8 py-16">
+          <div className="w-14 h-14 bg-red-100 rounded-2xl flex items-center justify-center mb-4">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+          </div>
+          <h3 className="text-base font-bold text-slate-900 mb-1">Failed to load ITPs</h3>
+          <p className="text-sm text-slate-500 mb-6 max-w-xs">
+            {sessionsError}. Check your connection and try again.
+          </p>
+          <button
+            onClick={() => activeCompanyId && loadSessions(activeCompanyId)}
+            disabled={sessionsLoading}
+            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold rounded-xl px-5 py-2.5 text-sm transition-colors active:scale-95"
+          >
+            <RefreshCw className={`h-4 w-4 ${sessionsLoading ? "animate-spin" : ""}`} />
+            {sessionsLoading ? "Retrying…" : "Try again"}
+          </button>
+        </div>
       ) : sessions.length === 0 && !sessionsLoading ? (
         /* Empty state — no sessions at all */
         <div className="h-full flex flex-col items-center justify-center text-center px-8 py-16">
@@ -720,6 +759,7 @@ function ITPBuilderPageInner() {
           <SessionSidebar
             sessions={sessions}
             sessionsLoading={sessionsLoading}
+            sessionsError={sessionsError}
             loadingMore={loadingMore}
             totalSessionCount={totalSessionCount}
             searchQuery={searchQuery}
@@ -728,6 +768,7 @@ function ITPBuilderPageInner() {
             showArchived={showArchived}
             projects={projects}
             allSites={allSites}
+            referenceDataError={referenceDataError}
             activeSessionId={activeSession?.id ?? null}
             onSelectSession={handleLoadSession}
             onNewITP={handleNewITP}
@@ -736,6 +777,7 @@ function ITPBuilderPageInner() {
               setPage(nextPage);
               if (activeCompanyId) loadSessions(activeCompanyId, nextPage, true);
             }}
+            onRetryLoad={() => activeCompanyId && loadSessions(activeCompanyId)}
             onSearchChange={(q) => {
               setSearchQuery(q);
               updateFilterParams({ q });
@@ -780,8 +822,10 @@ function ITPBuilderPageInner() {
           filterProjectName={filterProjectName}
           templates={templates}
           templatesLoading={templatesLoading}
+          templatesError={templatesError}
           onSessionCreated={handleSessionCreated}
           onTemplateDeleted={(id) => setTemplates((prev) => prev.filter((t) => t.id !== id))}
+          onRetryLoadTemplates={() => loadTemplates(activeCompanyId)}
           initialMode={createModalInitialMode}
         />
       )}

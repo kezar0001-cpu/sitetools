@@ -96,12 +96,12 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
         },
         {
             number: "04",
-            title: "Expand with quality and docs",
-            description: "Layer in SiteITP for quality checklists, then SiteDocs for professional reports.",
+            title: "Add quality and docs",
+            description: "Once SiteSign is running, activate SiteITP and SiteDocs for quality and reporting.",
             href: "/dashboard",
             icon: <ListChecks className="h-5 w-5 text-violet-400" />,
             adminOnly: false,
-            cta: "Explore workflows →",
+            cta: "View workflows →",
         },
     ];
 
@@ -118,12 +118,12 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
                     </span>
                 </div>
                 <h2 className="text-2xl font-black text-zinc-50 tracking-tight">
-                    Welcome to Buildstate.
+                    {isAdmin ? "Activate your workspace" : "Welcome to your workspace"}
                 </h2>
                 <p className="text-sm text-zinc-400 max-w-lg leading-relaxed">
                     {isAdmin
-                        ? "Your workspace is ready. Follow these steps to get your first site operational."
-                        : "Your workspace is set up. An admin will create your first site — meanwhile, explore the modules below."}
+                        ? "Complete these steps to set up projects, invite your team, and launch SiteSign."
+                        : "An admin is setting up the first project and site. You'll receive access once it's ready."}
                 </p>
             </div>
 
@@ -159,7 +159,7 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
                         href="/dashboard/sites"
                         className="inline-flex items-center gap-3 bg-amber-400 hover:bg-amber-300 text-amber-950 font-black px-6 py-3 rounded-xl transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-400/20"
                     >
-                        Create your first site
+                        Create your first project and site
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
                             className="h-4 w-4"
