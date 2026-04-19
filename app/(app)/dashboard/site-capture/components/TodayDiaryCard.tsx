@@ -41,7 +41,7 @@ export function TodayDiaryCard({ diaries, onOpenDiary, onCreateDiary, loading }:
               <BookOpen className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-sky-100 text-sm font-medium">Today's Diary</p>
+              <p className="text-sky-100 text-sm font-medium">Today&apos;s Diary</p>
               <p className="text-white text-lg font-bold">{todayFormatted}</p>
             </div>
           </div>
@@ -67,7 +67,7 @@ export function TodayDiaryCard({ diaries, onOpenDiary, onCreateDiary, loading }:
             <Plus className="w-6 h-6 text-white" />
           </div>
           <div>
-            <p className="text-sky-100 text-sm font-medium">Start Today's Diary</p>
+            <p className="text-sky-100 text-sm font-medium">Start Today&apos;s Diary</p>
             <p className="text-white text-lg font-bold">{todayFormatted}</p>
           </div>
         </div>

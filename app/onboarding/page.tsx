@@ -84,12 +84,12 @@ function SuccessView({
 
         <div className="mt-8">
           <a
-            href={productHome}
+            href={isCreate ? "/dashboard/sites" : productHome}
             className="group relative flex items-center justify-center w-full bg-slate-900 hover:bg-black text-white font-bold rounded-2xl px-8 py-4 text-base transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xl shadow-slate-200 overflow-hidden"
           >
             <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-amber-400 to-amber-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             <span className="relative z-10 flex items-center gap-3">
-              {isCreate ? "Start setup →" : "Go to dashboard →"}
+              {isCreate ? "Create your first project and site →" : "Go to dashboard →"}
             </span>
           </a>
           <p className="mt-4 text-center text-slate-400 text-xs font-medium">

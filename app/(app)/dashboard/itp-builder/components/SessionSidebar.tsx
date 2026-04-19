@@ -131,7 +131,6 @@ export interface SessionSidebarProps {
   showArchived: boolean;
   projects: ProjectOption[];
   allSites: SiteOption[];
-  referenceDataError: string | null;
   activeSessionId: string | null;
   onSelectSession: (session: ITPSession) => void;
   onNewITP: () => void;
@@ -155,7 +154,6 @@ export default function SessionSidebar({
   showArchived,
   projects,
   allSites,
-  referenceDataError,
   activeSessionId,
   onSelectSession,
   onNewITP,

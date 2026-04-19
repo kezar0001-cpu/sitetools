@@ -78,7 +78,6 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [projectSearch, setProjectSearch] = useState("");
     const [loadingProjects, setLoadingProjects] = useState(false);
     const [exporting, setExporting] = useState(false);
-    const [showQualityPanel, setShowQualityPanel] = useState(true);
     const [completedAction, setCompletedAction] = useState<"saved" | "exported" | null>(null);
 
     // Compute input quality

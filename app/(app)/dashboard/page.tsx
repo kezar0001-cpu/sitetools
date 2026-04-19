@@ -69,12 +69,12 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
     const STEPS = [
         {
             number: "01",
-            title: "Create your first site",
-            description: "Set up a physical location where your team will sign in and record activity.",
+            title: "Create your first project and site",
+            description: "Set up a project, then add a physical site where your team will sign in and record activity.",
             href: "/dashboard/sites",
             icon: <Building2 className="h-5 w-5 text-amber-400" />,
             adminOnly: true,
-            cta: "Create site →",
+            cta: "Create project and site →",
         },
         {
             number: "02",
