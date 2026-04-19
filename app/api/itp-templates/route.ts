@@ -2,44 +2,36 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
-async function getAuthUser(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7);
-  const {
-    data: { user },
-    error,
-  } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
-
-async function checkMembership(userId: string, companyId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from("org_members")
-    .select("role")
-    .eq("org_id", companyId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  return !!data;
-}
+export const dynamic = 'force-dynamic';
 
 // GET /api/itp-templates?company_id=<uuid>
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+  const token = authHeader.slice(7);
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+  }
 
   const companyId = req.nextUrl.searchParams.get("company_id");
   if (!companyId) return NextResponse.json({ error: "company_id required." }, { status: 400 });
 
-  if (!(await checkMembership(user.id, companyId))) {
+  const { data: membership } = await supabaseAdmin
+    .from("org_members")
+    .select("role")
+    .eq("org_id", companyId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 
@@ -56,8 +48,21 @@ export async function GET(req: NextRequest) {
 // POST /api/itp-templates — save current session as template
 // Body: { company_id, name, session_id }
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser(req);
-  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  }
+  const token = authHeader.slice(7);
+  const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+  if (authErr || !user) {
+    return NextResponse.json({ error: "Invalid session." }, { status: 401 });
+  }
 
   let body: { company_id?: string; name?: string; session_id?: string };
   try {
@@ -74,7 +79,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!(await checkMembership(user.id, company_id))) {
+  const { data: membership } = await supabaseAdmin
+    .from("org_members")
+    .select("role")
+    .eq("org_id", company_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
   }
 

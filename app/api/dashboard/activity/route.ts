@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { ActivityFeedItem, ActivityType } from "@/lib/dashboard/types";
 import { FormType } from "@/lib/site-capture/types";
 
+export const dynamic = 'force-dynamic';
+
 // Type definitions for Supabase join results (Supabase returns arrays for joins)
 interface SiteName { name: string }
 interface ProjectName { name: string }
@@ -55,12 +57,6 @@ interface ItpSignoffWithRelations {
   itp_sessions: { id: string; title: string }[] | null;
   profiles: ProfileName[] | null;
 }
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
 
 const ACTIVITY_LIMIT = 20;
 
@@ -115,6 +111,12 @@ function getDiaryActivityMeta(formType: FormType | null): {
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get("companyId");
 

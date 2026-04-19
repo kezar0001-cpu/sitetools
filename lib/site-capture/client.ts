@@ -590,8 +590,8 @@ export async function getPhotos(diaryId: string): Promise<SiteDiaryPhoto[]> {
 
   const urlMap = new Map<string, string>(
     (signedData ?? [])
-      .filter((s: { path: string | null; signedUrl: string }) => s.path !== null)
-      .map((s: { path: string | null; signedUrl: string }) => [s.path as string, s.signedUrl])
+      .filter((s) => s.path !== null && s.signedUrl !== null)
+      .map((s) => [s.path as string, s.signedUrl as string])
   );
 
   return photos.map((p) => ({

@@ -1,18 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
 const BUCKET = "site-logos";
 const MAX_SIZE_MB = 2;
 const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
 export async function POST(req: NextRequest) {
+  // Create Supabase client inside handler to avoid build-time errors
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: uploadErr.message || "Upload failed." }, { status: 500 });
   }
 
-  const publicUrl = `${supabaseUrl}/storage/v1/object/public/${BUCKET}/${path}`;
+  const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`;
 
   const { error: updateErr } = await supabaseAdmin
     .from("sites")
