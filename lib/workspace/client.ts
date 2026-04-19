@@ -374,6 +374,66 @@ export async function createCompanyInvitation(
   return row as Pick<CompanyInvitation, "id" | "token" | "invite_code" | "expires_at">;
 }
 
+export interface AddMemberDirectlyResult {
+  success: boolean;
+  membershipId?: string;
+  message?: string;
+  userId?: string;
+}
+
+/**
+ * Adds a member directly to a company without requiring an invitation.
+ * This is a super admin only operation - the user must be kezar01@hotmail.com
+ */
+export async function addMemberDirectly(
+  companyId: string,
+  email: string,
+  role: "admin" | "manager" | "member"
+): Promise<AddMemberDirectlyResult> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  
+  if (!accessToken) {
+    return { success: false, message: "Not authenticated" };
+  }
+
+  try {
+    const response = await fetch("/api/admin/add-member", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        companyId,
+        email: email.trim(),
+        role,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        message: errorData.error || `Failed to add member: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      membershipId: data.membershipId,
+      userId: data.userId,
+      message: data.message,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : "Failed to add member",
+    };
+  }
+}
+
 /**
  * Shared utility for handling is_active column fallback.
  * Gracefully handles cases where the is_active column doesn't exist yet (migration pending).

@@ -5,8 +5,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { FieldError, ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
 import { supabase } from "@/lib/supabase";
-import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";
-import { canManageTeam } from "@/lib/workspace/permissions";
+import { addMemberDirectly, createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";
+import { canManageTeam, isSuperAdmin } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { CompanyInvitation, CompanyMembership, CompanyRole } from "@/lib/workspace/types";
 import { MobileCardList, MobileCardHeader, MobileStatusBadge, MobileActionButton } from "@/components/mobile/MobileCardList";
@@ -49,6 +49,9 @@ export default function TeamPage() {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const canEditTeam = useMemo(() => canManageTeam(activeRole), [activeRole]);
+  const userIsSuperAdmin = useMemo(() => isSuperAdmin(summary?.profile?.email), [summary?.profile?.email]);
+  const [addMode, setAddMode] = useState<"invite" | "direct">("invite");
+  const [directAddResult, setDirectAddResult] = useState<{ email: string; role: CompanyRole; success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     if (!activeCompanyId) return;
@@ -146,6 +149,57 @@ export default function TeamPage() {
         err instanceof Error
           ? err.message
           : (err as { message?: string })?.message ?? "Failed to send invitation.";
+      showErrorToast(`${msg} Check your connection and try again.`);
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  async function handleDirectAdd(e: FormEvent) {
+    e.preventDefault();
+    if (!activeCompanyId || !userIsSuperAdmin) return;
+
+    setDirectAddResult(null);
+
+    if (!validateInviteEmail(inviteEmail)) {
+      return;
+    }
+
+    setInviteLoading(true);
+    try {
+      const result = await addMemberDirectly(activeCompanyId, inviteEmail.trim(), inviteRole as "admin" | "manager" | "member");
+      
+      if (result.success) {
+        setDirectAddResult({ 
+          email: inviteEmail.trim(), 
+          role: inviteRole, 
+          success: true, 
+          message: result.message || "Member added successfully" 
+        });
+        setInviteEmail("");
+        setInviteEmailError(null);
+        showSuccessToast(result.message || "Member added successfully.");
+
+        // Refresh members list
+        const team = await fetchCompanyTeam(activeCompanyId);
+        setMembers(team as MemberRow[]);
+      } else {
+        setDirectAddResult({ 
+          email: inviteEmail.trim(), 
+          role: inviteRole, 
+          success: false, 
+          message: result.message || "Failed to add member" 
+        });
+        showErrorToast(result.message || "Failed to add member.");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to add member.";
+      setDirectAddResult({ 
+        email: inviteEmail.trim(), 
+        role: inviteRole, 
+        success: false, 
+        message: msg 
+      });
       showErrorToast(`${msg} Check your connection and try again.`);
     } finally {
       setInviteLoading(false);
@@ -283,12 +337,49 @@ export default function TeamPage() {
       )}
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <h2 className="text-lg font-bold text-slate-900">Invite Member</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">
+            {userIsSuperAdmin ? (addMode === "invite" ? "Invite Member" : "Add Member Directly") : "Invite Member"}
+          </h2>
+          {userIsSuperAdmin && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-amber-600 bg-amber-100 px-2 py-1 rounded">Super Admin</span>
+              <div className="flex bg-slate-100 rounded-lg p-1">
+                <button
+                  onClick={() => setAddMode("invite")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    addMode === "invite" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Invite
+                </button>
+                <button
+                  onClick={() => setAddMode("direct")}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    addMode === "direct" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Add Directly
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
         {!canEditTeam ? (
           <p className="text-sm text-slate-600">Only Owners and Admins can invite team members.</p>
         ) : (
           <>
-            <form className="grid grid-cols-1 md:grid-cols-3 gap-3" onSubmit={handleInvite}>
+            {userIsSuperAdmin && addMode === "direct" && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <p className="font-medium">Super Admin Mode</p>
+                <p className="text-amber-700 mt-0.5">
+                  Adding members directly skips the invitation process. The user must already have an account.
+                </p>
+              </div>
+            )}
+            
+            <form className="grid grid-cols-1 md:grid-cols-3 gap-3" onSubmit={addMode === "direct" && userIsSuperAdmin ? handleDirectAdd : handleInvite}>
               <div className="md:col-span-2 space-y-1">
                 <input
                   type="email"
@@ -307,20 +398,39 @@ export default function TeamPage() {
                 onChange={(e) => setInviteRole(e.target.value as CompanyRole)}
                 className="border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
               >
-                <option value="member">Member</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
+                {addMode === "direct" && userIsSuperAdmin && (
+                  <>
+                    <option value="member">Member</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </>
+                )}
+                {(addMode === "invite" || !userIsSuperAdmin) && (
+                  <>
+                    <option value="member">Member</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                    <option value="owner">Owner</option>
+                  </>
+                )}
               </select>
               <button
                 type="submit"
                 disabled={inviteLoading}
-                className="md:col-span-3 bg-slate-900 hover:bg-black disabled:opacity-60 text-white font-bold rounded-xl px-4 py-3 text-sm"
+                className={`md:col-span-3 font-bold rounded-xl px-4 py-3 text-sm transition-colors ${
+                  addMode === "direct" && userIsSuperAdmin
+                    ? "bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white"
+                    : "bg-slate-900 hover:bg-black disabled:opacity-60 text-white"
+                }`}
               >
-                {inviteLoading ? "Creating invite..." : "Create Invitation"}
+                {inviteLoading 
+                  ? (addMode === "direct" && userIsSuperAdmin ? "Adding..." : "Creating invite...") 
+                  : (addMode === "direct" && userIsSuperAdmin ? "Add Member Directly" : "Create Invitation")
+                }
               </button>
             </form>
 
-            {inviteResult && (
+            {inviteResult && addMode === "invite" && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-emerald-900">
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
@@ -371,6 +481,33 @@ export default function TeamPage() {
                     <p className="text-xs text-emerald-600">
                       Code: <span className="font-mono font-semibold">{inviteResult.inviteCode}</span> · They can also join by entering this code on the sign-in page
                     </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {directAddResult && addMode === "direct" && (
+              <div className={`${directAddResult.success ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-red-50 border-red-200 text-red-900"} border rounded-xl p-5`}>
+                <div className="flex items-start gap-3">
+                  <div className={`flex-shrink-0 w-8 h-8 ${directAddResult.success ? "bg-emerald-100" : "bg-red-100"} rounded-full flex items-center justify-center`}>
+                    <svg className={`w-4 h-4 ${directAddResult.success ? "text-emerald-700" : "text-red-700"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      {directAddResult.success ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      )}
+                    </svg>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <p className="font-bold">{directAddResult.success ? "Member added" : "Failed to add member"}</p>
+                      <p className={`text-sm mt-0.5 ${directAddResult.success ? "text-emerald-700" : "text-red-700"}`}>
+                        {directAddResult.success 
+                          ? <>{directAddResult.email} has been added as a <span className="font-semibold uppercase">{directAddResult.role}</span>.</>
+                          : directAddResult.message
+                        }
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
