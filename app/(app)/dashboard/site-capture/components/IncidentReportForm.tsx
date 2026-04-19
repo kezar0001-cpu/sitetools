@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { CompanyRole } from "@/lib/workspace/types";
+import { useFormAutoSave } from "@/hooks/useFormAutoSave";
 import { PhotosSection } from "./PhotosSection";
 import { DiaryProgress } from "./DiaryProgress";
 import { CompleteExportPanel } from "./CompleteExportPanel";
@@ -202,6 +203,71 @@ export default function IncidentReportForm({
     onUpdate?.(updatedDiary);
   }
 
+  // ── Draft Auto-Save ──
+  const draftValues = {
+    incidentDetails,
+    personsInvolved,
+    witnesses,
+    immediateActions,
+    safetyStatus,
+    causalFactors,
+    correctiveActions,
+    declaration,
+    openSections: Array.from(openSections),
+  };
+
+  const {
+    showRecoveryDialog,
+    restoreDraft,
+    clearDraft,
+    dismissDraft,
+    draftTimestamp,
+  } = useFormAutoSave({
+    key: `${diary.id}:${diary.date}`,
+    formType: "incident-report",
+    userId: diary.created_by ?? null,
+    diaryId: diary.id,
+    values: draftValues,
+    enabled: !isLocked,
+  });
+
+  // Handle draft restoration
+  const handleRestoreDraft = useCallback(() => {
+    const draft = restoreDraft();
+    if (draft) {
+      // Restore form state
+      if (draft.incidentDetails) setIncidentDetails(draft.incidentDetails as IncidentDetails);
+      if (draft.personsInvolved) setPersonsInvolved(draft.personsInvolved as typeof personsInvolved);
+      if (draft.witnesses) setWitnesses(draft.witnesses as typeof witnesses);
+      if (draft.immediateActions) setImmediateActions(draft.immediateActions as typeof immediateActions);
+      if (draft.safetyStatus) setSafetyStatus(draft.safetyStatus as typeof safetyStatus);
+      if (draft.causalFactors) setCausalFactors(draft.causalFactors as typeof causalFactors);
+      if (draft.correctiveActions) setCorrectiveActions(draft.correctiveActions as typeof correctiveActions);
+      if (draft.declaration) setDeclaration(draft.declaration as typeof declaration);
+      if (draft.openSections) setOpenSections(new Set(draft.openSections as Section[]));
+
+      // Persist to diary
+      setTimeout(persistFormData, 0);
+    }
+  }, [restoreDraft]);
+
+  // Clear draft when diary is completed
+  useEffect(() => {
+    if (diary.status === "completed") {
+      clearDraft();
+    }
+  }, [diary.status, clearDraft]);
+
+  // Format timestamp for display
+  const formattedDraftTime = draftTimestamp
+    ? new Date(draftTimestamp).toLocaleString("en-AU", {
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : null;
+
   return (
     <div className="space-y-4">
       {/* ── Progress Bar ── */}
@@ -232,6 +298,39 @@ export default function IncidentReportForm({
                 </svg>
                 Generate Incident Notification
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Draft Recovery Dialog ── */}
+      {showRecoveryDialog && formattedDraftTime && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-amber-900">
+                Unsaved draft found from {formattedDraftTime}
+              </p>
+              <p className="text-sm text-amber-700 mt-1">
+                You have unsaved incident report changes. Would you like to restore them?
+              </p>
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={handleRestoreDraft}
+                  className="inline-flex items-center px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors"
+                >
+                  Restore Draft
+                </button>
+                <button
+                  onClick={dismissDraft}
+                  className="inline-flex items-center px-4 py-2 rounded-lg bg-white border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-100 transition-colors"
+                >
+                  Discard
+                </button>
+              </div>
             </div>
           </div>
         </div>

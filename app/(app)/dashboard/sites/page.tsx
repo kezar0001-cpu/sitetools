@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState, useMemo } from "react";
+import { FormEvent, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys } from "@/lib/workspace/client";
@@ -30,7 +30,7 @@ export default function SitesPage() {
   const activeSiteId = summary?.profile?.active_site_id ?? null;
 
   // Use TanStack Query for sites with 5-min stale time
-  const { sites, isLoading: sitesLoading, prefetchSites } = useCompanySites(activeCompanyId, {
+  const { sites, isLoading: sitesLoading } = useCompanySites(activeCompanyId, {
     staleTime: 5 * 60 * 1000,
   });
 

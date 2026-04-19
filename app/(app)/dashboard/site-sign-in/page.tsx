@@ -9,7 +9,7 @@ import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImp
 import { setActiveSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { Site, SiteVisit, VisitorType } from "@/lib/workspace/types";
+import { SiteVisit, VisitorType } from "@/lib/workspace/types";
 import { useCompanySites } from "@/hooks/useSites";
 import { useSiteVisits, useVisitMutations } from "@/hooks/useSiteVisits";
 import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
@@ -418,40 +418,51 @@ export default function SiteSignInModulePage() {
     }
   }
 
-  function exportPDF() {
-    const { headers, rows, count } = prepareExportData();
-    const doc = new jsPDF({ orientation: "landscape" });
-    const siteName = selectedSite?.name ?? "Export";
-    const rangeName =
-      exportRange === "all"
-        ? "All Time"
-        : exportRange === "today"
-          ? "Today"
-          : exportRange === "week"
-            ? "Last 7 Days"
-            : "Last 30 Days";
+  async function exportPDF() {
+    if (!exportableVisits.length) return;
+    
+    setPdfLoading(true);
+    try {
+      const { jsPDF, autoTable } = await loadJsPDF();
+      const { headers, rows, count } = prepareExportData();
+      const doc = new jsPDF({ orientation: "landscape" });
+      const siteName = selectedSite?.name ?? "Export";
+      const rangeName =
+        exportRange === "all"
+          ? "All Time"
+          : exportRange === "today"
+            ? "Today"
+            : exportRange === "week"
+              ? "Last 7 Days"
+              : "Last 30 Days";
 
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Site Visits Report - ${siteName}`, 14, 16);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Site Visits Report - ${siteName}`, 14, 16);
 
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(95);
-    doc.text(`Period: ${rangeName} | Records: ${count} | Generated: ${fmtDate(new Date())}`, 14, 23);
-    doc.setTextColor(0);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(95);
+      doc.text(`Period: ${rangeName} | Records: ${count} | Generated: ${fmtDate(new Date())}`, 14, 23);
+      doc.setTextColor(0);
 
-    autoTable(doc, {
-      head: [headers],
-      body: rows,
-      startY: 28,
-      styles: { fontSize: 8, cellPadding: 2.5, overflow: "linebreak" },
-      headStyles: { fillColor: [250, 204, 21], textColor: [113, 63, 18], fontStyle: "bold", halign: "center", fontSize: 8 },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      margin: { left: 14, right: 14 },
-    });
+      autoTable(doc, {
+        head: [headers],
+        body: rows,
+        startY: 28,
+        styles: { fontSize: 8, cellPadding: 2.5, overflow: "linebreak" },
+        headStyles: { fillColor: [250, 204, 21], textColor: [113, 63, 18], fontStyle: "bold", halign: "center", fontSize: 8 },
+        alternateRowStyles: { fillColor: [249, 250, 251] },
+        margin: { left: 14, right: 14 },
+      });
 
-    doc.save(`site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.pdf`);
+      doc.save(`site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      toast.error("Failed to load PDF export library. Please try again.");
+      console.error("PDF export error:", err);
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   if (loading || sitesLoading || !summary) {
@@ -638,17 +649,31 @@ export default function SiteSignInModulePage() {
           </button>
           <button
             onClick={exportXLSX}
-            disabled={exportableVisits.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg"
+            onMouseEnter={preloadXLSX}
+            disabled={exportableVisits.length === 0 || xlsxLoading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg inline-flex items-center gap-2"
           >
-            Export Excel
+            {xlsxLoading && (
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            )}
+            {xlsxLoading ? "Loading..." : "Export Excel"}
           </button>
           <button
             onClick={exportPDF}
-            disabled={exportableVisits.length === 0}
-            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg"
+            onMouseEnter={preloadJsPDF}
+            disabled={exportableVisits.length === 0 || pdfLoading}
+            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg inline-flex items-center gap-2"
           >
-            Export PDF
+            {pdfLoading && (
+              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            )}
+            {pdfLoading ? "Loading..." : "Export PDF"}
           </button>
           {(searchText || filterDate || filterType || filterStatus !== "all") && (
             <button
