@@ -768,7 +768,6 @@ function ITPBuilderPageInner() {
             showArchived={showArchived}
             projects={projects}
             allSites={allSites}
-            referenceDataError={referenceDataError}
             activeSessionId={activeSession?.id ?? null}
             onSelectSession={handleLoadSession}
             onNewITP={handleNewITP}
