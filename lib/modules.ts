@@ -301,6 +301,9 @@ export function getPrimaryNavModules(): AppModule[] {
   return PRIMARY_MODULES;
 }
 
+// Type alias for compatibility with existing components
+export type BuildstateModule = AppModule;
+
 
 export function getModule(idOrSlug: string): AppModule | undefined {
   return MODULES.find((m) => m.id === idOrSlug || m.slug === idOrSlug);
