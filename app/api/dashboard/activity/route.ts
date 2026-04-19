@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ActivityFeedItem, ActivityType } from "@/lib/dashboard/types";
+import { FormType } from "@/lib/site-capture/types";
 
 // Type definitions for Supabase join results (Supabase returns arrays for joins)
 interface SiteName { name: string }
@@ -14,6 +15,7 @@ interface DiaryWithRelations {
   completed_at: string | null;
   status: string;
   date: string;
+  form_type: FormType | null;
   sites: SiteName[] | null;
   projects: ProjectName[] | null;
   profiles: ProfileName[] | null;
@@ -61,6 +63,55 @@ const supabaseAdmin = createClient(
 );
 
 const ACTIVITY_LIMIT = 20;
+
+function getDiaryActivityMeta(formType: FormType | null): {
+  createdType: ActivityType;
+  createdTitle: string;
+  completedType?: ActivityType;
+  completedTitle?: string;
+  defaultDescription?: string;
+} {
+  switch (formType) {
+    case "toolbox-talk":
+      return {
+        createdType: "toolbox_talk",
+        createdTitle: "Toolbox talk recorded",
+        defaultDescription: "Safety briefing added",
+      };
+    case "incident-report":
+      return {
+        createdType: "incident_reported",
+        createdTitle: "Incident reported",
+        defaultDescription: "New incident report submitted",
+      };
+    case "site-inspection":
+      return {
+        createdType: "inspection_completed",
+        createdTitle: "Site inspection recorded",
+        defaultDescription: "Inspection added",
+      };
+    case "prestart-checklist":
+      return {
+        createdType: "prestart_submitted",
+        createdTitle: "Prestart checklist submitted",
+        defaultDescription: "Prestart checklist added",
+      };
+    case "site-induction":
+      return {
+        createdType: "sign_in",
+        createdTitle: "Site induction completed",
+        defaultDescription: "Worker induction added",
+      };
+    case "daily-diary":
+    default:
+      return {
+        createdType: "diary_created",
+        createdTitle: "Daily diary created",
+        completedType: "diary_completed",
+        completedTitle: "Daily diary completed",
+      };
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -117,6 +168,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         date,
+        form_type,
         status,
         notes,
         created_at,
@@ -134,13 +186,17 @@ export async function GET(request: NextRequest) {
         const siteName = diary.sites?.[0]?.name ?? null;
         const projectName = diary.projects?.[0]?.name ?? null;
         const userName = diary.profiles?.[0]?.full_name ?? null;
+        const meta = getDiaryActivityMeta(diary.form_type);
+        const description = diary.notes
+          ? `${diary.notes.slice(0, 100)}${diary.notes.length > 100 ? "..." : ""}`
+          : meta.defaultDescription ?? null;
 
         // Created activity
         activities.push({
           id: `diary-created-${diary.id}`,
-          type: "diary_created" as ActivityType,
-          title: "Daily diary created",
-          description: diary.notes ? `${diary.notes.slice(0, 100)}${diary.notes.length > 100 ? "..." : ""}` : null,
+          type: meta.createdType,
+          title: meta.createdTitle,
+          description,
           siteName,
           projectName,
           userName,
@@ -149,11 +205,11 @@ export async function GET(request: NextRequest) {
         });
 
         // Completed activity (if different from created)
-        if (diary.completed_at && diary.status === "completed") {
+        if (diary.completed_at && diary.status === "completed" && meta.completedType && meta.completedTitle) {
           activities.push({
             id: `diary-completed-${diary.id}`,
-            type: "diary_completed" as ActivityType,
-            title: "Daily diary completed",
+            type: meta.completedType,
+            title: meta.completedTitle,
             description: `Diary for ${diary.date} marked as complete`,
             siteName,
             projectName,
