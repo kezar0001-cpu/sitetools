@@ -96,12 +96,12 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
         },
         {
             number: "04",
-            title: "Explore connected tools",
-            description: "Add SiteITP for quality checklists, SiteDocs for reports, SiteCapture for diaries.",
+            title: "Expand with quality and docs",
+            description: "Layer in SiteITP for quality checklists, then SiteDocs for professional reports.",
             href: "/dashboard",
-            icon: <LayoutDashboard className="h-5 w-5 text-violet-400" />,
+            icon: <ListChecks className="h-5 w-5 text-violet-400" />,
             adminOnly: false,
-            cta: "View toolkit →",
+            cta: "Explore workflows →",
         },
     ];
 
@@ -428,7 +428,7 @@ export default function DashboardHome() {
             {/* ── Module Quick-Launch ── */}
             <div className="space-y-4">
                 <h2 className="text-sm font-black text-zinc-400 uppercase tracking-widest">
-                    {!isLoading && !hasSites ? "Explore Modules" : "Quick Launch"}
+                    Connected Workflows
                 </h2>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     {quickLaunchModules.map((module: AppModule) => {
@@ -476,7 +476,7 @@ export default function DashboardHome() {
                 ) : activities.length === 0 ? (
                     <div className="px-6 py-10 text-center">
                         <p className="text-zinc-500 text-sm font-medium">No recent activity yet</p>
-                        <p className="text-zinc-600 text-xs mt-1">Activity appears as your team uses SiteSign and the connected toolkit.</p>
+                        <p className="text-zinc-600 text-xs mt-1">Activity will appear once your team starts using SiteSign and the connected workflows.</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-zinc-800">

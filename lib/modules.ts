@@ -98,46 +98,22 @@ const PRIMARY_MODULES: AppModule[] = [
   },
 ];
 
-// SUPPORTING: Connected toolkit that extends SiteSign value
+// SUPPORTING: Connected toolkit ranked by workflow value
 const SUPPORTING_MODULES: AppModule[] = [
-  {
-    id: "site-capture",
-    slug: "sitecapture",
-    name: "SiteCapture",
-    route: "/dashboard/site-capture",
-    shortDescription: "Daily diary, prestarts, and field records.",
-    moduleColor: "sky",
-    publicVisible: true,
-    landingOrder: 2,
-    demoType: "workflow",
-    featureBullets: [
-      "Daily diary with weather, labour, equipment",
-      "Prestart checklists for plant",
-      "Photo documentation",
-    ],
-    tagline: "Daily diary and prestart records",
-    description:
-      "Record daily site activity: weather, labour, equipment, photos, and safety events. Run prestart checklists for plant and equipment.",
-    icon: "book-open",
-    status: "live",
-    visibility: "secondary",
-    href: "/dashboard/site-capture",
-    color: "sky",
-  },
   {
     id: "itp-builder",
     slug: "siteitp",
     name: "SiteITP",
     route: "/dashboard/site-itp",
-    shortDescription: "ITP checklists with hold/witness sign-offs.",
+    shortDescription: "Quality checklists with hold and witness point sign-offs.",
     moduleColor: "violet",
     publicVisible: true,
-    landingOrder: 3,
+    landingOrder: 2,
     demoType: "workflow",
     featureBullets: [
-      "AI-generated or manual ITP items",
+      "Create and assign ITP checklists",
       "Hold and witness point tracking",
-      "QR sign-off without app install",
+      "Digital sign-off without app install",
     ],
     tagline: "Quality checklists with sign-offs",
     description:
@@ -153,10 +129,10 @@ const SUPPORTING_MODULES: AppModule[] = [
     slug: "sitedocs",
     name: "SiteDocs",
     route: "/dashboard/site-docs",
-    shortDescription: "Field notes to professional documents.",
+    shortDescription: "Structure field notes into professional documents.",
     moduleColor: "cyan",
     publicVisible: true,
-    landingOrder: 4,
+    landingOrder: 3,
     demoType: "workflow",
     featureBullets: [
       "AI-assisted document creation",
@@ -171,6 +147,30 @@ const SUPPORTING_MODULES: AppModule[] = [
     visibility: "secondary",
     href: "/dashboard/site-docs",
     color: "cyan",
+  },
+  {
+    id: "site-capture",
+    slug: "sitecapture",
+    name: "SiteCapture",
+    route: "/dashboard/site-capture",
+    shortDescription: "Supporting field records: diaries, prestarts, photos.",
+    moduleColor: "sky",
+    publicVisible: true,
+    landingOrder: 4,
+    demoType: "workflow",
+    featureBullets: [
+      "Daily diary with weather and labour",
+      "Prestart checklists for plant",
+      "Photo documentation",
+    ],
+    tagline: "Daily diary and prestart records",
+    description:
+      "Record daily site activity: weather, labour, equipment, photos, and safety events. Run prestart checklists for plant and equipment.",
+    icon: "book-open",
+    status: "live",
+    visibility: "secondary",
+    href: "/dashboard/site-capture",
+    color: "sky",
   },
   {
     id: "planner",

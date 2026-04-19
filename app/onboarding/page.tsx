@@ -252,7 +252,7 @@ function OnboardingClient() {
         <div className="mb-8">
           <h1 className="text-3xl font-black tracking-tight text-slate-900">Set up your workspace</h1>
           <p className="mt-2 text-slate-600 font-medium">
-            Choose how you will use Buildstate: as a company owner setting up the workspace, or as a team member joining an existing workspace.
+            Buildstate connects your projects, sites, and team in one workspace. Start with SiteSign, then layer in quality and documentation workflows.
           </p>
         </div>
 
@@ -270,7 +270,7 @@ function OnboardingClient() {
               </span>
             </div>
             <h2 className="text-xl font-extrabold text-slate-900">Create a workspace</h2>
-            <p className="text-sm text-slate-600 mt-1">For company owners and directors setting up their own Buildstate account.</p>
+            <p className="text-sm text-slate-600 mt-1">Set up your workspace, add projects and sites, invite your team, and launch SiteSign. Then expand with SiteITP and SiteDocs.</p>
             <form className="mt-5 space-y-4" onSubmit={onCreateCompany}>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Company name</label>
@@ -298,7 +298,7 @@ function OnboardingClient() {
               </span>
             </div>
             <h2 className="text-xl font-extrabold text-slate-900">Join an existing workspace</h2>
-            <p className="text-sm text-slate-600 mt-1">For team members who have received an invite from their company admin.</p>
+            <p className="text-sm text-slate-600 mt-1">Join your company&apos;s workspace to access SiteSign and connected workflows for quality, documentation, and field records.</p>
             <form className="mt-5 space-y-4" onSubmit={onJoinCompany}>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Invitation code</label>
