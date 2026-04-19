@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   getInternalNavModules,
   getPrimaryNavModules,
-  getRoadmapModules,
   getSecondaryNavModules,
 } from "@/lib/modules";
 import { getIcon } from "@/components/icons/getIcon";
@@ -201,10 +200,10 @@ function SidebarContent({
           </ul>
         </div>
 
-        {/* Live Modules */}
+        {/* SiteSign — entry wedge */}
         <div>
           <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-600 px-5 py-2">
-            Live Modules
+            SiteSign
           </h3>
           <ul className="space-y-0.5">
             {getPrimaryNavModules().map((m) => {
@@ -247,10 +246,10 @@ function SidebarContent({
           </ul>
         </div>
 
-        {/* Explore other tools */}
-        <details className="group">
+        {/* Connected toolkit — extends SiteSign value */}
+        <details className="group" open>
           <summary className="cursor-pointer list-none flex items-center justify-between px-5 py-2 text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-zinc-400 transition-colors">
-            <span>Explore Other Tools</span>
+            <span>Toolkit</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
@@ -307,30 +306,6 @@ function SidebarContent({
               })}
             </ul>
 
-            <div>
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-600 px-5 py-2">
-                Planned Modules
-              </h3>
-              <ul className="space-y-0.5">
-                {getRoadmapModules().map((m) => (
-                  <li key={m.id}>
-                    <div
-                      className={`${navItemBase} text-zinc-600 cursor-not-allowed opacity-60 justify-between`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="shrink-0 opacity-50">
-                          {getIcon(m.icon, "h-4 w-4")}
-                        </span>
-                        <span className="truncate">{m.name}</span>
-                      </div>
-                      <span className="text-[9px] font-black uppercase tracking-tighter bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 shrink-0">
-                        Soon
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </div>
         </details>
       </div>

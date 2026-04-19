@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import { ActivityFeedItem, DashboardStats } from "./types";
+import { ActivityFeedItem, ActivityFeedResult, DashboardStats, DashboardStatsResult } from "./types";
 
-export async function fetchDashboardStats(companyId: string): Promise<DashboardStats> {
+export async function fetchDashboardStats(companyId: string): Promise<DashboardStatsResult> {
   try {
     // Get current session for auth token
     const { data: { session } } = await supabase.auth.getSession();
@@ -17,16 +17,11 @@ export async function fetchDashboardStats(companyId: string): Promise<DashboardS
     }
 
     const data = await response.json();
-    return data as DashboardStats;
+    return { success: true, data: data as DashboardStats };
   } catch (err) {
     console.error("[dashboard/client] fetchDashboardStats error:", err);
-    // Return zeros on error so UI still renders
-    return {
-      activeSites: 0,
-      onSiteToday: 0,
-      openItps: 0,
-      photosThisWeek: 0,
-    };
+    const message = err instanceof Error ? err.message : "Failed to load dashboard statistics";
+    return { success: false, error: message };
   }
 }
 
@@ -76,7 +71,7 @@ export async function fetchDashboardStatsClientSide(companyId: string): Promise<
   };
 }
 
-export async function fetchRecentActivity(companyId: string): Promise<ActivityFeedItem[]> {
+export async function fetchRecentActivity(companyId: string): Promise<ActivityFeedResult> {
   try {
     // Get current session for auth token
     const { data: { session } } = await supabase.auth.getSession();
@@ -92,9 +87,10 @@ export async function fetchRecentActivity(companyId: string): Promise<ActivityFe
     }
 
     const data = await response.json();
-    return data as ActivityFeedItem[];
+    return { success: true, data: data as ActivityFeedItem[] };
   } catch (err) {
     console.error("[dashboard/client] fetchRecentActivity error:", err);
-    return [];
+    const message = err instanceof Error ? err.message : "Failed to load recent activity";
+    return { success: false, error: message };
   }
 }

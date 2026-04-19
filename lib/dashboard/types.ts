@@ -5,6 +5,14 @@ export interface DashboardStats {
   photosThisWeek: number;
 }
 
+export type DashboardStatsResult =
+  | { success: true; data: DashboardStats }
+  | { success: false; error: string };
+
+export type ActivityFeedResult =
+  | { success: true; data: ActivityFeedItem[] }
+  | { success: false; error: string };
+
 export type ActivityType =
   | "diary_created"
   | "diary_completed"

@@ -1,6 +1,6 @@
 "use client";
 
-import { getLiveModules } from "@/lib/modules";
+import { getSecondaryNavModules, type AppModule } from "@/lib/modules";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useEffect, useState } from "react";
 import { fetchCompanySites } from "@/lib/workspace/client";
@@ -22,6 +22,7 @@ import {
     LogOut,
     CheckCircle,
     AlertTriangle,
+    AlertCircle,
     MessageSquare,
     SearchCheck,
     PenTool,
@@ -69,7 +70,7 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
         {
             number: "01",
             title: "Create your first site",
-            description: "Sites are the foundation. Register a physical location to start tracking attendance, records, and plans.",
+            description: "Set up a physical location where your team will sign in and record activity.",
             href: "/dashboard/sites",
             icon: <Building2 className="h-5 w-5 text-amber-400" />,
             adminOnly: true,
@@ -78,7 +79,7 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
         {
             number: "02",
             title: "Invite your team",
-            description: "Add site managers, supervisors, and workers so they can access the modules they need.",
+            description: "Add supervisors, safety officers, and crew to access your connected toolkit.",
             href: "/dashboard/team",
             icon: <Users className="h-5 w-5 text-sky-400" />,
             adminOnly: false,
@@ -86,12 +87,21 @@ function GettingStartedGuide({ isAdmin }: { isAdmin: boolean }) {
         },
         {
             number: "03",
-            title: "Open a module",
-            description: "SiteSign tracks attendance, SitePlan manages your programme, SiteCapture records daily activity.",
+            title: "Start with SiteSign",
+            description: "Launch QR-based site sign-in with inductions and daily safety briefings.",
             href: "/dashboard/site-sign-in",
-            icon: <ClipboardCheck className="h-5 w-5 text-violet-400" />,
+            icon: <ClipboardCheck className="h-5 w-5 text-amber-400" />,
             adminOnly: false,
-            cta: "Explore modules →",
+            cta: "Open SiteSign →",
+        },
+        {
+            number: "04",
+            title: "Explore connected tools",
+            description: "Add SiteITP for quality checklists, SiteDocs for reports, SiteCapture for diaries.",
+            href: "/dashboard",
+            icon: <LayoutDashboard className="h-5 w-5 text-violet-400" />,
+            adminOnly: false,
+            cta: "View toolkit →",
         },
     ];
 
@@ -196,32 +206,6 @@ function getActivityIcon(type: ActivityType) {
     }
 }
 
-function getActivityColor(type: ActivityType): string {
-    switch (type) {
-        case "diary_created":
-        case "diary_completed":
-        case "photo_uploaded":
-            return "bg-sky-400";
-        case "prestart_submitted":
-            return "bg-emerald-400";
-        case "inspection_completed":
-            return "bg-cyan-400";
-        case "incident_reported":
-        case "defect_reported":
-            return "bg-red-400";
-        case "toolbox_talk":
-            return "bg-amber-400";
-        case "sign_in":
-            return "bg-green-400";
-        case "sign_out":
-            return "bg-zinc-400";
-        case "itp_signed":
-            return "bg-violet-400";
-        default:
-            return "bg-zinc-400";
-    }
-}
-
 function formatRelativeTime(dateString: string): string {
     const date = new Date(dateString);
     const now = new Date();
@@ -239,7 +223,6 @@ function formatRelativeTime(dateString: string): string {
 
 function ActivityRow({ activity }: { activity: ActivityFeedItem }) {
     const icon = getActivityIcon(activity.type);
-    const colorClass = getActivityColor(activity.type);
 
     return (
         <div className="flex items-start gap-4 px-6 py-4 hover:bg-zinc-800/50 transition-colors">
@@ -283,8 +266,10 @@ export default function DashboardHome() {
     const [sitesLoading, setSitesLoading] = useState(true);
     const [hasSites, setHasSites] = useState<boolean | null>(null);
     const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [statsError, setStatsError] = useState<string | null>(null);
     const [statsLoading, setStatsLoading] = useState(false);
     const [activities, setActivities] = useState<ActivityFeedItem[]>([]);
+    const [activitiesError, setActivitiesError] = useState<string | null>(null);
     const [activitiesLoading, setActivitiesLoading] = useState(false);
 
     const activeCompanyId = summary?.activeMembership?.company_id;
@@ -318,18 +303,21 @@ export default function DashboardHome() {
         if (!activeCompanyId) return;
 
         setStatsLoading(true);
+        setStatsError(null);
         fetchDashboardStats(activeCompanyId)
-            .then(data => {
-                setStats(data);
+            .then(result => {
+                if (result.success) {
+                    setStats(result.data);
+                    setStatsError(null);
+                } else {
+                    setStatsError(result.error);
+                    setStats(null);
+                }
             })
             .catch(err => {
                 console.error("Failed to fetch dashboard stats", err);
-                setStats({
-                    activeSites: 0,
-                    onSiteToday: 0,
-                    openItps: 0,
-                    photosThisWeek: 0,
-                });
+                setStatsError(err instanceof Error ? err.message : "Failed to load statistics");
+                setStats(null);
             })
             .finally(() => {
                 setStatsLoading(false);
@@ -341,12 +329,20 @@ export default function DashboardHome() {
         if (!activeCompanyId) return;
 
         setActivitiesLoading(true);
+        setActivitiesError(null);
         fetchRecentActivity(activeCompanyId)
-            .then(data => {
-                setActivities(data);
+            .then(result => {
+                if (result.success) {
+                    setActivities(result.data);
+                    setActivitiesError(null);
+                } else {
+                    setActivitiesError(result.error);
+                    setActivities([]);
+                }
             })
             .catch(err => {
                 console.error("Failed to fetch recent activity", err);
+                setActivitiesError(err instanceof Error ? err.message : "Failed to load activity");
                 setActivities([]);
             })
             .finally(() => {
@@ -356,7 +352,8 @@ export default function DashboardHome() {
 
     const isLoading = loading || (sitesLoading && hasSites === null);
     const isStatsLoading = statsLoading || loading;
-    const quickLaunchModules = getLiveModules().filter((module) => module.id !== "dashboard");
+    // Show all live secondary modules (SiteCapture, SiteITP, SiteDocs) as connected toolkit
+    const quickLaunchModules = getSecondaryNavModules().filter((m: AppModule) => m.id !== "planner" && m.id !== "dashboard");
 
     return (
         <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
@@ -398,6 +395,16 @@ export default function DashboardHome() {
                                     <Skeleton className="h-8 w-14 rounded" />
                                     <Skeleton className="h-3 w-24 rounded" />
                                 </div>
+                            ) : statsError ? (
+                                <div>
+                                    <div className="flex items-center gap-1.5 text-red-400">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <span className="text-xs font-semibold">Error</span>
+                                    </div>
+                                    <p className="text-xs font-bold uppercase tracking-wide text-zinc-500 mt-1">
+                                        {label}
+                                    </p>
+                                </div>
                             ) : (
                                 <div>
                                     <p className="text-3xl font-black text-zinc-50">
@@ -424,7 +431,7 @@ export default function DashboardHome() {
                     {!isLoading && !hasSites ? "Explore Modules" : "Quick Launch"}
                 </h2>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    {quickLaunchModules.map((module) => {
+                    {quickLaunchModules.map((module: AppModule) => {
                         const colors = MODULE_COLORS[module.color as ColorKey] ?? MODULE_COLORS.amber;
                         return (
                             <Link
@@ -458,9 +465,18 @@ export default function DashboardHome() {
                             </div>
                         ))}
                     </div>
+                ) : activitiesError ? (
+                    <div className="px-6 py-10 text-center">
+                        <div className="inline-flex items-center gap-2 text-red-400 mb-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <span className="text-sm font-medium">Unable to load activity</span>
+                        </div>
+                        <p className="text-xs text-zinc-600">{activitiesError}</p>
+                    </div>
                 ) : activities.length === 0 ? (
                     <div className="px-6 py-10 text-center">
                         <p className="text-zinc-500 text-sm font-medium">No recent activity yet</p>
+                        <p className="text-zinc-600 text-xs mt-1">Activity appears as your team uses SiteSign and the connected toolkit.</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-zinc-800">

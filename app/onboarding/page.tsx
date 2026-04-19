@@ -250,9 +250,9 @@ function OnboardingClient() {
     <div className="min-h-screen bg-slate-50 py-10 px-4">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">Set up your Buildstate workspace</h1>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900">Set up your workspace</h1>
           <p className="mt-2 text-slate-600 font-medium">
-            Buildstate is company-first. Create your company workspace or join one using an invite token/code.
+            Choose how you will use Buildstate: as a company owner setting up the workspace, or as a team member joining an existing workspace.
           </p>
         </div>
 
@@ -264,15 +264,20 @@ function OnboardingClient() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-extrabold text-slate-900">Create a Company</h2>
-            <p className="text-sm text-slate-600 mt-1">You will be assigned as the Owner for this workspace.</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                Owner / Admin
+              </span>
+            </div>
+            <h2 className="text-xl font-extrabold text-slate-900">Create a workspace</h2>
+            <p className="text-sm text-slate-600 mt-1">For company owners and directors setting up their own Buildstate account.</p>
             <form className="mt-5 space-y-4" onSubmit={onCreateCompany}>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Company Name</label>
+                <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Company name</label>
                 <input
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Example Civil Pty Ltd"
+                  placeholder="e.g. Horizon Construction Pty Ltd"
                   className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -281,21 +286,26 @@ function OnboardingClient() {
                 disabled={createLoading}
                 className="w-full bg-slate-900 hover:bg-black disabled:opacity-60 text-white font-bold rounded-xl px-4 py-3 text-sm"
               >
-                {createLoading ? "Creating workspace..." : "Create Workspace"}
+                {createLoading ? "Creating workspace..." : "Create your workspace"}
               </button>
             </form>
           </section>
 
           <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h2 className="text-xl font-extrabold text-slate-900">Join an Existing Company</h2>
-            <p className="text-sm text-slate-600 mt-1">Use the invitation token or short invite code sent by your company admin.</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="bg-sky-100 text-sky-800 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded">
+                Team Member
+              </span>
+            </div>
+            <h2 className="text-xl font-extrabold text-slate-900">Join an existing workspace</h2>
+            <p className="text-sm text-slate-600 mt-1">For team members who have received an invite from their company admin.</p>
             <form className="mt-5 space-y-4" onSubmit={onJoinCompany}>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Invitation Token or Code</label>
+                <label className="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-1.5">Invitation code</label>
                 <input
                   value={inviteValue}
                   onChange={(e) => setInviteValue(e.target.value)}
-                  placeholder="e.g. 8F4E22A1 or long token"
+                  placeholder="Paste the invite code from your admin"
                   className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -304,7 +314,7 @@ function OnboardingClient() {
                 disabled={joinLoading}
                 className="w-full bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-amber-900 font-bold rounded-xl px-4 py-3 text-sm"
               >
-                {joinLoading ? "Joining workspace..." : "Join Workspace"}
+                {joinLoading ? "Joining workspace..." : "Join workspace"}
               </button>
             </form>
           </section>

@@ -71,13 +71,16 @@ export interface AppModule {
   color: string;
 }
 
-const CORE_MODULES: AppModule[] = [
+// Buildstate Toolkit: SiteSign is the entry wedge, connected tools extend depth
+
+// Entry wedge — primary gateway to the platform
+const PRIMARY_MODULES: AppModule[] = [
   {
     id: "site-sign-in",
     slug: "sitesign",
     name: "SiteSign",
     route: "/dashboard/site-sign-in",
-    shortDescription: "QR sign-in with returning-worker recognition, site induction, and daily safety briefing.",
+    shortDescription: "QR sign-in with inductions, briefings, and live site headcount.",
     moduleColor: "amber",
     publicVisible: true,
     landingOrder: 1,
@@ -88,60 +91,40 @@ const CORE_MODULES: AppModule[] = [
       "Daily safety briefing shown at sign-in",
       "Site induction wizard for first-time workers",
     ],
-    tagline: "QR sign-in with inductions, safety briefings, and live site headcount",
+    tagline: "QR site sign-in with inductions, briefings, and live headcount",
     description:
-      "Digital sign-in for construction sites. Workers scan a QR code and sign in on their phone. Returning workers are recognised for one-tap sign-in. First-time visitors complete a site induction. Daily safety briefings (toolbox talks) are shown to all workers at sign-in.",
+      "Digital sign-in for construction sites. Workers scan a QR code and sign in on their phone. Returning workers are recognised for one-tap sign-in. First-time visitors complete a site induction. Daily safety briefings are shown to all workers at sign-in.",
     icon: "clipboard-check",
     status: "live",
     visibility: "primary",
     href: "/dashboard/site-sign-in",
     color: "amber",
   },
-  {
-    id: "planner",
-    slug: "siteplan",
-    name: "SitePlan",
-    route: "/site-plan",
-    shortDescription: "Programme planning, task tracking, and delay visibility for delivery teams.",
-    moduleColor: "indigo",
-    publicVisible: true,
-    landingOrder: 2,
-    demoType: "interactive",
-    featureBullets: [
-      "Project programme + milestones",
-      "Progress tracking with delay flags",
-      "Gantt and summary views",
-    ],
-    tagline: "Project planning, programme tracking, and daily delivery for civil teams",
-    description:
-      "Build practical civil programmes, track progress daily, manage delays, and keep site delivery aligned with planned dates.",
-    icon: "list-checks",
-    status: "live",
-    visibility: "primary",
-    href: "/site-plan",
-    color: "indigo",
-  },
+];
+
+// Connected toolkit — proof-of-depth tools that extend SiteSign value
+const SUPPORTING_MODULES: AppModule[] = [
   {
     id: "site-capture",
     slug: "sitecapture",
     name: "SiteCapture",
     route: "/dashboard/site-capture",
-    shortDescription: "Daily diary and prestart checks — structured, offline-capable field records.",
+    shortDescription: "Daily diary, prestarts, and field records.",
     moduleColor: "sky",
     publicVisible: true,
-    landingOrder: 3,
+    landingOrder: 2,
     demoType: "workflow",
     featureBullets: [
-      "Daily diary with weather, labour, and equipment",
-      "Prestart checklists for plant and equipment",
-      "Project/site grouped entry management",
+      "Daily diary with weather, labour, equipment",
+      "Prestart checklists for plant",
+      "Photo documentation",
     ],
-    tagline: "Daily diary and prestart checks for site teams",
+    tagline: "Daily diary and prestart records",
     description:
-      "Record daily site activity: weather, labour, equipment, photos, and safety events. Run prestart checklists for plant and equipment. For toolbox talks and site inductions, use SiteSign. For incident reports, use SiteDocs.",
+      "Record daily site activity: weather, labour, equipment, photos, and safety events. Run prestart checklists for plant and equipment.",
     icon: "book-open",
     status: "live",
-    visibility: "primary",
+    visibility: "secondary",
     href: "/dashboard/site-capture",
     color: "sky",
   },
@@ -150,22 +133,22 @@ const CORE_MODULES: AppModule[] = [
     slug: "siteitp",
     name: "SiteITP",
     route: "/dashboard/site-itp",
-    shortDescription: "Create and manage ITPs with hold/witness sign-off workflows.",
+    shortDescription: "ITP checklists with hold/witness sign-offs.",
     moduleColor: "violet",
     publicVisible: true,
-    landingOrder: 4,
-    demoType: "interactive",
+    landingOrder: 3,
+    demoType: "workflow",
     featureBullets: [
-      "AI-generated or manual ITP item creation",
+      "AI-generated or manual ITP items",
       "Hold and witness point tracking",
       "QR sign-off without app install",
     ],
-    tagline: "Hold & witness point checklists — AI-generated or built manually",
+    tagline: "Quality checklists with sign-offs",
     description:
-      "Create ITP checklists your way: let AI generate items from a task description, or build them manually with custom hold and witness points. Assign to a project and site, then share QR codes for sign-off — no app, no account required.",
+      "Create ITP checklists with custom hold and witness points. Assign to a project and site, then share QR codes for sign-off.",
     icon: "list-checks",
     status: "live",
-    visibility: "primary",
+    visibility: "secondary",
     href: "/dashboard/site-itp",
     color: "violet",
   },
@@ -174,24 +157,48 @@ const CORE_MODULES: AppModule[] = [
     slug: "sitedocs",
     name: "SiteDocs",
     route: "/dashboard/site-docs",
-    shortDescription: "Turn field notes into professional documents — incident reports, RFIs, meeting minutes, and more.",
+    shortDescription: "Field notes to professional documents.",
     moduleColor: "cyan",
     publicVisible: true,
-    landingOrder: 5,
+    landingOrder: 4,
     demoType: "workflow",
     featureBullets: [
-      "AI-assisted note-to-document conversion",
-      "Incident reports, RFIs, NCRs, variations, and more",
-      "Exportable PDF outputs with version history",
+      "AI-assisted document creation",
+      "Incident reports, RFIs, NCRs",
+      "Exportable PDF outputs",
     ],
-    tagline: "Convert text summaries into professional construction documents",
+    tagline: "Reports and professional documents",
     description:
-      "Paste informal site notes and let AI structure them into professional incident reports, meeting minutes, corrective action reports, RFIs, NCRs, variations, and more. Export to PDF with version tracking and sign-off.",
+      "Structure site notes into professional incident reports, meeting minutes, RFIs, NCRs, and more. Export to PDF with version tracking.",
     icon: "file-text",
     status: "live",
-    visibility: "primary",
+    visibility: "secondary",
     href: "/dashboard/site-docs",
     color: "cyan",
+  },
+  {
+    id: "planner",
+    slug: "siteplan",
+    name: "SitePlan",
+    route: "/site-plan",
+    shortDescription: "Programme planning for delivery teams.",
+    moduleColor: "indigo",
+    publicVisible: false,
+    landingOrder: 999,
+    demoType: "none",
+    featureBullets: [
+      "Project programme + milestones",
+      "Progress tracking",
+      "Gantt views",
+    ],
+    tagline: "Programme planning",
+    description:
+      "Build practical civil programmes, track progress daily, manage delays, and keep site delivery aligned with planned dates.",
+    icon: "list-checks",
+    status: "live",
+    visibility: "secondary",
+    href: "/site-plan",
+    color: "indigo",
   },
   {
     id: "dashboard",
@@ -287,6 +294,9 @@ const CORE_MODULES: AppModule[] = [
   },
 ];
 
+// Internal/admin modules — necessary for operation but not part of product story
+const INTERNAL_MODULES: AppModule[] = [];
+
 // Optional roadmap modules (kept for compatibility with existing sidebar sections).
 const ROADMAP_MODULES: AppModule[] = [
   {
@@ -351,8 +361,13 @@ const ROADMAP_MODULES: AppModule[] = [
   },
 ];
 
-// Legacy export name retained for existing imports.
-export const MODULES: AppModule[] = [...CORE_MODULES, ...ROADMAP_MODULES];
+// All modules combined — roadmap modules hidden by default
+export const MODULES: AppModule[] = [...PRIMARY_MODULES, ...SUPPORTING_MODULES, ...INTERNAL_MODULES, ...ROADMAP_MODULES];
+
+// Launch-focused: only SiteSign and SiteCapture for primary commercial story
+export function getLaunchModules(): AppModule[] {
+  return PRIMARY_MODULES;
+}
 
 // Legacy type retained for current call sites.
 export type BuildstateModule = AppModule;
@@ -370,20 +385,13 @@ export function getComingSoonModules(): AppModule[] {
 }
 
 export function getPrimaryNavModules(): AppModule[] {
-  const isPrimaryEnabled = process.env.NEXT_PUBLIC_SITESIGN_PRIMARY !== "false";
-  return MODULES.filter((m) => {
-    if (!isPrimaryEnabled) return m.status === "live";
-    return m.visibility === "primary";
-  });
+  // Launch phase: only SiteSign and SiteCapture as primary focus
+  return PRIMARY_MODULES;
 }
 
 export function getSecondaryNavModules(): AppModule[] {
-  const isPlannerEnabled = process.env.NEXT_PUBLIC_SHOW_PLANNER_PRIMARY === "true";
-  return MODULES.filter((m) => {
-    if (m.visibility === "primary") return false;
-    if (m.id === "planner" && !isPlannerEnabled) return false;
-    return m.visibility === "secondary";
-  });
+  // Supporting modules available but not foregrounded
+  return SUPPORTING_MODULES;
 }
 
 export function getInternalNavModules(): AppModule[] {
@@ -401,9 +409,8 @@ export function getInternalNavModules(): AppModule[] {
 }
 
 export function getRoadmapModules(): AppModule[] {
-  const isRoadmapEnabled = process.env.NEXT_PUBLIC_SHOW_ROADMAP_MODULES !== "false";
-  if (!isRoadmapEnabled) return [];
-  return MODULES.filter((m) => m.visibility === "roadmap");
+  // Roadmap modules always hidden for product-hardened launch
+  return [];
 }
 
 // New helper APIs requested.
