@@ -256,7 +256,7 @@ function ITPBuilderPageInner() {
       ]);
       setProjects(fetchedProjects.map((p) => ({ id: p.id, name: p.name })));
       setAllSites(fetchedSites.map((s) => ({ id: s.id, name: s.name, project_id: s.project_id ?? null })));
-    } catch (err) {
+    } catch {
       // Silently handle reference data errors
     }
   }
