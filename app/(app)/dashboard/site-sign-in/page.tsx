@@ -1,7 +1,5 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,7 +9,7 @@ import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImp
 import { setActiveSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { SiteVisit } from "@/lib/workspace/types";
+import type { SiteVisit } from "@/lib/workspace/types";
 import { useCompanySites } from "@/hooks/useSites";
 import { useSiteVisits, useVisitMutations } from "@/hooks/useSiteVisits";
 import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
@@ -23,10 +21,18 @@ import {
   type VisitEntryFormData,
   type VisitEditFormData,
 } from "@/lib/validation/schemas";
-import { MobileCardList, MobileCardHeader, MobileStatusBadge, MobileActionButton } from "@/components/mobile/MobileCardList";
+import type { VisitorType } from "@/lib/validation/schemas";
 
-type ExportRange = "all" | "today" | "week" | "month";
-type RecordStatusFilter = "all" | "onSite" | "signedOut";
+// Extracted components
+import { SiteSelector } from "./components/SiteSelector";
+import { ManualEntryForm } from "./components/ManualEntryForm";
+import { VisitFilters, type RecordStatusFilter, type ExportRange } from "./components/VisitFilters";
+import { ExportPanel } from "./components/ExportPanel";
+import { VisitTable } from "./components/VisitTable";
+import { BulkActionsModal } from "./components/BulkActionsModal";
+import { SignatureViewer } from "./components/SignatureViewer";
+import { StatsPanel } from "./components/StatsPanel";
+import { ConnectedToolkitPrompt } from "./components/ConnectedToolkitPrompt";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-AU", {
@@ -521,227 +527,56 @@ export default function SiteSignInModulePage() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
-      {/* Site selector - primary activation step */}
-      <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900">SiteSign</h1>
-            <p className="mt-1 text-sm text-slate-600">
-              QR-based site sign-in with inductions and daily briefings. Workers scan to check in; you manage records here.
-            </p>
-          </div>
+      <SiteSelector
+        sites={sites}
+        selectedSiteId={selectedSiteId}
+        selectedSite={selectedSite}
+        onSiteChange={handleSwitchSite}
+        onPrefetchSites={() => {
+          if (activeCompanyId) prefetchSites(activeCompanyId);
+        }}
+      />
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Site</span>
-              <select
-                value={selectedSiteId}
-                onChange={(e) => handleSwitchSite(e.target.value)}
-                onMouseEnter={() => {
-                  // Prefetch sites on hover for instant navigation elsewhere
-                  if (activeCompanyId) prefetchSites(activeCompanyId);
-                }}
-                className="border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white"
-              >
-                {sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {selectedSite && (
-              <Link
-                href={`/print-qr/${selectedSite.slug}`}
-                className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold px-4 py-2.5 rounded-xl text-sm transition-colors"
-              >
-                Print QR Code
-              </Link>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Manual entry - for admin corrections and backup sign-ins */}
-      <section className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <h2 className="text-base font-bold text-slate-700">Manual Sign-In Entry</h2>
-          <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Admin</span>
-        </div>
-        <form className="grid grid-cols-1 md:grid-cols-6 gap-3" onSubmit={handleSubmitAdd(handleAddVisit)}>
-          <div>
-            <input
-              {...registerAdd("fullName")}
-              placeholder="Full name"
-              className={`w-full border-2 ${addErrors.fullName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
-            />
-            {addErrors.fullName && (
-              <p className="mt-1 text-xs text-red-500">{addErrors.fullName.message}</p>
-            )}
-          </div>
-          <div>
-            <input
-              {...registerAdd("phoneNumber")}
-              placeholder="Mobile (optional)"
-              className={`w-full border-2 ${addErrors.phoneNumber ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
-            />
-            {addErrors.phoneNumber && (
-              <p className="mt-1 text-xs text-red-500">{addErrors.phoneNumber.message}</p>
-            )}
-          </div>
-          <div>
-            <input
-              {...registerAdd("companyName")}
-              placeholder="Employer / company"
-              className={`w-full border-2 ${addErrors.companyName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
-            />
-            {addErrors.companyName && (
-              <p className="mt-1 text-xs text-red-500">{addErrors.companyName.message}</p>
-            )}
-          </div>
-          <div>
-            <select
-              {...registerAdd("visitorType")}
-              className={`w-full border-2 ${addErrors.visitorType ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors bg-white`}
-            >
-              {visitorTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-            {addErrors.visitorType && (
-              <p className="mt-1 text-xs text-red-500">{addErrors.visitorType.message}</p>
-            )}
-          </div>
-          <div>
-            <input
-              type="datetime-local"
-              {...registerAdd("signedInAt")}
-              className={`w-full border-2 ${addErrors.signedInAt ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
-              title="Signed in time (optional, defaults to now)"
-            />
-            {addErrors.signedInAt && (
-              <p className="mt-1 text-xs text-red-500">{addErrors.signedInAt.message}</p>
-            )}
-          </div>
-          <button
-            type="submit"
-            disabled={adding || !addIsValid}
-            className="bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-amber-900 font-bold rounded-xl px-4 py-3 text-sm"
-          >
-            {adding ? "Adding..." : "Add Record"}
-          </button>
-        </form>
-        <div className="mt-3 max-w-sm">
-          <input
-            type="datetime-local"
-            {...registerAdd("signedOutAt")}
-            className={`w-full border ${addErrors.signedOutAt ? "border-red-300 focus:border-red-400" : "border-slate-300 focus:border-amber-400"} rounded-xl px-4 py-2.5 text-sm outline-none transition-colors`}
-            title="Signed out time (optional)"
-          />
-          {addErrors.signedOutAt && (
-            <p className="mt-1 text-xs text-red-500">{addErrors.signedOutAt.message}</p>
-          )}
-        </div>
-      </section>
+      <ManualEntryForm
+        register={registerAdd}
+        errors={addErrors}
+        isValid={addIsValid}
+        isSubmitting={adding}
+        onSubmit={handleSubmitAdd(handleAddVisit)}
+      />
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <input
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search name, company, mobile"
-            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm"
-          />
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm"
-          />
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as typeof visitorTypes[number] | "")}
-            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm"
-          >
-            <option value="">All visitor types</option>
-            {visitorTypes.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as RecordStatusFilter)}
-            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm"
-          >
-            <option value="all">All statuses</option>
-            <option value="onSite">Currently on site</option>
-            <option value="signedOut">Signed out</option>
-          </select>
-          <select
-            value={exportRange}
-            onChange={(e) => setExportRange(e.target.value as ExportRange)}
-            className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm"
-          >
-            <option value="all">Export: All time</option>
-            <option value="today">Export: Today</option>
-            <option value="week">Export: Last 7 days</option>
-            <option value="month">Export: Last 30 days</option>
-          </select>
-        </div>
+        <VisitFilters
+          searchText={searchText}
+          onSearchChange={setSearchText}
+          filterDate={filterDate}
+          onFilterDateChange={setFilterDate}
+          filterType={filterType}
+          onFilterTypeChange={(value) => setFilterType(value as VisitorType | "")}
+          filterStatus={filterStatus}
+          onFilterStatusChange={setFilterStatus}
+          exportRange={exportRange}
+          onExportRangeChange={setExportRange}
+          onClearFilters={() => {
+            setSearchText("");
+            setFilterDate("");
+            setFilterType("");
+            setFilterStatus("all");
+          }}
+          hasActiveFilters={!!(searchText || filterDate || filterType || filterStatus !== "all")}
+        />
 
         <div className="flex flex-wrap gap-2 items-center">
-          <button
-            onClick={exportCSV}
-            disabled={exportableVisits.length === 0}
-            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg"
-          >
-            Export CSV
-          </button>
-          <button
-            onClick={exportXLSX}
-            onMouseEnter={preloadXLSX}
-            disabled={exportableVisits.length === 0 || xlsxLoading}
-            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg inline-flex items-center gap-2"
-          >
-            {xlsxLoading && (
-              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            )}
-            {xlsxLoading ? "Loading..." : "Export Excel"}
-          </button>
-          <button
-            onClick={exportPDF}
-            onMouseEnter={preloadJsPDF}
-            disabled={exportableVisits.length === 0 || pdfLoading}
-            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-3 py-2 rounded-lg inline-flex items-center gap-2"
-          >
-            {pdfLoading && (
-              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-              </svg>
-            )}
-            {pdfLoading ? "Loading..." : "Export PDF"}
-          </button>
-          {(searchText || filterDate || filterType || filterStatus !== "all") && (
-            <button
-              onClick={() => {
-                setSearchText("");
-                setFilterDate("");
-                setFilterType("");
-                setFilterStatus("all");
-              }}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-700 underline"
-            >
-              Clear filters
-            </button>
-          )}
+          <ExportPanel
+            hasRecords={exportableVisits.length > 0}
+            isPdfLoading={pdfLoading}
+            isXlsxLoading={xlsxLoading}
+            onExportCSV={exportCSV}
+            onExportXLSX={exportXLSX}
+            onExportPDF={exportPDF}
+            onPreloadXLSX={preloadXLSX}
+            onPreloadPDF={preloadJsPDF}
+          />
           {onSiteCount > 0 && (
             <button
               onClick={() => setShowBulkSignOutModal(true)}
@@ -752,310 +587,64 @@ export default function SiteSignInModulePage() {
           )}
         </div>
 
-        {/* Daily operation stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Stat label="On Site Now" value={String(onSiteCount)} />
-          <Stat label="Sign-Ins Today" value={String(todayCount)} />
-          <Stat label="Records Shown" value={String(filteredVisits.length)} />
-        </div>
+        <StatsPanel
+          onSiteCount={onSiteCount}
+          todayCount={todayCount}
+          recordsShown={filteredVisits.length}
+        />
       </section>
 
-        {/* Daily records - operational view with admin controls */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-slate-900">Sign-In Records</h2>
           <span className="text-xs text-slate-500">View, edit, and export visitor records</span>
         </div>
 
-        {filteredVisits.length === 0 && !visitsLoading ? (
-          <p className="text-sm text-slate-500">No records match the current filters.</p>
-        ) : (
-          <MobileCardList
-            data={filteredVisits}
-            isLoading={visitsLoading}
-            loadingRows={5}
-            columns={[
-              {
-                key: "name",
-                header: "Name",
-                render: (visit) => (
-                  <MobileCardHeader
-                    title={editingId === visit.id ? (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <input
-                          {...registerEdit("fullName")}
-                          className={`w-full border ${editErrors.fullName ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1.5 text-xs outline-none`}
-                        />
-                        {editErrors.fullName && (
-                          <p className="text-[10px] text-red-500 mt-0.5">{editErrors.fullName.message}</p>
-                        )}
-                      </div>
-                    ) : visit.full_name}
-                    subtitle={editingId === visit.id ? (
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <input
-                          {...registerEdit("companyName")}
-                          className={`w-full border ${editErrors.companyName ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1 text-xs mt-1 outline-none`}
-                        />
-                        {editErrors.companyName && (
-                          <p className="text-[10px] text-red-500 mt-0.5">{editErrors.companyName.message}</p>
-                        )}
-                      </div>
-                    ) : `${visit.company_name} • ${visit.visitor_type}`}
-                    badge={!visit.signed_out_at && !editingId ? (
-                      <MobileStatusBadge status="On site" variant="success" />
-                    ) : undefined}
-                  />
-                ),
-              },
-              {
-                key: "mobile",
-                header: "Mobile",
-                mobileVisible: false,
-                render: (visit) => editingId === visit.id ? (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <input
-                      {...registerEdit("phoneNumber")}
-                      className={`w-full border ${editErrors.phoneNumber ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs outline-none`}
-                    />
-                    {editErrors.phoneNumber && (
-                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.phoneNumber.message}</p>
-                    )}
-                  </div>
-                ) : (visit.phone_number ?? "-"),
-              },
-              {
-                key: "company",
-                header: "Company",
-                mobileVisible: false,
-                render: (visit) => visit.company_name,
-              },
-              {
-                key: "type",
-                header: "Type",
-                mobileVisible: false,
-                render: (visit) => editingId === visit.id ? (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <select
-                      {...registerEdit("visitorType")}
-                      className={`w-full border ${editErrors.visitorType ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs bg-white outline-none`}
-                    >
-                      {visitorTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                    {editErrors.visitorType && (
-                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.visitorType.message}</p>
-                    )}
-                  </div>
-                ) : visit.visitor_type,
-              },
-              {
-                key: "signedIn",
-                header: "Signed In",
-                render: (visit) => editingId === visit.id ? (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="datetime-local"
-                      {...registerEdit("signedInAt")}
-                      className={`w-full border ${editErrors.signedInAt ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1.5 text-xs outline-none`}
-                    />
-                    {editErrors.signedInAt && (
-                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.signedInAt.message}</p>
-                    )}
-                  </div>
-                ) : formatDateTime(visit.signed_in_at),
-              },
-              {
-                key: "signedOut",
-                header: "Signed Out",
-                render: (visit) => editingId === visit.id ? (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="datetime-local"
-                      {...registerEdit("signedOutAt")}
-                      className={`w-full border ${editErrors.signedOutAt ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs outline-none`}
-                    />
-                    {editSignedOut && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditValue("signedOutAt", "");
-                        }}
-                        className="mt-1 text-[11px] text-slate-500 hover:text-slate-700"
-                      >
-                        Clear sign out
-                      </button>
-                    )}
-                    {editErrors.signedOutAt && (
-                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.signedOutAt.message}</p>
-                    )}
-                  </div>
-                ) : visit.signed_out_at ? (
-                  formatDateTime(visit.signed_out_at)
-                ) : (
-                  <span className="text-xs text-slate-400">—</span>
-                ),
-              },
-              {
-                key: "signature",
-                header: "Signature",
-                mobileVisible: false,
-                render: (visit) =>
-                  visit.signature ? (
-                    <button
-                      onClick={() => setViewSignature(visit.signature)}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                    >
-                      View
-                    </button>
-                  ) : (
-                    <span className="text-xs text-slate-400">-</span>
-                  ),
-              },
-              {
-                key: "actions",
-                header: "Actions",
-                render: (visit) => {
-                  if (editingId === visit.id) {
-                    return (
-                      <div className="flex items-center gap-2">
-                        <MobileActionButton
-                          onClick={handleSubmitEdit((data) => handleSaveEdit(data, visit.id))}
-                          variant="primary"
-                          disabled={editSaving || !editIsValid}
-                        >
-                          {editSaving ? "Saving..." : "Save"}
-                        </MobileActionButton>
-                        <MobileActionButton onClick={clearEdit} variant="ghost">
-                          Cancel
-                        </MobileActionButton>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {canEdit && (
-                        <MobileActionButton onClick={() => startEdit(visit)} variant="ghost">
-                          Edit
-                        </MobileActionButton>
-                      )}
-                      {!visit.signed_out_at && (
-                        <MobileActionButton
-                          onClick={() => handleSignOut(visit.id)}
-                          variant="primary"
-                          disabled={!!signingOutId}
-                        >
-                          {!!signingOutId ? "..." : "Sign Out"}
-                        </MobileActionButton>
-                      )}
-                      {canDelete && (
-                        <>
-                          {confirmDeleteId === visit.id ? (
-                            <div className="flex items-center gap-1">
-                              <MobileActionButton
-                                onClick={() => handleDelete(visit.id)}
-                                variant="danger"
-                                disabled={!!deletingId}
-                              >
-                                {!!deletingId ? "..." : "Confirm"}
-                              </MobileActionButton>
-                              <MobileActionButton onClick={() => setConfirmDeleteId(null)} variant="ghost">
-                                Cancel
-                              </MobileActionButton>
-                            </div>
-                          ) : (
-                            <MobileActionButton onClick={() => setConfirmDeleteId(visit.id)} variant="danger">
-                              Delete
-                            </MobileActionButton>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  );
-                },
-              },
-            ]}
-          />
-        )}
+        <VisitTable
+          visits={filteredVisits}
+          isLoading={visitsLoading}
+          editingId={editingId}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          signingOutId={signingOutId}
+          deletingId={deletingId}
+          confirmDeleteId={confirmDeleteId}
+          registerEdit={registerEdit}
+          editErrors={editErrors}
+          editSignedOut={editSignedOut}
+          editIsValid={editIsValid}
+          editSaving={editSaving}
+          onStartEdit={startEdit}
+          onSaveEdit={handleSubmitEdit((data) => {
+            if (editingId) {
+              handleSaveEdit(data, editingId);
+            }
+          })}
+          onCancelEdit={clearEdit}
+          onSignOut={handleSignOut}
+          onDeleteClick={setConfirmDeleteId}
+          onConfirmDelete={handleDelete}
+          onCancelDelete={() => setConfirmDeleteId(null)}
+          onViewSignature={setViewSignature}
+          onClearSignOut={() => setEditValue("signedOutAt", "")}
+        />
       </section>
 
-      {showBulkSignOutModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4"
-          onClick={() => !bulkSigningOut && setShowBulkSignOutModal(false)}
-        >
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-slate-900">Sign out all visitors?</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              This will sign out{" "}
-              <span className="font-bold text-slate-900">
-                {onSiteCount} visitor{onSiteCount !== 1 ? "s" : ""}
-              </span>{" "}
-              currently on site.
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                onClick={handleBulkSignOut}
-                disabled={bulkSigningOut}
-                className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-60 text-white font-bold rounded-xl px-4 py-2.5 text-sm"
-              >
-                {bulkSigningOut ? "Signing out..." : "Confirm sign out"}
-              </button>
-              <button
-                onClick={() => setShowBulkSignOutModal(false)}
-                disabled={bulkSigningOut}
-                className="flex-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 font-bold rounded-xl px-4 py-2.5 text-sm"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <BulkActionsModal
+        isOpen={showBulkSignOutModal}
+        onClose={() => setShowBulkSignOutModal(false)}
+        onConfirm={handleBulkSignOut}
+        onSiteCount={onSiteCount}
+        isLoading={bulkSigningOut}
+      />
 
-      {viewSignature && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-4" onClick={() => setViewSignature(null)}>
-          <div className="bg-white rounded-2xl p-5 max-w-xl w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-bold text-slate-900">Visitor Signature</h3>
-            <div className="mt-3 border border-slate-200 rounded-xl p-3 bg-slate-50">
-              <Image src={viewSignature} alt="Signature" width={640} height={240} unoptimized className="w-full h-auto" />
-            </div>
-            <button onClick={() => setViewSignature(null)} className="mt-4 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl px-4 py-2.5 text-sm">
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      <SignatureViewer
+        isOpen={!!viewSignature}
+        signature={viewSignature}
+        onClose={() => setViewSignature(null)}
+      />
 
-      {/* Connected toolkit handoff - subtle expansion prompt */}
-      <section className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold text-zinc-100">Running smoothly?</p>
-            <p className="text-sm text-zinc-500 mt-0.5">
-              Add SiteITP for quality checklists and SiteDocs for professional reports.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard/site-itp"
-              className="text-sm font-semibold text-violet-400 hover:text-violet-300 px-4 py-2 rounded-xl border border-violet-400/30 hover:border-violet-400/50 transition-colors"
-            >
-              SiteITP →
-            </Link>
-            <Link
-              href="/dashboard/site-docs"
-              className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 px-4 py-2 rounded-xl border border-cyan-400/30 hover:border-cyan-400/50 transition-colors"
-            >
-              SiteDocs →
-            </Link>
-          </div>
-        </div>
-      </section>
+      <ConnectedToolkitPrompt />
 
       {/* Site setup - configure inductions and briefings for this site */}
       {selectedSiteId && activeCompanyId && (
@@ -1104,11 +693,3 @@ export default function SiteSignInModulePage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border border-slate-200 rounded-xl px-4 py-3">
-      <p className="text-xs uppercase tracking-wide font-bold text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-bold text-slate-900">{value}</p>
-    </div>
-  );
-}
