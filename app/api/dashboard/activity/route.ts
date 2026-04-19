@@ -2,6 +2,58 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ActivityFeedItem, ActivityType } from "@/lib/dashboard/types";
 
+// Type definitions for Supabase join results (Supabase returns arrays for joins)
+interface SiteName { name: string }
+interface ProjectName { name: string }
+interface ProfileName { full_name: string }
+
+interface DiaryWithRelations {
+  id: string;
+  notes: string | null;
+  created_at: string;
+  completed_at: string | null;
+  status: string;
+  date: string;
+  sites: SiteName[] | null;
+  projects: ProjectName[] | null;
+  profiles: ProfileName[] | null;
+}
+interface PhotoWithRelations {
+  id: string;
+  caption: string | null;
+  created_at: string;
+  site_diaries: {
+    id: string;
+    sites: SiteName[] | null;
+    projects: ProjectName[] | null;
+  } | null;
+  profiles: ProfileName[] | null;
+}
+interface PrestartWithRelations {
+  id: string;
+  plant_details: { equipmentType?: string; operatorName?: string } | null;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
+  sites: SiteName[] | null;
+  projects: ProjectName[] | null;
+  profiles: ProfileName[] | null;
+}
+interface VisitWithRelations {
+  id: string;
+  worker_name: string | null;
+  signed_in_at: string;
+  signed_out_at: string | null;
+  sites: SiteName[] | null;
+  profiles: ProfileName[] | null;
+}
+interface ItpSignoffWithRelations {
+  id: string;
+  signed_at: string;
+  itp_sessions: { id: string; title: string }[] | null;
+  profiles: ProfileName[] | null;
+}
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -78,10 +130,10 @@ export async function GET(request: NextRequest) {
       .limit(10);
 
     if (!diariesError && diaries) {
-      for (const diary of diaries) {
-        const siteName = (diary.sites as any)?.name ?? null;
-        const projectName = (diary.projects as any)?.name ?? null;
-        const userName = (diary.profiles as any)?.full_name ?? null;
+      for (const diary of diaries as DiaryWithRelations[]) {
+        const siteName = diary.sites?.[0]?.name ?? null;
+        const projectName = diary.projects?.[0]?.name ?? null;
+        const userName = diary.profiles?.[0]?.full_name ?? null;
 
         // Created activity
         activities.push({
@@ -128,18 +180,18 @@ export async function GET(request: NextRequest) {
       .limit(10);
 
     if (!photosError && photos) {
-      for (const photo of photos) {
-        const diaryData = photo.site_diaries as any;
+      for (const photo of photos as unknown as PhotoWithRelations[]) {
+        const diaryData = photo.site_diaries;
         activities.push({
           id: `photo-${photo.id}`,
           type: "photo_uploaded" as ActivityType,
           title: "Photo uploaded",
           description: photo.caption || "New site photo added",
-          siteName: diaryData?.sites?.name ?? null,
-          projectName: diaryData?.projects?.name ?? null,
-          userName: (photo.profiles as any)?.full_name ?? null,
+          siteName: diaryData?.sites?.[0]?.name ?? null,
+          projectName: diaryData?.projects?.[0]?.name ?? null,
+          userName: photo.profiles?.[0]?.full_name ?? null,
           createdAt: photo.created_at,
-          link: `/dashboard/site-capture/${diaryData?.id}`,
+          link: `/dashboard/site-capture/${diaryData?.id ?? ""}`,
         });
       }
     }
@@ -162,8 +214,8 @@ export async function GET(request: NextRequest) {
       .limit(10);
 
     if (!prestartsError && prestarts) {
-      for (const prestart of prestarts) {
-        const plantDetails = prestart.plant_details as any;
+      for (const prestart of prestarts as unknown as PrestartWithRelations[]) {
+        const plantDetails = prestart.plant_details;
         const equipmentType = plantDetails?.equipmentType || "Equipment";
         
         activities.push({
@@ -171,9 +223,9 @@ export async function GET(request: NextRequest) {
           type: "prestart_submitted" as ActivityType,
           title: `Prestart checklist: ${equipmentType}`,
           description: `Operator: ${plantDetails?.operatorName || "Unknown"}`,
-          siteName: (prestart.sites as any)?.name ?? null,
-          projectName: (prestart.projects as any)?.name ?? null,
-          userName: (prestart.profiles as any)?.full_name ?? null,
+          siteName: prestart.sites?.[0]?.name ?? null,
+          projectName: prestart.projects?.[0]?.name ?? null,
+          userName: prestart.profiles?.[0]?.full_name ?? null,
           createdAt: prestart.completed_at || prestart.created_at,
           link: `/dashboard/site-capture/${prestart.id}`,
         });
@@ -196,19 +248,20 @@ export async function GET(request: NextRequest) {
       .limit(10);
 
     if (!visitsError && visits) {
-      for (const visit of visits) {
-        const siteName = (visit.sites as any)?.name ?? null;
+      for (const visit of visits as unknown as VisitWithRelations[]) {
+        const siteName = visit.sites?.[0]?.name ?? null;
+        const profileName = visit.profiles?.[0]?.full_name;
         
         // Sign in activity
         if (visit.signed_in_at) {
           activities.push({
             id: `signin-${visit.id}`,
             type: "sign_in" as ActivityType,
-            title: `${visit.worker_name || (visit.profiles as any)?.full_name || "Worker"} signed in`,
+            title: `${visit.worker_name || profileName || "Worker"} signed in`,
             description: "Arrived on site",
             siteName,
             projectName: null,
-            userName: visit.worker_name || (visit.profiles as any)?.full_name || null,
+            userName: visit.worker_name || profileName || null,
             createdAt: visit.signed_in_at,
             link: `/dashboard/site-sign-in`,
           });
@@ -219,11 +272,11 @@ export async function GET(request: NextRequest) {
           activities.push({
             id: `signout-${visit.id}`,
             type: "sign_out" as ActivityType,
-            title: `${visit.worker_name || (visit.profiles as any)?.full_name || "Worker"} signed out`,
+            title: `${visit.worker_name || profileName || "Worker"} signed out`,
             description: "Left site",
             siteName,
             projectName: null,
-            userName: visit.worker_name || (visit.profiles as any)?.full_name || null,
+            userName: visit.worker_name || profileName || null,
             createdAt: visit.signed_out_at,
             link: `/dashboard/site-sign-in`,
           });
@@ -245,8 +298,8 @@ export async function GET(request: NextRequest) {
       .limit(10);
 
     if (!itpError && itpSignoffs) {
-      for (const signoff of itpSignoffs) {
-        const sessionData = signoff.itp_sessions as any;
+      for (const signoff of itpSignoffs as unknown as ItpSignoffWithRelations[]) {
+        const sessionData = signoff.itp_sessions?.[0];
         activities.push({
           id: `itp-signoff-${signoff.id}`,
           type: "itp_signed" as ActivityType,
@@ -254,9 +307,9 @@ export async function GET(request: NextRequest) {
           description: sessionData?.title || "Inspection Test Plan signed",
           siteName: null,
           projectName: null,
-          userName: (signoff.profiles as any)?.full_name ?? null,
+          userName: signoff.profiles?.[0]?.full_name ?? null,
           createdAt: signoff.signed_at,
-          link: `/dashboard/site-itp/${sessionData?.id}`,
+          link: `/dashboard/site-itp/${sessionData?.id ?? ""}`,
         });
       }
     }
