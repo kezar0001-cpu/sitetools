@@ -5,9 +5,9 @@ import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus } from "lucide-react";
+import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus, FolderInput, AlertCircle, Users, CheckSquare, Square } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys, uploadSiteLogo, removeSiteLogo } from "@/lib/workspace/client";
+import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys, uploadSiteLogo, removeSiteLogo, countActiveWorkersForSites, performBulkSiteOperation } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { siteKeys } from "@/lib/workspace/client";
 import { SitesErrorFallback } from "@/components/error";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SiteAnalyticsPanel } from "@/components/analytics";
 import {
   siteCreationSchema,
   siteEditSchema,
@@ -105,6 +106,17 @@ export default function SitesPage() {
   const [archivingSiteId, setArchivingSiteId] = useState<string | null>(null);
   const [confirmArchiveSite, setConfirmArchiveSite] = useState<Site | null>(null);
 
+  // Bulk operations state
+  const [selectedSiteIds, setSelectedSiteIds] = useState<Set<string>>(new Set());
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [shiftKeyPressed, setShiftKeyPressed] = useState(false);
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
+  const [showBulkArchiveModal, setShowBulkArchiveModal] = useState(false);
+  const [bulkTargetProjectId, setBulkTargetProjectId] = useState<string | null>(null);
+  const [activeWorkersCount, setActiveWorkersCount] = useState<number | null>(null);
+  const [loadingActiveWorkers, setLoadingActiveWorkers] = useState(false);
+
   // Search filter state
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -117,8 +129,30 @@ export default function SitesPage() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Shift key listener for bulk selection mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftKeyPressed(true);
+      if (e.key === "Escape" && isBulkMode) {
+        setSelectedSiteIds(new Set());
+        setIsBulkMode(false);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftKeyPressed(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isBulkMode]);
+
   // Expandable card sections state
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [expandedTabs, setExpandedTabs] = useState<Record<string, "analytics" | "project">>({});
+  
   const toggleCardExpanded = (siteId: string) => {
     setExpandedCards(prev => {
       const next = new Set(prev);
@@ -126,9 +160,18 @@ export default function SitesPage() {
         next.delete(siteId);
       } else {
         next.add(siteId);
+        // Default to analytics tab when expanding
+        setExpandedTabs(prevTabs => ({
+          ...prevTabs,
+          [siteId]: prevTabs[siteId] || "analytics"
+        }));
       }
       return next;
     });
+  };
+  
+  const setExpandedTab = (siteId: string, tab: "analytics" | "project") => {
+    setExpandedTabs(prev => ({ ...prev, [siteId]: tab }));
   };
 
   // Copy to clipboard state
@@ -571,6 +614,155 @@ export default function SitesPage() {
     }
   }
 
+  // ── Bulk Operations ──────────────────────────────────────────────────────────
+
+  const toggleSiteSelection = useCallback((siteId: string, isShiftClick: boolean) => {
+    if (!canEditSites) return;
+
+    setSelectedSiteIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(siteId)) {
+        newSet.delete(siteId);
+      } else {
+        newSet.add(siteId);
+      }
+      return newSet;
+    });
+
+    // Enter bulk mode if selecting or if shift-clicked
+    if (!isBulkMode || isShiftClick) {
+      setIsBulkMode(true);
+    }
+  }, [canEditSites, isBulkMode]);
+
+  const selectAllSitesInProject = useCallback((projectId: string | null) => {
+    if (!canEditSites) return;
+
+    const sitesInProject = groupedSites
+      .find(g => g.projectId === projectId)?.sites
+      ?.filter(s => s.is_active !== false)
+      ?.map(s => s.id) ?? [];
+
+    setSelectedSiteIds(prev => {
+      const newSet = new Set(prev);
+      sitesInProject.forEach(id => newSet.add(id));
+      return newSet;
+    });
+    setIsBulkMode(true);
+  }, [canEditSites, groupedSites]);
+
+  const deselectAllSitesInProject = useCallback((projectId: string | null) => {
+    const sitesInProject = groupedSites
+      .find(g => g.projectId === projectId)?.sites
+      ?.map(s => s.id) ?? [];
+
+    setSelectedSiteIds(prev => {
+      const newSet = new Set(prev);
+      sitesInProject.forEach(id => newSet.delete(id));
+      return newSet;
+    });
+  }, [groupedSites]);
+
+  const isProjectFullySelected = useCallback((projectId: string | null) => {
+    const sitesInProject = groupedSites
+      .find(g => g.projectId === projectId)?.sites
+      ?.filter(s => s.is_active !== false)
+      ?.map(s => s.id) ?? [];
+    
+    if (sitesInProject.length === 0) return false;
+    return sitesInProject.every(id => selectedSiteIds.has(id));
+  }, [groupedSites, selectedSiteIds]);
+
+  const isProjectPartiallySelected = useCallback((projectId: string | null) => {
+    const sitesInProject = groupedSites
+      .find(g => g.projectId === projectId)?.sites
+      ?.filter(s => s.is_active !== false)
+      ?.map(s => s.id) ?? [];
+    
+    const selectedCount = sitesInProject.filter(id => selectedSiteIds.has(id)).length;
+    return selectedCount > 0 && selectedCount < sitesInProject.length;
+  }, [groupedSites, selectedSiteIds]);
+
+  const clearAllSelections = useCallback(() => {
+    setSelectedSiteIds(new Set());
+    setIsBulkMode(false);
+    setBulkTargetProjectId(null);
+  }, []);
+
+  const handleBulkMove = useCallback(async () => {
+    if (!canEditSites || selectedSiteIds.size === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const result = await performBulkSiteOperation(
+        "move",
+        Array.from(selectedSiteIds),
+        bulkTargetProjectId
+      );
+
+      if (result.success) {
+        invalidateCompanySites(activeCompanyId);
+        const projectName = bulkTargetProjectId
+          ? projects.find(p => p.id === bulkTargetProjectId)?.name ?? "Unassigned"
+          : "Unassigned";
+        toast.success(`Moved ${result.moved} sites to ${projectName}`);
+        clearAllSelections();
+        setShowBulkMoveModal(false);
+      } else {
+        toast.error(result.error || "Failed to move sites");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to move sites");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }, [canEditSites, selectedSiteIds, bulkTargetProjectId, activeCompanyId, projects, invalidateCompanySites, clearAllSelections]);
+
+  const handleBulkArchive = useCallback(async () => {
+    if (!canEditSites || selectedSiteIds.size === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const result = await performBulkSiteOperation("archive", Array.from(selectedSiteIds));
+
+      if (result.success) {
+        invalidateCompanySites(activeCompanyId);
+        toast.success(`Archived ${result.archived} sites`);
+        clearAllSelections();
+        setShowBulkArchiveModal(false);
+        setActiveWorkersCount(null);
+      } else {
+        toast.error(result.error || "Failed to archive sites");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to archive sites");
+    } finally {
+      setBulkActionLoading(false);
+    }
+  }, [canEditSites, selectedSiteIds, activeCompanyId, invalidateCompanySites, clearAllSelections]);
+
+  const loadActiveWorkersCount = useCallback(async () => {
+    if (selectedSiteIds.size === 0) return;
+    
+    setLoadingActiveWorkers(true);
+    try {
+      const count = await countActiveWorkersForSites(Array.from(selectedSiteIds));
+      setActiveWorkersCount(count);
+    } catch (err) {
+      console.error("Failed to load active workers count:", err);
+      setActiveWorkersCount(null);
+    } finally {
+      setLoadingActiveWorkers(false);
+    }
+  }, [selectedSiteIds]);
+
+  // Load active workers count when archive modal opens
+  useEffect(() => {
+    if (showBulkArchiveModal) {
+      loadActiveWorkersCount();
+    }
+  }, [showBulkArchiveModal, loadActiveWorkersCount]);
+
   // Skeleton card component for loading state
   const SiteCardSkeleton = () => (
     <div className="bg-white border-2 border-slate-100 rounded-3xl p-4 sm:p-5 shadow-sm flex flex-col">
@@ -675,7 +867,13 @@ export default function SitesPage() {
         </div>
       </div>
 
-      <div className="p-6 md:p-10 space-y-8">
+      <div className={`p-6 md:p-10 space-y-8 ${isBulkMode && selectedSiteIds.size > 0 ? "pb-32" : ""}`}>
+        {/* Bulk mode hint */}
+        {canEditSites && !isBulkMode && (
+          <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-100/50 rounded-lg px-3 py-2 w-fit">
+            <span className="font-medium">Tip:</span> Hold <kbd className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">Shift</kbd> and click a site to select multiple
+          </div>
+        )}
 
       {/* Grouped View */}
       <div className="space-y-10">
@@ -730,9 +928,46 @@ export default function SitesPage() {
                     {group.project && <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Project Dashboard</p>}
                 </div>
               </div>
-              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
-                {group.sites.length} Site{group.sites.length !== 1 ? "s" : ""}
-              </span>
+              <div className="flex items-center gap-3">
+                {canEditSites && isBulkMode && group.sites.filter(s => s.is_active !== false).length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (isProjectFullySelected(group.projectId)) {
+                        deselectAllSitesInProject(group.projectId);
+                      } else {
+                        selectAllSitesInProject(group.projectId);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                      isProjectFullySelected(group.projectId)
+                        ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                        : isProjectPartiallySelected(group.projectId)
+                        ? "bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {isProjectFullySelected(group.projectId) ? (
+                      <>
+                        <CheckSquare className="h-3.5 w-3.5" />
+                        All selected
+                      </>
+                    ) : isProjectPartiallySelected(group.projectId) ? (
+                      <>
+                        <CheckSquare className="h-3.5 w-3.5" />
+                        Select all ({group.sites.filter(s => s.is_active !== false && selectedSiteIds.has(s.id)).length}/{group.sites.filter(s => s.is_active !== false).length})
+                      </>
+                    ) : (
+                      <>
+                        <Square className="h-3.5 w-3.5" />
+                        Select all in project
+                      </>
+                    )}
+                  </button>
+                )}
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                  {group.sites.length} Site{group.sites.length !== 1 ? "s" : ""}
+                </span>
+              </div>
             </div>
 
             {group.sites.length === 0 ? (
@@ -819,19 +1054,58 @@ export default function SitesPage() {
                   const isArchived = site.is_active === false;
                   const isExpanded = expandedCards.has(site.id);
                   const hasCopied = copiedSlug === site.slug;
+                  const isSelected = selectedSiteIds.has(site.id);
+                  const showCheckbox = canEditSites && !isArchived && (isBulkMode || shiftKeyPressed);
+                  
                   return (
                     <div
                         key={site.id}
+                        onClick={(e) => {
+                          // If clicking the checkbox or label, let the checkbox handler deal with it
+                          if ((e.target as HTMLElement).closest('.site-checkbox-wrapper')) return;
+                          
+                          // If shift+click on card, toggle selection
+                          if (canEditSites && !isArchived && e.shiftKey) {
+                            e.preventDefault();
+                            toggleSiteSelection(site.id, true);
+                          }
+                        }}
                         className={`group relative bg-white border-2 rounded-3xl p-4 sm:p-5 transition-all duration-200 shadow-sm flex flex-col ${
                             isArchived
                             ? "border-slate-200 bg-slate-50/60 opacity-70"
-                            : isActive
+                            : isActive && !isBulkMode
                             ? "border-amber-400 bg-amber-50/30 sm:scale-[1.02]"
+                            : isSelected
+                            ? "border-amber-400 bg-amber-50/20"
                             : "border-slate-100 hover:border-slate-200 hover:shadow-md"
                         }`}
                     >
+                      {/* Checkbox - top left, visible on hover/bulk mode */}
+                      {canEditSites && !isArchived && (
+                        <div 
+                          className={`site-checkbox-wrapper absolute top-3 left-3 z-10 transition-opacity duration-150 ${
+                            showCheckbox || isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                          }`}
+                        >
+                          <label className="flex items-center justify-center w-6 h-6 rounded-md bg-white border-2 border-slate-200 hover:border-amber-400 cursor-pointer shadow-sm transition-all">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleSiteSelection(site.id, shiftKeyPressed);
+                              }}
+                              className="w-4 h-4 accent-amber-500 cursor-pointer"
+                            />
+                            {isSelected && (
+                              <Check className="absolute h-3.5 w-3.5 text-amber-600 pointer-events-none" />
+                            )}
+                          </label>
+                        </div>
+                      )}
+
                       {/* Card Header */}
-                      <div className="flex items-start gap-3 mb-3">
+                      <div className={`flex items-start gap-3 mb-3 ${showCheckbox || isSelected ? "pl-8" : ""}`}>
                         <div className={`w-11 h-11 rounded-2xl shrink-0 overflow-hidden flex items-center justify-center ${isArchived ? "bg-slate-100 text-slate-300" : isActive ? "bg-amber-400 text-amber-950" : "bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600 transition-colors"}`}>
                           {site.logo_url ? (
                             <img 
@@ -962,13 +1236,47 @@ export default function SitesPage() {
                               </button>
                             </div>
 
-                            {/* Expandable Section - Project Move & Future Analytics */}
-                            {isExpanded && canEditSites && (
-                              <div className="mt-3 pt-3 border-t border-slate-100 animate-in slide-in-from-top-2 duration-200">
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                                  {savingSiteId === site.id ? "Saving..." : "Project Assignment"}
-                                </label>
-                                <div className="relative">
+                            {/* Expandable Section - Analytics & Project Assignment */}
+                            {isExpanded && (
+                              <div className="mt-3 pt-3 border-t border-slate-100 animate-in slide-in-from-top-2 duration-200 space-y-3">
+                                {/* Tabs */}
+                                <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                                  <button
+                                    onClick={() => setExpandedTab(site.id, "analytics")}
+                                    className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg transition-all ${
+                                      expandedTabs[site.id] === "analytics"
+                                        ? "bg-white text-slate-900 shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                    }`}
+                                  >
+                                    Analytics
+                                  </button>
+                                  {canEditSites && (
+                                    <button
+                                      onClick={() => setExpandedTab(site.id, "project")}
+                                      className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg transition-all ${
+                                        expandedTabs[site.id] === "project"
+                                          ? "bg-white text-slate-900 shadow-sm"
+                                          : "text-slate-500 hover:text-slate-700"
+                                      }`}
+                                    >
+                                      Project
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Analytics Tab */}
+                                {expandedTabs[site.id] === "analytics" && (
+                                  <SiteAnalyticsPanel siteId={site.id} siteName={site.name} />
+                                )}
+
+                                {/* Project Tab */}
+                                {canEditSites && expandedTabs[site.id] === "project" && (
+                                  <div className="space-y-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                      {savingSiteId === site.id ? "Saving..." : "Project Assignment"}
+                                    </label>
+                                    <div className="relative">
                                   <select
                                       value={pendingMove?.siteId === site.id ? (pendingMove.projectId ?? "") : (site.project_id ?? "")}
                                       onChange={(e) => handleAssignSiteToProject(site.id, e.target.value || null)}
@@ -1003,6 +1311,8 @@ export default function SitesPage() {
                                 </div>
                                 {moveErrorSiteId === site.id && (
                                   <p className="mt-1.5 text-xs text-red-500 font-medium">Move failed. Try again.</p>
+                                )}
+                                  </div>
                                 )}
                               </div>
                             )}
@@ -1466,6 +1776,184 @@ export default function SitesPage() {
               <button
                 onClick={() => setConfirmArchiveSite(null)}
                 className={`${isMobile ? "w-full" : "px-4"} py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98] min-h-[44px]`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Action Toolbar ─────────────────────────────────────────────────── */}
+      {isBulkMode && selectedSiteIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-lg px-4 py-4 md:px-6">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-100 text-amber-700 p-2 rounded-lg">
+                <CheckSquare className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-900">
+                  {selectedSiteIds.size} site{selectedSiteIds.size !== 1 ? "s" : ""} selected
+                </p>
+                <p className="text-xs text-slate-500">Press ESC to cancel</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => {
+                  setBulkTargetProjectId(null);
+                  setShowBulkMoveModal(true);
+                }}
+                disabled={bulkActionLoading}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-white border-2 border-slate-200 hover:border-amber-400 hover:bg-amber-50 text-slate-700 font-bold py-2.5 px-4 rounded-xl transition-all min-h-[44px]"
+              >
+                <FolderInput className="h-4 w-4" />
+                Move
+              </button>
+              <button
+                onClick={() => setShowBulkArchiveModal(true)}
+                disabled={bulkActionLoading}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-red-50 border-2 border-red-200 hover:border-red-300 hover:bg-red-100 text-red-600 font-bold py-2.5 px-4 rounded-xl transition-all min-h-[44px]"
+              >
+                <Archive className="h-4 w-4" />
+                Archive
+              </button>
+              <button
+                onClick={clearAllSelections}
+                className="hidden sm:flex p-2.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all min-h-[44px] min-w-[44px] items-center justify-center"
+                title="Cancel selection"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Move Modal ─────────────────────────────────────────────────────── */}
+      {showBulkMoveModal && (
+        <div 
+          className={`fixed inset-0 z-50 flex ${isMobile ? "items-end" : "items-center justify-center"} bg-black/60 px-4 ${isMobile ? "pb-0" : ""}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowBulkMoveModal(false);
+          }}
+        >
+          <div className={`bg-white shadow-2xl w-full ${isMobile ? "rounded-t-2xl max-w-none" : "rounded-2xl max-w-md"} p-6 space-y-5 ${isMobile ? "animate-in slide-in-from-bottom duration-200" : ""}`}>
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-100 text-amber-700 p-2 rounded-xl">
+                <FolderInput className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Move Sites</h3>
+                <p className="text-sm text-slate-500">
+                  Move {selectedSiteIds.size} site{selectedSiteIds.size !== 1 ? "s" : ""} to a different project
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-xs font-black uppercase tracking-widest text-slate-500">
+                Target Project
+              </label>
+              <select
+                value={bulkTargetProjectId ?? ""}
+                onChange={(e) => setBulkTargetProjectId(e.target.value || null)}
+                className="w-full text-sm font-bold border-2 border-slate-200 rounded-xl px-4 py-3 bg-slate-50 focus:outline-none focus:border-amber-400 transition-colors min-h-[44px]"
+              >
+                <option value="">Unassigned (No Project)</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className={`flex gap-3 ${isMobile ? "flex-col" : ""}`}>
+              <button
+                onClick={handleBulkMove}
+                disabled={bulkActionLoading}
+                className="flex-1 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98] min-h-[44px]"
+              >
+                {bulkActionLoading ? "Moving..." : `Move ${selectedSiteIds.size} Site${selectedSiteIds.size !== 1 ? "s" : ""}`}
+              </button>
+              <button
+                onClick={() => setShowBulkMoveModal(false)}
+                disabled={bulkActionLoading}
+                className={`${isMobile ? "w-full" : "px-6"} py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98] min-h-[44px]`}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bulk Archive Modal ──────────────────────────────────────────────────── */}
+      {showBulkArchiveModal && (
+        <div 
+          className={`fixed inset-0 z-50 flex ${isMobile ? "items-end" : "items-center justify-center"} bg-black/60 px-4 ${isMobile ? "pb-0" : ""}`}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowBulkArchiveModal(false);
+          }}
+        >
+          <div className={`bg-white shadow-2xl w-full ${isMobile ? "rounded-t-2xl max-w-none" : "rounded-2xl max-w-md"} p-6 space-y-5 ${isMobile ? "animate-in slide-in-from-bottom duration-200" : ""}`}>
+            <div className="flex items-center gap-3">
+              <div className="bg-red-100 text-red-600 p-2 rounded-xl">
+                <Archive className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Archive Sites?</h3>
+                <p className="text-sm text-slate-500">This will disable sign-in for these sites</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+              <p className="text-sm text-slate-600">
+                You are about to archive <strong className="text-slate-900">{selectedSiteIds.size} site{selectedSiteIds.size !== 1 ? "s" : ""}</strong>.
+                Existing visit records will be preserved.
+              </p>
+
+              {/* Active workers warning */}
+              {loadingActiveWorkers ? (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <div className="h-4 w-4 rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
+                  Checking for active workers...
+                </div>
+              ) : activeWorkersCount !== null && activeWorkersCount > 0 ? (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-bold text-amber-800">
+                      {activeWorkersCount} worker{activeWorkersCount !== 1 ? "s" : ""} currently on site
+                    </p>
+                    <p className="text-amber-700">
+                      These workers will be signed out when the sites are archived.
+                    </p>
+                  </div>
+                </div>
+              ) : activeWorkersCount === 0 ? (
+                <div className="flex items-center gap-2 text-sm text-emerald-600">
+                  <Check className="h-4 w-4" />
+                  No workers currently on these sites
+                </div>
+              ) : null}
+            </div>
+
+            <div className={`flex gap-3 ${isMobile ? "flex-col" : ""}`}>
+              <button
+                onClick={handleBulkArchive}
+                disabled={bulkActionLoading}
+                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98] min-h-[44px]"
+              >
+                {bulkActionLoading ? "Archiving..." : `Archive ${selectedSiteIds.size} Site${selectedSiteIds.size !== 1 ? "s" : ""}`}
+              </button>
+              <button
+                onClick={() => setShowBulkArchiveModal(false)}
+                disabled={bulkActionLoading}
+                className={`${isMobile ? "w-full" : "px-6"} py-3 rounded-xl border-2 border-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all active:scale-[0.98] min-h-[44px]`}
               >
                 Cancel
               </button>

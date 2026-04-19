@@ -766,6 +766,88 @@ export async function removeSiteLogo(siteId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Count active (signed-in) workers across multiple sites */
+export async function countActiveWorkersForSites(siteIds: string[]): Promise<number> {
+  if (siteIds.length === 0) return 0;
+
+  const { count, error } = await supabase
+    .from("site_visits")
+    .select("*", { count: "exact", head: true })
+    .in("site_id", siteIds)
+    .is("signed_out_at", null);
+
+  if (error) {
+    // Graceful fallback: if signed_out_at column doesn't exist
+    if (referencesColumn(error, "signed_out_at")) {
+      return 0;
+    }
+    throw error;
+  }
+
+  return count ?? 0;
+}
+
+export interface BulkOperationResult {
+  success: boolean;
+  action: "move" | "archive" | "restore";
+  moved?: number;
+  archived?: number;
+  restored?: number;
+  sites?: { id: string; name: string; project_id?: string | null }[];
+  error?: string;
+}
+
+/** Perform bulk operations on sites (move, archive, restore) */
+export async function performBulkSiteOperation(
+  action: "move" | "archive" | "restore",
+  siteIds: string[],
+  targetProjectId?: string | null
+): Promise<BulkOperationResult> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  
+  if (!accessToken) {
+    return { success: false, action, error: "Not authenticated" };
+  }
+
+  try {
+    const response = await fetch("/api/sites/bulk", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        action,
+        siteIds,
+        targetProjectId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        action,
+        error: errorData.error || `Operation failed: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      action,
+      ...data,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      action,
+      error: err instanceof Error ? err.message : "Operation failed",
+    };
+  }
+}
+
 // Simple wrappers for diary creation modal
 export async function getProjects(companyId: string): Promise<Project[]> {
   return fetchCompanyProjects(companyId);
