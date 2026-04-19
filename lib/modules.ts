@@ -97,7 +97,7 @@ const PRIMARY_MODULES: AppModule[] = [
   },
 ];
 
-// Connected site workflows: quality, docs, and field records
+// Connected site workflows: quality, docs, field records, and planning
 const SUPPORTING_MODULES: AppModule[] = [
   {
     id: "itp-builder",
@@ -195,6 +195,10 @@ const SUPPORTING_MODULES: AppModule[] = [
     href: "/site-plan",
     color: "indigo",
   },
+];
+
+// Operational backbone: projects, sites, team, and workspace settings
+const INTERNAL_MODULES: AppModule[] = [
   {
     id: "dashboard",
     slug: "dashboard",
@@ -288,9 +292,6 @@ const SUPPORTING_MODULES: AppModule[] = [
     color: "zinc",
   },
 ];
-
-// Operational backbone: projects, sites, team, and workspace settings
-const INTERNAL_MODULES: AppModule[] = [];
 
 // All live modules (excludes future roadmap items)
 export const MODULES: AppModule[] = [...PRIMARY_MODULES, ...SUPPORTING_MODULES, ...INTERNAL_MODULES];
