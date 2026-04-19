@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { AppTopbar } from "@/components/layout/AppTopbar";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary } from "@/components/error";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 
 export default function AppLayout({

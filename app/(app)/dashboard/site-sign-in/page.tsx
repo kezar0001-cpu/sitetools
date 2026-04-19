@@ -2,17 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
-import { supabase } from "@/lib/supabase";
-import { fetchCompanySites, fetchSiteVisitsForCompanySite, setActiveSite } from "@/lib/workspace/client";
+import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImports";
+import { setActiveSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Site, SiteVisit, VisitorType } from "@/lib/workspace/types";
+import { useCompanySites } from "@/hooks/useSites";
+import { useSiteVisits, useVisitMutations } from "@/hooks/useSiteVisits";
 import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
 import { SiteInductionPanel } from "./components/SiteInductionPanel";
 
@@ -74,11 +73,21 @@ export default function SiteSignInModulePage() {
   const activeRole = summary?.activeMembership?.role ?? null;
   const profileActiveSiteId = summary?.profile?.active_site_id ?? null;
 
-  const [sites, setSites] = useState<Site[]>([]);
+  const { sites, isLoading: sitesLoading, prefetchSites } = useCompanySites(activeCompanyId, {
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [selectedSiteId, setSelectedSiteId] = useState<string>("");
-  const [visits, setVisits] = useState<SiteVisit[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [visitsLoading, setVisitsLoading] = useState(false);
+
+  const { visits, isLoading: visitsLoading } = useSiteVisits(activeCompanyId, selectedSiteId, {
+    refetchInterval: 30 * 1000,
+    staleTime: 10 * 1000,
+  });
+
+  const { createVisit, updateVisit, signOutVisit, bulkSignOut, deleteVisit } = useVisitMutations(
+    activeCompanyId,
+    selectedSiteId
+  );
 
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -86,7 +95,6 @@ export default function SiteSignInModulePage() {
   const [visitorType, setVisitorType] = useState<VisitorType>("Worker");
   const [addSignedIn, setAddSignedIn] = useState("");
   const [addSignedOut, setAddSignedOut] = useState("");
-  const [adding, setAdding] = useState(false);
 
   const [searchText, setSearchText] = useState("");
   const [filterDate, setFilterDate] = useState("");
@@ -94,13 +102,10 @@ export default function SiteSignInModulePage() {
   const [filterStatus, setFilterStatus] = useState<RecordStatusFilter>("all");
   const [exportRange, setExportRange] = useState<ExportRange>("all");
 
-  const [signingOutId, setSigningOutId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [viewSignature, setViewSignature] = useState<string | null>(null);
 
   const [showBulkSignOutModal, setShowBulkSignOutModal] = useState(false);
-  const [bulkSigningOut, setBulkSigningOut] = useState(false);
   const [siteManagementTab, setSiteManagementTab] = useState<"briefing" | "induction">("briefing");
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -110,60 +115,35 @@ export default function SiteSignInModulePage() {
   const [editVisitorType, setEditVisitorType] = useState<VisitorType>("Worker");
   const [editSignedIn, setEditSignedIn] = useState("");
   const [editSignedOut, setEditSignedOut] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
+
+  // Export loading states
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [xlsxLoading, setXlsxLoading] = useState(false);
 
   const canDelete = canManageSites(activeRole);
   const canEdit = !!activeRole;
 
+  // Derived loading states from mutations
+  const adding = createVisit.isPending;
+  const editSaving = updateVisit.isPending;
+  const signingOutId = signOutVisit.isPending ? "pending" : null;
+  const bulkSigningOut = bulkSignOut.isPending;
+  const deletingId = deleteVisit.isPending ? "pending" : null;
+
   useEffect(() => {
-    if (!activeCompanyId) return;
-
-    setPageLoading(true);
-
-    fetchCompanySites(activeCompanyId)
-      .then((companySites) => {
-        setSites(companySites);
-
-        if (companySites.length === 0) {
-          setSelectedSiteId("");
-          setVisits([]);
-          return;
-        }
-
-        const preferredSiteId =
-          (profileActiveSiteId && companySites.find((site) => site.id === profileActiveSiteId)?.id) || companySites[0].id;
-
-        setSelectedSiteId((prev) => {
-          if (prev && companySites.some((site) => site.id === prev)) return prev;
-          return preferredSiteId;
-        });
-      })
-      .catch((err) => {
-        toast.error(err?.message ?? (err instanceof Error ? err.message : "Unable to load sites."));
-      })
-      .finally(() => setPageLoading(false));
-  }, [activeCompanyId, profileActiveSiteId]);
-
-  const refreshVisits = useCallback(async () => {
-    if (!activeCompanyId || !selectedSiteId) {
-      setVisits([]);
+    if (sites.length === 0) {
+      setSelectedSiteId("");
       return;
     }
 
-    setVisitsLoading(true);
-    try {
-      const nextVisits = await fetchSiteVisitsForCompanySite(activeCompanyId, selectedSiteId);
-      setVisits(nextVisits);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to load records.");
-    } finally {
-      setVisitsLoading(false);
-    }
-  }, [activeCompanyId, selectedSiteId]);
+    const preferredSiteId =
+      (profileActiveSiteId && sites.find((site) => site.id === profileActiveSiteId)?.id) || sites[0].id;
 
-  useEffect(() => {
-    refreshVisits();
-  }, [refreshVisits]);
+    setSelectedSiteId((prev) => {
+      if (prev && sites.some((site) => site.id === prev)) return prev;
+      return preferredSiteId;
+    });
+  }, [sites, profileActiveSiteId]);
 
   const selectedSite = sites.find((site) => site.id === selectedSiteId) ?? null;
 
@@ -248,38 +228,32 @@ export default function SiteSignInModulePage() {
       return;
     }
 
-    setAdding(true);
-
-    const payload: Record<string, string | null> = {
-      company_id: activeCompanyId,
-      site_id: selectedSiteId,
-      full_name: fullName.trim(),
-      phone_number: phoneNumber.trim() || null,
-      company_name: companyName.trim(),
-      visitor_type: visitorType,
-    };
-
-    if (addSignedIn) payload.signed_in_at = new Date(addSignedIn).toISOString();
-    if (addSignedOut) payload.signed_out_at = new Date(addSignedOut).toISOString();
-
-    const { error: insertError } = await supabase.from("site_visits").insert(payload);
-
-    setAdding(false);
-
-    if (insertError) {
-      toast.error(insertError.message);
-      return;
-    }
-
-    setFullName("");
-    setPhoneNumber("");
-    setCompanyName("");
-    setVisitorType("Worker");
-    setAddSignedIn("");
-    setAddSignedOut("");
-
-    toast.success("Visitor record added.");
-    await refreshVisits();
+    createVisit.mutate(
+      {
+        company_id: activeCompanyId,
+        site_id: selectedSiteId,
+        full_name: fullName.trim(),
+        phone_number: phoneNumber.trim() || null,
+        company_name: companyName.trim(),
+        visitor_type: visitorType,
+        signed_in_at: addSignedIn ? new Date(addSignedIn).toISOString() : null,
+        signed_out_at: addSignedOut ? new Date(addSignedOut).toISOString() : null,
+      },
+      {
+        onSuccess: () => {
+          setFullName("");
+          setPhoneNumber("");
+          setCompanyName("");
+          setVisitorType("Worker");
+          setAddSignedIn("");
+          setAddSignedOut("");
+          toast.success("Visitor record added.");
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to add visitor.");
+        },
+      }
+    );
   }
 
   async function handleSaveEdit(visitId: string) {
@@ -290,100 +264,74 @@ export default function SiteSignInModulePage() {
       return;
     }
 
-    setEditSaving(true);
-
-    const updates: Record<string, string | null> = {
-      full_name: editFullName.trim(),
-      phone_number: editPhoneNumber.trim() || null,
-      company_name: editCompanyName.trim(),
-      visitor_type: editVisitorType,
-      signed_in_at: new Date(editSignedIn).toISOString(),
-      signed_out_at: editSignedOut ? new Date(editSignedOut).toISOString() : null,
-    };
-
-    const { error: updateError } = await supabase
-      .from("site_visits")
-      .update(updates)
-      .eq("id", visitId)
-      .eq("site_id", selectedSiteId);
-
-    setEditSaving(false);
-
-    if (updateError) {
-      toast.error(updateError.message);
-      return;
-    }
-
-    clearEdit();
-    toast.success("Record updated.");
-    await refreshVisits();
+    updateVisit.mutate(
+      {
+        id: visitId,
+        site_id: selectedSiteId,
+        full_name: editFullName.trim(),
+        phone_number: editPhoneNumber.trim() || null,
+        company_name: editCompanyName.trim(),
+        visitor_type: editVisitorType,
+        signed_in_at: new Date(editSignedIn).toISOString(),
+        signed_out_at: editSignedOut ? new Date(editSignedOut).toISOString() : null,
+      },
+      {
+        onSuccess: () => {
+          clearEdit();
+          toast.success("Record updated.");
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to update record.");
+        },
+      }
+    );
   }
 
   async function handleSignOut(visitId: string) {
     if (!selectedSiteId) return;
 
-    setSigningOutId(visitId);
-
-    const { error: updateError } = await supabase
-      .from("site_visits")
-      .update({ signed_out_at: new Date().toISOString() })
-      .eq("id", visitId)
-      .eq("site_id", selectedSiteId);
-
-    setSigningOutId(null);
-
-    if (updateError) {
-      toast.error(updateError.message);
-      return;
-    }
-
-    toast.success("Visitor signed out.");
-    await refreshVisits();
+    signOutVisit.mutate(
+      { id: visitId, site_id: selectedSiteId },
+      {
+        onSuccess: () => {
+          toast.success("Visitor signed out.");
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to sign out visitor.");
+        },
+      }
+    );
   }
 
   async function handleBulkSignOut() {
     if (!selectedSiteId) return;
 
-    setBulkSigningOut(true);
-
-    const { error: updateError } = await supabase
-      .from("site_visits")
-      .update({ signed_out_at: new Date().toISOString() })
-      .eq("site_id", selectedSiteId)
-      .is("signed_out_at", null);
-
-    setBulkSigningOut(false);
-
-    if (updateError) {
-      toast.error(updateError.message);
-      return;
-    }
-
-    setShowBulkSignOutModal(false);
-    toast.success("All visitors signed out.");
-    await refreshVisits();
+    bulkSignOut.mutate(selectedSiteId, {
+      onSuccess: () => {
+        setShowBulkSignOutModal(false);
+        toast.success("All visitors signed out.");
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : "Failed to sign out visitors.");
+      },
+    });
   }
 
   async function handleDelete(visitId: string) {
     if (!canDelete || !selectedSiteId) return;
 
-    setDeletingId(visitId);
-    const { error: deleteError } = await supabase
-      .from("site_visits")
-      .delete()
-      .eq("id", visitId)
-      .eq("site_id", selectedSiteId);
-
-    setDeletingId(null);
-    setConfirmDeleteId(null);
-
-    if (deleteError) {
-      toast.error(deleteError.message);
-      return;
-    }
-
-    toast.success("Record deleted.");
-    setVisits((prev) => prev.filter((visit) => visit.id !== visitId));
+    deleteVisit.mutate(
+      { id: visitId, site_id: selectedSiteId },
+      {
+        onSuccess: () => {
+          setConfirmDeleteId(null);
+          toast.success("Record deleted.");
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to delete record.");
+        },
+      }
+    );
   }
 
   function prepareExportData() {
@@ -438,25 +386,36 @@ export default function SiteSignInModulePage() {
     URL.revokeObjectURL(url);
   }
 
-  function exportXLSX() {
-    const { headers, rows } = prepareExportData();
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    worksheet["!cols"] = [
-      { wch: 22 },
-      { wch: 24 },
-      { wch: 16 },
-      { wch: 28 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 16 },
-      { wch: 12 },
-      { wch: 12 },
-    ];
+  async function exportXLSX() {
+    if (!exportableVisits.length) return;
+    
+    setXlsxLoading(true);
+    try {
+      const XLSX = await loadXLSX();
+      const { headers, rows } = prepareExportData();
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      worksheet["!cols"] = [
+        { wch: 22 },
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 28 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 16 },
+        { wch: 12 },
+        { wch: 12 },
+      ];
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Site Visits");
-    XLSX.writeFile(workbook, `site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Site Visits");
+      XLSX.writeFile(workbook, `site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      toast.error("Failed to load Excel export library. Please try again.");
+      console.error("XLSX export error:", err);
+    } finally {
+      setXlsxLoading(false);
+    }
   }
 
   function exportPDF() {
@@ -495,7 +454,7 @@ export default function SiteSignInModulePage() {
     doc.save(`site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
-  if (loading || pageLoading || !summary) {
+  if (loading || sitesLoading || !summary) {
     return (
       <div className="p-8 flex items-center justify-center">
         <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
@@ -535,6 +494,10 @@ export default function SiteSignInModulePage() {
               <select
                 value={selectedSiteId}
                 onChange={(e) => handleSwitchSite(e.target.value)}
+                onMouseEnter={() => {
+                  // Prefetch sites on hover for instant navigation elsewhere
+                  if (activeCompanyId) prefetchSites(activeCompanyId);
+                }}
                 className="border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white"
               >
                 {sites.map((site) => (
@@ -867,10 +830,10 @@ export default function SiteSignInModulePage() {
                             {!visit.signed_out_at && (
                               <button
                                 onClick={() => handleSignOut(visit.id)}
-                                disabled={signingOutId === visit.id}
+                                disabled={!!signingOutId}
                                 className="text-xs font-bold bg-slate-900 hover:bg-black text-white rounded-lg px-3 py-1.5"
                               >
-                                {signingOutId === visit.id ? "..." : "Sign Out"}
+                                {!!signingOutId ? "..." : "Sign Out"}
                               </button>
                             )}
                             {canDelete && (
@@ -879,10 +842,10 @@ export default function SiteSignInModulePage() {
                                   <div className="flex items-center gap-1">
                                     <button
                                       onClick={() => handleDelete(visit.id)}
-                                      disabled={deletingId === visit.id}
+                                      disabled={!!deletingId}
                                       className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg px-2 py-1"
                                     >
-                                      {deletingId === visit.id ? "..." : "Confirm"}
+                                      {!!deletingId ? "..." : "Confirm"}
                                     </button>
                                     <button
                                       onClick={() => setConfirmDeleteId(null)}

@@ -20,6 +20,29 @@ import {
   CompanyInvitationInspection,
 } from "@/lib/workspace/invitations";
 
+// ── Query Key Factories for TanStack Query ───────────────────────────────────
+
+export const siteKeys = {
+  all: ["sites"] as const,
+  company: (companyId: string | null) => ["sites", "company", companyId] as const,
+  project: (projectId: string) => ["sites", "project", projectId] as const,
+  detail: (siteId: string) => ["sites", "detail", siteId] as const,
+} as const;
+
+export const projectKeys = {
+  all: ["projects"] as const,
+  company: (companyId: string | null) => ["projects", "company", companyId] as const,
+  detail: (projectId: string) => ["projects", "detail", projectId] as const,
+} as const;
+
+export const visitKeys = {
+  all: ["visits"] as const,
+  site: (companyId: string | null, siteId: string | null) =>
+    ["visits", "site", companyId, siteId] as const,
+  list: (companyId: string, siteId: string) =>
+    ["visits", "list", companyId, siteId] as const,
+} as const;
+
 type SupabaseErrorLike = {
   code?: string;
   message?: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { deleteCompany, updateCompany, updateProfile } from "@/lib/workspace/client";
 import { canManageTeam } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -106,11 +107,7 @@ export default function SettingsPage() {
   }
 
   if (loading || !summary) {
-    return (
-      <div className="p-8 flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
-      </div>
-    );
+    return <ModuleLoadingState variant="spinner" size="lg" fullPage />;
   }
 
   const tabs: { id: Tab; label: string }[] = [

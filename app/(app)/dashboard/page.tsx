@@ -28,7 +28,7 @@ import {
     PenTool,
     Image as ImageIcon,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { fetchDashboardStats, fetchRecentActivity } from "@/lib/dashboard/client";
 import { ActivityFeedItem, ActivityType, DashboardStats } from "@/lib/dashboard/types";
 
@@ -364,10 +364,7 @@ export default function DashboardHome() {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                     {isLoading ? (
-                        <div className="space-y-2">
-                            <Skeleton className="h-8 w-48 rounded" />
-                            <Skeleton className="h-4 w-32 rounded" />
-                        </div>
+                        <ModuleLoadingState variant="skeleton" count={2} className="max-w-xs" />
                     ) : (
                         <>
                             <h1 className="text-2xl font-black text-zinc-50 tracking-tight">
@@ -394,8 +391,8 @@ export default function DashboardHome() {
                             </div>
                             {isStatsLoading ? (
                                 <div className="space-y-2">
-                                    <Skeleton className="h-8 w-14 rounded" />
-                                    <Skeleton className="h-3 w-24 rounded" />
+                                    <div className="h-8 w-14 rounded bg-zinc-800 animate-pulse" />
+                                    <div className="h-3 w-24 rounded bg-zinc-800 animate-pulse" />
                                 </div>
                             ) : statsError ? (
                                 <div>
@@ -458,15 +455,7 @@ export default function DashboardHome() {
                     <h2 className="text-base font-black text-zinc-50">Recent Activity</h2>
                 </div>
                 {isLoading || activitiesLoading ? (
-                    <div className="divide-y divide-zinc-800">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                            <div key={i} className="flex items-center gap-4 px-6 py-4">
-                                <Skeleton className="h-2 w-2 rounded-full shrink-0" />
-                                <Skeleton className="h-4 flex-1 rounded" />
-                                <Skeleton className="h-3 w-16 rounded" />
-                            </div>
-                        ))}
-                    </div>
+                    <ModuleLoadingState variant="skeleton" count={5} />
                 ) : activitiesError ? (
                     <div className="px-6 py-10 text-center">
                         <div className="inline-flex items-center gap-2 text-red-400 mb-2">

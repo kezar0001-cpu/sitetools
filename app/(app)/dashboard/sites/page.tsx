@@ -4,11 +4,13 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState, useMemo } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { fetchCompanyProjects, fetchCompanySites, setActiveSite, updateSite } from "@/lib/workspace/client";
+import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { Project, Site } from "@/lib/workspace/types";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useCompanySites, useInvalidateSites } from "@/hooks/useSites";
+import { useQuery } from "@tanstack/react-query";
 
 function toSlug(value: string) {
   const base = value
@@ -27,9 +29,27 @@ export default function SitesPage() {
   const activeRole = summary?.activeMembership?.role ?? null;
   const activeSiteId = summary?.profile?.active_site_id ?? null;
 
-  const [sites, setSites] = useState<Site[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [pageLoading, setPageLoading] = useState(true);
+  // Use TanStack Query for sites with 5-min stale time
+  const { sites, isLoading: sitesLoading, prefetchSites } = useCompanySites(activeCompanyId, {
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Use TanStack Query for projects
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<Project[]>({
+    queryKey: projectKeys.company(activeCompanyId),
+    queryFn: async () => {
+      if (!activeCompanyId) return [];
+      return fetchCompanyProjects(activeCompanyId);
+    },
+    enabled: !!activeCompanyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // For cache invalidation after mutations
+  const { invalidateCompanySites } = useInvalidateSites();
+
+  const pageLoading = loading || sitesLoading || projectsLoading;
+
   const [name, setName] = useState("");
   const [targetProjectId, setTargetProjectId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -48,18 +68,7 @@ export default function SitesPage() {
 
   const canEditSites = canManageSites(activeRole);
 
-  useEffect(() => {
-    if (!activeCompanyId) return;
-
-    setPageLoading(true);
-    Promise.all([fetchCompanySites(activeCompanyId), fetchCompanyProjects(activeCompanyId)])
-      .then(([siteRows, projectRows]) => {
-        setSites(siteRows);
-        setProjects(projectRows);
-      })
-      .catch((err) => toast.error(err?.message ?? (err instanceof Error ? err.message : "Could not load sites.")))
-      .finally(() => setPageLoading(false));
-  }, [activeCompanyId]);
+  // Sites and projects are now automatically fetched via TanStack Query
 
   const groupedSites = useMemo(() => {
     const map = new Map<string | null, Site[]>();
@@ -105,9 +114,8 @@ export default function SitesPage() {
       const createdSiteName = name.trim();
       const projectName = targetProjectId ? projects.find(p => p.id === targetProjectId)?.name ?? null : null;
       setName("");
-      setTargetProjectId("");
-      const siteRows = await fetchCompanySites(activeCompanyId);
-      setSites(siteRows);
+      // Invalidate sites cache to trigger refetch
+      invalidateCompanySites(activeCompanyId);
       setCreateSuccess({ siteName: createdSiteName, projectName });
       toast.success("Site created.");
     } catch (err) {
@@ -128,10 +136,8 @@ export default function SitesPage() {
         .eq("id", siteId);
       if (updateError) throw updateError;
 
-      if (activeCompanyId) {
-        const siteRows = await fetchCompanySites(activeCompanyId);
-        setSites(siteRows);
-      }
+      // Invalidate sites cache to trigger refetch
+      invalidateCompanySites(activeCompanyId);
       toast.success("Site moved.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not assign site to project.");
@@ -171,10 +177,8 @@ export default function SitesPage() {
     try {
       const newSlug = toSlug(trimmed);
       await updateSite(editingSite.id, { name: trimmed, slug: newSlug });
-      if (activeCompanyId) {
-        const siteRows = await fetchCompanySites(activeCompanyId);
-        setSites(siteRows);
-      }
+      // Invalidate sites cache to trigger refetch
+      invalidateCompanySites(activeCompanyId);
       setEditingSite(null);
       toast.success("Site updated.");
     } catch (err) {
@@ -189,10 +193,8 @@ export default function SitesPage() {
     setArchivingSiteId(site.id);
     try {
       await updateSite(site.id, { is_active: false });
-      if (activeCompanyId) {
-        const siteRows = await fetchCompanySites(activeCompanyId);
-        setSites(siteRows);
-      }
+      // Invalidate sites cache to trigger refetch
+      invalidateCompanySites(activeCompanyId);
       toast.success("Site archived.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not archive site.");
@@ -206,10 +208,8 @@ export default function SitesPage() {
     if (!canEditSites) return;
     try {
       await updateSite(siteId, { is_active: true });
-      if (activeCompanyId) {
-        const siteRows = await fetchCompanySites(activeCompanyId);
-        setSites(siteRows);
-      }
+      // Invalidate sites cache to trigger refetch
+      invalidateCompanySites(activeCompanyId);
       toast.success("Site restored.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not restore site.");

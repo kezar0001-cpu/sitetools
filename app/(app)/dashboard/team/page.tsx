@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";
@@ -133,11 +134,7 @@ export default function TeamPage() {
   }
 
   if (loading || !summary || pageLoading) {
-    return (
-      <div className="p-8 flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-slate-300 border-t-amber-500 animate-spin" />
-      </div>
-    );
+    return <ModuleLoadingState variant="spinner" size="lg" fullPage />;
   }
 
   return (

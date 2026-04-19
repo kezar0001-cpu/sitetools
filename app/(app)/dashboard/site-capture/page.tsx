@@ -7,6 +7,7 @@ import { getDiaries, createDiary } from "@/lib/site-capture/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
 import { FORM_TYPE_CONFIG } from "@/lib/site-capture/types";
+import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import DiaryListCard from "./components/DiaryListCard";
 import { FormTypeGrid } from "./components/FormTypeGrid";
 import { FilterTabs } from "./components/FilterTabs";
@@ -124,14 +125,7 @@ export default function SiteCaptureHubPage() {
   };
 
   if (wsLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <svg className="w-8 h-8 text-amber-400 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-      </div>
-    );
+    return <ModuleLoadingState variant="spinner" size="lg" fullPage />;
   }
 
   return (
@@ -188,11 +182,7 @@ export default function SiteCaptureHubPage() {
 
           {/* Entries List */}
           {busy ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
-              ))}
-            </div>
+            <ModuleLoadingState variant="pulse" count={3} />
           ) : filteredDiaries.length === 0 ? (
             <EmptyState
               icon="📋"
