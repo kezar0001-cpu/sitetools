@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { deleteCompany, updateCompany, updateProfile } from "@/lib/workspace/client";
 import { canManageTeam } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useRouter } from "next/navigation";
+import {
+  companyProfileSchema,
+  profileUpdateSchema,
+  type CompanyProfileFormData,
+  type ProfileUpdateFormData,
+} from "@/lib/validation/schemas";
 
 type Tab = "company" | "personal" | "danger";
 
@@ -22,14 +30,6 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Company Profile state
-  const [companyName, setCompanyName] = useState("");
-  const [savingCompany, setSavingCompany] = useState(false);
-
-  // Personal Profile state
-  const [displayName, setDisplayName] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
-
   // Danger Zone state
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deletingCompany, setDeletingCompany] = useState(false);
@@ -38,55 +38,75 @@ export default function SettingsPage() {
   const canEditCompany = canManageTeam(activeRole);
   const isOwner = activeRole === "owner";
 
+  // Company profile form with react-hook-form
+  const {
+    register: registerCompany,
+    handleSubmit: handleSubmitCompany,
+    formState: { errors: companyErrors, isSubmitting: savingCompany, isValid: companyIsValid },
+    reset: resetCompany,
+  } = useForm<CompanyProfileFormData>({
+    resolver: zodResolver(companyProfileSchema),
+    mode: "onChange",
+    defaultValues: {
+      companyName: "",
+    },
+  });
+
+  // Personal profile form with react-hook-form
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    formState: { errors: profileErrors, isSubmitting: savingProfile, isValid: profileIsValid },
+    reset: resetProfile,
+  } = useForm<ProfileUpdateFormData>({
+    resolver: zodResolver(profileUpdateSchema),
+    mode: "onChange",
+    defaultValues: {
+      displayName: "",
+    },
+  });
+
+  // Sync form values with workspace data
   useEffect(() => {
-    if (activeCompany?.name) setCompanyName(activeCompany.name);
-  }, [activeCompany?.name]);
+    if (activeCompany?.name) {
+      resetCompany({ companyName: activeCompany.name });
+    }
+  }, [activeCompany?.name, resetCompany]);
 
   useEffect(() => {
-    if (profile?.full_name) setDisplayName(profile.full_name);
-  }, [profile?.full_name]);
+    if (profile?.full_name) {
+      resetProfile({ displayName: profile.full_name });
+    }
+  }, [profile?.full_name, resetProfile]);
 
   function clearMessages() {
     setError(null);
     setSuccessMessage(null);
   }
 
-  async function handleCompanySave(e: FormEvent) {
-    e.preventDefault();
+  async function handleCompanySave(data: CompanyProfileFormData) {
     if (!activeCompanyId || !canEditCompany) return;
     clearMessages();
 
-    if (!companyName.trim()) {
-      setError("Company name cannot be empty.");
-      return;
-    }
-
-    setSavingCompany(true);
     try {
-      await updateCompany(activeCompanyId, { name: companyName.trim() });
+      await updateCompany(activeCompanyId, { name: data.companyName.trim() });
       await refresh();
       setSuccessMessage("Company name updated.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update company.");
-    } finally {
-      setSavingCompany(false);
     }
   }
 
-  async function handleProfileSave(e: FormEvent) {
-    e.preventDefault();
+  async function handleProfileSave(data: ProfileUpdateFormData) {
     if (!userId) return;
     clearMessages();
 
-    setSavingProfile(true);
     try {
-      await updateProfile(userId, { full_name: displayName.trim() || null });
+      await updateProfile(userId, { full_name: data.displayName?.trim() || null });
       await refresh();
       setSuccessMessage("Display name updated.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update profile.");
-    } finally {
-      setSavingProfile(false);
     }
   }
 
@@ -169,18 +189,20 @@ export default function SettingsPage() {
             <p className="mt-1 text-sm text-slate-500">Update your company&apos;s display name.</p>
           </div>
 
-          <form onSubmit={handleCompanySave} className="space-y-4">
+          <form onSubmit={handleSubmitCompany(handleCompanySave)} className="space-y-4">
             <div className="space-y-1">
               <label className="block text-sm font-semibold text-slate-700">Company Name</label>
               <input
                 type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
+                {...registerCompany("companyName")}
                 disabled={!canEditCompany || savingCompany}
                 placeholder="Your company name"
-                className="w-full border-2 border-slate-200 focus:border-amber-400 focus:outline-none rounded-xl px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400 transition-colors"
+                className={`w-full border-2 ${companyErrors.companyName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} focus:outline-none rounded-xl px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400 transition-colors`}
               />
-              {!canEditCompany && (
+              {companyErrors.companyName && (
+                <p className="text-xs text-red-500">{companyErrors.companyName.message}</p>
+              )}
+              {!canEditCompany && !companyErrors.companyName && (
                 <p className="text-xs text-slate-400">Only Admins and Owners can edit the company name.</p>
               )}
             </div>
@@ -188,7 +210,7 @@ export default function SettingsPage() {
             {canEditCompany && (
               <button
                 type="submit"
-                disabled={savingCompany || !companyName.trim()}
+                disabled={savingCompany || !companyIsValid}
                 className="bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-black rounded-xl px-5 py-2.5 text-sm transition-colors"
               >
                 {savingCompany ? "Saving…" : "Save Changes"}
@@ -206,17 +228,19 @@ export default function SettingsPage() {
             <p className="mt-1 text-sm text-slate-500">Update how your name appears to teammates.</p>
           </div>
 
-          <form onSubmit={handleProfileSave} className="space-y-4">
+          <form onSubmit={handleSubmitProfile(handleProfileSave)} className="space-y-4">
             <div className="space-y-1">
               <label className="block text-sm font-semibold text-slate-700">Display Name</label>
               <input
                 type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                {...registerProfile("displayName")}
                 disabled={savingProfile}
                 placeholder="Your full name"
-                className="w-full border-2 border-slate-200 focus:border-amber-400 focus:outline-none rounded-xl px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400 transition-colors"
+                className={`w-full border-2 ${profileErrors.displayName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} focus:outline-none rounded-xl px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400 transition-colors`}
               />
+              {profileErrors.displayName && (
+                <p className="text-xs text-red-500">{profileErrors.displayName.message}</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -232,7 +256,7 @@ export default function SettingsPage() {
 
             <button
               type="submit"
-              disabled={savingProfile}
+              disabled={savingProfile || !profileIsValid}
               className="bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-black rounded-xl px-5 py-2.5 text-sm transition-colors"
             >
               {savingProfile ? "Saving…" : "Save Changes"}

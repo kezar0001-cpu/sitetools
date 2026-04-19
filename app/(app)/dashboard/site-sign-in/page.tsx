@@ -2,20 +2,29 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
 import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImports";
 import { setActiveSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { SiteVisit, VisitorType } from "@/lib/workspace/types";
+import { SiteVisit } from "@/lib/workspace/types";
 import { useCompanySites } from "@/hooks/useSites";
 import { useSiteVisits, useVisitMutations } from "@/hooks/useSiteVisits";
 import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
 import { SiteInductionPanel } from "./components/SiteInductionPanel";
+import {
+  visitEntrySchema,
+  visitEditSchema,
+  visitorTypes,
+  type VisitEntryFormData,
+  type VisitEditFormData,
+} from "@/lib/validation/schemas";
+import { MobileCardList, MobileCardHeader, MobileStatusBadge, MobileActionButton } from "@/components/mobile/MobileCardList";
 
-const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
 type ExportRange = "all" | "today" | "week" | "month";
 type RecordStatusFilter = "all" | "onSite" | "signedOut";
 
@@ -89,16 +98,28 @@ export default function SiteSignInModulePage() {
     selectedSiteId
   );
 
-  const [fullName, setFullName] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [visitorType, setVisitorType] = useState<VisitorType>("Worker");
-  const [addSignedIn, setAddSignedIn] = useState("");
-  const [addSignedOut, setAddSignedOut] = useState("");
+  // Manual entry form with react-hook-form
+  const {
+    register: registerAdd,
+    handleSubmit: handleSubmitAdd,
+    formState: { errors: addErrors, isValid: addIsValid },
+    reset: resetAdd,
+  } = useForm<VisitEntryFormData>({
+    resolver: zodResolver(visitEntrySchema),
+    mode: "onChange",
+    defaultValues: {
+      fullName: "",
+      phoneNumber: "",
+      companyName: "",
+      visitorType: "Worker",
+      signedInAt: "",
+      signedOutAt: "",
+    },
+  });
 
   const [searchText, setSearchText] = useState("");
   const [filterDate, setFilterDate] = useState("");
-  const [filterType, setFilterType] = useState<VisitorType | "">("");
+  const [filterType, setFilterType] = useState<typeof visitorTypes[number] | "">("");
   const [filterStatus, setFilterStatus] = useState<RecordStatusFilter>("all");
   const [exportRange, setExportRange] = useState<ExportRange>("all");
 
@@ -109,12 +130,29 @@ export default function SiteSignInModulePage() {
   const [siteManagementTab, setSiteManagementTab] = useState<"briefing" | "induction">("briefing");
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editFullName, setEditFullName] = useState("");
-  const [editPhoneNumber, setEditPhoneNumber] = useState("");
-  const [editCompanyName, setEditCompanyName] = useState("");
-  const [editVisitorType, setEditVisitorType] = useState<VisitorType>("Worker");
-  const [editSignedIn, setEditSignedIn] = useState("");
-  const [editSignedOut, setEditSignedOut] = useState("");
+
+  // Inline edit form with react-hook-form
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    formState: { errors: editErrors, isSubmitting: editSaving, isValid: editIsValid },
+    reset: resetEdit,
+    watch: watchEdit,
+    setValue: setEditValue,
+  } = useForm<VisitEditFormData>({
+    resolver: zodResolver(visitEditSchema),
+    mode: "onChange",
+    defaultValues: {
+      fullName: "",
+      phoneNumber: "",
+      companyName: "",
+      visitorType: "Worker",
+      signedInAt: "",
+      signedOutAt: "",
+    },
+  });
+
+  const editSignedOut = watchEdit("signedOutAt");
 
   // Export loading states
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -125,7 +163,6 @@ export default function SiteSignInModulePage() {
 
   // Derived loading states from mutations
   const adding = createVisit.isPending;
-  const editSaving = updateVisit.isPending;
   const signingOutId = signOutVisit.isPending ? "pending" : null;
   const bulkSigningOut = bulkSignOut.isPending;
   const deletingId = deleteVisit.isPending ? "pending" : null;
@@ -189,22 +226,26 @@ export default function SiteSignInModulePage() {
 
   function clearEdit() {
     setEditingId(null);
-    setEditFullName("");
-    setEditPhoneNumber("");
-    setEditCompanyName("");
-    setEditVisitorType("Worker");
-    setEditSignedIn("");
-    setEditSignedOut("");
+    resetEdit({
+      fullName: "",
+      phoneNumber: "",
+      companyName: "",
+      visitorType: "Worker",
+      signedInAt: "",
+      signedOutAt: "",
+    });
   }
 
   function startEdit(visit: SiteVisit) {
     setEditingId(visit.id);
-    setEditFullName(visit.full_name);
-    setEditPhoneNumber(visit.phone_number ?? "");
-    setEditCompanyName(visit.company_name);
-    setEditVisitorType(visit.visitor_type);
-    setEditSignedIn(toDatetimeLocal(visit.signed_in_at));
-    setEditSignedOut(toDatetimeLocal(visit.signed_out_at));
+    resetEdit({
+      fullName: visit.full_name,
+      phoneNumber: visit.phone_number ?? "",
+      companyName: visit.company_name,
+      visitorType: visit.visitor_type,
+      signedInAt: toDatetimeLocal(visit.signed_in_at),
+      signedOutAt: toDatetimeLocal(visit.signed_out_at),
+    });
   }
 
   async function handleSwitchSite(nextSiteId: string) {
@@ -219,34 +260,30 @@ export default function SiteSignInModulePage() {
     }
   }
 
-  async function handleAddVisit(e: FormEvent) {
-    e.preventDefault();
+  async function handleAddVisit(data: VisitEntryFormData) {
     if (!activeCompanyId || !selectedSiteId) return;
-
-    if (!fullName.trim() || !companyName.trim()) {
-      toast.error("Full name and company name are required.");
-      return;
-    }
 
     createVisit.mutate(
       {
         company_id: activeCompanyId,
         site_id: selectedSiteId,
-        full_name: fullName.trim(),
-        phone_number: phoneNumber.trim() || null,
-        company_name: companyName.trim(),
-        visitor_type: visitorType,
-        signed_in_at: addSignedIn ? new Date(addSignedIn).toISOString() : null,
-        signed_out_at: addSignedOut ? new Date(addSignedOut).toISOString() : null,
+        full_name: data.fullName.trim(),
+        phone_number: data.phoneNumber?.trim() || null,
+        company_name: data.companyName.trim(),
+        visitor_type: data.visitorType,
+        signed_in_at: data.signedInAt ? new Date(data.signedInAt).toISOString() : null,
+        signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
       },
       {
         onSuccess: () => {
-          setFullName("");
-          setPhoneNumber("");
-          setCompanyName("");
-          setVisitorType("Worker");
-          setAddSignedIn("");
-          setAddSignedOut("");
+          resetAdd({
+            fullName: "",
+            phoneNumber: "",
+            companyName: "",
+            visitorType: "Worker",
+            signedInAt: "",
+            signedOutAt: "",
+          });
           toast.success("Visitor record added.");
         },
         onError: (err) => {
@@ -256,24 +293,19 @@ export default function SiteSignInModulePage() {
     );
   }
 
-  async function handleSaveEdit(visitId: string) {
+  async function handleSaveEdit(data: VisitEditFormData, visitId: string) {
     if (!selectedSiteId) return;
-
-    if (!editFullName.trim() || !editCompanyName.trim() || !editSignedIn) {
-      toast.error("Full name, company, and signed in time are required to save edits.");
-      return;
-    }
 
     updateVisit.mutate(
       {
         id: visitId,
         site_id: selectedSiteId,
-        full_name: editFullName.trim(),
-        phone_number: editPhoneNumber.trim() || null,
-        company_name: editCompanyName.trim(),
-        visitor_type: editVisitorType,
-        signed_in_at: new Date(editSignedIn).toISOString(),
-        signed_out_at: editSignedOut ? new Date(editSignedOut).toISOString() : null,
+        full_name: data.fullName.trim(),
+        phone_number: data.phoneNumber?.trim() || null,
+        company_name: data.companyName.trim(),
+        visitor_type: data.visitorType,
+        signed_in_at: new Date(data.signedInAt).toISOString(),
+        signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
       },
       {
         onSuccess: () => {
@@ -536,46 +568,66 @@ export default function SiteSignInModulePage() {
           <h2 className="text-base font-bold text-slate-700">Manual Sign-In Entry</h2>
           <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Admin</span>
         </div>
-        <form className="grid grid-cols-1 md:grid-cols-6 gap-3" onSubmit={handleAddVisit}>
-          <input
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Full name"
-            className="border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
-          />
-          <input
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            placeholder="Mobile (optional)"
-            className="border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
-          />
-          <input
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="Employer / company"
-            className="border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
-          />
-          <select
-            value={visitorType}
-            onChange={(e) => setVisitorType(e.target.value as VisitorType)}
-            className="border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
-          >
-            {VISITOR_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-          <input
-            type="datetime-local"
-            value={addSignedIn}
-            onChange={(e) => setAddSignedIn(e.target.value)}
-            className="border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
-            title="Signed in time (optional, defaults to now)"
-          />
+        <form className="grid grid-cols-1 md:grid-cols-6 gap-3" onSubmit={handleSubmitAdd(handleAddVisit)}>
+          <div>
+            <input
+              {...registerAdd("fullName")}
+              placeholder="Full name"
+              className={`w-full border-2 ${addErrors.fullName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
+            />
+            {addErrors.fullName && (
+              <p className="mt-1 text-xs text-red-500">{addErrors.fullName.message}</p>
+            )}
+          </div>
+          <div>
+            <input
+              {...registerAdd("phoneNumber")}
+              placeholder="Mobile (optional)"
+              className={`w-full border-2 ${addErrors.phoneNumber ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
+            />
+            {addErrors.phoneNumber && (
+              <p className="mt-1 text-xs text-red-500">{addErrors.phoneNumber.message}</p>
+            )}
+          </div>
+          <div>
+            <input
+              {...registerAdd("companyName")}
+              placeholder="Employer / company"
+              className={`w-full border-2 ${addErrors.companyName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
+            />
+            {addErrors.companyName && (
+              <p className="mt-1 text-xs text-red-500">{addErrors.companyName.message}</p>
+            )}
+          </div>
+          <div>
+            <select
+              {...registerAdd("visitorType")}
+              className={`w-full border-2 ${addErrors.visitorType ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors bg-white`}
+            >
+              {visitorTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+            {addErrors.visitorType && (
+              <p className="mt-1 text-xs text-red-500">{addErrors.visitorType.message}</p>
+            )}
+          </div>
+          <div>
+            <input
+              type="datetime-local"
+              {...registerAdd("signedInAt")}
+              className={`w-full border-2 ${addErrors.signedInAt ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
+              title="Signed in time (optional, defaults to now)"
+            />
+            {addErrors.signedInAt && (
+              <p className="mt-1 text-xs text-red-500">{addErrors.signedInAt.message}</p>
+            )}
+          </div>
           <button
             type="submit"
-            disabled={adding}
+            disabled={adding || !addIsValid}
             className="bg-amber-400 hover:bg-amber-500 disabled:opacity-60 text-amber-900 font-bold rounded-xl px-4 py-3 text-sm"
           >
             {adding ? "Adding..." : "Add Record"}
@@ -584,11 +636,13 @@ export default function SiteSignInModulePage() {
         <div className="mt-3 max-w-sm">
           <input
             type="datetime-local"
-            value={addSignedOut}
-            onChange={(e) => setAddSignedOut(e.target.value)}
-            className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm"
+            {...registerAdd("signedOutAt")}
+            className={`w-full border ${addErrors.signedOutAt ? "border-red-300 focus:border-red-400" : "border-slate-300 focus:border-amber-400"} rounded-xl px-4 py-2.5 text-sm outline-none transition-colors`}
             title="Signed out time (optional)"
           />
+          {addErrors.signedOutAt && (
+            <p className="mt-1 text-xs text-red-500">{addErrors.signedOutAt.message}</p>
+          )}
         </div>
       </section>
 
@@ -608,11 +662,11 @@ export default function SiteSignInModulePage() {
           />
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value as VisitorType | "")}
+            onChange={(e) => setFilterType(e.target.value as typeof visitorTypes[number] | "")}
             className="border border-slate-300 rounded-lg px-3 py-2.5 text-sm"
           >
             <option value="">All visitor types</option>
-            {VISITOR_TYPES.map((type) => (
+            {visitorTypes.map((type) => (
               <option key={type} value={type}>
                 {type}
               </option>
@@ -706,198 +760,226 @@ export default function SiteSignInModulePage() {
         </div>
       </section>
 
-      {/* Daily records - operational view with admin controls */}
+        {/* Daily records - operational view with admin controls */}
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-slate-900">Sign-In Records</h2>
           <span className="text-xs text-slate-500">View, edit, and export visitor records</span>
         </div>
 
-        {visitsLoading ? (
-          <p className="text-sm text-slate-500">Loading records...</p>
-        ) : filteredVisits.length === 0 ? (
+        {filteredVisits.length === 0 && !visitsLoading ? (
           <p className="text-sm text-slate-500">No records match the current filters.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b border-slate-200 text-slate-500 uppercase tracking-wide text-xs">
-                  <th className="py-2 pr-3">Name</th>
-                  <th className="py-2 pr-3">Mobile</th>
-                  <th className="py-2 pr-3">Company</th>
-                  <th className="py-2 pr-3">Type</th>
-                  <th className="py-2 pr-3">Signed In</th>
-                  <th className="py-2 pr-3">Signed Out</th>
-                  <th className="py-2 pr-3">Signature</th>
-                  <th className="py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredVisits.map((visit) => (
-                  <tr key={visit.id} className="border-b border-slate-100 align-top">
-                    {editingId === visit.id ? (
-                      <>
-                        <td className="py-3 pr-3">
-                          <input
-                            value={editFullName}
-                            onChange={(e) => setEditFullName(e.target.value)}
-                            className="w-full border border-amber-400 rounded-lg px-2 py-1.5 text-xs"
-                          />
-                        </td>
-                        <td className="py-3 pr-3">
-                          <input
-                            value={editPhoneNumber}
-                            onChange={(e) => setEditPhoneNumber(e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs"
-                          />
-                        </td>
-                        <td className="py-3 pr-3">
-                          <input
-                            value={editCompanyName}
-                            onChange={(e) => setEditCompanyName(e.target.value)}
-                            className="w-full border border-amber-400 rounded-lg px-2 py-1.5 text-xs"
-                          />
-                        </td>
-                        <td className="py-3 pr-3">
-                          <select
-                            value={editVisitorType}
-                            onChange={(e) => setEditVisitorType(e.target.value as VisitorType)}
-                            className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white"
-                          >
-                            {VISITOR_TYPES.map((type) => (
-                              <option key={type} value={type}>
-                                {type}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="py-3 pr-3">
-                          <input
-                            type="datetime-local"
-                            value={editSignedIn}
-                            onChange={(e) => setEditSignedIn(e.target.value)}
-                            className="w-full border border-amber-400 rounded-lg px-2 py-1.5 text-xs"
-                          />
-                        </td>
-                        <td className="py-3 pr-3">
-                          <input
-                            type="datetime-local"
-                            value={editSignedOut}
-                            onChange={(e) => setEditSignedOut(e.target.value)}
-                            className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs"
-                          />
-                          {editSignedOut && (
-                            <button
-                              onClick={() => setEditSignedOut("")}
-                              className="mt-1 text-[11px] text-slate-500 hover:text-slate-700"
-                            >
-                              Clear sign out
-                            </button>
-                          )}
-                        </td>
-                        <td className="py-3 pr-3 text-xs text-slate-400">-</td>
-                        <td className="py-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleSaveEdit(visit.id)}
-                              disabled={editSaving}
-                              className="text-xs font-bold bg-amber-400 hover:bg-amber-500 disabled:opacity-50 text-amber-900 rounded-lg px-3 py-1.5"
-                            >
-                              {editSaving ? "Saving..." : "Save"}
-                            </button>
-                            <button
-                              onClick={clearEdit}
-                              className="text-xs font-semibold text-slate-500 hover:text-slate-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="py-3 pr-3">
-                          <p className="font-semibold text-slate-900">{visit.full_name}</p>
-                        </td>
-                        <td className="py-3 pr-3 text-slate-700">{visit.phone_number ?? "-"}</td>
-                        <td className="py-3 pr-3 text-slate-700">{visit.company_name}</td>
-                        <td className="py-3 pr-3 text-slate-700">{visit.visitor_type}</td>
-                        <td className="py-3 pr-3 text-slate-700">{formatDateTime(visit.signed_in_at)}</td>
-                        <td className="py-3 pr-3 text-slate-700">
-                          {visit.signed_out_at ? (
-                            formatDateTime(visit.signed_out_at)
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-100 rounded-full px-2 py-1 font-semibold">
-                              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                              On site
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-3">
-                          {visit.signature ? (
-                            <button onClick={() => setViewSignature(visit.signature)} className="text-xs font-bold text-blue-600 hover:text-blue-700">
-                              View
-                            </button>
-                          ) : (
-                            <span className="text-xs text-slate-400">-</span>
-                          )}
-                        </td>
-                        <td className="py-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {canEdit && (
-                              <button
-                                onClick={() => startEdit(visit)}
-                                className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                              >
-                                Edit
-                              </button>
-                            )}
-                            {!visit.signed_out_at && (
-                              <button
-                                onClick={() => handleSignOut(visit.id)}
-                                disabled={!!signingOutId}
-                                className="text-xs font-bold bg-slate-900 hover:bg-black text-white rounded-lg px-3 py-1.5"
-                              >
-                                {!!signingOutId ? "..." : "Sign Out"}
-                              </button>
-                            )}
-                            {canDelete && (
-                              <>
-                                {confirmDeleteId === visit.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={() => handleDelete(visit.id)}
-                                      disabled={!!deletingId}
-                                      className="text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-lg px-2 py-1"
-                                    >
-                                      {!!deletingId ? "..." : "Confirm"}
-                                    </button>
-                                    <button
-                                      onClick={() => setConfirmDeleteId(null)}
-                                      className="text-xs text-slate-500 hover:text-slate-700"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setConfirmDeleteId(visit.id)}
-                                    className="text-xs font-bold text-red-600 hover:text-red-700"
-                                  >
-                                    Delete
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </>
+          <MobileCardList
+            data={filteredVisits}
+            isLoading={visitsLoading}
+            loadingRows={5}
+            columns={[
+              {
+                key: "name",
+                header: "Name",
+                render: (visit) => (
+                  <MobileCardHeader
+                    title={editingId === visit.id ? (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <input
+                          {...registerEdit("fullName")}
+                          className={`w-full border ${editErrors.fullName ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1.5 text-xs outline-none`}
+                        />
+                        {editErrors.fullName && (
+                          <p className="text-[10px] text-red-500 mt-0.5">{editErrors.fullName.message}</p>
+                        )}
+                      </div>
+                    ) : visit.full_name}
+                    subtitle={editingId === visit.id ? (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <input
+                          {...registerEdit("companyName")}
+                          className={`w-full border ${editErrors.companyName ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1 text-xs mt-1 outline-none`}
+                        />
+                        {editErrors.companyName && (
+                          <p className="text-[10px] text-red-500 mt-0.5">{editErrors.companyName.message}</p>
+                        )}
+                      </div>
+                    ) : `${visit.company_name} • ${visit.visitor_type}`}
+                    badge={!visit.signed_out_at && !editingId ? (
+                      <MobileStatusBadge status="On site" variant="success" />
+                    ) : undefined}
+                  />
+                ),
+              },
+              {
+                key: "mobile",
+                header: "Mobile",
+                mobileVisible: false,
+                render: (visit) => editingId === visit.id ? (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input
+                      {...registerEdit("phoneNumber")}
+                      className={`w-full border ${editErrors.phoneNumber ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs outline-none`}
+                    />
+                    {editErrors.phoneNumber && (
+                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.phoneNumber.message}</p>
                     )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </div>
+                ) : (visit.phone_number ?? "-"),
+              },
+              {
+                key: "company",
+                header: "Company",
+                mobileVisible: false,
+                render: (visit) => visit.company_name,
+              },
+              {
+                key: "type",
+                header: "Type",
+                mobileVisible: false,
+                render: (visit) => editingId === visit.id ? (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <select
+                      {...registerEdit("visitorType")}
+                      className={`w-full border ${editErrors.visitorType ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs bg-white outline-none`}
+                    >
+                      {visitorTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                    {editErrors.visitorType && (
+                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.visitorType.message}</p>
+                    )}
+                  </div>
+                ) : visit.visitor_type,
+              },
+              {
+                key: "signedIn",
+                header: "Signed In",
+                render: (visit) => editingId === visit.id ? (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="datetime-local"
+                      {...registerEdit("signedInAt")}
+                      className={`w-full border ${editErrors.signedInAt ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1.5 text-xs outline-none`}
+                    />
+                    {editErrors.signedInAt && (
+                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.signedInAt.message}</p>
+                    )}
+                  </div>
+                ) : formatDateTime(visit.signed_in_at),
+              },
+              {
+                key: "signedOut",
+                header: "Signed Out",
+                render: (visit) => editingId === visit.id ? (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="datetime-local"
+                      {...registerEdit("signedOutAt")}
+                      className={`w-full border ${editErrors.signedOutAt ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs outline-none`}
+                    />
+                    {editSignedOut && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditValue("signedOutAt", "");
+                        }}
+                        className="mt-1 text-[11px] text-slate-500 hover:text-slate-700"
+                      >
+                        Clear sign out
+                      </button>
+                    )}
+                    {editErrors.signedOutAt && (
+                      <p className="text-[10px] text-red-500 mt-0.5">{editErrors.signedOutAt.message}</p>
+                    )}
+                  </div>
+                ) : visit.signed_out_at ? (
+                  formatDateTime(visit.signed_out_at)
+                ) : (
+                  <span className="text-xs text-slate-400">—</span>
+                ),
+              },
+              {
+                key: "signature",
+                header: "Signature",
+                mobileVisible: false,
+                render: (visit) =>
+                  visit.signature ? (
+                    <button
+                      onClick={() => setViewSignature(visit.signature)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                    >
+                      View
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400">-</span>
+                  ),
+              },
+              {
+                key: "actions",
+                header: "Actions",
+                render: (visit) => {
+                  if (editingId === visit.id) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <MobileActionButton
+                          onClick={handleSubmitEdit((data) => handleSaveEdit(data, visit.id))}
+                          variant="primary"
+                          disabled={editSaving || !editIsValid}
+                        >
+                          {editSaving ? "Saving..." : "Save"}
+                        </MobileActionButton>
+                        <MobileActionButton onClick={clearEdit} variant="ghost">
+                          Cancel
+                        </MobileActionButton>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {canEdit && (
+                        <MobileActionButton onClick={() => startEdit(visit)} variant="ghost">
+                          Edit
+                        </MobileActionButton>
+                      )}
+                      {!visit.signed_out_at && (
+                        <MobileActionButton
+                          onClick={() => handleSignOut(visit.id)}
+                          variant="primary"
+                          disabled={!!signingOutId}
+                        >
+                          {!!signingOutId ? "..." : "Sign Out"}
+                        </MobileActionButton>
+                      )}
+                      {canDelete && (
+                        <>
+                          {confirmDeleteId === visit.id ? (
+                            <div className="flex items-center gap-1">
+                              <MobileActionButton
+                                onClick={() => handleDelete(visit.id)}
+                                variant="danger"
+                                disabled={!!deletingId}
+                              >
+                                {!!deletingId ? "..." : "Confirm"}
+                              </MobileActionButton>
+                              <MobileActionButton onClick={() => setConfirmDeleteId(null)} variant="ghost">
+                                Cancel
+                              </MobileActionButton>
+                            </div>
+                          ) : (
+                            <MobileActionButton onClick={() => setConfirmDeleteId(visit.id)} variant="danger">
+                              Delete
+                            </MobileActionButton>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  );
+                },
+              },
+            ]}
+          />
         )}
       </section>
 

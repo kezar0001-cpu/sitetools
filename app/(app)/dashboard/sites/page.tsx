@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys } from "@/lib/workspace/client";
@@ -11,6 +13,12 @@ import { Project, Site } from "@/lib/workspace/types";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCompanySites, useInvalidateSites } from "@/hooks/useSites";
 import { useQuery } from "@tanstack/react-query";
+import {
+  siteCreationSchema,
+  siteEditSchema,
+  type SiteCreationFormData,
+  type SiteEditFormData,
+} from "@/lib/validation/schemas";
 
 function toSlug(value: string) {
   const base = value
@@ -50,21 +58,46 @@ export default function SitesPage() {
 
   const pageLoading = loading || sitesLoading || projectsLoading;
 
-  const [name, setName] = useState("");
-  const [targetProjectId, setTargetProjectId] = useState("");
-  const [creating, setCreating] = useState(false);
   const [createSuccess, setCreateSuccess] = useState<{ siteName: string; projectName: string | null } | null>(null);
   const [switchingSiteId, setSwitchingSiteId] = useState<string | null>(null);
   const [allocatingSiteId, setAllocatingSiteId] = useState<string | null>(null);
 
   // Edit modal state
   const [editingSite, setEditingSite] = useState<Site | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
 
   // Archive confirmation state
   const [archivingSiteId, setArchivingSiteId] = useState<string | null>(null);
   const [confirmArchiveSite, setConfirmArchiveSite] = useState<Site | null>(null);
+
+  // Site creation form with react-hook-form
+  const {
+    register: registerCreate,
+    handleSubmit: handleSubmitCreate,
+    formState: { errors: createErrors, isSubmitting: creating, isValid: createIsValid },
+    reset: resetCreate,
+    setValue: setCreateValue,
+  } = useForm<SiteCreationFormData>({
+    resolver: zodResolver(siteCreationSchema),
+    mode: "onChange",
+    defaultValues: {
+      name: "",
+      projectId: "",
+    },
+  });
+
+  // Site edit form with react-hook-form
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    formState: { errors: editErrors, isSubmitting: editSaving, isValid: editIsValid },
+    reset: resetEdit,
+  } = useForm<SiteEditFormData>({
+    resolver: zodResolver(siteEditSchema),
+    mode: "onChange",
+    defaultValues: {
+      name: "",
+    },
+  });
 
   const canEditSites = canManageSites(activeRole);
 
@@ -90,38 +123,28 @@ export default function SitesPage() {
     })).filter(group => group.project || group.sites.length > 0);
   }, [sites, projects]);
 
-  async function handleCreateSite(e: FormEvent) {
-    e.preventDefault();
+  async function handleCreateSite(data: SiteCreationFormData) {
     if (!activeCompanyId || !canEditSites) return;
 
-    if (!name.trim()) {
-      toast.error("Site name is required.");
-      return;
-    }
-
-    setCreating(true);
     try {
-      const slug = toSlug(name);
+      const slug = toSlug(data.name);
       const { error: insertError } = await supabase.from("sites").insert({
         company_id: activeCompanyId,
-        name: name.trim(),
+        name: data.name.trim(),
         slug,
-        project_id: targetProjectId || null
+        project_id: data.projectId || null
       });
 
       if (insertError) throw insertError;
 
-      const createdSiteName = name.trim();
-      const projectName = targetProjectId ? projects.find(p => p.id === targetProjectId)?.name ?? null : null;
-      setName("");
+      const projectName = data.projectId ? projects.find(p => p.id === data.projectId)?.name ?? null : null;
+      resetCreate();
       // Invalidate sites cache to trigger refetch
       invalidateCompanySites(activeCompanyId);
-      setCreateSuccess({ siteName: createdSiteName, projectName });
+      setCreateSuccess({ siteName: data.name.trim(), projectName });
       toast.success("Site created.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not create site.");
-    } finally {
-      setCreating(false);
     }
   }
 
@@ -161,30 +184,21 @@ export default function SitesPage() {
 
   function openEditModal(site: Site) {
     setEditingSite(site);
-    setEditName(site.name);
+    resetEdit({ name: site.name });
   }
 
-  async function handleSaveEdit(e: FormEvent) {
-    e.preventDefault();
+  async function handleSaveEdit(data: SiteEditFormData) {
     if (!editingSite || !canEditSites) return;
-    const trimmed = editName.trim();
-    if (!trimmed) {
-      toast.error("Site name is required.");
-      return;
-    }
 
-    setEditSaving(true);
     try {
-      const newSlug = toSlug(trimmed);
-      await updateSite(editingSite.id, { name: trimmed, slug: newSlug });
+      const newSlug = toSlug(data.name);
+      await updateSite(editingSite.id, { name: data.name.trim(), slug: newSlug });
       // Invalidate sites cache to trigger refetch
       invalidateCompanySites(activeCompanyId);
       setEditingSite(null);
       toast.success("Site updated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update site.");
-    } finally {
-      setEditSaving(false);
     }
   }
 
@@ -273,7 +287,7 @@ export default function SitesPage() {
                 action={canEditSites ? {
                   label: "+ Create site",
                   onClick: () => {
-                    setTargetProjectId(group.projectId || "");
+                    setCreateValue("projectId", group.projectId || "");
                     document.getElementById("create-site-section")?.scrollIntoView({ behavior: "smooth" });
                   },
                 } : undefined}
@@ -461,22 +475,23 @@ export default function SitesPage() {
                 </div>
               </div>
             ) : (
-            <form className="mt-8 space-y-4" onSubmit={handleCreateSite}>
+            <form className="mt-8 space-y-4" onSubmit={handleSubmitCreate(handleCreateSite)}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Site Name</label>
                         <input
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
+                            {...registerCreate("name")}
                             placeholder="e.g. South End Stormwater"
-                            className="w-full bg-white/10 border border-white/10 focus:border-amber-400 outline-none rounded-2xl px-5 py-3.5 text-white placeholder-slate-500 transition-all font-medium"
+                            className={`w-full bg-white/10 border ${createErrors.name ? "border-red-400" : "border-white/10 focus:border-amber-400"} outline-none rounded-2xl px-5 py-3.5 text-white placeholder-slate-500 transition-all font-medium`}
                         />
+                        {createErrors.name && (
+                            <p className="mt-1.5 ml-1 text-xs text-red-400">{createErrors.name.message}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Allocated Project</label>
                         <select
-                            value={targetProjectId}
-                            onChange={(e) => setTargetProjectId(e.target.value)}
+                            {...registerCreate("projectId")}
                             className="w-full bg-white/10 border border-white/10 focus:border-amber-400 outline-none rounded-2xl px-5 py-3.5 text-white appearance-none cursor-pointer transition-all font-medium"
                         >
                             <option value="" className="bg-slate-900 border-none">Unassigned Site</option>
@@ -491,7 +506,7 @@ export default function SitesPage() {
                 <div className="flex justify-end pt-2">
                     <button
                         type="submit"
-                        disabled={creating || !name.trim()}
+                        disabled={creating || !createIsValid}
                         className="bg-amber-400 hover:bg-amber-300 disabled:opacity-50 text-amber-950 font-black rounded-2xl px-8 py-3.5 text-sm transition-all shadow-lg shadow-amber-400/20"
                     >
                         {creating ? "Saving Site..." : "Create Site Record"}
@@ -518,23 +533,25 @@ export default function SitesPage() {
               </div>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="space-y-4">
+            <form onSubmit={handleSubmitEdit(handleSaveEdit)} className="space-y-4">
               <div>
                 <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">Site Name</label>
                 <input
                   type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                  {...registerEdit("name")}
                   placeholder="e.g. North Pier Construction"
-                  className="w-full border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:border-amber-400 bg-slate-50 transition-colors text-slate-900"
+                  className={`w-full border-2 ${editErrors.name ? "border-red-300 focus:border-red-400" : "border-slate-100 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm font-bold focus:outline-none bg-slate-50 transition-colors text-slate-900`}
                   autoFocus
                 />
+                {editErrors.name && (
+                  <p className="mt-1.5 text-xs text-red-500">{editErrors.name.message}</p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-1">
                 <button
                   type="submit"
-                  disabled={editSaving || !editName.trim()}
+                  disabled={editSaving || !editIsValid}
                   className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-bold py-3 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98]"
                 >
                   {editSaving ? "Saving..." : "Save Changes"}

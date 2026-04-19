@@ -9,6 +9,7 @@ import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } fr
 import { canManageTeam } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { CompanyInvitation, CompanyMembership, CompanyRole } from "@/lib/workspace/types";
+import { MobileCardList, MobileCardHeader, MobileStatusBadge, MobileActionButton } from "@/components/mobile/MobileCardList";
 
 interface RemoveConfirmState {
   memberId: string;
@@ -152,44 +153,89 @@ export default function TeamPage() {
           <span className="text-sm text-slate-500">{members.length} members</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b border-slate-200 text-slate-500 uppercase tracking-wide text-xs">
-                <th className="py-2 pr-3">User</th>
-                <th className="py-2 pr-3">Email</th>
-                <th className="py-2 pr-3">Role</th>
-                <th className="py-2 pr-3">Added</th>
-                {canEditTeam && <th className="py-2" />}
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((member) => (
-                <tr key={member.id} className="border-b border-slate-100">
-                  <td className="py-3 pr-3 font-semibold text-slate-900">{member.profiles?.full_name ?? "Buildstate User"}</td>
-                  <td className="py-3 pr-3 text-slate-600">{member.profiles?.email ?? "-"}</td>
-                  <td className="py-3 pr-3">
-                    {canEditTeam && member.role !== "owner" ? (
-                      <select
-                        value={member.role}
-                        onChange={(e) => handleRoleChange(member.id, e.target.value as CompanyRole)}
-                        className="border border-slate-300 rounded-lg px-2 py-1 text-sm"
-                      >
-                        {ROLE_OPTIONS.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="font-semibold uppercase text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">{member.role}</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-3 text-slate-500">{new Date(member.created_at).toLocaleDateString("en-AU")}</td>
-                  {canEditTeam && (
-                    <td className="py-3 text-right">
-                      {member.role !== "owner" && member.user_id !== summary?.userId && (
-                        <button
+        <MobileCardList
+          data={members}
+          columns={[
+            {
+              key: "user",
+              header: "User",
+              render: (member) => {
+                const initials = (member.profiles?.full_name ?? member.profiles?.email ?? "U")
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase();
+                const displayName = member.profiles?.full_name ?? "Buildstate User";
+                const email = member.profiles?.email ?? "-";
+
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center text-amber-950 font-bold text-sm">
+                      {initials}
+                    </div>
+                    <MobileCardHeader
+                      title={displayName}
+                      subtitle={email}
+                    />
+                  </div>
+                );
+              },
+            },
+            {
+              key: "email",
+              header: "Email",
+              mobileVisible: false,
+              render: (member) => member.profiles?.email ?? "-",
+            },
+            {
+              key: "role",
+              header: "Role",
+              render: (member) => {
+                if (canEditTeam && member.role !== "owner") {
+                  return (
+                    <select
+                      value={member.role}
+                      onChange={(e) => handleRoleChange(member.id, e.target.value as CompanyRole)}
+                      className="border border-slate-300 rounded-lg px-2 py-1 text-sm"
+                    >
+                      {ROLE_OPTIONS.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                }
+                const roleVariant = {
+                  owner: "warning",
+                  admin: "info",
+                  manager: "neutral",
+                  member: "neutral",
+                  viewer: "neutral",
+                } as const;
+                return (
+                  <MobileStatusBadge
+                    status={member.role}
+                    variant={roleVariant[member.role]}
+                  />
+                );
+              },
+            },
+            {
+              key: "added",
+              header: "Added",
+              mobileVisible: false,
+              render: (member) => new Date(member.created_at).toLocaleDateString("en-AU"),
+            },
+            ...(canEditTeam
+              ? [
+                  {
+                    key: "actions",
+                    header: "",
+                    render: (member: MemberRow) =>
+                      member.role !== "owner" && member.user_id !== summary?.userId ? (
+                        <MobileActionButton
                           onClick={() =>
                             setRemoveConfirm({
                               memberId: member.id,
@@ -197,18 +243,16 @@ export default function TeamPage() {
                               displayName: member.profiles?.full_name ?? member.profiles?.email ?? "this member",
                             })
                           }
-                          className="text-xs font-semibold text-red-600 hover:text-red-800 border border-red-200 hover:border-red-400 rounded-lg px-2 py-1 transition-colors"
+                          variant="danger"
                         >
                           Remove
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                        </MobileActionButton>
+                      ) : null,
+                  },
+                ]
+              : []),
+          ]}
+        />
       </section>
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
