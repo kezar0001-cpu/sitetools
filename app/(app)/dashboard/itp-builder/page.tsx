@@ -157,9 +157,6 @@ function ITPBuilderPageInner() {
   const [totalSessionCount, setTotalSessionCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // ── Reference data errors ──────────────────────────────────────────────────
-  const [referenceDataError, setReferenceDataError] = useState<string | null>(null);
-
   // ── Generating skeleton (for AI generation in-progress display) ────────────
   const [generating] = useState(false);
 
@@ -252,7 +249,6 @@ function ITPBuilderPageInner() {
   }
 
   async function loadReferenceData(companyId: string) {
-    setReferenceDataError(null);
     try {
       const [fetchedProjects, fetchedSites] = await Promise.all([
         fetchCompanyProjects(companyId),
@@ -261,7 +257,7 @@ function ITPBuilderPageInner() {
       setProjects(fetchedProjects.map((p) => ({ id: p.id, name: p.name })));
       setAllSites(fetchedSites.map((s) => ({ id: s.id, name: s.name, project_id: s.project_id ?? null })));
     } catch (err) {
-      setReferenceDataError(err instanceof Error ? err.message : "Failed to load projects and sites");
+      // Silently handle reference data errors
     }
   }
 
