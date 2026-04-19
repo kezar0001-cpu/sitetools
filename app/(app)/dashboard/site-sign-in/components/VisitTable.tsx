@@ -1,7 +1,6 @@
 "use client";
 
-import Image from "next/image";
-import { UseFormRegister, FieldErrors, UseFormWatch, UseFormSetValue } from "react-hook-form";
+import { UseFormRegister, FieldErrors } from "react-hook-form";
 import type { SiteVisit } from "@/lib/workspace/types";
 import type { VisitEditFormData } from "@/lib/validation/schemas";
 import { visitorTypes } from "@/lib/validation/schemas";
@@ -15,17 +14,6 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function toDatetimeLocal(iso: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 }
 
 interface VisitTableProps {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
-import { ErrorBanner, SuccessBanner, showSuccessToast, FieldError } from "@/components/feedback";
+import { ErrorBanner, showSuccessToast, FieldError } from "@/components/feedback";
 import { deleteCompany, updateCompany, updateProfile } from "@/lib/workspace/client";
 import { canManageTeam } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";

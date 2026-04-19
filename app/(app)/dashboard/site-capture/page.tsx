@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { getDiaries, createDiary } from "@/lib/site-capture/client";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import type { SiteDiaryWithCounts, FormType, SiteDiary } from "@/lib/site-capture/types";
+import type { SiteDiaryWithCounts, FormType } from "@/lib/site-capture/types";
 import { FORM_TYPE_CONFIG } from "@/lib/site-capture/types";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import DiaryListCard from "./components/DiaryListCard";

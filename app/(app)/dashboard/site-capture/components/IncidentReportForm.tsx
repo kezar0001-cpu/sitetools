@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { SiteDiaryFull } from "@/lib/site-capture/types";
 import type { CompanyRole } from "@/lib/workspace/types";
 import { useFormAutoSave } from "@/hooks/useFormAutoSave";
@@ -179,7 +179,7 @@ export default function IncidentReportForm({
   }
 
   // Persist form data to diary when any section changes
-  function persistFormData() {
+  const persistFormData = useCallback(() => {
     const formData = {
       incidentDetails,
       personsInvolved,
@@ -201,7 +201,7 @@ export default function IncidentReportForm({
 
     setDiary(updatedDiary);
     onUpdate?.(updatedDiary);
-  }
+  }, [incidentDetails, personsInvolved, witnesses, immediateActions, safetyStatus, causalFactors, correctiveActions, declaration, diary, onUpdate]);
 
   // ── Draft Auto-Save ──
   const draftValues = {
@@ -231,7 +231,15 @@ export default function IncidentReportForm({
     enabled: !isLocked,
   });
 
-  // Handle draft restoration
+  // Persist after restoring draft (separate effect to avoid circular dependencies)
+  const hasRestoredRef = useRef(false);
+  useEffect(() => {
+    if (hasRestoredRef.current) {
+      hasRestoredRef.current = false;
+      persistFormData();
+    }
+  }, [incidentDetails, personsInvolved, witnesses, immediateActions, safetyStatus, causalFactors, correctiveActions, declaration, persistFormData]);
+
   const handleRestoreDraft = useCallback(() => {
     const draft = restoreDraft();
     if (draft) {
@@ -245,11 +253,13 @@ export default function IncidentReportForm({
       if (draft.correctiveActions) setCorrectiveActions(draft.correctiveActions as typeof correctiveActions);
       if (draft.declaration) setDeclaration(draft.declaration as typeof declaration);
       if (draft.openSections) setOpenSections(new Set(draft.openSections as Section[]));
-
-      // Persist to diary
-      setTimeout(persistFormData, 0);
     }
   }, [restoreDraft]);
+
+  const handleRestoreDraftWrapped = useCallback(() => {
+    handleRestoreDraft();
+    hasRestoredRef.current = true;
+  }, [handleRestoreDraft]);
 
   // Clear draft when diary is completed
   useEffect(() => {
@@ -319,7 +329,7 @@ export default function IncidentReportForm({
               </p>
               <div className="flex items-center gap-2 mt-3">
                 <button
-                  onClick={handleRestoreDraft}
+                  onClick={handleRestoreDraftWrapped}
                   className="inline-flex items-center px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors"
                 >
                   Restore Draft

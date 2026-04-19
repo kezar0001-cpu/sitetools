@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
-import { toast } from "sonner";
 import { FieldError, ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
 import { supabase } from "@/lib/supabase";
 import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";

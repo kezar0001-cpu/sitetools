@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { toast } from "sonner";
 import { ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
 import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImports";
 import { setActiveSite } from "@/lib/workspace/client";
@@ -36,16 +35,6 @@ import { BulkActionsModal } from "./components/BulkActionsModal";
 import { SignatureViewer } from "./components/SignatureViewer";
 import { StatsPanel } from "./components/StatsPanel";
 import { ConnectedToolkitPrompt } from "./components/ConnectedToolkitPrompt";
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function dateToInputValue(date: Date) {
   const yyyy = date.getFullYear();
