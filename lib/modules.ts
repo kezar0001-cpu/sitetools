@@ -1,10 +1,10 @@
 /**
- * Single source of truth for Buildstate modules.
- *
- * This registry powers:
- * - public module discovery / landing ordering
- * - dashboard navigation helpers
- * - module lookup by slug
+ * Buildstate Module Registry
+ * 
+ * Defines the product hierarchy:
+ * - PRIMARY: SiteSign (entry wedge)
+ * - SUPPORTING: SiteCapture, SiteITP, SiteDocs (connected toolkit)
+ * - INTERNAL: Admin utilities required for operation
  */
 
 export type ModuleStatus = "live" | "coming-soon" | "beta";
@@ -19,11 +19,7 @@ export type ModuleId =
   | "dashboard"
   | "sites-projects"
   | "team"
-  | "settings"
-  | "inspections"
-  | "plant-checks"
-  | "incidents"
-  | "timesheets";
+  | "settings";
 
 export type ModuleSlug =
   | "sitesign"
@@ -61,7 +57,7 @@ export interface AppModule {
   demoType: ModuleDemoType;
   featureBullets: string[];
 
-  // Legacy navigation compatibility fields
+  // Navigation/display fields
   tagline: string;
   description: string;
   icon: string;
@@ -71,9 +67,9 @@ export interface AppModule {
   color: string;
 }
 
-// Buildstate Toolkit: SiteSign is the entry wedge, connected tools extend depth
+// Product hierarchy: SiteSign is the entry wedge, toolkit extends value
 
-// Entry wedge — primary gateway to the platform
+// PRIMARY: Entry wedge to the platform
 const PRIMARY_MODULES: AppModule[] = [
   {
     id: "site-sign-in",
@@ -102,7 +98,7 @@ const PRIMARY_MODULES: AppModule[] = [
   },
 ];
 
-// Connected toolkit — proof-of-depth tools that extend SiteSign value
+// SUPPORTING: Connected toolkit that extends SiteSign value
 const SUPPORTING_MODULES: AppModule[] = [
   {
     id: "site-capture",
@@ -294,83 +290,17 @@ const SUPPORTING_MODULES: AppModule[] = [
   },
 ];
 
-// Internal/admin modules — necessary for operation but not part of product story
+// INTERNAL: Admin utilities (defined inline in SUPPORTING_MODULES for now)
 const INTERNAL_MODULES: AppModule[] = [];
 
-// Optional roadmap modules (kept for compatibility with existing sidebar sections).
-const ROADMAP_MODULES: AppModule[] = [
-  {
-    id: "inspections",
-    slug: "sitecapture",
-    name: "Daily Inspections",
-    route: "/dashboard/inspections",
-    shortDescription: "Planned inspection workflows for prestart and quality checks.",
-    moduleColor: "emerald",
-    publicVisible: false,
-    landingOrder: 999,
-    demoType: "none",
-    featureBullets: ["Planned module"],
-    tagline: "Pre-start checks and quality inspections on the go",
-    description:
-      "Run daily pre-start checklists, quality inspections, and environmental checks from your phone. Attach photos and generate reports instantly.",
-    icon: "search-check",
-    status: "coming-soon",
-    visibility: "roadmap",
-    href: "/dashboard/inspections",
-    color: "emerald",
-  },
-  {
-    id: "plant-checks",
-    slug: "sitecapture",
-    name: "Plant & Equipment",
-    route: "/dashboard/plant-checks",
-    shortDescription: "Planned plant compliance and prestart module.",
-    moduleColor: "orange",
-    publicVisible: false,
-    landingOrder: 999,
-    demoType: "none",
-    featureBullets: ["Planned module"],
-    tagline: "Pre-start plant inspections and compliance tracking",
-    description:
-      "Digital pre-start checklists for excavators, trucks, cranes, and all site plant. Track compliance, flag defects, and maintain audit trails.",
-    icon: "truck",
-    status: "coming-soon",
-    visibility: "roadmap",
-    href: "/dashboard/plant-checks",
-    color: "orange",
-  },
-  {
-    id: "incidents",
-    slug: "sitecapture",
-    name: "Incident Reports",
-    route: "/dashboard/incidents",
-    shortDescription: "Planned incident capture and closeout workflow.",
-    moduleColor: "red",
-    publicVisible: false,
-    landingOrder: 999,
-    demoType: "none",
-    featureBullets: ["Planned module"],
-    tagline: "Report, investigate, and close out site incidents",
-    description:
-      "Capture near-misses, injuries, and property damage on site. Attach photos, assign corrective actions, and generate reports for your safety team.",
-    icon: "alert-triangle",
-    status: "coming-soon",
-    visibility: "roadmap",
-    href: "/dashboard/incidents",
-    color: "red",
-  },
-];
+// All live modules (excludes future roadmap items)
+export const MODULES: AppModule[] = [...PRIMARY_MODULES, ...SUPPORTING_MODULES, ...INTERNAL_MODULES];
 
-// All modules combined — roadmap modules hidden by default
-export const MODULES: AppModule[] = [...PRIMARY_MODULES, ...SUPPORTING_MODULES, ...INTERNAL_MODULES, ...ROADMAP_MODULES];
-
-// Launch-focused: only SiteSign and SiteCapture for primary commercial story
-export function getLaunchModules(): AppModule[] {
+// Primary navigation: SiteSign as entry wedge
+export function getPrimaryNavModules(): AppModule[] {
   return PRIMARY_MODULES;
 }
 
-// Legacy type retained for current call sites.
-export type BuildstateModule = AppModule;
 
 export function getModule(idOrSlug: string): AppModule | undefined {
   return MODULES.find((m) => m.id === idOrSlug || m.slug === idOrSlug);
@@ -380,20 +310,13 @@ export function getLiveModules(): AppModule[] {
   return MODULES.filter((m) => m.status === "live");
 }
 
-export function getComingSoonModules(): AppModule[] {
-  return MODULES.filter((m) => m.status === "coming-soon");
-}
 
-export function getPrimaryNavModules(): AppModule[] {
-  // Launch phase: only SiteSign and SiteCapture as primary focus
-  return PRIMARY_MODULES;
-}
-
+// Supporting toolkit navigation
 export function getSecondaryNavModules(): AppModule[] {
-  // Supporting modules available but not foregrounded
   return SUPPORTING_MODULES;
 }
 
+// Internal/admin navigation (ordered)
 export function getInternalNavModules(): AppModule[] {
   const INTERNAL_ORDER: ModuleId[] = [
     "dashboard",
@@ -408,18 +331,14 @@ export function getInternalNavModules(): AppModule[] {
   );
 }
 
-export function getRoadmapModules(): AppModule[] {
-  // Roadmap modules always hidden for product-hardened launch
-  return [];
-}
-
-// New helper APIs requested.
+// Public marketing modules (ordered by landing priority)
 export function getPublicModules(): AppModule[] {
   return MODULES
     .filter((m) => m.publicVisible)
     .sort((a, b) => a.landingOrder - b.landingOrder);
 }
 
+// Module lookup helpers
 export function getModuleBySlug(slug: ModuleSlug): AppModule | undefined {
   return MODULES.find((m) => m.slug === slug);
 }
