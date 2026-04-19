@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "sonner";
+import { ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
 import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImports";
 import { setActiveSite } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
@@ -139,6 +140,7 @@ export default function SiteSignInModulePage() {
   const [siteManagementTab, setSiteManagementTab] = useState<"briefing" | "induction">("briefing");
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Inline edit form with react-hook-form
   const {
@@ -264,8 +266,9 @@ export default function SiteSignInModulePage() {
     try {
       await setActiveSite(nextSiteId);
       await refresh();
+      setPageError(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not set active site.");
+      setPageError(err instanceof Error ? err.message : "Could not set active site. Try selecting the site again.");
     }
   }
 
@@ -319,11 +322,11 @@ export default function SiteSignInModulePage() {
 
       // Refresh to get server-generated ID
       queryClient.invalidateQueries({ queryKey: visitKeys.site(activeCompanyId, selectedSiteId) });
-      toast.success("Visitor record added.");
+      showSuccessToast("Visitor record added.");
     } catch (err) {
       // Rollback: remove optimistic entry on error
       queryClient.setQueryData<SiteVisit[]>(visitKeys.site(activeCompanyId, selectedSiteId), currentVisits);
-      toast.error(err instanceof Error ? err.message : "Failed to add visitor.");
+      showErrorToast(err instanceof Error ? `${err.message} Check your connection and try again.` : "Failed to add visitor. Please check your connection and try again.");
     }
   }
 
@@ -344,10 +347,10 @@ export default function SiteSignInModulePage() {
       {
         onSuccess: () => {
           clearEdit();
-          toast.success("Record updated.");
+          showSuccessToast("Record updated.");
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Failed to update record.");
+          showErrorToast(err instanceof Error ? `${err.message} Try again or refresh the page.` : "Failed to update record. Please try again.");
         },
       }
     );
@@ -360,10 +363,10 @@ export default function SiteSignInModulePage() {
       { id: visitId, site_id: selectedSiteId },
       {
         onSuccess: () => {
-          toast.success("Visitor signed out.");
+          showSuccessToast("Visitor signed out.");
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Failed to sign out visitor.");
+          showErrorToast(err instanceof Error ? `${err.message} Check your connection and try again.` : "Failed to sign out visitor. Please try again.");
         },
       }
     );
@@ -375,10 +378,10 @@ export default function SiteSignInModulePage() {
     bulkSignOut.mutate(selectedSiteId, {
       onSuccess: () => {
         setShowBulkSignOutModal(false);
-        toast.success("All visitors signed out.");
+        showSuccessToast("All visitors signed out.");
       },
       onError: (err) => {
-        toast.error(err instanceof Error ? err.message : "Failed to sign out visitors.");
+        showErrorToast(err instanceof Error ? `${err.message} Check your connection and try again.` : "Failed to sign out visitors. Please try again.");
       },
     });
   }
@@ -391,10 +394,10 @@ export default function SiteSignInModulePage() {
       {
         onSuccess: () => {
           setConfirmDeleteId(null);
-          toast.success("Record deleted.");
+          showSuccessToast("Record deleted.");
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Failed to delete record.");
+          showErrorToast(err instanceof Error ? `${err.message} Try again or refresh the page.` : "Failed to delete record. Please try again.");
         },
       }
     );
@@ -477,7 +480,7 @@ export default function SiteSignInModulePage() {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Site Visits");
       XLSX.writeFile(workbook, `site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.xlsx`);
     } catch (err) {
-      toast.error("Failed to load Excel export library. Please try again.");
+      showErrorToast("Failed to load Excel export library. Please refresh the page and try again.");
       console.error("XLSX export error:", err);
     } finally {
       setXlsxLoading(false);
@@ -524,7 +527,7 @@ export default function SiteSignInModulePage() {
 
       doc.save(`site-visits-${selectedSite?.slug || "export"}-${exportRange}-${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
-      toast.error("Failed to load PDF export library. Please try again.");
+      showErrorToast("Failed to load PDF export library. Please refresh the page and try again.");
       console.error("PDF export error:", err);
     } finally {
       setPdfLoading(false);
@@ -555,6 +558,15 @@ export default function SiteSignInModulePage() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
+      {/* Page-level error banner */}
+      {pageError && (
+        <ErrorBanner
+          message={pageError}
+          onDismiss={() => setPageError(null)}
+          action={{ label: "Retry", onClick: () => window.location.reload() }}
+        />
+      )}
+
       <SiteSelector
         sites={sites}
         selectedSiteId={selectedSiteId}

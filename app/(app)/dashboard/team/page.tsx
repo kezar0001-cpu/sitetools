@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { toast } from "sonner";
+import { FieldError, ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
 import { supabase } from "@/lib/supabase";
 import { createCompanyInvitation, fetchCompanyInvitations, fetchCompanyTeam } from "@/lib/workspace/client";
 import { canManageTeam } from "@/lib/workspace/permissions";
@@ -36,11 +37,13 @@ export default function TeamPage() {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [invitations, setInvitations] = useState<CompanyInvitation[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const [removeConfirm, setRemoveConfirm] = useState<RemoveConfirmState | null>(null);
   const [removeLoading, setRemoveLoading] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteEmailError, setInviteEmailError] = useState<string | null>(null);
   const [inviteRole, setInviteRole] = useState<CompanyRole>("member");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ token: string; inviteCode: string; email: string; role: CompanyRole } | null>(null);
@@ -57,9 +60,11 @@ export default function TeamPage() {
       .then(([team, invites]) => {
         setMembers(team as MemberRow[]);
         setInvitations(invites);
+        setPageError(null);
       })
       .catch((err) => {
-        toast.error(err instanceof Error ? err.message : "Unable to load team data.");
+        const message = err instanceof Error ? err.message : "Unable to load team data.";
+        setPageError(`${message} Try refreshing the page or check your connection.`);
       })
       .finally(() => setPageLoading(false));
   }, [activeCompanyId]);
@@ -69,12 +74,12 @@ export default function TeamPage() {
 
     const { error: updateError } = await supabase.from("company_memberships").update({ role }).eq("id", memberId);
     if (updateError) {
-      toast.error(updateError.message);
+      showErrorToast(`${updateError.message} Try again or refresh the page if the problem persists.`);
       return;
     }
 
     setMembers((prev) => prev.map((m) => (m.id === memberId ? { ...m, role } : m)));
-    toast.success("Role updated.");
+    showSuccessToast("Role updated.");
     await refresh();
   }
 
@@ -92,15 +97,29 @@ export default function TeamPage() {
     setRemoveLoading(false);
 
     if (deleteError) {
-      toast.error(deleteError.message);
+      showErrorToast(`${deleteError.message} Check your connection and try again.`);
       setRemoveConfirm(null);
       return;
     }
 
     setMembers((prev) => prev.filter((m) => m.id !== removeConfirm.memberId));
-    toast.success(`${removeConfirm.displayName} removed from team.`);
+    showSuccessToast(`${removeConfirm.displayName} removed from team.`);
     setRemoveConfirm(null);
     await refresh();
+  }
+
+  function validateInviteEmail(email: string): boolean {
+    if (!email.trim()) {
+      setInviteEmailError("Email address is required");
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setInviteEmailError("Please enter a valid email address");
+      return false;
+    }
+    setInviteEmailError(null);
+    return true;
   }
 
   async function handleInvite(e: FormEvent) {
@@ -109,8 +128,7 @@ export default function TeamPage() {
 
     setInviteResult(null);
 
-    if (!inviteEmail.trim()) {
-      toast.error("Invite email is required.");
+    if (!validateInviteEmail(inviteEmail)) {
       return;
     }
 
@@ -119,7 +137,8 @@ export default function TeamPage() {
       const created = await createCompanyInvitation(activeCompanyId, inviteEmail.trim(), inviteRole);
       setInviteResult({ token: created.token, inviteCode: created.invite_code, email: inviteEmail.trim(), role: inviteRole });
       setInviteEmail("");
-      toast.success("Invitation created.");
+      setInviteEmailError(null);
+      showSuccessToast("Invitation created.");
 
       const updatedInvitations = await fetchCompanyInvitations(activeCompanyId);
       setInvitations(updatedInvitations);
@@ -128,7 +147,7 @@ export default function TeamPage() {
         err instanceof Error
           ? err.message
           : (err as { message?: string })?.message ?? "Failed to send invitation.";
-      toast.error(msg);
+      showErrorToast(`${msg} Check your connection and try again.`);
     } finally {
       setInviteLoading(false);
     }
@@ -255,6 +274,15 @@ export default function TeamPage() {
         />
       </section>
 
+      {/* Page-level error banner */}
+      {pageError && (
+        <ErrorBanner
+          message={pageError}
+          onDismiss={() => setPageError(null)}
+          action={{ label: "Reload", onClick: () => window.location.reload() }}
+        />
+      )}
+
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <h2 className="text-lg font-bold text-slate-900">Invite Member</h2>
         {!canEditTeam ? (
@@ -262,13 +290,19 @@ export default function TeamPage() {
         ) : (
           <>
             <form className="grid grid-cols-1 md:grid-cols-3 gap-3" onSubmit={handleInvite}>
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="person@company.com.au"
-                className="md:col-span-2 border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"
-              />
+              <div className="md:col-span-2 space-y-1">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => {
+                    setInviteEmail(e.target.value);
+                    if (inviteEmailError) setInviteEmailError(null);
+                  }}
+                  placeholder="person@company.com.au"
+                  className={`w-full border-2 ${inviteEmailError ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} focus:outline-none rounded-xl px-4 py-3 text-sm transition-colors`}
+                />
+                <FieldError message={inviteEmailError} />
+              </div>
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as CompanyRole)}
@@ -376,7 +410,7 @@ export default function TeamPage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(inv.invite_code);
-                        toast.success("Code copied to clipboard");
+                        showSuccessToast("Code copied to clipboard");
                       }}
                       className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
                       title="Copy invite code"

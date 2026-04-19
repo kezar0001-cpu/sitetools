@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
+import { ErrorBanner, SuccessBanner, showSuccessToast, FieldError } from "@/components/feedback";
 import { deleteCompany, updateCompany, updateProfile } from "@/lib/workspace/client";
 import { canManageTeam } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -28,7 +29,6 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>("company");
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Danger Zone state
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -79,34 +79,33 @@ export default function SettingsPage() {
     }
   }, [profile?.full_name, resetProfile]);
 
-  function clearMessages() {
+  function clearError() {
     setError(null);
-    setSuccessMessage(null);
   }
 
   async function handleCompanySave(data: CompanyProfileFormData) {
     if (!activeCompanyId || !canEditCompany) return;
-    clearMessages();
+    clearError();
 
     try {
       await updateCompany(activeCompanyId, { name: data.companyName.trim() });
       await refresh();
-      setSuccessMessage("Company name updated.");
+      showSuccessToast("Company name updated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update company.");
+      setError(err instanceof Error ? err.message : "Failed to update company. Try refreshing the page and attempting again.");
     }
   }
 
   async function handleProfileSave(data: ProfileUpdateFormData) {
     if (!userId) return;
-    clearMessages();
+    clearError();
 
     try {
       await updateProfile(userId, { full_name: data.displayName?.trim() || null });
       await refresh();
-      setSuccessMessage("Display name updated.");
+      showSuccessToast("Display name updated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update profile.");
+      setError(err instanceof Error ? err.message : "Failed to update profile. Try refreshing the page and attempting again.");
     }
   }
 
@@ -115,12 +114,12 @@ export default function SettingsPage() {
     if (deleteConfirmText !== activeCompany?.name) return;
 
     setDeletingCompany(true);
-    clearMessages();
+    clearError();
     try {
       await deleteCompany(activeCompanyId);
       router.push("/onboarding");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete company.");
+      setError(err instanceof Error ? err.message : "Failed to delete company. Ensure you have an active internet connection and try again.");
       setDeletingCompany(false);
       setShowDeleteConfirm(false);
     }
@@ -151,7 +150,7 @@ export default function SettingsPage() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => { setActiveTab(tab.id); clearMessages(); }}
+            onClick={() => { setActiveTab(tab.id); clearError(); }}
             className={`flex-1 py-2 px-3 text-sm font-semibold rounded-lg transition-colors ${
               activeTab === tab.id
                 ? tab.id === "danger"
@@ -169,16 +168,11 @@ export default function SettingsPage() {
 
       {/* Feedback banners */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm font-semibold flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-3 text-red-400 hover:text-red-600 font-bold">✕</button>
-        </div>
-      )}
-      {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm font-semibold flex items-center justify-between">
-          <span>{successMessage}</span>
-          <button onClick={() => setSuccessMessage(null)} className="ml-3 text-emerald-400 hover:text-emerald-600 font-bold">✕</button>
-        </div>
+        <ErrorBanner
+          message={error}
+          onDismiss={() => setError(null)}
+          action={{ label: "Retry", onClick: () => window.location.reload() }}
+        />
       )}
 
       {/* Company Profile Tab */}
@@ -199,9 +193,7 @@ export default function SettingsPage() {
                 placeholder="Your company name"
                 className={`w-full border-2 ${companyErrors.companyName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} focus:outline-none rounded-xl px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400 transition-colors`}
               />
-              {companyErrors.companyName && (
-                <p className="text-xs text-red-500">{companyErrors.companyName.message}</p>
-              )}
+              <FieldError message={companyErrors.companyName?.message} />
               {!canEditCompany && !companyErrors.companyName && (
                 <p className="text-xs text-slate-400">Only Admins and Owners can edit the company name.</p>
               )}
@@ -238,9 +230,7 @@ export default function SettingsPage() {
                 placeholder="Your full name"
                 className={`w-full border-2 ${profileErrors.displayName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} focus:outline-none rounded-xl px-4 py-3 text-sm disabled:bg-slate-50 disabled:text-slate-400 transition-colors`}
               />
-              {profileErrors.displayName && (
-                <p className="text-xs text-red-500">{profileErrors.displayName.message}</p>
-              )}
+              <FieldError message={profileErrors.displayName?.message} />
             </div>
 
             <div className="space-y-1">
@@ -281,7 +271,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <button
-              onClick={() => { setShowDeleteConfirm(true); clearMessages(); }}
+              onClick={() => { setShowDeleteConfirm(true); clearError(); }}
               disabled={!isOwner}
               title={!isOwner ? "Only the company owner can delete the company." : undefined}
               className="shrink-0 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl px-4 py-2 text-sm transition-colors"
