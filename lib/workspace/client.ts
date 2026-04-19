@@ -374,10 +374,22 @@ export async function createCompanyInvitation(
   return row as Pick<CompanyInvitation, "id" | "token" | "invite_code" | "expires_at">;
 }
 
+/**
+ * Shared utility for handling is_active column fallback.
+ * Gracefully handles cases where the is_active column doesn't exist yet (migration pending).
+ * Maps sites to include is_active: true when the column is missing.
+ */
+function applyIsActiveFallback(sites: unknown[]): Site[] {
+  return (sites ?? []).map((s) => ({
+    ...(s as Record<string, unknown>),
+    is_active: true,
+  })) as Site[];
+}
+
 export async function fetchCompanySites(companyId: string): Promise<Site[]> {
   const { data, error } = await supabase
     .from("sites")
-    .select("id, company_id, project_id, name, slug, logo_url, is_active, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, is_active, timezone, created_at")
     .eq("company_id", companyId)
     .order("created_at", { ascending: true });
 
@@ -387,15 +399,12 @@ export async function fetchCompanySites(companyId: string): Promise<Site[]> {
   if (referencesColumn(error, "is_active")) {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("sites")
-      .select("id, company_id, project_id, name, slug, logo_url, created_at")
+      .select("id, company_id, project_id, name, slug, logo_url, timezone, created_at")
       .eq("company_id", companyId)
       .order("created_at", { ascending: true });
 
     if (fallbackError) throw fallbackError;
-    return (fallbackData ?? []).map((s) => ({
-      ...(s as Record<string, unknown>),
-      is_active: true,
-    })) as Site[];
+    return applyIsActiveFallback(fallbackData ?? []);
   }
 
   throw error;
@@ -405,7 +414,7 @@ export async function fetchCompanySites(companyId: string): Promise<Site[]> {
 export async function fetchProjectSites(projectId: string): Promise<Site[]> {
   const { data, error } = await supabase
     .from("sites")
-    .select("id, company_id, project_id, name, slug, logo_url, is_active, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, is_active, timezone, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
 
@@ -415,15 +424,12 @@ export async function fetchProjectSites(projectId: string): Promise<Site[]> {
   if (referencesColumn(error, "is_active")) {
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("sites")
-      .select("id, company_id, project_id, name, slug, logo_url, created_at")
+      .select("id, company_id, project_id, name, slug, logo_url, timezone, created_at")
       .eq("project_id", projectId)
       .order("created_at", { ascending: true });
 
     if (fallbackError) throw fallbackError;
-    return (fallbackData ?? []).map((s) => ({
-      ...(s as Record<string, unknown>),
-      is_active: true,
-    })) as Site[];
+    return applyIsActiveFallback(fallbackData ?? []);
   }
 
   throw error;
@@ -431,12 +437,13 @@ export async function fetchProjectSites(projectId: string): Promise<Site[]> {
 
 export async function updateSite(
   siteId: string,
-  patch: { name?: string; slug?: string; is_active?: boolean }
+  patch: { name?: string; slug?: string; is_active?: boolean; timezone?: string }
 ): Promise<void> {
   const payload: Record<string, unknown> = {};
   if (patch.name !== undefined) payload.name = patch.name.trim();
   if (patch.slug !== undefined) payload.slug = patch.slug;
   if (patch.is_active !== undefined) payload.is_active = patch.is_active;
+  if (patch.timezone !== undefined) payload.timezone = patch.timezone;
 
   const { error } = await supabase.from("sites").update(payload).eq("id", siteId);
   if (error) throw error;
@@ -455,7 +462,8 @@ function toSlug(value: string): string {
 export async function createProjectSite(
   projectId: string,
   companyId: string,
-  name: string
+  name: string,
+  timezone?: string
 ): Promise<Site> {
   const slug = toSlug(name);
   const { data, error } = await supabase
@@ -465,8 +473,9 @@ export async function createProjectSite(
       project_id: projectId,
       name: name.trim(),
       slug,
+      timezone: timezone || "Australia/Sydney",
     })
-    .select("id, company_id, project_id, name, slug, logo_url, is_active, created_at")
+    .select("id, company_id, project_id, name, slug, logo_url, is_active, timezone, created_at")
     .single();
 
   if (error) throw error;

@@ -4,6 +4,7 @@ import { z } from "zod";
  * Site creation validation schema
  * - name: required, minimum 2 characters
  * - projectId: optional (can be empty string for unassigned)
+ * - timezone: optional IANA timezone identifier (defaults to Australia/Sydney)
  */
 export const siteCreationSchema = z.object({
   name: z
@@ -11,6 +12,7 @@ export const siteCreationSchema = z.object({
     .min(2, "Site name must be at least 2 characters")
     .max(100, "Site name must be 100 characters or less"),
   projectId: z.string().optional(),
+  timezone: z.string().optional(),
 });
 
 export type SiteCreationFormData = z.infer<typeof siteCreationSchema>;
@@ -18,12 +20,14 @@ export type SiteCreationFormData = z.infer<typeof siteCreationSchema>;
 /**
  * Site edit validation schema
  * - name: required, minimum 2 characters
+ * - timezone: optional IANA timezone identifier
  */
 export const siteEditSchema = z.object({
   name: z
     .string()
     .min(2, "Site name must be at least 2 characters")
     .max(100, "Site name must be 100 characters or less"),
+  timezone: z.string().optional(),
 });
 
 export type SiteEditFormData = z.infer<typeof siteEditSchema>;

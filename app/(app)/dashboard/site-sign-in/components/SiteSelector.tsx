@@ -30,7 +30,7 @@ export function SiteSelector({
 
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Site</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Working Site</span>
             <select
               value={selectedSiteId}
               onChange={(e) => onSiteChange(e.target.value)}

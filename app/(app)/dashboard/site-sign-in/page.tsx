@@ -256,8 +256,10 @@ export default function SiteSignInModulePage() {
       await setActiveSite(nextSiteId);
       await refresh();
       setPageError(null);
+      const siteName = sites.find(s => s.id === nextSiteId)?.name ?? "Site";
+      showSuccessToast(`Now working on ${siteName}`);
     } catch (err) {
-      setPageError(err instanceof Error ? err.message : "Could not set active site. Try selecting the site again.");
+      setPageError(err instanceof Error ? err.message : "Could not set working site. Try selecting the site again.");
     }
   }
 
