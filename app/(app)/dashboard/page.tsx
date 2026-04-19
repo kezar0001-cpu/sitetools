@@ -26,7 +26,7 @@ import {
     MessageSquare,
     SearchCheck,
     PenTool,
-    Image,
+    Image as ImageIcon,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { fetchDashboardStats, fetchRecentActivity } from "@/lib/dashboard/client";
@@ -184,7 +184,7 @@ function getActivityIcon(type: ActivityType) {
         case "diary_completed":
             return <BookOpen className={`${iconClass} text-sky-400`} />;
         case "photo_uploaded":
-            return <Image className={`${iconClass} text-sky-400`} />;
+            return <ImageIcon className={`${iconClass} text-sky-400`} />;
         case "prestart_submitted":
             return <ClipboardCheck className={`${iconClass} text-emerald-400`} />;
         case "inspection_completed":
