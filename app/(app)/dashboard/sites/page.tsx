@@ -5,7 +5,7 @@ import { useMemo, useState, useRef, useCallback, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus, FolderInput, AlertCircle, Users, CheckSquare, Square, FolderPlus } from "lucide-react";
+import { Search, X, Copy, Check, QrCode, Pencil, Archive, ChevronDown, ChevronUp, Upload, Trash2, ImageIcon, Building2, Plus, FolderInput, AlertCircle, CheckSquare, Square, FolderPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { fetchCompanyProjects, setActiveSite, updateSite, projectKeys, uploadSiteLogo, removeSiteLogo, countActiveWorkersForSites, performBulkSiteOperation, createProject } from "@/lib/workspace/client";
 import { canManageSites } from "@/lib/workspace/permissions";
@@ -24,7 +24,6 @@ import {
   type SiteCreationFormData,
   type SiteEditFormData,
 } from "@/lib/validation/schemas";
-import { z } from "zod";
 import { getDefaultTimezone, getTimezoneShortCode } from "@/lib/timezone";
 
 function toSlug(value: string) {
@@ -76,13 +75,14 @@ export default function SitesPage() {
   const moveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Shake animation state for form validation
-  const [shakeForm, setShakeForm] = useState(false);
-
   // Trigger shake animation on form validation error
   const triggerShake = useCallback(() => {
-    setShakeForm(true);
-    setTimeout(() => setShakeForm(false), 400);
+    // Shake animation logic - modify CSS class on form element directly
+    const form = document.querySelector('[data-shake-form]');
+    if (form) {
+      form.classList.add('shake');
+      setTimeout(() => form.classList.remove('shake'), 400);
+    }
   }, []);
 
   // Quick Add form state per project group
@@ -106,7 +106,6 @@ export default function SitesPage() {
 
   // Create modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createModalProjectId, setCreateModalProjectId] = useState<string | null>(null);
 
   // Bulk operations state
   const [selectedSiteIds, setSelectedSiteIds] = useState<Set<string>>(new Set());
@@ -434,6 +433,27 @@ export default function SitesPage() {
     }
   }
 
+  // Undo the move - defined before executeMove to avoid hook ordering issues
+  const undoMove = useCallback(async (siteId: string, previousProjectId: string | null, toastId: string | number) => {
+    toast.dismiss(toastId);
+    setSavingSiteId(siteId);
+
+    try {
+      const { error: updateError } = await supabase
+        .from("sites")
+        .update({ project_id: previousProjectId })
+        .eq("id", siteId);
+      if (updateError) throw updateError;
+
+      invalidateCompanySites(activeCompanyId);
+      toast.success("Move undone.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not undo move.");
+    } finally {
+      setSavingSiteId(null);
+    }
+  }, [activeCompanyId, invalidateCompanySites]);
+
   // Execute the actual move after debounce
   const executeMove = useCallback(async (siteId: string, newProjectId: string | null, previousProjectId: string | null) => {
     if (!canEditSites) return;
@@ -484,28 +504,7 @@ export default function SitesPage() {
       setSavingSiteId(null);
       setPendingMove(null);
     }
-  }, [canEditSites, activeCompanyId, invalidateCompanySites, projects]);
-
-  // Undo the move
-  const undoMove = useCallback(async (siteId: string, previousProjectId: string | null, toastId: string | number) => {
-    toast.dismiss(toastId);
-    setSavingSiteId(siteId);
-
-    try {
-      const { error: updateError } = await supabase
-        .from("sites")
-        .update({ project_id: previousProjectId })
-        .eq("id", siteId);
-      if (updateError) throw updateError;
-
-      invalidateCompanySites(activeCompanyId);
-      toast.success("Move undone.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not undo move.");
-    } finally {
-      setSavingSiteId(null);
-    }
-  }, [activeCompanyId, invalidateCompanySites]);
+  }, [canEditSites, activeCompanyId, invalidateCompanySites, projects, undoMove]);
 
   // Debounced move handler
   const handleAssignSiteToProject = useCallback((siteId: string, projectId: string | null) => {
@@ -889,7 +888,6 @@ export default function SitesPage() {
           <div className="flex justify-end">
             <button
               onClick={() => {
-                setCreateModalProjectId(null);
                 setShowCreateModal(true);
               }}
               className="flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-amber-950 font-bold px-4 py-2.5 rounded-xl transition-all shadow-sm"
@@ -1026,20 +1024,14 @@ export default function SitesPage() {
                       placeholder={group.project ? "e.g., Building A" : "Site name..."}
                       value={quickAddValues[group.projectId || "unassigned"] || ""}
                       onChange={(e) => {
-                        setQuickAddValues(prev => ({
-                          ...prev,
-                          [group.projectId || "unassigned"]: e.target.value
-                        }));
+                        setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: e.target.value }));
                       }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && quickAddValues[group.projectId || "unassigned"]?.trim()) {
                           e.preventDefault();
-                          const siteName = quickAddValues[group.projectId || "unassigned"].trim();
-                          setCreateValue("name", siteName);
                           setCreateValue("projectId", group.projectId || "");
                           setProjectLocked(!!group.projectId);
                           setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: "" }));
-                          setCreateModalProjectId(group.projectId);
                           setShowCreateModal(true);
                         }
                       }}
@@ -1052,7 +1044,6 @@ export default function SitesPage() {
                         setCreateValue("projectId", group.projectId || "");
                         setProjectLocked(!!group.projectId);
                         setQuickAddValues(prev => ({ ...prev, [group.projectId || "unassigned"]: "" }));
-                        setCreateModalProjectId(group.projectId);
                         setShowCreateModal(true);
                       }}
                       disabled={!quickAddValues[group.projectId || "unassigned"]?.trim()}
@@ -1463,7 +1454,7 @@ export default function SitesPage() {
                   </div>
                   {projectLocked && (
                     <p className="mt-1 text-xs text-amber-600/80">
-                      Project pre-selected from group. Click "Change" to select a different project.
+                      Project pre-selected from group. Click &quot;Change&quot; to select a different project.
                     </p>
                   )}
                 </div>
@@ -1942,7 +1933,6 @@ export default function SitesPage() {
                   // Auto-select the new project in the site creation form and open it
                   setCreateValue("projectId", newProject.id);
                   setProjectLocked(true);
-                  setCreateModalProjectId(newProject.id);
                   setShowCreateModal(true);
 
                   toast.success(`Project "${newProject.name}" created`);

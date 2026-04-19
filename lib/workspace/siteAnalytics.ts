@@ -69,8 +69,6 @@ export async function fetchSiteAnalytics(siteId: string): Promise<SiteAnalyticsD
 
   // Format dates for Supabase queries
   const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
-  const startOfTodayIso = startOfToday.toISOString();
-  const startOfWeekIso = startOfWeek.toISOString();
 
   // Fetch all visits for the site in the last 30 days
   const { data: visits, error } = await supabase

@@ -99,16 +99,27 @@ function EmptyState({ siteName }: { siteName: string }) {
 export function SiteAnalyticsPanel({ siteId, siteName }: SiteAnalyticsPanelProps) {
   const { data: analytics, isLoading, error } = useSiteAnalytics(siteId);
 
+  // Determine if there's any visit data
+  const hasData = analytics?.stats.totalThisWeek || 
+                  analytics?.stats.todayCount || 
+                  (analytics?.visitorTypeBreakdown.length ?? 0) > 0;
+
   // Filter peak hours to only show hours with activity for cleaner display
   const activePeakHours = useMemo(() => {
     if (!analytics?.peakHours) return [];
     return analytics.peakHours.filter((h) => h.count > 0);
   }, [analytics?.peakHours]);
 
-  // Determine if there's any visit data
-  const hasData = analytics?.stats.totalThisWeek || 
-                  analytics?.stats.todayCount || 
-                  (analytics?.visitorTypeBreakdown.length ?? 0) > 0;
+  // Determine which hours to show (if sparse, show all with data; if dense, show 6am-6pm window)
+  const displayHours = useMemo(() => {
+    if (!analytics?.peakHours) return [];
+    const activeHours = analytics.peakHours.filter((h) => h.count > 0);
+    if (activeHours.length <= 12) {
+      return activeHours; // Show all if sparse
+    }
+    // Show 6am-6pm range (6-18) if there's a lot of activity
+    return analytics.peakHours.slice(6, 19);
+  }, [analytics?.peakHours]);
 
   if (isLoading) {
     return <AnalyticsSkeleton />;
@@ -132,7 +143,7 @@ export function SiteAnalyticsPanel({ siteId, siteName }: SiteAnalyticsPanelProps
     return <EmptyState siteName={siteName} />;
   }
 
-  const { stats, visitorTypeBreakdown, peakHours } = analytics!;
+  const { stats, visitorTypeBreakdown } = analytics!;
 
   // Format data for visitor type pie chart
   const pieData = visitorTypeBreakdown.map((item) => ({
@@ -141,19 +152,6 @@ export function SiteAnalyticsPanel({ siteId, siteName }: SiteAnalyticsPanelProps
     type: item.type,
     percentage: item.percentage,
   }));
-
-  // Find max hour count for scaling
-  const maxHourCount = Math.max(...peakHours.map((h) => h.count), 1);
-
-  // Determine which hours to show (if sparse, show all with data; if dense, show 6am-6pm window)
-  const displayHours = useMemo(() => {
-    const activeHours = peakHours.filter((h) => h.count > 0);
-    if (activeHours.length <= 12) {
-      return activeHours; // Show all if sparse
-    }
-    // Show 6am-6pm range (6-18) if there's a lot of activity
-    return peakHours.slice(6, 19);
-  }, [peakHours]);
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
