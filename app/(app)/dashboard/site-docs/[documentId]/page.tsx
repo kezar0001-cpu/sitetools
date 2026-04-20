@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Download, Loader2, Trash2, RefreshCw, X, FolderOpen } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Trash2, FolderOpen } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { fetchDocument, deleteDocument, exportDocument, regenerateDocument, updateActionItemStatus, updateDocument } from "@/lib/site-docs/client";
+import { fetchDocument, deleteDocument, exportDocument, updateActionItemStatus, updateDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type SiteDocument } from "@/lib/site-docs/types";
@@ -139,15 +139,10 @@ export default function DocumentDetailPage() {
     const [document, setDocument] = useState<SiteDocument | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [exporting, setExporting] = useState(false);
+    const [exporting, setExporting] = useState<null | "pdf" | "docx">(null);
     const [deleting, setDeleting] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    
-    // Regenerate state
-    const [regenerateDrawerOpen, setRegenerateDrawerOpen] = useState(false);
-    const [regenerateSummary, setRegenerateSummary] = useState("");
     const [project, setProject] = useState<Project | null>(null);
-    const [regenerating, setRegenerating] = useState(false);
 
     const documentId = params.documentId as string;
     const companyId = summary?.activeMembership?.company_id;
@@ -201,18 +196,18 @@ export default function DocumentDetailPage() {
         }
     }, [document, document?.project_id, summary?.activeMembership?.company_id]);
 
-    async function handleExport() {
+    async function handleExport(format: "pdf" | "docx") {
         if (!document) return;
 
-        setExporting(true);
+        setExporting(format);
         try {
-            // Flush any in-progress edits before generating the PDF
+            // Flush any in-progress edits before export
             await updateDocument(document.id, { generated_content: document.generated_content });
-            await exportDocument(document.id);
+            await exportDocument(document.id, format);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
         } finally {
-            setExporting(false);
+            setExporting(null);
         }
     }
 
@@ -238,45 +233,6 @@ export default function DocumentDetailPage() {
     function closeDeleteModal() {
         if (!deleting) {
             setShowDeleteModal(false);
-        }
-    }
-
-    async function handleRegenerate() {
-        if (!document) return;
-
-        setRegenerating(true);
-        setError(null);
-        
-        try {
-            const newContent = await regenerateDocument(
-                document.id,
-                document.document_type,
-                regenerateSummary,
-                document.project_id,
-                document.site_id
-            );
-            
-            // Update the document state with new content
-            setDocument({
-                ...document,
-                summary_input: regenerateSummary,
-                generated_content: newContent,
-                updated_at: new Date().toISOString(),
-            });
-            
-            // Close drawer and reset
-            setRegenerateDrawerOpen(false);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Regeneration failed");
-        } finally {
-            setRegenerating(false);
-        }
-    }
-
-    function openRegenerateDrawer() {
-        if (document) {
-            setRegenerateSummary(document.summary_input);
-            setRegenerateDrawerOpen(true);
         }
     }
 
@@ -354,23 +310,28 @@ export default function DocumentDetailPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
                         <button
-                            onClick={openRegenerateDrawer}
-                            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
-                        >
-                            <RefreshCw className="h-4 w-4" />
-                            <span className="hidden sm:inline">Regenerate</span>
-                        </button>
-                        <button
-                            onClick={handleExport}
-                            disabled={exporting}
+                            onClick={() => handleExport("pdf")}
+                            disabled={exporting !== null}
                             className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
-                            {exporting ? (
+                            {exporting === "pdf" ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                                 <Download className="h-4 w-4" />
                             )}
                             PDF
+                        </button>
+                        <button
+                            onClick={() => handleExport("docx")}
+                            disabled={exporting !== null}
+                            className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                            {exporting === "docx" ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileText className="h-4 w-4" />
+                            )}
+                            Word
                         </button>
                         <button
                             onClick={openDeleteModal}
@@ -488,77 +449,6 @@ export default function DocumentDetailPage() {
                     </div>
                 )}
 
-                {/* Regenerate Slide-over Drawer */}
-                {regenerateDrawerOpen && (
-                    <div className="fixed inset-0 z-50 flex">
-                        {/* Backdrop */}
-                        <div 
-                            className="absolute inset-0 bg-black/50"
-                            onClick={() => !regenerating && setRegenerateDrawerOpen(false)}
-                        />
-                        
-                        {/* Drawer */}
-                        <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
-                            {/* Header */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-                                <h2 className="text-lg font-semibold text-slate-900">Regenerate Document</h2>
-                                <button
-                                    onClick={() => !regenerating && setRegenerateDrawerOpen(false)}
-                                    disabled={regenerating}
-                                    className="p-2 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
-                                >
-                                    <X className="h-5 w-5 text-slate-500" />
-                                </button>
-                            </div>
-                            
-                            {/* Content */}
-                            <div className="flex-1 px-6 py-6 overflow-y-auto">
-                                <p className="text-sm text-slate-600 mb-4">
-                                    Edit the original notes below to regenerate the document with updated content. 
-                                    The current version will be saved before regeneration.
-                                </p>
-                                
-                                <label className="block text-sm font-medium text-slate-700 mb-2">
-                                    Original Notes
-                                </label>
-                                <textarea
-                                    value={regenerateSummary}
-                                    onChange={(e) => setRegenerateSummary(e.target.value)}
-                                    disabled={regenerating}
-                                    className="w-full h-64 px-4 py-3 text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-slate-100"
-                                    placeholder="Enter your notes for document generation..."
-                                />
-                                
-                                {error && (
-                                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                                        {error}
-                                    </div>
-                                )}
-                            </div>
-                            
-                            {/* Footer */}
-                            <div className="px-6 py-4 border-t border-slate-200">
-                                <button
-                                    onClick={handleRegenerate}
-                                    disabled={regenerating || !regenerateSummary.trim()}
-                                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    {regenerating ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                            Regenerating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <RefreshCw className="h-4 w-4" />
-                                            Regenerate Document
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );

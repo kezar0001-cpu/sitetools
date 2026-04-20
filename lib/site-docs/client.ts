@@ -155,7 +155,7 @@ export async function generateDocumentContent(
 
 // ── Export ──
 
-export async function exportDocument(documentId: string): Promise<void> {
+export async function exportDocument(documentId: string, format: "pdf" | "docx" = "pdf"): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
 
@@ -163,7 +163,7 @@ export async function exportDocument(documentId: string): Promise<void> {
         throw new Error("Not authenticated");
     }
 
-    const response = await fetch(`/api/site-docs/export/${documentId}`, {
+    const response = await fetch(`/api/site-docs/export/${documentId}?format=${format}`, {
         headers: { "Authorization": `Bearer ${token}` },
     });
 
@@ -174,7 +174,7 @@ export async function exportDocument(documentId: string): Promise<void> {
 
     const blob = await response.blob();
     const contentDisposition = response.headers.get("Content-Disposition");
-    const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || "document.pdf";
+    const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || `document.${format === "docx" ? "doc" : "pdf"}`;
     
     downloadBlob(blob, filename);
 }

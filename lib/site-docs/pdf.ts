@@ -176,19 +176,25 @@ export function mapSiteDocToMSA(
       title: 'Sign-Off',
       items: [
         {
-          type: 'table',
+          type: 'signoff_table',
           columns: [
             { header: 'Signatory', weight: 2 },
             { header: 'Organisation', weight: 2 },
+            { header: 'Signature', weight: 1.6 },
             { header: 'Signature Date', weight: 1.4 },
             { header: 'Status', weight: 1 },
           ],
-          rows: generatedContent.signatories.map((signatory) => [
-            toDisplayValue(signatory.name),
-            toDisplayValue(signatory.organization),
-            formatDisplayDate(signatory.signature_date),
-            signatory.signature_date ? 'Signed' : 'Pending',
-          ]),
+          rows: generatedContent.signatories.map((signatory) => ({
+            name: toDisplayValue(signatory.name),
+            organization: toDisplayValue(signatory.organization),
+            signatureDate: formatDisplayDate(signatory.signature_date),
+            signatureData: signatory.signature_data ?? null,
+            status: signatory.signature_date ? 'Signed' : 'Pending',
+          })),
+        },
+        {
+          type: 'warning',
+          text: 'If no objection or requested amendment is raised within 48 hours of issue, these minutes will be taken as accepted.',
         },
       ],
     })

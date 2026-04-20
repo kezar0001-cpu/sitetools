@@ -2,6 +2,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createElement } from 'react'
+import { generateSiteDocHtml } from '@/lib/site-docs/export-html'
 import { MSADocument } from '@/lib/site-docs/pdf-template'
 import { mapSiteDocToMSA } from '@/lib/site-docs/pdf'
 import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
@@ -33,6 +34,7 @@ export async function GET(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const format = req.nextUrl.searchParams.get('format') === 'docx' ? 'docx' : 'pdf'
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -93,8 +95,29 @@ export async function GET(
       typedDocument.company?.logo_url ?? null
     )
 
-    const buffer = await renderPdfWithFallback(pdfData)
     const filename = sanitizeFilename(pdfData.documentNo || typedDocument.title || 'site-document')
+
+    if (format === 'docx') {
+      const html = generateSiteDocHtml({
+        document: {
+          id: typedDocument.id,
+          title: typedDocument.title,
+          document_type: typedDocument.document_type,
+          reference_number: typedDocument.reference_number,
+        },
+        content: typedDocument.generated_content,
+        companyName: typedDocument.company?.name ?? null,
+      })
+
+      return new NextResponse(html, {
+        headers: {
+          'Content-Type': 'application/msword; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}.doc"`,
+        },
+      })
+    }
+
+    const buffer = await renderPdfWithFallback(pdfData)
     const pdfBytes = new Uint8Array(buffer)
 
     return new NextResponse(pdfBytes, {

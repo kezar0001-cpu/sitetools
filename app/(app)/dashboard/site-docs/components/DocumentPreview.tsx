@@ -1,8 +1,21 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { loadSignatureCanvas, preloadSignatureCanvas } from "@/lib/dynamicImports";
 import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection } from "@/lib/site-docs/types";
 import { updateDocument } from "@/lib/site-docs/client";
+
+type SignatureCanvasHandle = {
+    clear: () => void;
+    isEmpty: () => boolean;
+    toDataURL: () => string;
+};
+
+type SignatureCanvasComponent = React.ComponentType<{
+    ref?: React.Ref<SignatureCanvasHandle>;
+    canvasProps?: React.CanvasHTMLAttributes<HTMLCanvasElement>;
+}>;
 
 interface DocumentPreviewProps {
     content: GeneratedContent;
@@ -15,6 +28,10 @@ interface DocumentPreviewProps {
 export function DocumentPreview({ content, template, editable = false, onChange, documentId }: DocumentPreviewProps) {
     const { metadata, sections, actionItems, attendees, signatories } = content;
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+    const [signingIndex, setSigningIndex] = useState<number | null>(null);
+    const [SignatureCanvas, setSignatureCanvas] = useState<SignatureCanvasComponent | null>(null);
+    const [isCanvasLoading, setIsCanvasLoading] = useState(false);
+    const sigPadRef = useRef<SignatureCanvasHandle | null>(null);
 
     // Ref always holds the latest content so onBlur handlers don't capture a stale prop value
     const latestContent = useRef(content);
@@ -38,6 +55,14 @@ export function DocumentPreview({ content, template, editable = false, onChange,
             setSaveStatus("idle");
         }
     };
+
+    useEffect(() => {
+        if (signingIndex === null || SignatureCanvas) return;
+        setIsCanvasLoading(true);
+        loadSignatureCanvas()
+            .then((mod) => setSignatureCanvas(() => mod.default as SignatureCanvasComponent))
+            .finally(() => setIsCanvasLoading(false));
+    }, [signingIndex, SignatureCanvas]);
 
     const updateMetadata = (key: string, value: string) => {
         if (!editable) return;
@@ -73,6 +98,20 @@ export function DocumentPreview({ content, template, editable = false, onChange,
         const newSigs = [...signatories];
         newSigs[index] = { ...newSigs[index], [field]: value };
         handleChange({ ...content, signatories: newSigs });
+    };
+
+    const handleApplySignature = async () => {
+        if (!editable || !signatories || signingIndex === null || !sigPadRef.current || sigPadRef.current.isEmpty()) return;
+        const signatureData = sigPadRef.current.toDataURL();
+        const newSigs = [...signatories];
+        newSigs[signingIndex] = {
+            ...newSigs[signingIndex],
+            signature_data: signatureData,
+            signature_date: new Date().toISOString().slice(0, 10),
+        };
+        handleChange({ ...content, signatories: newSigs });
+        await saveToServer();
+        setSigningIndex(null);
     };
 
     const addSection = () => {
@@ -597,6 +636,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                         <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
                                         <th className="px-4 py-2 text-left font-medium text-slate-700">Signature</th>
                                         <th className="px-4 py-2 text-left font-medium text-slate-700">Date</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
                                         {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
                                     </tr>
                                 </thead>
@@ -625,7 +665,21 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             placeholder="Organization"
                                                         />
                                                     </td>
-                                                    <td className="px-4 py-3 text-slate-400 italic">_________________</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex flex-col items-start gap-2">
+                                                            <span className="text-slate-400 italic">
+                                                                {sig.signature_data ? "Signature captured" : "_________________"}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onMouseEnter={preloadSignatureCanvas}
+                                                                onClick={() => setSigningIndex(idx)}
+                                                                className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                                                            >
+                                                                {sig.signature_data ? "Re-sign" : "Click to sign"}
+                                                            </button>
+                                                        </div>
+                                                    </td>
                                                     <td className="px-4 py-3">
                                                         <input
                                                             type="date"
@@ -635,6 +689,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                             className="w-full text-slate-400 border border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
                                                         />
                                                     </td>
+                                                    <td className="px-4 py-3 text-slate-600">{sig.signature_date ? "Signed" : "Pending"}</td>
                                                     <td className="px-4 py-3 text-center">
                                                         <button
                                                             onClick={() => removeSignatory(idx)}
@@ -648,8 +703,13 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                                 <>
                                                     <td className="px-4 py-3 font-medium text-slate-900">{sig.name}</td>
                                                     <td className="px-4 py-3 text-slate-600">{sig.organization || "—"}</td>
-                                                    <td className="px-4 py-3 text-slate-400 italic">_________________</td>
-                                                    <td className="px-4 py-3 text-slate-400">____/____/______</td>
+                                                    <td className="px-4 py-3 text-slate-400 italic">
+                                                        {sig.signature_data ? (
+                                                            <Image src={sig.signature_data} alt="Signature" width={120} height={40} unoptimized className="h-10 w-auto object-contain" />
+                                                        ) : "_________________"}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-600">{sig.signature_date ? new Date(sig.signature_date).toLocaleDateString() : "____/____/______"}</td>
+                                                    <td className="px-4 py-3 text-slate-600">{sig.signature_date ? "Signed" : "Pending"}</td>
                                                 </>
                                             )}
                                         </tr>
@@ -658,6 +718,42 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                             </table>
                         </div>
                     )}
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                        If no objection or requested amendment is raised within 48 hours of issue, these minutes will be considered accepted.
+                    </div>
+                </div>
+            )}
+
+            {editable && signingIndex !== null && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+                    <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                            <div>
+                                <h4 className="text-base font-semibold text-slate-900">Add signature</h4>
+                                <p className="text-sm text-slate-500">Draw a signature for {signatories?.[signingIndex]?.name || 'signatory'}.</p>
+                            </div>
+                            <button type="button" onClick={() => setSigningIndex(null)} className="text-slate-500 hover:text-slate-700">✕</button>
+                        </div>
+                        <div className="p-5 space-y-4">
+                            <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white overflow-hidden">
+                                {isCanvasLoading || !SignatureCanvas ? (
+                                    <div className="flex h-44 items-center justify-center text-sm text-slate-500">Loading signature pad…</div>
+                                ) : (
+                                    <SignatureCanvas
+                                        ref={sigPadRef}
+                                        canvasProps={{ className: "h-44 w-full bg-white" }}
+                                    />
+                                )}
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <button type="button" onClick={() => sigPadRef.current?.clear()} className="text-sm font-medium text-slate-600 hover:text-slate-800">Clear</button>
+                                <div className="flex gap-2">
+                                    <button type="button" onClick={() => setSigningIndex(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                                    <button type="button" onClick={handleApplySignature} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Apply signature</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

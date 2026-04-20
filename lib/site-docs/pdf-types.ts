@@ -23,6 +23,11 @@ export type MSAItem =
   | { type: 'fields'; data: { label: string; value: string }[] }
   | { type: 'table'; columns: { header: string; weight: number }[]; rows: string[][] }
   | {
+      type: 'signoff_table'
+      columns: { header: string; weight: number }[]
+      rows: { name: string; organization: string; signatureDate: string; signatureData?: string | null; status: string }[]
+    }
+  | {
       type: 'status_table'
       columns: { header: string; weight: number }[]
       rows: { cells: string[]; status: 'open' | 'closed' | 'critical' | 'in-progress' }[]

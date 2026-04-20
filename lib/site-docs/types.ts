@@ -93,6 +93,7 @@ export interface Signatory {
     name: string;
     organization: string | null;
     signature_date: string | null;
+    signature_data?: string | null;
 }
 
 // ── Template Definitions ──
