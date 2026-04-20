@@ -43,6 +43,21 @@ export const visitKeys = {
     ["visits", "list", companyId, siteId] as const,
 } as const;
 
+export const companyKeys = {
+  all: ["companies"] as const,
+  detail: (companyId: string | null) => ["companies", "detail", companyId] as const,
+} as const;
+
+export const profileKeys = {
+  all: ["profiles"] as const,
+  detail: (userId: string | null) => ["profiles", "detail", userId] as const,
+} as const;
+
+export const workspaceKeys = {
+  all: ["workspace"] as const,
+  summary: ["workspace", "summary"] as const,
+} as const;
+
 type SupabaseErrorLike = {
   code?: string;
   message?: string;
@@ -1081,4 +1096,45 @@ export async function deactivateInduction(id: string): Promise<void> {
     .eq("id", id);
 
   if (error) throw error;
+}
+
+// ── Settings — Company & Profile Fetchers ───────────────────────────────────
+
+/**
+ * Fetch a single company by ID.
+ * Used by TanStack Query hooks for caching.
+ */
+export async function fetchCompany(companyId: string): Promise<Company | null> {
+  const { data, error } = await supabase
+    .from("companies")
+    .select("id, name, slug, owner_user_id, created_at, updated_at")
+    .eq("id", companyId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116") return null; // Not found
+    throw error;
+  }
+
+  return data as Company;
+}
+
+/**
+ * Fetch a single profile by user ID.
+ * Used by TanStack Query hooks for caching.
+ */
+export async function fetchProfile(userId: string): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, phone_number, active_company_id, active_site_id, created_at, updated_at")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    if (isMissingTableError(error, "profiles")) return null;
+    if (error.code === "PGRST116") return null; // Not found
+    throw error;
+  }
+
+  return data as Profile;
 }

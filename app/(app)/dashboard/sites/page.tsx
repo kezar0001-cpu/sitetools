@@ -866,12 +866,6 @@ export default function SitesPage() {
                 </button>
               )}
             </div>
-            <Link
-              href="/dashboard/team"
-              className="hidden sm:block text-sm font-bold text-slate-600 hover:text-slate-900 px-4 py-2 rounded-xl border border-slate-200 bg-white transition-colors"
-            >
-              Manage Team
-            </Link>
             {canEditSites && (
               <button
                 onClick={() => setShowCreateProjectModal(true)}

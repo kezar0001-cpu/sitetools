@@ -112,7 +112,18 @@ export async function POST(request: NextRequest) {
 
         // Apply metadata overrides if provided
         if (metadata_override && generatedContent.metadata) {
-            const overridable = ["project_name", "location", "date", "reference", "prepared_by", "organization"] as const;
+            const overridable = [
+                "project_name",
+                "location",
+                "date",
+                "reference",
+                "prepared_by",
+                "organization",
+                "meeting_type",
+                "time",
+                "next_meeting",
+                "distribution",
+            ] as const;
             for (const field of overridable) {
                 if (metadata_override[field]) {
                     generatedContent.metadata[field] = metadata_override[field];

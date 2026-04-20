@@ -1,22 +1,29 @@
 "use client";
 
-import { UseFormRegister, FieldErrors } from "react-hook-form";
+import { UseFormRegister, FieldErrors, Control, Controller } from "react-hook-form";
 import { visitorTypes, type VisitEntryFormData } from "@/lib/validation/schemas";
+import { CompanyAutocomplete } from "@/components/forms";
 
 interface ManualEntryFormProps {
+  siteId: string;
   register: UseFormRegister<VisitEntryFormData>;
+  control: Control<VisitEntryFormData>;
   errors: FieldErrors<VisitEntryFormData>;
   isValid: boolean;
   isSubmitting: boolean;
   onSubmit: () => void;
+  approvedCompanies?: string[];
 }
 
 export function ManualEntryForm({
+  siteId,
   register,
+  control,
   errors,
   isValid,
   isSubmitting,
   onSubmit,
+  approvedCompanies,
 }: ManualEntryFormProps) {
   return (
     <section className="bg-slate-50 border border-slate-200 rounded-2xl p-6">
@@ -46,10 +53,20 @@ export function ManualEntryForm({
           )}
         </div>
         <div>
-          <input
-            {...register("companyName")}
-            placeholder="Employer / company"
-            className={`w-full border-2 ${errors.companyName ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
+          <Controller
+            name="companyName"
+            control={control}
+            render={({ field }) => (
+              <CompanyAutocomplete
+                siteId={siteId}
+                value={field.value}
+                onChange={field.onChange}
+                onBlur={field.onBlur}
+                approvedCompanies={approvedCompanies}
+                placeholder="Employer / company"
+                error={!!errors.companyName}
+              />
+            )}
           />
           {errors.companyName && (
             <p className="mt-1 text-xs text-red-500">{errors.companyName.message}</p>

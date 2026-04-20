@@ -44,6 +44,11 @@ function paragraphsFromContent(content: string): MSAItem[] {
     .map((text) => ({ type: 'paragraph', text }) as const)
 }
 
+function toDisplayValue(value: string | null | undefined, fallback = '—'): string {
+  const trimmed = value?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : fallback
+}
+
 export function mapSiteDocToMSA(
   document: Pick<SiteDocument, 'id' | 'title' | 'document_type' | 'status' | 'reference_number'>,
   generatedContent: GeneratedContent,
@@ -51,6 +56,16 @@ export function mapSiteDocToMSA(
   companyLogoUrl?: string | null
 ): MSADocumentProps {
   const metadata = generatedContent.metadata
+
+  const detailFields = [
+    { label: 'Location', value: metadata.location },
+    { label: 'Time', value: metadata.time },
+    { label: 'Meeting Type', value: metadata.meeting_type },
+    { label: 'Prepared By', value: metadata.prepared_by },
+    { label: 'Organisation', value: metadata.organization },
+    { label: 'Next Meeting', value: metadata.next_meeting ? formatDisplayDate(metadata.next_meeting) : null },
+    { label: 'Distribution', value: metadata.distribution },
+  ].filter((field) => field.value && field.value.trim().length > 0)
 
   const sections = (generatedContent.sections ?? [])
     .sort((a, b) => a.order - b.order)
@@ -81,6 +96,21 @@ export function mapSiteDocToMSA(
       }
     })
 
+  if (detailFields.length > 0) {
+    sections.unshift({
+      title: document.document_type === 'meeting-minutes' ? 'Meeting Details' : 'Document Details',
+      items: [
+        {
+          type: 'fields',
+          data: detailFields.map((field) => ({
+            label: field.label,
+            value: toDisplayValue(field.value),
+          })),
+        },
+      ],
+    })
+  }
+
   const attendeesSection = generatedContent.attendees?.length
     ? {
         title: 'Attendees',
@@ -94,9 +124,9 @@ export function mapSiteDocToMSA(
               { header: 'Present', weight: 1 },
             ],
             rows: generatedContent.attendees.map((attendee) => [
-              attendee.name,
-              attendee.organization ?? '—',
-              attendee.role ?? '—',
+              toDisplayValue(attendee.name),
+              toDisplayValue(attendee.organization),
+              toDisplayValue(attendee.role),
               attendee.present ? 'Yes' : 'No',
             ]),
           },
@@ -124,9 +154,9 @@ export function mapSiteDocToMSA(
           ],
           rows: generatedContent.actionItems.map((item) => ({
             cells: [
-              String(item.number ?? ''),
-              item.description ?? '',
-              item.responsible ?? '—',
+                String(item.number ?? ''),
+                toDisplayValue(item.description, ''),
+                toDisplayValue(item.responsible),
               formatDisplayDate(item.due_date),
               item.status,
             ],
@@ -154,8 +184,8 @@ export function mapSiteDocToMSA(
             { header: 'Status', weight: 1 },
           ],
           rows: generatedContent.signatories.map((signatory) => [
-            signatory.name,
-            signatory.organization ?? '—',
+            toDisplayValue(signatory.name),
+            toDisplayValue(signatory.organization),
             formatDisplayDate(signatory.signature_date),
             signatory.signature_date ? 'Signed' : 'Pending',
           ]),
@@ -173,9 +203,9 @@ export function mapSiteDocToMSA(
     revision: statusToRevision(document.status),
     title: document.title,
     subtitle: metadata.document_title,
-    project: metadata.project_name ?? 'Unspecified Project',
+    project: metadata.project_name ?? 'General Document',
     client: resolvedCompanyName,
-    preparedBy: metadata.prepared_by ?? 'Buildstate',
+    preparedBy: metadata.prepared_by ?? resolvedCompanyName,
     companyName: resolvedCompanyName,
     companyLogoUrl: companyLogoUrl ?? null,
     sections,

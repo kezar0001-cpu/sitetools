@@ -116,11 +116,21 @@ export type CompanyProfileFormData = z.infer<typeof companyProfileSchema>;
 /**
  * Profile update validation schema
  * - displayName: optional, max 100 characters
+ * - phoneNumber: optional, must be valid international format
  */
 export const profileUpdateSchema = z.object({
   displayName: z
     .string()
     .max(100, "Display name must be 100 characters or less")
+    .optional()
+    .or(z.literal("")),
+  phoneNumber: z
+    .string()
+    .max(30, "Phone number must be 30 characters or less")
+    .regex(
+      /^[\+]?[\d\s\-\(\)]+$/,
+      "Please enter a valid phone number (e.g., +61 2 1234 5678 or 0412 345 678)"
+    )
     .optional()
     .or(z.literal("")),
 });

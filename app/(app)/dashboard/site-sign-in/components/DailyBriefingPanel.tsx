@@ -22,9 +22,10 @@ const CATEGORY_BADGE: Record<BriefingCategory, string> = {
 interface DailyBriefingPanelProps {
   siteId: string;
   companyId: string;
+  onConfiguredChange?: (isConfigured: boolean) => void;
 }
 
-export function DailyBriefingPanel({ siteId, companyId }: DailyBriefingPanelProps) {
+export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: DailyBriefingPanelProps) {
   const [briefings, setBriefings] = useState<SiteDailyBriefing[]>([]);
   const [activeBriefing, setActiveBriefing] = useState<SiteDailyBriefing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,7 @@ export function DailyBriefingPanel({ siteId, companyId }: DailyBriefingPanelProp
       ]);
       setBriefings(all);
       setActiveBriefing(active);
+      onConfiguredChange?.(all.length > 0);
     } finally {
       setLoading(false);
     }

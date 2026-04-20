@@ -68,7 +68,7 @@ export function AppTopbar({ onMenuToggle }: Props) {
 
     if (pathname.startsWith("/dashboard/sites")) {
       return {
-        title: "Locations",
+        title: "Projects",
         icon: (
           <svg
             xmlns="http://www.w3.org/2000/svg"

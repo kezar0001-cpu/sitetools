@@ -68,6 +68,8 @@ export function useSiteVisits(
     queryKey: visitKeys.site(companyId, siteId),
     queryFn: async () => {
       if (!companyId || !siteId) return [];
+      // TEST: Temporary error to verify ErrorBoundary - remove after testing
+      throw new Error("Test error: Failed to load site visits from database");
       return fetchSiteVisitsForCompanySite(companyId, siteId);
     },
     enabled: enabled && !!companyId && !!siteId,

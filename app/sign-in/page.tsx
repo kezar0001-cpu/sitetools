@@ -5,6 +5,7 @@ import SignatureCanvas from "react-signature-canvas";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { getActiveBriefingForSite, getActiveInductionForSite } from "@/lib/workspace/client";
+import { CompanyAutocomplete, addRecentCompany } from "@/components/forms";
 import type { SiteDailyBriefing, SiteInduction, BriefingCategory } from "@/lib/workspace/types";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
@@ -49,159 +50,56 @@ const HEADER_SVG = (
   </svg>
 );
 
-// ─── Landing Page ────────────────────────────────────────────────────────────────
+// ─── No Site Provided Screen ─────────────────────────────────────────────────────
 
 function NoSiteScreen() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <header className="bg-amber-400 border-b-4 border-amber-600 shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between">
+        <div className="max-w-2xl mx-auto px-4 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-amber-600 text-white rounded-lg p-2">{HEADER_SVG}</div>
             <div>
-              <h1 className="text-2xl font-extrabold text-amber-950 tracking-tight">SiteSign</h1>
-              <p className="text-xs font-medium text-amber-900">Construction Site Access Management</p>
+              <h1 className="text-2xl font-extrabold text-amber-950 tracking-tight">Buildstate</h1>
+              <p className="text-xs font-medium text-amber-900">Site Access Registry</p>
             </div>
           </div>
-          <a href="/login" className="hidden sm:block bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
+          <a href="/login" className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-4 py-2 rounded-lg transition-colors text-sm">
             Admin Login
           </a>
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-8 sm:py-12 space-y-10 sm:space-y-16">
-        {/* Hero Section */}
-        <section className="text-center space-y-6">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-amber-400 rounded-2xl shadow-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      <main className="flex-1 flex items-center justify-center px-4 py-12">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8 sm:p-12 max-w-md w-full text-center space-y-6">
+          <div className="mx-auto bg-amber-100 rounded-2xl w-16 h-16 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
             </svg>
           </div>
-          <h2 className="text-4xl sm:text-6xl font-black text-slate-900 leading-[1.1] tracking-tight">
-            Streamline Your Site<br />Access Management
-          </h2>
-          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto font-medium">
-            A modern, paperless solution for tracking workers, subcontractors, visitors, and deliveries at construction sites.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
-            <div className="bg-amber-100 border-2 border-amber-400 rounded-2xl px-6 py-4 flex items-center gap-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 3.5V16M4.5 4.5l15 15" />
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Scan to Sign In</h2>
+            <p className="text-slate-500 font-medium leading-relaxed">
+              Please scan the QR code at your site entrance to access the sign-in page.
+            </p>
+          </div>
+          <div className="pt-4">
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 text-sm font-bold text-amber-700 hover:text-amber-800 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <div className="text-left">
-                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest leading-none mb-1">Get Started</p>
-                <p className="text-base font-bold text-amber-950">Scan the QR code at your site</p>
-              </div>
-            </div>
-            <a href="/login" className="sm:hidden bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-3 rounded-xl transition-colors">
-              Admin Login
+              Back to Buildstate
             </a>
           </div>
-        </section>
-
-        {/* Features Grid */}
-        <section className="space-y-8 hidden sm:block">
-          <h3 className="text-4xl font-black text-slate-900 text-center tracking-tight">Key Features</h3>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-4 hover:shadow-xl hover:border-amber-400 transition-all group">
-              <div className="bg-blue-50 text-blue-600 rounded-2xl w-14 h-14 flex items-center justify-center transition-colors group-hover:bg-blue-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              </div>
-              <h4 className="text-xl font-black text-slate-900">Digital Sign In</h4>
-              <p className="text-base text-slate-500 font-medium leading-relaxed">
-                Workers sign in digitally with their name and company. No more physical logbooks.
-              </p>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-4 hover:shadow-xl hover:border-amber-400 transition-all group">
-              <div className="bg-purple-50 text-purple-600 rounded-2xl w-14 h-14 flex items-center justify-center transition-colors group-hover:bg-purple-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </div>
-              <h4 className="text-xl font-black text-slate-900">Signatures</h4>
-              <p className="text-base text-slate-500 font-medium leading-relaxed">
-                Capture digital signatures for compliance. Touch-friendly pad works on any device.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-4 hover:shadow-xl hover:border-amber-400 transition-all group">
-              <div className="bg-emerald-50 text-emerald-600 rounded-2xl w-14 h-14 flex items-center justify-center transition-colors group-hover:bg-emerald-100">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h4 className="text-xl font-black text-slate-900">Live Tracking</h4>
-              <p className="text-base text-slate-500 font-medium leading-relaxed">
-                See who&apos;s currently on site in real-time. Track durations automatically for payroll.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* How It Works */}
-        <section className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm p-8 sm:p-16 space-y-12">
-          <h3 className="text-4xl font-black text-slate-900 text-center tracking-tight">How It Works</h3>
-          <div className="grid sm:grid-cols-3 gap-12">
-            <div className="text-center space-y-4">
-              <div className="mx-auto bg-amber-400 text-amber-950 rounded-2xl w-16 h-16 flex items-center justify-center font-black text-2xl shadow-lg ring-4 ring-amber-100">
-                1
-              </div>
-              <h4 className="text-xl font-black text-slate-900">Scan QR</h4>
-              <p className="text-base text-slate-500 font-medium leading-relaxed">
-                Scan the unique QR code at the site entrance using your phone.
-              </p>
-            </div>
-            <div className="text-center space-y-4">
-              <div className="mx-auto bg-amber-400 text-amber-950 rounded-2xl w-16 h-16 flex items-center justify-center font-black text-2xl shadow-lg ring-4 ring-amber-100">
-                2
-              </div>
-              <h4 className="text-xl font-black text-slate-900">Sign In</h4>
-              <p className="text-base text-slate-500 font-medium leading-relaxed">
-                Enter details and provide a digital signature to confirm arrival.
-              </p>
-            </div>
-            <div className="text-center space-y-4">
-              <div className="mx-auto bg-amber-400 text-amber-950 rounded-2xl w-16 h-16 flex items-center justify-center font-black text-2xl shadow-lg ring-4 ring-amber-100">
-                3
-              </div>
-              <h4 className="text-xl font-black text-slate-900">Sign Out</h4>
-              <p className="text-base text-slate-500 font-medium leading-relaxed">
-                When leaving, scan again and tap sign-out. All tracked automatically.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="bg-slate-900 rounded-3xl shadow-2xl p-8 sm:p-16 text-center space-y-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-400/10 blur-[100px] -mr-32 -mt-32 rounded-full" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-400/10 blur-[100px] -ml-32 -mb-32 rounded-full" />
-          
-          <h3 className="text-4xl font-black text-white tracking-tight relative z-10">Ready to Get Started?</h3>
-          <p className="text-xl text-slate-400 max-w-2xl mx-auto font-medium relative z-10">
-            Scan the QR code at your construction site to sign in, or contact your site administrator for access.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10 pt-4">
-            <a href="/login" className="bg-amber-400 hover:bg-amber-500 text-amber-950 font-black px-10 py-5 rounded-2xl transition-all text-xl shadow-xl hover:scale-105 active:scale-95">
-              Admin Dashboard
-            </a>
-          </div>
-        </section>
+        </div>
       </main>
 
-      <footer className="bg-slate-900 text-slate-500 py-12">
-        <div className="max-w-6xl mx-auto px-4 text-center space-y-4">
-          <p className="font-bold text-slate-300">Buildstate &copy; {new Date().getFullYear()}</p>
-          <p className="text-sm font-medium">Digital Infrastructure for Modern Engineering</p>
-          <div className="flex justify-center gap-8 pt-4">
-            <a href="/login" className="text-slate-500 hover:text-amber-400 transition-colors text-sm font-black uppercase tracking-widest">Admin Login</a>
-          </div>
+      <footer className="bg-slate-900 text-slate-500 py-6">
+        <div className="max-w-2xl mx-auto px-4 text-center">
+          <p className="text-sm font-medium">Buildstate &copy; {new Date().getFullYear()}</p>
         </div>
       </footer>
     </div>
@@ -540,6 +438,9 @@ function SiteSignIn({ site }: { site: Site }) {
       induction_completed: isInductionCompleted.current || (returningVisitor?.induction_completed ?? false),
     };
     localStorage.setItem(VISITOR_KEY(site.id), JSON.stringify(visitorData));
+    
+    // Track this company as recently used for autocomplete
+    addRecentCompany(site.id, companyName.trim());
     // Reset flow refs
     pendingBriefingId.current = null;
     pendingInductionId.current = null;
@@ -851,15 +752,16 @@ function SiteSignIn({ site }: { site: Site }) {
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2" htmlFor="company_name">Company Name</label>
-                <input
-                  id="company_name"
-                  type="text"
-                  placeholder="Acme Civil Pty Ltd"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  autoComplete="organization"
-                  className="w-full border-2 border-slate-100 rounded-2xl px-5 py-4 text-lg focus:outline-none focus:border-amber-400 focus:bg-white bg-slate-50 transition-all font-bold text-slate-900"
-                />
+                <div className="[&_input]:w-full [&_input]:border-2 [&_input]:border-slate-100 [&_input]:rounded-2xl [&_input]:px-5 [&_input]:py-4 [&_input]:text-lg [&_input]:focus:outline-none [&_input]:focus:border-amber-400 [&_input]:focus:bg-white [&_input]:bg-slate-50 [&_input]:transition-all [&_input]:font-bold [&_input]:text-slate-900">
+                  <CompanyAutocomplete
+                    siteId={site.id}
+                    value={companyName}
+                    onChange={setCompanyName}
+                    approvedCompanies={[]}
+                    placeholder="Acme Civil Pty Ltd"
+                    id="company_name"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2" htmlFor="visitor_type">Visitor Type</label>

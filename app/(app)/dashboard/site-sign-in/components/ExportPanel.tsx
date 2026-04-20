@@ -1,9 +1,13 @@
 "use client";
 
+export type ExportRange = "all" | "today" | "week" | "month";
+
 interface ExportPanelProps {
   hasRecords: boolean;
   isPdfLoading: boolean;
   isXlsxLoading: boolean;
+  exportRange: ExportRange;
+  onExportRangeChange: (value: ExportRange) => void;
   onExportCSV: () => void;
   onExportXLSX: () => void;
   onExportPDF: () => void;
@@ -15,14 +19,40 @@ export function ExportPanel({
   hasRecords,
   isPdfLoading,
   isXlsxLoading,
+  exportRange,
+  onExportRangeChange,
   onExportCSV,
   onExportXLSX,
   onExportPDF,
   onPreloadXLSX,
   onPreloadPDF,
 }: ExportPanelProps) {
+  const rangeLabels: Record<ExportRange, string> = {
+    all: "All time",
+    today: "Today",
+    week: "Last 7 days",
+    month: "Last 30 days",
+  };
+
   return (
-    <div className="flex flex-wrap gap-2 items-center">
+    <div className="flex flex-wrap gap-3 items-end">
+      {/* Export Range Selector */}
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-slate-500">Export range</label>
+        <select
+          value={exportRange}
+          onChange={(e) => onExportRangeChange(e.target.value as ExportRange)}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+        >
+          <option value="all">{rangeLabels.all}</option>
+          <option value="today">{rangeLabels.today}</option>
+          <option value="week">{rangeLabels.week}</option>
+          <option value="month">{rangeLabels.month}</option>
+        </select>
+      </div>
+
+      {/* Export Buttons */}
+      <div className="flex flex-wrap gap-2 items-center">
       <button
         onClick={onExportCSV}
         disabled={!hasRecords}
@@ -58,6 +88,7 @@ export function ExportPanel({
         )}
         {isPdfLoading ? "Loading..." : "Export PDF"}
       </button>
+      </div>
     </div>
   );
 }

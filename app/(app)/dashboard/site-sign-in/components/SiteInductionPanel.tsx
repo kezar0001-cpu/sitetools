@@ -12,6 +12,7 @@ import type { SiteInduction, SiteInductionStep } from "@/lib/workspace/types";
 interface SiteInductionPanelProps {
   siteId: string;
   companyId: string;
+  onConfiguredChange?: (isConfigured: boolean) => void;
 }
 
 const EMPTY_STEP = (): SiteInductionStep => ({
@@ -21,7 +22,7 @@ const EMPTY_STEP = (): SiteInductionStep => ({
   requires_acknowledgement: true,
 });
 
-export function SiteInductionPanel({ siteId, companyId }: SiteInductionPanelProps) {
+export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: SiteInductionPanelProps) {
   const [induction, setInduction] = useState<SiteInduction | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +42,7 @@ export function SiteInductionPanel({ siteId, companyId }: SiteInductionPanelProp
         setEditTitle(data.title);
         setEditSteps(data.steps.length > 0 ? data.steps : [EMPTY_STEP()]);
       }
+      onConfiguredChange?.(!!data);
     } finally {
       setLoading(false);
     }

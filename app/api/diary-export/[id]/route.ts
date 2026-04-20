@@ -74,22 +74,24 @@ export async function GET(
   };
 
   if (format === "docx") {
-    // For DOCX, return HTML with Word-specific meta tags that Word can open
+    // Return Word-compatible HTML. This is not a true DOCX package, so use a
+    // legacy .doc extension and content type that Word can still open.
     const html = generateDiaryHTML(exportData);
     return new NextResponse(html, {
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Type": "application/msword; charset=utf-8",
         "Content-Disposition": `attachment; filename="site-capture-${exportData.date}.doc"`,
       },
     });
   }
 
-  // Default: PDF (return HTML for browser print-to-PDF)
+  // Default: PDF flow returns printable HTML so the browser can open it and the
+  // user can save it as PDF via the print dialog.
   const html = generateDiaryHTML(exportData);
   return new NextResponse(html, {
     headers: {
       "Content-Type": "text/html",
-      "Content-Disposition": `attachment; filename="site-capture-${exportData.date}.html"`,
+      "Content-Disposition": `inline; filename="site-capture-${exportData.date}.html"`,
     },
   });
 }

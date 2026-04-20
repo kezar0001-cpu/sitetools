@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Building2, QrCode, Smartphone, Users, ArrowRight, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
+import { ErrorBoundary, SiteSignErrorFallback } from "@/components/error";
 import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImports";
 import { setActiveSite } from "@/lib/workspace/client";
 import { canManageSites, canUseModules } from "@/lib/workspace/permissions";
@@ -12,10 +15,9 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteVisit } from "@/lib/workspace/types";
 import { useCompanySites } from "@/hooks/useSites";
 import { useSiteVisits, useVisitMutations } from "@/hooks/useSiteVisits";
-import { useQueryClient } from "@tanstack/react-query";
-import { visitKeys } from "@/lib/workspace/client";
 import { DailyBriefingPanel } from "./components/DailyBriefingPanel";
 import { SiteInductionPanel } from "./components/SiteInductionPanel";
+import { addRecentCompany } from "@/components/forms";
 import {
   visitEntrySchema,
   visitEditSchema,
@@ -28,8 +30,8 @@ import type { VisitorType } from "@/lib/validation/schemas";
 // Extracted components
 import { SiteSelector } from "./components/SiteSelector";
 import { ManualEntryForm } from "./components/ManualEntryForm";
-import { VisitFilters, type RecordStatusFilter, type ExportRange } from "./components/VisitFilters";
-import { ExportPanel } from "./components/ExportPanel";
+import { VisitFilters, type RecordStatusFilter, type DateRangeFilter, type FilterPreset, FILTER_PRESETS } from "./components/VisitFilters";
+import { ExportPanel, type ExportRange } from "./components/ExportPanel";
 import { VisitTable } from "./components/VisitTable";
 import { BulkActionsModal } from "./components/BulkActionsModal";
 import { SignatureViewer } from "./components/SignatureViewer";
@@ -74,8 +76,7 @@ function fmtDuration(totalMinutes: number) {
   return `${hours}h ${mins}m`;
 }
 
-export default function SiteSignInModulePage() {
-  const queryClient = useQueryClient();
+function SiteSignContent() {
   const { loading, summary, refresh } = useWorkspace({ requireAuth: true, requireCompany: true });
   const activeCompanyId = summary?.activeMembership?.company_id ?? null;
   const activeRole = summary?.activeMembership?.role ?? null;
@@ -101,6 +102,7 @@ export default function SiteSignInModulePage() {
   const {
     register: registerAdd,
     handleSubmit: handleSubmitAdd,
+    control: addControl,
     formState: { errors: addErrors, isValid: addIsValid },
     reset: resetAdd,
   } = useForm<VisitEntryFormData>({
@@ -120,13 +122,17 @@ export default function SiteSignInModulePage() {
   const [filterDate, setFilterDate] = useState("");
   const [filterType, setFilterType] = useState<typeof visitorTypes[number] | "">("");
   const [filterStatus, setFilterStatus] = useState<RecordStatusFilter>("all");
+  const [dateRange, setDateRange] = useState<DateRangeFilter>("all");
   const [exportRange, setExportRange] = useState<ExportRange>("all");
+  const [activePreset, setActivePreset] = useState<string | null>(null);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [viewSignature, setViewSignature] = useState<string | null>(null);
 
   const [showBulkSignOutModal, setShowBulkSignOutModal] = useState(false);
   const [siteManagementTab, setSiteManagementTab] = useState<"briefing" | "induction">("briefing");
+  const [briefingConfigured, setBriefingConfigured] = useState(false);
+  const [inductionConfigured, setInductionConfigured] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -184,11 +190,31 @@ export default function SiteSignInModulePage() {
 
   const selectedSite = sites.find((site) => site.id === selectedSiteId) ?? null;
 
+  // Calculate date range for "This Week" preset (last 7 days from today)
+  const weekStartDate = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return dateToInputValue(weekAgo);
+  }, []);
+
   const filteredVisits = useMemo(() => {
     const search = searchText.trim().toLowerCase();
+    const today = dateToInputValue(new Date());
 
     return visits.filter((visit) => {
-      const dateMatch = filterDate ? toLocalDateValue(visit.signed_in_at) === filterDate : true;
+      const visitDate = toLocalDateValue(visit.signed_in_at);
+
+      // Date filter: specific date OR date range preset
+      let dateMatch = true;
+      if (filterDate) {
+        // Specific date selected
+        dateMatch = visitDate === filterDate;
+      } else if (dateRange === "today") {
+        dateMatch = visitDate === today;
+      } else if (dateRange === "week") {
+        dateMatch = visitDate >= weekStartDate;
+      }
+
       const typeMatch = filterType ? visit.visitor_type === filterType : true;
       const statusMatch =
         filterStatus === "all" ? true : filterStatus === "onSite" ? !visit.signed_out_at : !!visit.signed_out_at;
@@ -197,7 +223,7 @@ export default function SiteSignInModulePage() {
         : true;
       return dateMatch && typeMatch && statusMatch && searchMatch;
     });
-  }, [visits, filterDate, filterType, filterStatus, searchText]);
+  }, [visits, filterDate, dateRange, filterType, filterStatus, searchText, weekStartDate]);
 
   const exportableVisits = useMemo(() => {
     if (exportRange === "all") return filteredVisits;
@@ -266,30 +292,7 @@ export default function SiteSignInModulePage() {
   async function handleAddVisit(data: VisitEntryFormData) {
     if (!activeCompanyId || !selectedSiteId) return;
 
-    // Create optimistic visit with temporary ID
-    const tempId = `temp-${Date.now()}`;
-    const optimisticVisit: SiteVisit = {
-      id: tempId,
-      company_id: activeCompanyId,
-      site_id: selectedSiteId,
-      project_id: null,
-      full_name: data.fullName.trim(),
-      phone_number: data.phoneNumber?.trim() || null,
-      company_name: data.companyName.trim(),
-      visitor_type: data.visitorType,
-      signature: null,
-      signed_in_at: data.signedInAt ? new Date(data.signedInAt).toISOString() : new Date().toISOString(),
-      signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
-      created_by_user_id: null,
-      signed_in_by_user_id: null,
-    };
-
-    // Immediately add to visits for optimistic UI
-    const currentVisits = visits;
-    queryClient.setQueryData<SiteVisit[]>(visitKeys.site(activeCompanyId, selectedSiteId), (old) => {
-      return [optimisticVisit, ...(old ?? [])];
-    });
-
+    // Reset form immediately for snappy UI
     resetAdd({
       fullName: "",
       phoneNumber: "",
@@ -299,8 +302,8 @@ export default function SiteSignInModulePage() {
       signedOutAt: "",
     });
 
-    try {
-      await createVisit.mutateAsync({
+    createVisit.mutate(
+      {
         company_id: activeCompanyId,
         site_id: selectedSiteId,
         full_name: data.fullName.trim(),
@@ -309,16 +312,23 @@ export default function SiteSignInModulePage() {
         visitor_type: data.visitorType,
         signed_in_at: data.signedInAt ? new Date(data.signedInAt).toISOString() : null,
         signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
-      });
-
-      // Refresh to get server-generated ID
-      queryClient.invalidateQueries({ queryKey: visitKeys.site(activeCompanyId, selectedSiteId) });
-      showSuccessToast("Visitor record added.");
-    } catch (err) {
-      // Rollback: remove optimistic entry on error
-      queryClient.setQueryData<SiteVisit[]>(visitKeys.site(activeCompanyId, selectedSiteId), currentVisits);
-      showErrorToast(err instanceof Error ? `${err.message} Check your connection and try again.` : "Failed to add visitor. Please check your connection and try again.");
-    }
+      },
+      {
+        onSuccess: () => {
+          showSuccessToast("Visitor record added.");
+          // Track this company as recently used for autocomplete
+          addRecentCompany(selectedSiteId, data.companyName.trim());
+        },
+        onError: (err) => {
+          // Rollback is handled by the mutation hook's onError; we just show UI feedback
+          showErrorToast(
+            err instanceof Error
+              ? `${err.message} Check your connection and try again.`
+              : "Failed to add visitor. Please check your connection and try again."
+          );
+        },
+      }
+    );
   }
 
   async function handleSaveEdit(data: VisitEditFormData, visitId: string) {
@@ -534,15 +544,72 @@ export default function SiteSignInModulePage() {
   }
 
   if (sites.length === 0) {
+    const canManage = canManageSites(activeRole);
+
     return (
       <div className="p-6 md:p-10 max-w-4xl mx-auto">
         <EmptyState
-          icon="🏗️"
-          title="Create a site to activate SiteSign"
-          description="SiteSign runs on physical sites. Create a project and site first, then return here to launch QR sign-in and view records."
-          action={{ label: "Go to Sites", href: "/dashboard/sites" }}
+          icon={Building2}
+          heading={canManage ? "Create your first site to activate SiteSign" : "Waiting for site setup"}
+          subtext={
+            canManage
+              ? "SiteSign runs on physical sites. Create a project and site first, then return here to launch QR sign-in and view records."
+              : "An admin needs to create a project and site before SiteSign can be used. You'll receive access once it's ready."
+          }
           className="bg-white border border-slate-200 rounded-2xl shadow-sm"
-        />
+        >
+          {/* Guided Setup Experience */}
+          <div className="mt-8 space-y-8">
+            {/* How SiteSign Works - 3 Step Visual */}
+            <div className="bg-slate-50 rounded-xl p-6 border border-slate-100">
+              <h3 className="text-sm font-bold text-slate-700 mb-4 text-left">How SiteSign works</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex flex-col items-center text-center p-4 bg-white rounded-lg border border-slate-200">
+                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
+                    <QrCode className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 mb-1">1. Set up QR code</span>
+                  <span className="text-xs text-slate-500">Print a QR poster for your site gate</span>
+                </div>
+                <div className="flex flex-col items-center text-center p-4 bg-white rounded-lg border border-slate-200">
+                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
+                    <Smartphone className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 mb-1">2. Workers scan</span>
+                  <span className="text-xs text-slate-500">Workers sign in from their phone camera</span>
+                </div>
+                <div className="flex flex-col items-center text-center p-4 bg-white rounded-lg border border-slate-200">
+                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center mb-3">
+                    <Users className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <span className="text-xs font-bold text-slate-600 mb-1">3. Track live</span>
+                  <span className="text-xs text-slate-500">See headcount and export records</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {canManage && (
+                <Link
+                  href="/dashboard/sites"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 text-slate-900 font-bold text-sm hover:bg-amber-400 transition-colors"
+                >
+                  Create your first site
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              )}
+              <Link
+                href="/sitesign"
+                target="_blank"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-medium text-sm hover:bg-slate-50 hover:border-slate-300 transition-colors"
+              >
+                See QR demo
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </EmptyState>
       </div>
     );
   }
@@ -569,39 +636,82 @@ export default function SiteSignInModulePage() {
       />
 
       <ManualEntryForm
+        siteId={selectedSiteId}
         register={registerAdd}
+        control={addControl}
         errors={addErrors}
         isValid={addIsValid}
         isSubmitting={adding}
         onSubmit={handleSubmitAdd(handleAddVisit)}
+        approvedCompanies={[]}
       />
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
         <VisitFilters
           searchText={searchText}
-          onSearchChange={setSearchText}
+          onSearchChange={(value) => {
+            setSearchText(value);
+            if (value) setActivePreset(null); // Clear preset on manual search
+          }}
           filterDate={filterDate}
-          onFilterDateChange={setFilterDate}
+          onFilterDateChange={(value) => {
+            setFilterDate(value);
+            setDateRange("all"); // Clear date range when specific date selected
+            setActivePreset(null);
+          }}
           filterType={filterType}
-          onFilterTypeChange={(value) => setFilterType(value as VisitorType | "")}
+          onFilterTypeChange={(value) => {
+            setFilterType(value as VisitorType | "");
+            setActivePreset(null);
+          }}
           filterStatus={filterStatus}
-          onFilterStatusChange={setFilterStatus}
-          exportRange={exportRange}
-          onExportRangeChange={setExportRange}
+          onFilterStatusChange={(value) => {
+            setFilterStatus(value);
+            setActivePreset(null);
+          }}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          onApplyPreset={(preset: FilterPreset) => {
+            setActivePreset(preset.label);
+            setFilterStatus(preset.status);
+            setDateRange(preset.dateRange);
+            // Clear specific date when using presets
+            if (preset.dateRange !== "all") {
+              setFilterDate("");
+            }
+            // Clear search when applying presets for clean slate
+            setSearchText("");
+          }}
           onClearFilters={() => {
             setSearchText("");
             setFilterDate("");
             setFilterType("");
             setFilterStatus("all");
+            setDateRange("all");
+            setActivePreset(null);
           }}
-          hasActiveFilters={!!(searchText || filterDate || filterType || filterStatus !== "all")}
+          hasActiveFilters={!!(searchText || filterDate || filterType || filterStatus !== "all" || dateRange !== "all")}
+          activePresetLabel={activePreset}
         />
 
-        <div className="flex flex-wrap gap-2 items-center">
+        {/* Stats Bar */}
+        <StatsPanel
+          onSiteCount={onSiteCount}
+          todayCount={todayCount}
+          recordsShown={filteredVisits.length}
+        />
+
+        {/* Divider */}
+        <div className="border-t border-slate-100" />
+
+        {/* Export Section */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
           <ExportPanel
             hasRecords={exportableVisits.length > 0}
             isPdfLoading={pdfLoading}
             isXlsxLoading={xlsxLoading}
+            exportRange={exportRange}
+            onExportRangeChange={setExportRange}
             onExportCSV={exportCSV}
             onExportXLSX={exportXLSX}
             onExportPDF={exportPDF}
@@ -611,18 +721,12 @@ export default function SiteSignInModulePage() {
           {onSiteCount > 0 && (
             <button
               onClick={() => setShowBulkSignOutModal(true)}
-              className="ml-auto text-xs font-bold bg-slate-900 hover:bg-black text-white rounded-lg px-3 py-2"
+              className="text-xs font-bold bg-slate-900 hover:bg-black text-white rounded-lg px-3 py-2 whitespace-nowrap"
             >
               Sign out all ({onSiteCount})
             </button>
           )}
         </div>
-
-        <StatsPanel
-          onSiteCount={onSiteCount}
-          todayCount={todayCount}
-          recordsShown={filteredVisits.length}
-        />
       </section>
 
       <section className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -681,24 +785,64 @@ export default function SiteSignInModulePage() {
       {selectedSiteId && activeCompanyId && (
         <section className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
           <div className="border-b border-slate-200 px-6 pt-5 pb-0 bg-white">
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-3 mb-3">
               <h2 className="text-lg font-bold text-slate-900">Site Setup</h2>
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Configure once</span>
+              {briefingConfigured && inductionConfigured ? (
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Site fully configured
+                </span>
+              ) : (
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Configure once</span>
+              )}
             </div>
-            <div className="flex gap-0">
-              {(["briefing", "induction"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setSiteManagementTab(tab)}
-                  className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                    siteManagementTab === tab
-                      ? "border-amber-400 text-slate-900"
-                      : "border-transparent text-slate-500 hover:text-slate-700"
+
+            {/* Progress summary */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-medium text-slate-600">
+                  Site setup: {(briefingConfigured ? 1 : 0) + (inductionConfigured ? 1 : 0)} of 2 complete
+                </span>
+                <span className="text-xs text-slate-400">
+                  {briefingConfigured && inductionConfigured ? "All set!" : `${briefingConfigured && inductionConfigured ? 0 : 2 - ((briefingConfigured ? 1 : 0) + (inductionConfigured ? 1 : 0))} remaining`}
+                </span>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    briefingConfigured && inductionConfigured ? "bg-emerald-500 w-full" : "bg-amber-500"
                   }`}
-                >
-                  {tab === "briefing" ? "Daily Briefing" : "Site Induction"}
-                </button>
-              ))}
+                  style={{
+                    width: `${((briefingConfigured ? 1 : 0) + (inductionConfigured ? 1 : 0)) / 2 * 100}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-0">
+              {(["briefing", "induction"] as const).map((tab) => {
+                const isConfigured = tab === "briefing" ? briefingConfigured : inductionConfigured;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setSiteManagementTab(tab)}
+                    className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
+                      siteManagementTab === tab
+                        ? "border-amber-400 text-slate-900"
+                        : "border-transparent text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {tab === "briefing" ? "Daily Briefing" : "Site Induction"}
+                    {!isConfigured && (
+                      <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full font-medium">
+                        Not configured
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="p-6">
@@ -707,20 +851,42 @@ export default function SiteSignInModulePage() {
                 <p className="text-sm text-slate-500 mb-4">
                   Create a daily safety briefing (toolbox talk). Workers will see and acknowledge it when signing in each morning.
                 </p>
-                <DailyBriefingPanel siteId={selectedSiteId} companyId={activeCompanyId} />
+                <DailyBriefingPanel
+                  siteId={selectedSiteId}
+                  companyId={activeCompanyId}
+                  onConfiguredChange={setBriefingConfigured}
+                />
               </div>
             ) : (
               <div>
                 <p className="text-sm text-slate-500 mb-4">
                   Set up a multi-step site induction. First-time visitors to this site will complete it before signing in.
                 </p>
-                <SiteInductionPanel siteId={selectedSiteId} companyId={activeCompanyId} />
+                <SiteInductionPanel
+                  siteId={selectedSiteId}
+                  companyId={activeCompanyId}
+                  onConfiguredChange={setInductionConfigured}
+                />
               </div>
             )}
           </div>
         </section>
       )}
     </div>
+  );
+}
+
+export default function SiteSignInModulePage() {
+  return (
+    <ErrorBoundary
+      fallback={
+        <SiteSignErrorFallback
+          onRetry={() => window.location.reload()}
+        />
+      }
+    >
+      <SiteSignContent />
+    </ErrorBoundary>
   );
 }
 

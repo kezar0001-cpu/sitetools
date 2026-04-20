@@ -12,12 +12,12 @@ const meetingMinutesTemplate: DocumentTemplate = {
     description: "Professional meeting minutes with attendees, agenda items, action items, and sign-off",
     icon: "users",
     color: "blue",
-    prompt_template: `Convert the following meeting summary into professional meeting minutes.
+    prompt_template: `Convert the following meeting summary into professional meeting minutes for any type of meeting.
 
 Structure the output as JSON with this exact structure:
 {
   "metadata": {
-    "document_title": "Meeting Minutes — [Project/Meeting Name]",
+    "document_title": "Meeting Minutes — [Meeting Name or Subject]",
     "project_name": "extracted or null",
     "location": "extracted meeting location or null",
     "date": "YYYY-MM-DD format",
@@ -26,7 +26,7 @@ Structure the output as JSON with this exact structure:
     "prepared_by": "extracted minute taker name or null",
     "organization": "extracted primary organization or null",
     "abn": "extracted ABN number if mentioned or null",
-    "meeting_type": "e.g. Site Meeting, Internal Management Meeting, Progress Meeting, or null",
+    "meeting_type": "meeting category if stated (e.g. project meeting, design review, client meeting, safety committee, leadership meeting) or null",
     "next_meeting": "YYYY-MM-DD format or null",
     "distribution": "e.g. Attendees only, All stakeholders, or null"
   },
@@ -45,22 +45,23 @@ Structure the output as JSON with this exact structure:
 }
 
 Extract and organize all of the following:
-- Meeting date, time, location, meeting type, and next meeting date
+- Meeting date, time, location, meeting type/category, and next meeting date
 - All attendees with their organizations and roles
 - Every agenda item discussed — write detailed section content in full sentences
 - All action items with responsible parties and due dates
 - Status indicators (open/closed/in-progress) for each item and section
 - All decisions made, agreements reached, and outstanding matters
+- Keep the language generic and do not assume this is an internal meeting, site meeting, or tied to any specific company unless the source notes explicitly say so.
 
 Meeting Summary:
 {{SUMMARY}}`,
     required_fields: [
-        { name: "project_name", label: "Project Name", type: "text", placeholder: "Depena Reserve Carpark Upgrade" },
-        { name: "location", label: "Meeting Location", type: "text", placeholder: "MSA Civil Site Office" },
+        { name: "project_name", label: "Project / Subject", type: "text", placeholder: "Client Coordination Meeting" },
+        { name: "location", label: "Meeting Location", type: "text", placeholder: "Conference Room A or Microsoft Teams" },
         { name: "date", label: "Meeting Date", type: "date" },
     ],
     optional_fields: [
-        { name: "reference", label: "Reference Number", type: "text", placeholder: "MSA-MM-002" },
+        { name: "reference", label: "Reference Number", type: "text", placeholder: "MM-002" },
         { name: "next_meeting", label: "Next Meeting Date", type: "date" },
         { name: "prepared_by", label: "Minutes By", type: "text" },
     ],
@@ -186,7 +187,7 @@ Extract and structure:
 CAR Summary:
 {{SUMMARY}}`,
     required_fields: [
-        { name: "car_reference", label: "CAR Reference", type: "text", placeholder: "MSA-CAR-001" },
+        { name: "car_reference", label: "CAR Reference", type: "text", placeholder: "CAR-001" },
         { name: "ncr_reference", label: "NCR Reference (if applicable)", type: "text" },
         { name: "date_raised", label: "Date Raised", type: "date" },
         { name: "date_closed", label: "Target Close Date", type: "date" },

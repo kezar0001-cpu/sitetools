@@ -13,6 +13,19 @@ function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').slice(0, 60)
 }
 
+async function renderPdfWithFallback(pdfData: Parameters<typeof createElement>[1]) {
+  try {
+    return await renderToBuffer(createElement(MSADocument, pdfData))
+  } catch (error) {
+    const maybeProps = pdfData as { companyLogoUrl?: string | null }
+    if (maybeProps?.companyLogoUrl) {
+      console.warn('[site-docs/export] PDF render failed with company logo, retrying without logo', error)
+      return renderToBuffer(createElement(MSADocument, { ...maybeProps, companyLogoUrl: null }))
+    }
+    throw error
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: { documentId: string } }
@@ -78,7 +91,7 @@ export async function GET(
       typedDocument.company?.logo_url ?? null
     )
 
-    const buffer = await renderToBuffer(createElement(MSADocument, pdfData))
+    const buffer = await renderPdfWithFallback(pdfData)
     const filename = sanitizeFilename(pdfData.documentNo || typedDocument.title || 'site-document')
     const pdfBytes = new Uint8Array(buffer)
 

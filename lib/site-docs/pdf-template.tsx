@@ -639,7 +639,7 @@ export function MSADocument(props: MSADocumentProps) {
         <View fixed style={styles.footer}>
           <View style={styles.footerRule} />
           <View style={styles.footerRow}>
-            <Text style={[FOOTER_TEXT, styles.footerCell]}>{props.companyName || 'Buildstate'} — INTERNAL USE ONLY</Text>
+            <Text style={[FOOTER_TEXT, styles.footerCell]}>{props.companyName || 'Buildstate'} — Document Export</Text>
             <Text style={[FOOTER_TEXT, styles.footerCell, styles.footerCenter]}>{docTitle}</Text>
             <Text
               style={[FOOTER_TEXT, styles.footerCell, styles.footerRight]}

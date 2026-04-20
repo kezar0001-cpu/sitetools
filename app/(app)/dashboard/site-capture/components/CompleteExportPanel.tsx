@@ -61,17 +61,38 @@ export function CompleteExportPanel<TDiary extends CompletableDiary>({
         },
       });
       if (!response.ok) throw new Error("Export failed");
-      
+
+      const contentType = response.headers.get("Content-Type") || "";
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const suggestedFilename =
+        contentDisposition?.match(/filename="?([^";]+)"?/)?.[1] ||
+        `site-capture-${diary.date}.${format === "docx" ? "doc" : "html"}`;
+
+      if (format === "pdf" && contentType.includes("text/html")) {
+        const html = await response.text();
+        const printWindow = window.open("", "_blank", "noopener,noreferrer");
+        if (!printWindow) {
+          throw new Error("Pop-up blocked. Please allow pop-ups to export PDF.");
+        }
+
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.focus();
+        toast.success("Printable export opened. Use Print → Save as PDF.");
+        return;
+      }
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `site-capture-${diary.date}-${format}.${format}`;
+      a.download = suggestedFilename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      toast.success(`${format.toUpperCase()} export downloaded.`);
+      toast.success(format === "docx" ? "Word export downloaded." : `${format.toUpperCase()} export downloaded.`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Export failed";
       console.error("Export error:", err);
@@ -135,7 +156,7 @@ export function CompleteExportPanel<TDiary extends CompletableDiary>({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               )}
-              Download PDF
+              Open PDF Export
             </button>
             <button
               type="button"
@@ -153,7 +174,7 @@ export function CompleteExportPanel<TDiary extends CompletableDiary>({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               )}
-              Download DOCX
+              Download Word
             </button>
           </div>
           
