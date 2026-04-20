@@ -274,7 +274,7 @@ export default function DashboardHome() {
 
     const activeCompanyId = summary?.activeMembership?.company_id;
     const userRole = summary?.activeMembership?.role;
-    const isAdmin = canManageSites(userRole);
+    const isAdmin = canManageSites(userRole, summary?.profile?.email);
 
     const userName = summary?.profile?.full_name
         ? summary.profile.full_name.split(" ")[0]

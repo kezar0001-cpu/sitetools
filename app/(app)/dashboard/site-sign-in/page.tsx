@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorBanner, showErrorToast, showSuccessToast } from "@/components/feedback";
 import { loadJsPDF, loadXLSX, preloadJsPDF, preloadXLSX } from "@/lib/dynamicImports";
 import { setActiveSite } from "@/lib/workspace/client";
-import { canManageSites } from "@/lib/workspace/permissions";
+import { canManageSites, canUseModules, isSuperAdmin } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import type { SiteVisit } from "@/lib/workspace/types";
 import { useCompanySites } from "@/hooks/useSites";
@@ -158,8 +158,9 @@ export default function SiteSignInModulePage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [xlsxLoading, setXlsxLoading] = useState(false);
 
-  const canDelete = canManageSites(activeRole);
-  const canEdit = !!activeRole;
+  const isSuperAdminUser = isSuperAdmin(summary?.profile?.email);
+  const canDelete = canManageSites(activeRole, summary?.profile?.email);
+  const canEdit = canUseModules(activeRole, summary?.profile?.email);
 
   // Derived loading states from mutations
   const adding = createVisit.isPending;

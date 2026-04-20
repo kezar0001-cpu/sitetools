@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { ErrorBanner, showSuccessToast, FieldError } from "@/components/feedback";
 import { deleteCompany, updateCompany, updateProfile } from "@/lib/workspace/client";
-import { canManageTeam } from "@/lib/workspace/permissions";
+import { canManageTeam, isSuperAdmin } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useRouter } from "next/navigation";
 import {
@@ -35,8 +35,9 @@ export default function SettingsPage() {
   const [deletingCompany, setDeletingCompany] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const canEditCompany = canManageTeam(activeRole);
-  const isOwner = activeRole === "owner";
+  const isSuperAdminUser = isSuperAdmin(summary?.profile?.email);
+  const canEditCompany = canManageTeam(activeRole, summary?.profile?.email);
+  const isOwner = activeRole === "owner" || isSuperAdminUser;
 
   // Company profile form with react-hook-form
   const {
@@ -195,7 +196,7 @@ export default function SettingsPage() {
               />
               <FieldError message={companyErrors.companyName?.message} />
               {!canEditCompany && !companyErrors.companyName && (
-                <p className="text-xs text-slate-400">Only Admins and Owners can edit the company name.</p>
+                <p className="text-xs text-slate-400">Only Admins, Owners, and Super Admin can edit the company name.</p>
               )}
             </div>
 
@@ -281,7 +282,7 @@ export default function SettingsPage() {
           </div>
 
           {!isOwner && (
-            <p className="text-xs text-slate-400">Only the company owner can delete the company.</p>
+            <p className="text-xs text-slate-400">Only the company owner or Super Admin can delete the company.</p>
           )}
         </div>
       )}

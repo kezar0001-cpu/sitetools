@@ -225,7 +225,7 @@ const INTERNAL_MODULES: AppModule[] = [
   {
     id: "sites-projects",
     slug: "sites-projects",
-    name: "Sites / Projects",
+    name: "Projects",
     route: "/dashboard/sites",
     shortDescription: "Manage physical sites, assign them to projects, and set active context.",
     moduleColor: "zinc",

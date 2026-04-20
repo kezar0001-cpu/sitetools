@@ -94,6 +94,14 @@ function buildFallbackProfile(userId: string, email?: string | null, activeCompa
   };
 }
 
+function mergeProfileWithUserEmail(profile: Profile, email?: string | null): Profile {
+  if (!email || profile.email) return profile;
+  return {
+    ...profile,
+    email: email.toLowerCase(),
+  };
+}
+
 export async function getAuthenticatedUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error) throw error;
@@ -185,7 +193,10 @@ export async function loadWorkspaceSummary(userId: string, email?: string | null
 
   const result = data as { profile: Profile | null; memberships: CompanyMembership[] };
 
-  const profile: Profile = result.profile ?? buildFallbackProfile(userId, email);
+  const profile: Profile = mergeProfileWithUserEmail(
+    result.profile ?? buildFallbackProfile(userId, email),
+    email,
+  );
 
   const memberships: CompanyMembership[] = (result.memberships ?? []).map((row) => {
     const membership = row as MembershipRow;
@@ -226,11 +237,14 @@ async function loadWorkspaceSummaryLegacy(userId: string, email?: string | null)
     };
   });
 
-  let profile: Profile = ensuredProfile ?? buildFallbackProfile(userId, email);
+  let profile: Profile = mergeProfileWithUserEmail(
+    ensuredProfile ?? buildFallbackProfile(userId, email),
+    email,
+  );
 
   const profileRes = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
   if (!profileRes.error && profileRes.data) {
-    profile = profileRes.data as Profile;
+    profile = mergeProfileWithUserEmail(profileRes.data as Profile, email);
   } else if (profileRes.error && !isMissingTableError(profileRes.error, "profiles")) {
     throw profileRes.error;
   }
@@ -257,7 +271,7 @@ async function loadWorkspaceSummaryLegacy(userId: string, email?: string | null)
       .maybeSingle();
 
     if (!updatedProfileError && updatedProfile) {
-      profile = updatedProfile as Profile;
+      profile = mergeProfileWithUserEmail(updatedProfile as Profile, email);
     } else if (updatedProfileError && !isMissingTableError(updatedProfileError, "profiles")) {
       throw updatedProfileError;
     } else {

@@ -232,7 +232,7 @@ export default function SitesPage() {
 
   const editTimezone = watchEdit("timezone");
 
-  const canEditSites = canManageSites(activeRole);
+  const canEditSites = canManageSites(activeRole, summary?.profile?.email);
 
   // Sites and projects are now automatically fetched via TanStack Query
 
@@ -552,7 +552,7 @@ export default function SitesPage() {
     setEditLogoFile(null);
     setEditLogoPreview(null);
     setLogoUploadError(null);
-    resetEdit({ name: site.name, timezone: site.timezone || "Australia/Sydney" });
+    resetEdit({ name: site.name, timezone: site.timezone || "Australia/Sydney", slug: site.slug });
   }
 
   async function handleSaveEdit(data: SiteEditFormData) {
@@ -562,10 +562,13 @@ export default function SitesPage() {
     setLogoUploadError(null);
 
     try {
-      const newSlug = toSlug(data.name);
+      // Preserve existing slug by default - only use provided slug if it's different and valid
+      // If user clears the slug field, keep the original slug
+      const finalSlug = data.slug?.trim() || editingSite.slug;
+      
       await updateSite(editingSite.id, {
         name: data.name.trim(),
-        slug: newSlug,
+        slug: finalSlug,
         timezone: data.timezone || "Australia/Sydney",
       });
 
@@ -1594,7 +1597,7 @@ export default function SitesPage() {
               </div>
               <div>
                 <h3 className="text-lg font-extrabold text-slate-900 leading-tight">Edit Site</h3>
-                <p className="text-sm text-slate-500">A new URL slug will be generated.</p>
+                <p className="text-sm text-slate-500">Site slug is preserved to keep QR codes working.</p>
               </div>
             </div>
 
@@ -1611,6 +1614,25 @@ export default function SitesPage() {
                 {editErrors.name && (
                   <p className="mt-1.5 text-xs text-red-500">{editErrors.name.message}</p>
                 )}
+              </div>
+
+              {/* Slug Field - Preserved by default to keep QR codes working */}
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                  Site Slug <span className="text-slate-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  {...registerEdit("slug")}
+                  placeholder={editingSite?.slug || "site-slug"}
+                  className={`w-full border-2 ${editErrors.slug ? "border-red-300 focus:border-red-400" : "border-slate-100 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm font-bold focus:outline-none bg-slate-50 transition-colors text-slate-900 min-h-[44px] font-mono`}
+                />
+                {editErrors.slug && (
+                  <p className="mt-1.5 text-xs text-red-500">{editErrors.slug.message}</p>
+                )}
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Used in QR codes and URLs. <strong className="text-amber-600">Keep unchanged</strong> to preserve existing QR codes.
+                </p>
               </div>
 
               <div>

@@ -48,7 +48,10 @@ export default function TeamPage() {
   const [inviteResult, setInviteResult] = useState<{ token: string; inviteCode: string; email: string; role: CompanyRole } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const canEditTeam = useMemo(() => canManageTeam(activeRole), [activeRole]);
+  const canEditTeam = useMemo(
+    () => canManageTeam(activeRole, summary?.profile?.email),
+    [activeRole, summary?.profile?.email],
+  );
   const userIsSuperAdmin = useMemo(() => isSuperAdmin(summary?.profile?.email), [summary?.profile?.email]);
   const canManageTeamWithSuperAdmin = canEditTeam || userIsSuperAdmin;
   const [addMode, setAddMode] = useState<"invite" | "direct">("invite");

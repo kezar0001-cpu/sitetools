@@ -15,7 +15,7 @@ export default function ProjectSitesPage() {
 
     const companyId = summary?.activeMembership?.company_id ?? null;
     const activeRole = summary?.activeMembership?.role ?? null;
-    const canEdit = canManageSites(activeRole);
+    const canEdit = canManageSites(activeRole, summary?.profile?.email);
 
     const [sites, setSites] = useState<Site[]>([]);
     const [pageLoading, setPageLoading] = useState(true);

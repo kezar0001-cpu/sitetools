@@ -21,6 +21,7 @@ export type SiteCreationFormData = z.infer<typeof siteCreationSchema>;
  * Site edit validation schema
  * - name: required, minimum 2 characters
  * - timezone: optional IANA timezone identifier
+ * - slug: optional, allows manual slug editing (superadmin only)
  */
 export const siteEditSchema = z.object({
   name: z
@@ -28,6 +29,12 @@ export const siteEditSchema = z.object({
     .min(2, "Site name must be at least 2 characters")
     .max(100, "Site name must be 100 characters or less"),
   timezone: z.string().optional(),
+  slug: z
+    .string()
+    .min(3, "Slug must be at least 3 characters")
+    .max(50, "Slug must be 50 characters or less")
+    .regex(/^[a-z0-9-]+$/, "Slug can only contain lowercase letters, numbers, and hyphens")
+    .optional(),
 });
 
 export type SiteEditFormData = z.infer<typeof siteEditSchema>;

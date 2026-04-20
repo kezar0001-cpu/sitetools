@@ -20,14 +20,14 @@ export function hasMinimumRole(role: CompanyRole | null | undefined, minimum: Co
   return ROLE_WEIGHT[role] >= ROLE_WEIGHT[minimum];
 }
 
-export function canManageTeam(role: CompanyRole | null | undefined): boolean {
-  return hasMinimumRole(role, "admin");
+export function canManageTeam(role: CompanyRole | null | undefined, email?: string | null): boolean {
+  return isSuperAdmin(email) || hasMinimumRole(role, "admin");
 }
 
-export function canManageSites(role: CompanyRole | null | undefined): boolean {
-  return hasMinimumRole(role, "manager");
+export function canManageSites(role: CompanyRole | null | undefined, email?: string | null): boolean {
+  return isSuperAdmin(email) || hasMinimumRole(role, "manager");
 }
 
-export function canUseModules(role: CompanyRole | null | undefined): boolean {
-  return !!role;
+export function canUseModules(role: CompanyRole | null | undefined, email?: string | null): boolean {
+  return isSuperAdmin(email) || !!role;
 }
