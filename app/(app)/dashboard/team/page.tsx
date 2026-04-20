@@ -50,6 +50,7 @@ export default function TeamPage() {
 
   const canEditTeam = useMemo(() => canManageTeam(activeRole), [activeRole]);
   const userIsSuperAdmin = useMemo(() => isSuperAdmin(summary?.profile?.email), [summary?.profile?.email]);
+  const canManageTeamWithSuperAdmin = canEditTeam || userIsSuperAdmin;
   const [addMode, setAddMode] = useState<"invite" | "direct">("invite");
   const [directAddResult, setDirectAddResult] = useState<{ email: string; role: CompanyRole; success: boolean; message: string } | null>(null);
 
@@ -72,7 +73,7 @@ export default function TeamPage() {
   }, [activeCompanyId]);
 
   async function handleRoleChange(memberId: string, role: CompanyRole) {
-    if (!canEditTeam) return;
+    if (!canManageTeamWithSuperAdmin) return;
 
     const { error: updateError } = await supabase.from("company_memberships").update({ role }).eq("id", memberId);
     if (updateError) {
@@ -126,7 +127,7 @@ export default function TeamPage() {
 
   async function handleInvite(e: FormEvent) {
     e.preventDefault();
-    if (!activeCompanyId || !canEditTeam) return;
+    if (!activeCompanyId || !canManageTeamWithSuperAdmin) return;
 
     setInviteResult(null);
 
@@ -264,7 +265,7 @@ export default function TeamPage() {
               key: "role",
               header: "Role",
               render: (member) => {
-                if (canEditTeam && member.role !== "owner") {
+                if (canManageTeamWithSuperAdmin && member.role !== "owner") {
                   return (
                     <select
                       value={member.role}
@@ -300,7 +301,7 @@ export default function TeamPage() {
               mobileVisible: false,
               render: (member) => new Date(member.created_at).toLocaleDateString("en-AU"),
             },
-            ...(canEditTeam
+            ...(canManageTeamWithSuperAdmin
               ? [
                   {
                     key: "actions",
@@ -366,8 +367,8 @@ export default function TeamPage() {
           )}
         </div>
         
-        {!canEditTeam ? (
-          <p className="text-sm text-slate-600">Only Owners and Admins can invite team members.</p>
+        {!canManageTeamWithSuperAdmin ? (
+          <p className="text-sm text-slate-600">Only Owners, Admins, and Super Admin can invite team members.</p>
         ) : (
           <>
             {userIsSuperAdmin && addMode === "direct" && (
