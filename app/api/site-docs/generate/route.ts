@@ -6,12 +6,7 @@ import { getTemplatePrompt, DOCUMENT_TEMPLATES } from "@/lib/site-docs/templates
 import type { DocumentType } from "@/lib/site-docs/types";
 
 export const runtime = "nodejs";
-
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-);
+export const dynamic = 'force-dynamic';
 
 const DOCUMENT_SYSTEM_PROMPT =
     "You are a professional document generator for construction and civil engineering projects. " +
@@ -19,6 +14,12 @@ const DOCUMENT_SYSTEM_PROMPT =
 
 export async function POST(request: NextRequest) {
     try {
+        const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        );
+
         const body = await request.json();
         const { document_type, summary, metadata_override } = body;
 

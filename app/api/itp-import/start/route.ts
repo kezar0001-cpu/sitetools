@@ -16,12 +16,7 @@ import {
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+export const dynamic = 'force-dynamic';
 
 async function updateJob(jobId: string, updates: Partial<ImportJob>) {
   const job = await getJob(jobId);
@@ -29,6 +24,12 @@ async function updateJob(jobId: string, updates: Partial<ImportJob>) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
   // Authenticate
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
@@ -122,6 +123,12 @@ async function processImport(
   userId: string,
   signal: AbortSignal,
 ) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
   try {
     // Step: Extracting text
     await updateJob(jobId, { step: "extracting", message: "Extracting text…", percent: 20 });

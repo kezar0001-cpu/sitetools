@@ -62,6 +62,12 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
   const { jobId } = await params;
 
   const authHeader = req.headers.get("authorization");

@@ -7,12 +7,7 @@ import { mapSiteDocToMSA } from '@/lib/site-docs/pdf'
 import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
 
 export const runtime = 'nodejs'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-)
+export const dynamic = 'force-dynamic'
 
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').slice(0, 60)
@@ -23,6 +18,12 @@ export async function GET(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
     const authHeader = req.headers.get('authorization')
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized - missing token' }, { status: 401 })
