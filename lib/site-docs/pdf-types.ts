@@ -25,7 +25,7 @@ export type MSAItem =
   | {
       type: 'signoff_table'
       columns: { header: string; weight: number }[]
-      rows: { name: string; organization: string; signatureDate: string; signatureData?: string | null; status: string }[]
+      rows: { name: string; organization: string; signatureDate: string; signatureData?: string | null; signUrl?: string | null; status: string }[]
     }
   | {
       type: 'status_table'

@@ -92,7 +92,8 @@ export async function GET(
       },
       typedDocument.generated_content,
       typedDocument.company?.name ?? null,
-      typedDocument.company?.logo_url ?? null
+      typedDocument.company?.logo_url ?? null,
+      req.nextUrl.origin
     )
 
     const filename = sanitizeFilename(pdfData.documentNo || typedDocument.title || 'site-document')
@@ -107,6 +108,7 @@ export async function GET(
         },
         content: typedDocument.generated_content,
         companyName: typedDocument.company?.name ?? null,
+        origin: req.nextUrl.origin,
       })
 
       return new NextResponse(html, {

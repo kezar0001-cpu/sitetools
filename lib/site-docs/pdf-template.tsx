@@ -1,4 +1,4 @@
-import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Document, Image, Link, Page, StyleSheet, Text, View } from '@react-pdf/renderer'
 import type { MSAItem, MSADocumentProps, MSASection } from '@/lib/site-docs/pdf-types'
 
 const MM_TO_PT = 2.835
@@ -530,6 +530,10 @@ function SignoffTable({
             {row.signatureData ? (
               // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image is not a DOM element.
               <Image src={row.signatureData} style={styles.signImage} />
+            ) : row.signUrl ? (
+              <Link src={row.signUrl} style={{ fontSize: 8, color: '#1D4ED8', textDecoration: 'underline' }}>
+                Click to sign
+              </Link>
             ) : (
               <Text style={styles.signPlaceholder}>Pending</Text>
             )}

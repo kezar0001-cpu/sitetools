@@ -94,6 +94,7 @@ export interface Signatory {
     organization: string | null;
     signature_date: string | null;
     signature_data?: string | null;
+    sign_url?: string | null;
 }
 
 // ── Template Definitions ──

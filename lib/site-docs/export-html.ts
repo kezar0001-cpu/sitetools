@@ -1,4 +1,5 @@
 import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
+import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
 
 function escapeHtml(value: string | null | undefined): string {
   return (value ?? '')
@@ -24,8 +25,9 @@ export function generateSiteDocHtml(params: {
   document: Pick<SiteDocument, 'id' | 'title' | 'document_type' | 'reference_number'>
   content: GeneratedContent
   companyName: string | null
+  origin?: string
 }): string {
-  const { document, content, companyName } = params
+  const { document, content, companyName, origin } = params
   const metadata = content.metadata
   const displayTitle = metadata.document_title ?? document.title
   const resolvedCompany = companyName ?? metadata.organization ?? 'Buildstate'
@@ -61,7 +63,7 @@ export function generateSiteDocHtml(params: {
     .map((sig) => {
       const signatureMarkup = sig.signature_data
         ? `<img src="${sig.signature_data}" alt="Signature" class="signature-image" />`
-        : '<span class="signature-line">&nbsp;</span>'
+        : `<a href="${buildSiteDocSignUrl(document.id, sig.id, origin)}" class="sign-link">Click to sign</a>`
 
       return `
         <tr>
@@ -112,6 +114,7 @@ export function generateSiteDocHtml(params: {
     tr:nth-child(even) td { background: #f8fafc; }
     .signature-image { max-width: 140px; max-height: 48px; display: block; }
     .signature-line { display: inline-block; width: 140px; border-bottom: 1px solid #94a3b8; min-height: 20px; }
+    .sign-link { color: #1d4ed8; text-decoration: underline; font-weight: 600; }
     .acceptance { margin-top: 12px; background: #f8fafc; border-left: 4px solid #e87722; padding: 10px 12px; color: #475569; font-size: 11px; }
     .footer-note { margin-top: 24px; color: #94a3b8; font-size: 10px; text-align: right; }
   </style>

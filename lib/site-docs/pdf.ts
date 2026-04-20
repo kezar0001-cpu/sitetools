@@ -1,5 +1,6 @@
 import type { MSAItem, MSADocumentProps } from '@/lib/site-docs/pdf-types'
 import type { DocumentStatus, DocumentType, GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
+import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
 
 const DOC_TYPE_LABELS: Record<DocumentType, string> = {
   'meeting-minutes': 'Meeting Minutes',
@@ -53,7 +54,8 @@ export function mapSiteDocToMSA(
   document: Pick<SiteDocument, 'id' | 'title' | 'document_type' | 'status' | 'reference_number'>,
   generatedContent: GeneratedContent,
   companyName: string | null,
-  companyLogoUrl?: string | null
+  companyLogoUrl?: string | null,
+  origin?: string
 ): MSADocumentProps {
   const metadata = generatedContent.metadata
 
@@ -189,6 +191,7 @@ export function mapSiteDocToMSA(
             organization: toDisplayValue(signatory.organization),
             signatureDate: formatDisplayDate(signatory.signature_date),
             signatureData: signatory.signature_data ?? null,
+            signUrl: signatory.signature_date ? null : buildSiteDocSignUrl(document.id, signatory.id, origin),
             status: signatory.signature_date ? 'Signed' : 'Pending',
           })),
         },
