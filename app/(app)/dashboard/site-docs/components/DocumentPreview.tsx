@@ -263,6 +263,17 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                 />
                             </div>
                             <div className="flex items-center gap-2">
+                                <span className="text-slate-500">Client:</span>
+                                <input
+                                    type="text"
+                                    value={metadata.client || ""}
+                                    onChange={(e) => updateMetadata("client", e.target.value)}
+                                    onBlur={saveToServer}
+                                    className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                    placeholder="Client"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
                                 <span className="text-slate-500">Location:</span>
                                 <input
                                     type="text"
@@ -302,6 +313,12 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                                 <div>
                                     <span className="text-slate-500">Project:</span>
                                     <span className="ml-2 font-medium text-slate-900">{metadata.project_name}</span>
+                                </div>
+                            )}
+                            {metadata.client && (
+                                <div>
+                                    <span className="text-slate-500">Client:</span>
+                                    <span className="ml-2 font-medium text-slate-900">{metadata.client}</span>
                                 </div>
                             )}
                             {metadata.location && (

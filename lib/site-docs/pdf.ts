@@ -60,6 +60,7 @@ export function mapSiteDocToMSA(
   const metadata = generatedContent.metadata
 
   const detailFields = [
+    { label: 'Client', value: metadata.client },
     { label: 'Location', value: metadata.location },
     { label: 'Time', value: metadata.time },
     { label: 'Meeting Type', value: metadata.meeting_type },
@@ -207,13 +208,13 @@ export function mapSiteDocToMSA(
 
   return {
     documentType: DOC_TYPE_LABELS[document.document_type] ?? document.document_type,
-    documentNo: document.reference_number ?? metadata.reference ?? `DOC-${document.id.slice(0, 8).toUpperCase()}`,
+    documentNo: metadata.reference ?? document.reference_number ?? `DOC-${document.id.slice(0, 8).toUpperCase()}`,
     date: formatDisplayDate(metadata.date),
     revision: statusToRevision(document.status),
     title: metadata.document_title ?? document.title,
     subtitle: metadata.project_name ?? undefined,
     project: metadata.project_name ?? 'General Document',
-    client: resolvedCompanyName,
+    client: metadata.client ?? resolvedCompanyName,
     preparedBy: metadata.prepared_by ?? resolvedCompanyName,
     companyName: resolvedCompanyName,
     companyLogoUrl: companyLogoUrl ?? null,

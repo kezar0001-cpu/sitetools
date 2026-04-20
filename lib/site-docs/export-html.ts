@@ -130,6 +130,7 @@ export function generateSiteDocHtml(params: {
     <div class="meta">
       <div class="meta-card"><strong>Project</strong>${escapeHtml(metadata.project_name ?? 'General Document')}</div>
       <div class="meta-card"><strong>Date</strong>${formatDisplayDate(metadata.date)}</div>
+      <div class="meta-card"><strong>Client</strong>${escapeHtml(metadata.client ?? resolvedCompany)}</div>
       <div class="meta-card"><strong>Location</strong>${escapeHtml(metadata.location ?? '—')}</div>
       <div class="meta-card"><strong>Prepared By</strong>${escapeHtml(metadata.prepared_by ?? resolvedCompany)}</div>
     </div>

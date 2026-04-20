@@ -49,6 +49,7 @@ export interface GeneratedContent {
 export interface DocumentMetadata {
     document_title: string;
     project_name: string | null;
+    client?: string | null;
     location: string | null;
     date: string | null;
     reference: string | null;

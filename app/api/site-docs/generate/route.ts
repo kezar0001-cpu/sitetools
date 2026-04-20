@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         if (metadata_override && generatedContent.metadata) {
             const overridable = [
                 "project_name",
+                "client",
                 "location",
                 "date",
                 "reference",

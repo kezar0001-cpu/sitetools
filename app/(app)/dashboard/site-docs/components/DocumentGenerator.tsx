@@ -113,6 +113,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     // Metadata form state - initialize fresh each time (no persistence)
     const [metadata, setMetadata] = useState({
         project_name: "",
+        client: "",
         location: "",
         date: new Date().toISOString().split("T")[0],
         prepared_by: summary?.profile?.full_name || "",
