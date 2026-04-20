@@ -27,6 +27,7 @@ export function generateSiteDocHtml(params: {
 }): string {
   const { document, content, companyName } = params
   const metadata = content.metadata
+  const displayTitle = metadata.document_title ?? document.title
   const resolvedCompany = companyName ?? metadata.organization ?? 'Buildstate'
   const acceptanceClause =
     'If no objection or requested amendment is raised within 48 hours of issue, these minutes will be taken as accepted.'
@@ -89,7 +90,7 @@ export function generateSiteDocHtml(params: {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${escapeHtml(document.title)}</title>
+  <title>${escapeHtml(displayTitle)}</title>
   <style>
     @page { size: A4; margin: 18mm; }
     body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; font-size: 12px; line-height: 1.5; }
@@ -119,7 +120,7 @@ export function generateSiteDocHtml(params: {
   <div class="page">
     <div class="topbar">
       <div class="eyebrow">${escapeHtml(document.document_type.replace(/-/g, ' '))}</div>
-      <h1>${escapeHtml(document.title)}</h1>
+      <h1>${escapeHtml(displayTitle)}</h1>
       <div class="subtle">${escapeHtml(resolvedCompany)} · Ref ${escapeHtml(document.reference_number ?? metadata.reference ?? `DOC-${document.id.slice(0, 8).toUpperCase()}`)}</div>
     </div>
 

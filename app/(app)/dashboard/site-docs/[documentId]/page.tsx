@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Download, FileText, Loader2, Trash2, FolderOpen } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
@@ -143,6 +143,7 @@ export default function DocumentDetailPage() {
     const [deleting, setDeleting] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [project, setProject] = useState<Project | null>(null);
+    const latestGeneratedContentRef = useRef<SiteDocument["generated_content"] | null>(null);
 
     const documentId = params.documentId as string;
     const companyId = summary?.activeMembership?.company_id;
@@ -163,6 +164,7 @@ export default function DocumentDetailPage() {
                     setError("Document not found");
                 } else {
                     setDocument(doc);
+                    latestGeneratedContentRef.current = doc.generated_content;
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Failed to load document");
@@ -201,8 +203,15 @@ export default function DocumentDetailPage() {
 
         setExporting(format);
         try {
+            if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+                await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            const latestGeneratedContent = latestGeneratedContentRef.current ?? document.generated_content;
+
             // Flush any in-progress edits before export
-            await updateDocument(document.id, { generated_content: document.generated_content });
+            await updateDocument(document.id, { generated_content: latestGeneratedContent });
             await exportDocument(document.id, format);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
@@ -362,6 +371,7 @@ export default function DocumentDetailPage() {
                         editable={true}
                         documentId={document.id}
                         onChange={(newContent) => {
+                            latestGeneratedContentRef.current = newContent;
                             setDocument(prev => prev ? {
                                 ...prev,
                                 generated_content: newContent,
