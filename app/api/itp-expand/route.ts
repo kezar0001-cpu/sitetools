@@ -5,11 +5,18 @@ import { getSecret } from "@/lib/server/get-secret";
 
 export const runtime = "nodejs";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,6 +84,7 @@ Return ONLY a valid JSON array containing exactly 1 object. No markdown, no expl
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   // Authenticate
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {

@@ -9,15 +9,17 @@ import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+type MSADocumentProps = Parameters<typeof MSADocument>[0]
+
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').slice(0, 60)
 }
 
-async function renderPdfWithFallback(pdfData: Parameters<typeof createElement>[1]) {
+async function renderPdfWithFallback(pdfData: MSADocumentProps) {
   try {
     return await renderToBuffer(createElement(MSADocument, pdfData))
   } catch (error) {
-    const maybeProps = pdfData as { companyLogoUrl?: string | null }
+    const maybeProps = pdfData as MSADocumentProps & { companyLogoUrl?: string | null }
     if (maybeProps?.companyLogoUrl) {
       console.warn('[site-docs/export] PDF render failed with company logo, retrying without logo', error)
       return renderToBuffer(createElement(MSADocument, { ...maybeProps, companyLogoUrl: null }))

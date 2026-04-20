@@ -90,7 +90,7 @@ export function VisitFilters({
       <div className="border-t border-slate-100" />
 
       {/* Detailed Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Search</label>
           <input
@@ -137,6 +137,19 @@ export function VisitFilters({
             <option value="all">All statuses</option>
             <option value="onSite">Currently on site</option>
             <option value="signedOut">Signed out</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-slate-500">Range</label>
+          <select
+            value={dateRange}
+            onChange={(e) => onDateRangeChange(e.target.value as DateRangeFilter)}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
+          >
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
           </select>
         </div>
       </div>

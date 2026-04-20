@@ -280,6 +280,7 @@ export default function DashboardHome() {
         ? summary.profile.full_name.split(" ")[0]
         : summary?.profile?.email?.split("@")[0] ?? "there";
     const companyName = summary?.activeMembership?.companies?.name ?? "";
+    const companyLogo = summary?.activeMembership?.companies?.logo_url;
 
     useEffect(() => {
         if (!activeCompanyId) return;
@@ -366,14 +367,23 @@ export default function DashboardHome() {
                     {isLoading ? (
                         <ModuleLoadingState variant="skeleton" count={2} className="max-w-xs" />
                     ) : (
-                        <>
-                            <h1 className="text-2xl font-black text-zinc-50 tracking-tight">
-                                Hey, {userName}.
-                            </h1>
-                            {companyName && (
-                                <p className="text-sm text-zinc-500 mt-0.5 font-medium">{companyName}</p>
+                        <div className="flex items-center gap-3">
+                            {companyLogo && (
+                                <img
+                                    src={companyLogo}
+                                    alt={`${companyName} logo`}
+                                    className="w-12 h-12 rounded-xl object-contain border border-zinc-700 bg-white"
+                                />
                             )}
-                        </>
+                            <div>
+                                <h1 className="text-2xl font-black text-zinc-50 tracking-tight">
+                                    Hey, {userName}.
+                                </h1>
+                                {companyName && (
+                                    <p className="text-sm text-zinc-500 mt-0.5 font-medium">{companyName}</p>
+                                )}
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>

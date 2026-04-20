@@ -5,11 +5,18 @@ import { getSecret } from "@/lib/server/get-secret";
 
 export const runtime = "nodejs";
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Supabase environment variables are not configured.");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
 
 type Responsibility = "contractor" | "superintendent" | "third_party";
 
@@ -115,6 +122,7 @@ const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
 
 export async function POST(req: NextRequest) {
+  const supabaseAdmin = getSupabaseAdmin();
   // Authenticate via Bearer token
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {

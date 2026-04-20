@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ModuleLoadingState } from "@/components/loading/ModuleLoadingState";
 import { ErrorBanner, SuccessBanner, showSuccessToast, FieldError } from "@/components/feedback";
 import { ErrorBoundary, SettingsErrorFallback } from "@/components/error";
-import { deleteCompany } from "@/lib/workspace/client";
-import { useCompany, useProfile, useUpdateCompany, useUpdateProfile } from "@/hooks/useWorkspace";
+import { deleteCompany, exportCompanyData, downloadUserData, fetchAuditLog, uploadCompanyLogo, removeCompanyLogo, transferOwnership, type AuditLogEntry } from "@/lib/workspace/client";
+import { useCompany, useProfile, useUpdateCompany, useUpdateProfile, useInvalidateWorkspace } from "@/hooks/useWorkspace";
+import { useCompanyMembers } from "@/hooks/useCompanyMembers";
 import { canManageTeam, isSuperAdmin } from "@/lib/workspace/permissions";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,11 +18,12 @@ import {
   type CompanyProfileFormData,
   type ProfileUpdateFormData,
 } from "@/lib/validation/schemas";
-import { AlertTriangle, Building2, MapPin, FolderKanban, FileText, Users, ClipboardList, Trash2, X, Shield, Smartphone, Monitor, Globe } from "lucide-react";
+import { AlertTriangle, Building2, MapPin, FolderKanban, FileText, Users, ClipboardList, Trash2, X, Shield, Smartphone, Monitor, Globe, Download, FileDown, History, User, Upload, XCircle, Crown, ArrowRightLeft, CheckCircle2 } from "lucide-react";
 
-type Tab = "company" | "personal" | "security" | "danger";
+type Tab = "company" | "personal" | "security" | "data" | "danger";
+type DataSubTab = "export" | "audit";
 
-const VALID_TABS: Tab[] = ["company", "personal", "security", "danger"];
+const VALID_TABS: Tab[] = ["company", "personal", "security", "data", "danger"];
 
 function getValidTab(tab: string | null): Tab {
   if (tab && VALID_TABS.includes(tab as Tab)) {
@@ -92,6 +94,17 @@ export default function SettingsPage() {
   } | null>(null);
   const [loadingCounts, setLoadingCounts] = useState(false);
 
+  // Transfer Ownership state
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
+  const [emailConfirmText, setEmailConfirmText] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferStep, setTransferStep] = useState<"select" | "confirm" | "success">("select");
+
+  // Get company members for transfer selection
+  const { data: companyMembers, isLoading: loadingMembers } = useCompanyMembers(activeCompanyId);
+
   // Security state - Password change
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -112,6 +125,29 @@ export default function SettingsPage() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
   const [signingOutSession, setSigningOutSession] = useState<string | null>(null);
+
+  // Company logo state
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const invalidateWorkspace = useInvalidateWorkspace();
+
+  // Data Export state
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState(false);
+  const [lastExportCounts, setLastExportCounts] = useState<Record<string, number> | null>(null);
+  const [downloadingUserData, setDownloadingUserData] = useState(false);
+
+  // Audit Log state
+  const [auditLogSubTab, setAuditLogSubTab] = useState<DataSubTab>("export");
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditCursor, setAuditCursor] = useState<string | undefined>(undefined);
+  const [hasMoreAudit, setHasMoreAudit] = useState(false);
+  const [totalAuditCount, setTotalAuditCount] = useState(0);
 
   const isSuperAdminUser = isSuperAdmin(summary?.profile?.email);
   const canEditCompany = canManageTeam(activeRole, summary?.profile?.email);
@@ -168,7 +204,7 @@ export default function SettingsPage() {
       setProfileSaveSuccess(false);
       setProfileSaveError(null);
     }
-  }, [profile?.full_name, profile?.phone_number, resetProfile, isLoadingProfile]);
+  }, [profile, resetProfile, isLoadingProfile]);
 
   // Watch for changes to clear success states
   useEffect(() => {
@@ -191,16 +227,6 @@ export default function SettingsPage() {
       loadActiveSessions();
     }
   }, [activeTab]);
-
-  function clearErrors() {
-    setLoadError(null);
-    setCompanySaveError(null);
-    setProfileSaveError(null);
-    setDeleteError(null);
-    setBoundaryError(null);
-    setPasswordError(null);
-    setSessionsError(null);
-  }
 
   function handleRetry() {
     setBoundaryError(null);
@@ -230,6 +256,54 @@ export default function SettingsPage() {
       resetCompany({ companyName: data.companyName.trim() });
     } catch (err) {
       setCompanySaveError(err instanceof Error ? err.message : "Failed to update company. Try refreshing the page and attempting again.");
+    }
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !activeCompanyId || !canEditCompany) return;
+
+    setUploadingLogo(true);
+    setLogoError(null);
+
+    try {
+      const result = await uploadCompanyLogo(activeCompanyId, file);
+      if (result.success) {
+        showSuccessToast("Company logo updated.");
+        // Invalidate company cache to refresh the logo
+        invalidateWorkspace.invalidateCompany(activeCompanyId);
+        // Also invalidate workspace summary to update any UI showing the logo
+        invalidateWorkspace.invalidateWorkspaceSummary();
+      } else {
+        setLogoError(result.error);
+      }
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Failed to upload logo.");
+    } finally {
+      setUploadingLogo(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handleLogoRemove() {
+    if (!activeCompanyId || !canEditCompany) return;
+
+    setUploadingLogo(true);
+    setLogoError(null);
+
+    try {
+      await removeCompanyLogo(activeCompanyId);
+      showSuccessToast("Company logo removed.");
+      // Invalidate company cache to refresh the logo
+      invalidateWorkspace.invalidateCompany(activeCompanyId);
+      invalidateWorkspace.invalidateWorkspaceSummary();
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Failed to remove logo.");
+    } finally {
+      setUploadingLogo(false);
     }
   }
 
@@ -420,6 +494,165 @@ export default function SettingsPage() {
     }
   }
 
+  // Transfer Ownership handlers
+  async function handleTransferOwnership() {
+    if (!activeCompanyId || !isOwner || !selectedNewOwner) return;
+
+    const selectedMember = companyMembers?.find(m => m.id === selectedNewOwner);
+    if (!selectedMember?.email) {
+      setTransferError("Selected member does not have a valid email address.");
+      return;
+    }
+
+    // Validate email confirmation
+    if (emailConfirmText.toLowerCase().trim() !== selectedMember.email.toLowerCase().trim()) {
+      setTransferError("Email confirmation does not match the selected member's email.");
+      return;
+    }
+
+    setTransferring(true);
+    setTransferError(null);
+
+    try {
+      const result = await transferOwnership(activeCompanyId, selectedNewOwner);
+
+      if (result.success) {
+        setTransferStep("success");
+        showSuccessToast(`Ownership transferred to ${result.data.new_owner_name || result.data.new_owner_email}`);
+        // Invalidate workspace cache to refresh ownership status
+        invalidateWorkspace.invalidateWorkspaceSummary();
+        // Redirect after a short delay
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 3000);
+      } else {
+        setTransferError(result.error || "Failed to transfer ownership. Please try again.");
+      }
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : "Failed to transfer ownership. Please try again.");
+    } finally {
+      setTransferring(false);
+    }
+  }
+
+  function resetTransferModal() {
+    setShowTransferModal(false);
+    setSelectedNewOwner(null);
+    setEmailConfirmText("");
+    setTransferError(null);
+    setTransferStep("select");
+  }
+
+  // Filter to only show admin members for ownership transfer
+  const eligibleOwners = companyMembers?.filter(m => {
+    // Need to get role from the workspace data - members from useCompanyMembers only have basic info
+    // We'll filter by checking against team members with admin role from the workspace
+    const memberDetails = summary?.memberships?.find(membership => membership.user_id === m.id);
+    return memberDetails?.role === "admin" && m.id !== summary?.userId;
+  }) ?? [];
+
+  // Data Export handlers
+  async function handleExportCompanyData() {
+    if (!activeCompanyId) return;
+    setExporting(true);
+    setExportError(null);
+    setExportSuccess(false);
+    try {
+      const result = await exportCompanyData(activeCompanyId);
+      if (result.success) {
+        // Download the file
+        const url = window.URL.createObjectURL(result.data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setExportSuccess(true);
+        setLastExportCounts(result.recordCounts);
+        showSuccessToast("Company data exported successfully.");
+      } else {
+        setExportError(result.error);
+      }
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDownloadUserData() {
+    if (!userId) return;
+    setDownloadingUserData(true);
+    setExportError(null);
+    try {
+      const result = await downloadUserData(userId);
+      if (result.success) {
+        const url = window.URL.createObjectURL(result.data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        showSuccessToast("Your data exported successfully.");
+      } else {
+        setExportError(result.error);
+      }
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed. Please try again.");
+    } finally {
+      setDownloadingUserData(false);
+    }
+  }
+
+  // Audit Log handlers
+  const loadAuditLog = useCallback(async (loadMore = false) => {
+    if (!activeCompanyId) return;
+    setLoadingAudit(true);
+    setAuditError(null);
+    try {
+      const result = await fetchAuditLog(activeCompanyId, loadMore ? auditCursor : undefined);
+      if (result.success) {
+        if (loadMore) {
+          setAuditEntries(prev => [...prev, ...result.data.entries]);
+        } else {
+          setAuditEntries(result.data.entries);
+        }
+        setHasMoreAudit(result.data.hasMore);
+        setTotalAuditCount(result.data.totalCount);
+        // Use last entry's created_at as cursor for next page
+        if (result.data.entries.length > 0) {
+          setAuditCursor(result.data.entries[result.data.entries.length - 1].created_at);
+        }
+      } else {
+        setAuditError(result.error);
+      }
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : "Failed to load audit log.");
+    } finally {
+      setLoadingAudit(false);
+    }
+  }, [activeCompanyId, auditCursor]);
+
+  // Load audit log when data tab is active and audit sub-tab is selected
+  useEffect(() => {
+    if (activeTab === "data" && auditLogSubTab === "audit" && auditEntries.length === 0) {
+      loadAuditLog();
+    }
+  }, [activeTab, auditLogSubTab, auditEntries.length, loadAuditLog]);
+
+  // Clear export errors when switching tabs
+  useEffect(() => {
+    if (activeTab !== "data") {
+      setExportError(null);
+      setExportSuccess(false);
+      setAuditError(null);
+    }
+  }, [activeTab]);
+
   if (loading || !summary || isLoadingCompany || isLoadingProfile) {
     return <ModuleLoadingState variant="spinner" size="lg" fullPage />;
   }
@@ -428,6 +661,7 @@ export default function SettingsPage() {
     { id: "company", label: "Company Profile" },
     { id: "personal", label: "Personal Profile" },
     { id: "security", label: "Security" },
+    { id: "data", label: "Data & Privacy" },
     { id: "danger", label: "Danger Zone" },
   ];
 
@@ -481,7 +715,7 @@ export default function SettingsPage() {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Company Profile</h2>
-            <p className="mt-1 text-sm text-slate-500">Update your company&apos;s display name.</p>
+            <p className="mt-1 text-sm text-slate-500">Update your company&apos;s display name and logo.</p>
           </div>
 
           {/* Company save success banner */}
@@ -501,8 +735,86 @@ export default function SettingsPage() {
             />
           )}
 
-          <form onSubmit={handleSubmitCompany(handleCompanySave)} className="space-y-4">
-            <div className="space-y-1">
+          {/* Logo error banner */}
+          {logoError && (
+            <ErrorBanner
+              message={logoError}
+              onDismiss={() => setLogoError(null)}
+            />
+          )}
+
+          <form onSubmit={handleSubmitCompany(handleCompanySave)} className="space-y-6">
+            {/* Company Logo Section */}
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-slate-700">Company Logo</label>
+              <div className="flex items-start gap-4">
+                {/* Logo Preview */}
+                <div className="relative">
+                  {activeCompany?.logo_url ? (
+                    <div className="relative group">
+                      <img
+                        src={activeCompany.logo_url}
+                        alt={`${activeCompany.name} logo`}
+                        className="w-24 h-24 rounded-xl object-contain border border-slate-200 bg-white"
+                      />
+                      {canEditCompany && !uploadingLogo && (
+                        <button
+                          type="button"
+                          onClick={handleLogoRemove}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove logo"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="w-24 h-24 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center">
+                      <Building2 className="w-10 h-10 text-slate-400" />
+                    </div>
+                  )}
+                  {uploadingLogo && (
+                    <div className="absolute inset-0 bg-white/80 rounded-xl flex items-center justify-center">
+                      <div className="w-5 h-5 border-2 border-slate-200 border-t-amber-500 rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Upload Controls */}
+                <div className="flex-1 space-y-2">
+                  {canEditCompany ? (
+                    <>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        onChange={handleLogoUpload}
+                        disabled={uploadingLogo}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold rounded-lg text-sm transition-colors"
+                      >
+                        <Upload className="w-4 h-4" />
+                        {activeCompany?.logo_url ? "Change Logo" : "Upload Logo"}
+                      </button>
+                      <p className="text-xs text-slate-500">
+                        PNG, JPEG, WebP, or SVG. Max 2MB.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-slate-400">
+                      Only Admins, Owners, and Super Admin can change the company logo.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 pt-5 space-y-1">
               <label className="block text-sm font-semibold text-slate-700">Company Name</label>
               <input
                 type="text"
@@ -781,6 +1093,288 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Data & Privacy Tab */}
+      {activeTab === "data" && (
+        <div className="space-y-6">
+          {/* Sub-tabs for Data section */}
+          <div className="flex gap-2 bg-slate-100 rounded-xl p-1">
+            <button
+              onClick={() => setAuditLogSubTab("export")}
+              className={`flex-1 py-2 px-3 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                auditLogSubTab === "export"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Download className="w-4 h-4" />
+              Export Data
+            </button>
+            <button
+              onClick={() => setAuditLogSubTab("audit")}
+              className={`flex-1 py-2 px-3 text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                auditLogSubTab === "audit"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <History className="w-4 h-4" />
+              Audit Log
+            </button>
+          </div>
+
+          {/* Export Data Sub-tab */}
+          {auditLogSubTab === "export" && (
+            <>
+              {/* Company Data Export */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center">
+                    <FileDown className="w-5 h-5 text-sky-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Export Company Data</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Download a complete export of all your company&apos;s data in JSON format.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Export success banner */}
+                {exportSuccess && (
+                  <SuccessBanner
+                    message="Company data exported successfully!"
+                    onDismiss={() => setExportSuccess(false)}
+                  />
+                )}
+
+                {/* Export error banner */}
+                {exportError && (
+                  <ErrorBanner
+                    message={exportError}
+                    onDismiss={() => setExportError(null)}
+                  />
+                )}
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                  <p className="text-sm text-slate-600 mb-3">
+                    The export includes:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Company profile</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <FolderKanban className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Projects</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Sites</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Team members</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Site diaries</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ClipboardList className="w-3.5 h-3.5 text-sky-500" />
+                      <span>Visits & checklists</span>
+                    </div>
+                  </div>
+                </div>
+
+                {lastExportCounts && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-green-700 mb-2">Last export contained:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(lastExportCounts).map(([key, count]) => (
+                        <span key={key} className="text-xs bg-white px-2 py-1 rounded-full border border-green-200">
+                          {key}: {count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleExportCompanyData}
+                  disabled={exporting || !activeCompanyId}
+                  className="w-full bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-white font-bold rounded-xl px-5 py-3 text-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  {exporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Exporting…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Download Company Export
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* GDPR - Download My Data */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <User className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Download My Data (GDPR)</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Download a copy of your personal data for portability or compliance purposes.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <p className="text-sm text-emerald-700">
+                    This export contains only your personal information and activity history. 
+                    It does not include company-wide data that you may have access to as a team member.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleDownloadUserData}
+                  disabled={downloadingUserData || !userId}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-white font-bold rounded-xl px-5 py-3 text-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  {downloadingUserData ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Preparing your data…
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Download My Data
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Audit Log Sub-tab */}
+          {auditLogSubTab === "audit" && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                  <History className="w-5 h-5 text-violet-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Audit Log</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Recent changes to your profile and company records.
+                  </p>
+                </div>
+              </div>
+
+              {/* Audit error banner */}
+              {auditError && (
+                <ErrorBanner
+                  message={auditError}
+                  onDismiss={() => setAuditError(null)}
+                  action={{ label: "Retry", onClick: () => loadAuditLog() }}
+                />
+              )}
+
+              {/* Audit entries list */}
+              <div className="space-y-3">
+                {loadingAudit && auditEntries.length === 0 ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-6 h-6 border-2 border-slate-200 border-t-violet-500 rounded-full animate-spin" />
+                  </div>
+                ) : auditEntries.length === 0 ? (
+                  <div className="text-center py-8">
+                    <History className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">No audit entries found.</p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Changes to your profile and company will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-400">
+                      Showing {auditEntries.length} of {totalAuditCount} entries
+                    </p>
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {auditEntries.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors"
+                        >
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                            {entry.entity_type === 'profile' && <User className="w-4 h-4 text-violet-600" />}
+                            {entry.entity_type === 'membership' && <Users className="w-4 h-4 text-violet-600" />}
+                            {entry.entity_type === 'invitation' && <ClipboardList className="w-4 h-4 text-violet-600" />}
+                            {entry.entity_type === 'company' && <Building2 className="w-4 h-4 text-violet-600" />}
+                            {entry.entity_type === 'site' && <MapPin className="w-4 h-4 text-violet-600" />}
+                            {entry.entity_type === 'project' && <FolderKanban className="w-4 h-4 text-violet-600" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-semibold text-slate-900 capitalize">
+                                {entry.action}
+                              </span>
+                              <span className="text-xs text-slate-400">
+                                {entry.entity_type}
+                              </span>
+                              {typeof entry.metadata?.role === "string" && entry.metadata.role && (
+                                <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                                  {entry.metadata.role}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {typeof entry.metadata?.site_name === "string" && `Site: ${entry.metadata.site_name}`}
+                              {typeof entry.metadata?.project_name === "string" && `Project: ${entry.metadata.project_name}`}
+                              {typeof entry.metadata?.invited_email === "string" && `Invited: ${entry.metadata.invited_email}`}
+                              {typeof entry.metadata?.note === "string" && entry.metadata.note}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-slate-400">
+                                by {entry.performed_by.full_name || entry.performed_by.email || 'Unknown'}
+                              </span>
+                              <span className="text-xs text-slate-300">•</span>
+                              <span className="text-xs text-slate-400">
+                                {new Date(entry.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {hasMoreAudit && (
+                      <button
+                        onClick={() => loadAuditLog(true)}
+                        disabled={loadingAudit}
+                        className="w-full py-2 text-sm font-medium text-violet-600 hover:text-violet-700 hover:bg-violet-50 rounded-lg transition-colors"
+                      >
+                        {loadingAudit ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <div className="w-3.5 h-3.5 border-2 border-violet-200 border-t-violet-600 rounded-full animate-spin" />
+                            Loading more…
+                          </span>
+                        ) : (
+                          'Load more entries'
+                        )}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Danger Zone Tab */}
       {activeTab === "danger" && (
         <div className="bg-red-50/80 border-2 border-red-200 rounded-2xl p-6 shadow-sm space-y-5">
@@ -794,6 +1388,51 @@ export default function SettingsPage() {
               <p className="mt-1 text-sm text-red-600/80">Irreversible and destructive actions. Proceed with extreme caution.</p>
             </div>
           </div>
+
+          {/* Transfer Ownership card */}
+          {isOwner && (
+            <div className="bg-white border border-amber-200 rounded-xl p-4 space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mt-0.5">
+                    <ArrowRightLeft className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">Transfer Ownership</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Transfer ownership of <span className="font-semibold text-amber-700">{activeCompany?.name}</span> to another admin.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowTransferModal(true);
+                    setTransferError(null);
+                    setTransferStep("select");
+                  }}
+                  disabled={!isOwner || eligibleOwners.length === 0}
+                  title={
+                    !isOwner
+                      ? "Only the company owner can transfer ownership."
+                      : eligibleOwners.length === 0
+                        ? "No eligible admin members found. Promote a member to admin first."
+                        : "Transfer ownership to another admin"
+                  }
+                  className="shrink-0 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold rounded-xl px-4 py-2 text-sm transition-colors"
+                >
+                  Transfer Ownership
+                </button>
+              </div>
+
+              {eligibleOwners.length === 0 && (
+                <div className="border-t border-amber-100 pt-3">
+                  <p className="text-xs text-amber-600">
+                    No eligible admin members found. Promote a team member to admin role before transferring ownership.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Data deletion warning card */}
           <div className="bg-white border border-red-200 rounded-xl p-4 space-y-4">
@@ -810,9 +1449,9 @@ export default function SettingsPage() {
                 </div>
               </div>
               <button
-                onClick={() => { 
-                  setShowDeleteConfirm(true); 
-                  setDeleteError(null); 
+                onClick={() => {
+                  setShowDeleteConfirm(true);
+                  setDeleteError(null);
                   loadDeletionCounts();
                 }}
                 disabled={!isOwner}
@@ -997,6 +1636,226 @@ export default function SettingsPage() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Ownership Modal */}
+      {showTransferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 w-full max-w-md mx-4 p-6 space-y-4">
+            {/* Header */}
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                {transferStep === "success" ? (
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                ) : (
+                  <Crown className="w-6 h-6 text-amber-600" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900">
+                  {transferStep === "select" && "Transfer Ownership"}
+                  {transferStep === "confirm" && "Confirm Transfer"}
+                  {transferStep === "success" && "Transfer Complete"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  {transferStep === "select" && "Select a new owner from your admin team members."}
+                  {transferStep === "confirm" && "Enter the new owner's email to confirm this irreversible action."}
+                  {transferStep === "success" && `Ownership has been transferred successfully.`}
+                </p>
+              </div>
+              {transferStep !== "success" && (
+                <button
+                  onClick={resetTransferModal}
+                  disabled={transferring}
+                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-400" />
+                </button>
+              )}
+            </div>
+
+            {/* Transfer Error */}
+            {transferError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700">{transferError}</p>
+              </div>
+            )}
+
+            {/* Step 1: Select New Owner */}
+            {transferStep === "select" && (
+              <>
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    Select new owner (must be an admin)
+                  </p>
+                  {loadingMembers ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="w-5 h-5 border-2 border-amber-200 border-t-amber-500 rounded-full animate-spin" />
+                    </div>
+                  ) : eligibleOwners.length === 0 ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <p className="text-sm text-amber-700">
+                        No eligible admin members found. Please promote a team member to admin role first.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {eligibleOwners.map((member) => (
+                        <button
+                          key={member.id}
+                          onClick={() => setSelectedNewOwner(member.id)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
+                            selectedNewOwner === member.id
+                              ? "border-amber-500 bg-amber-50"
+                              : "border-slate-200 hover:border-amber-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                            <User className="w-5 h-5 text-slate-500" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 truncate">
+                              {member.name}
+                            </p>
+                            <p className="text-xs text-slate-500 truncate">
+                              {member.email}
+                            </p>
+                          </div>
+                          {selectedNewOwner === member.id && (
+                            <div className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center">
+                              <CheckCircle2 className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs text-amber-700">
+                    <strong>Important:</strong> You will be demoted to admin role after the transfer. This action cannot be undone.
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2">
+                  <button
+                    onClick={resetTransferModal}
+                    disabled={transferring}
+                    className="px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => setTransferStep("confirm")}
+                    disabled={!selectedNewOwner || eligibleOwners.length === 0}
+                    className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:bg-amber-300 rounded-xl transition-colors flex items-center gap-2"
+                  >
+                    Continue
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 2: Confirm with Email */}
+            {transferStep === "confirm" && selectedNewOwner && (
+              <>
+                <div className="space-y-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                    <p className="text-xs text-slate-500 mb-1">Transferring ownership to:</p>
+                    {(() => {
+                      const member = companyMembers?.find(m => m.id === selectedNewOwner);
+                      return (
+                        <div className="flex items-center gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                            <User className="w-4 h-4 text-amber-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{member?.name}</p>
+                            <p className="text-xs text-slate-500">{member?.email}</p>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-semibold text-slate-600">
+                      To confirm, type the new owner&apos;s email address below
+                    </label>
+                    <input
+                      type="email"
+                      value={emailConfirmText}
+                      onChange={(e) => setEmailConfirmText(e.target.value)}
+                      placeholder="newowner@example.com"
+                      className={`w-full border-2 ${transferError ? "border-red-300" : "border-slate-200"} focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-100 rounded-xl px-3 py-2.5 text-sm transition-all`}
+                    />
+                    <p className="text-xs text-slate-500">
+                      This will transfer ownership of <span className="font-semibold text-amber-700">{activeCompany?.name}</span> and demote you to admin role.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2">
+                  <button
+                    onClick={() => setTransferStep("select")}
+                    disabled={transferring}
+                    className="px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleTransferOwnership}
+                    disabled={transferring}
+                    className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:bg-amber-300 rounded-xl transition-colors flex items-center gap-2"
+                  >
+                    {transferring ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Transferring…
+                      </>
+                    ) : (
+                      <>
+                        <Crown className="w-3.5 h-3.5" />
+                        Confirm Transfer
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Step 3: Success */}
+            {transferStep === "success" && (
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle2 className="w-8 h-8 text-green-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-green-800 mb-1">
+                    Ownership Transferred Successfully
+                  </p>
+                  <p className="text-xs text-green-600">
+                    You have been demoted to admin role. Redirecting to dashboard…
+                  </p>
+                </div>
+
+                <div className="flex justify-center pt-2">
+                  <button
+                    onClick={() => router.push("/dashboard")}
+                    className="px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    Go to Dashboard
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

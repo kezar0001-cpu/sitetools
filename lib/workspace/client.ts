@@ -855,6 +855,64 @@ export async function removeSiteLogo(siteId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ── Company Logo Upload ──────────────────────────────────────────────────────
+
+export interface UploadCompanyLogoResult {
+  success: true;
+  logo_url: string;
+}
+
+export interface UploadCompanyLogoError {
+  success: false;
+  error: string;
+}
+
+export async function uploadCompanyLogo(
+  companyId: string,
+  file: File
+): Promise<UploadCompanyLogoResult | UploadCompanyLogoError> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  const formData = new FormData();
+  formData.append("company_id", companyId);
+  formData.append("file", file);
+
+  try {
+    const response = await fetch("/api/upload-company-logo", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.error || `Upload failed: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json();
+    return { success: true, logo_url: data.logo_url };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Upload failed. Please try again.",
+    };
+  }
+}
+
+export async function removeCompanyLogo(companyId: string): Promise<void> {
+  const { error } = await supabase.from("companies").update({ logo_url: null }).eq("id", companyId);
+  if (error) throw error;
+}
+
 /** Count active (signed-in) workers across multiple sites */
 export async function countActiveWorkersForSites(siteIds: string[]): Promise<number> {
   if (siteIds.length === 0) return 0;
@@ -1107,7 +1165,7 @@ export async function deactivateInduction(id: string): Promise<void> {
 export async function fetchCompany(companyId: string): Promise<Company | null> {
   const { data, error } = await supabase
     .from("companies")
-    .select("id, name, slug, owner_user_id, created_at, updated_at")
+    .select("id, name, slug, owner_user_id, logo_url, created_at, updated_at")
     .eq("id", companyId)
     .single();
 
@@ -1137,4 +1195,268 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
   }
 
   return data as Profile;
+}
+
+export async function fetchProfileById(userId: string): Promise<Profile | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, phone_number, active_company_id, active_site_id, created_at, updated_at")
+    .eq("id", userId)
+    .single();
+
+  if (error) {
+    if (isMissingTableError(error, "profiles")) return null;
+    if (error.code === "PGRST116") return null; // Not found
+    throw error;
+  }
+
+  return data as Profile;
+}
+
+// ── Data Export Functions ────────────────────────────────────────────────────
+
+export interface ExportCompanyDataResult {
+  success: true;
+  data: Blob;
+  filename: string;
+  recordCounts: Record<string, number>;
+}
+
+export interface ExportCompanyDataError {
+  success: false;
+  error: string;
+}
+
+export async function exportCompanyData(
+  companyId: string
+): Promise<ExportCompanyDataResult | ExportCompanyDataError> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+
+  if (!accessToken) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    const response = await fetch(`/api/export-company-data?companyId=${companyId}&format=json`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.message || `Export failed: ${response.statusText}`,
+      };
+    }
+
+    const blob = await response.blob();
+    const filename = response.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ||
+      `buildstate-export-${companyId}.json`;
+    const recordCountsHeader = response.headers.get("X-Record-Counts");
+    const recordCounts = recordCountsHeader ? JSON.parse(recordCountsHeader) : {};
+
+    return {
+      success: true,
+      data: blob,
+      filename,
+      recordCounts,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Export failed. Please try again.",
+    };
+  }
+}
+
+export async function downloadUserData(
+  userId: string
+): Promise<ExportCompanyDataResult | ExportCompanyDataError> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+
+  if (!accessToken) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    const response = await fetch(`/api/export-user-data?userId=${userId}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.message || `Export failed: ${response.statusText}`,
+      };
+    }
+
+    const blob = await response.blob();
+    const filename = response.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ||
+      `buildstate-user-data-${userId}.json`;
+
+    return {
+      success: true,
+      data: blob,
+      filename,
+      recordCounts: {},
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Export failed. Please try again.",
+    };
+  }
+}
+
+// ── Audit Log Functions ───────────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  entity_type: 'profile' | 'company' | 'membership' | 'site' | 'project' | 'invitation';
+  entity_id: string;
+  action: 'create' | 'update' | 'delete' | 'invite' | 'accept' | 'revoke';
+  performed_by: {
+    user_id: string;
+    email: string | null;
+    full_name: string | null;
+  };
+  changes: {
+    field: string;
+    old_value: unknown;
+    new_value: unknown;
+  }[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditLogResponse {
+  entries: AuditLogEntry[];
+  hasMore: boolean;
+  totalCount: number;
+}
+
+export interface FetchAuditLogResult {
+  success: true;
+  data: AuditLogResponse;
+}
+
+export interface FetchAuditLogError {
+  success: false;
+  error: string;
+}
+
+export async function fetchAuditLog(
+  companyId: string,
+  cursor?: string,
+  limit: number = 50
+): Promise<FetchAuditLogResult | FetchAuditLogError> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+
+  if (!accessToken) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    const params = new URLSearchParams({ companyId, limit: limit.toString() });
+    if (cursor) params.set("cursor", cursor);
+
+    const response = await fetch(`/api/audit-log?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        error: errorData.message || `Failed to fetch audit log: ${response.statusText}`,
+      };
+    }
+
+    const data = await response.json() as AuditLogResponse;
+
+    return {
+      success: true,
+      data,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to fetch audit log. Please try again.",
+    };
+  }
+}
+
+// ── Ownership Transfer Functions ────────────────────────────────────────────
+
+export interface TransferOwnershipResult {
+  success: true;
+  data: {
+    company_id: string;
+    previous_owner_id: string;
+    new_owner_id: string;
+    new_owner_email: string;
+    new_owner_name: string | null;
+    company_name: string;
+    transferred_at: string;
+  };
+}
+
+export interface TransferOwnershipError {
+  success: false;
+  error: string;
+}
+
+export async function transferOwnership(
+  companyId: string,
+  newOwnerId: string
+): Promise<TransferOwnershipResult | TransferOwnershipError> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData?.session?.access_token;
+
+  if (!accessToken) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  try {
+    const response = await fetch("/api/transfer-ownership", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ companyId, newOwnerId }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.error || `Failed to transfer ownership: ${response.statusText}`,
+      };
+    }
+
+    return {
+      success: true,
+      data: data.data,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to transfer ownership. Please try again.",
+    };
+  }
 }

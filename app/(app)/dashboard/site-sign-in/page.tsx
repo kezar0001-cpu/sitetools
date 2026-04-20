@@ -30,13 +30,15 @@ import type { VisitorType } from "@/lib/validation/schemas";
 // Extracted components
 import { SiteSelector } from "./components/SiteSelector";
 import { ManualEntryForm } from "./components/ManualEntryForm";
-import { VisitFilters, type RecordStatusFilter, type DateRangeFilter, type FilterPreset, FILTER_PRESETS } from "./components/VisitFilters";
+import { VisitFilters, type RecordStatusFilter, type DateRangeFilter, type FilterPreset } from "./components/VisitFilters";
 import { ExportPanel, type ExportRange } from "./components/ExportPanel";
 import { VisitTable } from "./components/VisitTable";
 import { BulkActionsModal } from "./components/BulkActionsModal";
 import { SignatureViewer } from "./components/SignatureViewer";
 import { StatsPanel } from "./components/StatsPanel";
+import { LiveHeadcount } from "./components/LiveHeadcount";
 import { ConnectedToolkitPrompt } from "./components/ConnectedToolkitPrompt";
+import { WorkerProfileModal } from "./components/WorkerProfileModal";
 
 function dateToInputValue(date: Date) {
   const yyyy = date.getFullYear();
@@ -81,6 +83,7 @@ function SiteSignContent() {
   const activeCompanyId = summary?.activeMembership?.company_id ?? null;
   const activeRole = summary?.activeMembership?.role ?? null;
   const profileActiveSiteId = summary?.profile?.active_site_id ?? null;
+  const currentUserId = summary?.userId ?? null;
 
   const { sites, isLoading: sitesLoading, prefetchSites } = useCompanySites(activeCompanyId, {
     staleTime: 5 * 60 * 1000,
@@ -128,6 +131,7 @@ function SiteSignContent() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [viewSignature, setViewSignature] = useState<string | null>(null);
+  const [selectedWorker, setSelectedWorker] = useState<SiteVisit | null>(null);
 
   const [showBulkSignOutModal, setShowBulkSignOutModal] = useState(false);
   const [siteManagementTab, setSiteManagementTab] = useState<"briefing" | "induction">("briefing");
@@ -332,7 +336,7 @@ function SiteSignContent() {
   }
 
   async function handleSaveEdit(data: VisitEditFormData, visitId: string) {
-    if (!selectedSiteId) return;
+    if (!selectedSiteId || !currentUserId) return;
 
     updateVisit.mutate(
       {
@@ -344,6 +348,8 @@ function SiteSignContent() {
         visitor_type: data.visitorType,
         signed_in_at: new Date(data.signedInAt).toISOString(),
         signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
+        edit_reason: data.editReason?.trim() || null,
+        edited_by_user_id: currentUserId,
       },
       {
         onSuccess: () => {
@@ -635,6 +641,14 @@ function SiteSignContent() {
         }}
       />
 
+      {/* Live Headcount Widget - Real-time sign-in status */}
+      {selectedSiteId && activeCompanyId && (
+        <LiveHeadcount
+          siteId={selectedSiteId}
+          companyId={activeCompanyId}
+        />
+      )}
+
       <ManualEntryForm
         siteId={selectedSiteId}
         register={registerAdd}
@@ -762,6 +776,7 @@ function SiteSignContent() {
           onCancelDelete={() => setConfirmDeleteId(null)}
           onViewSignature={setViewSignature}
           onClearSignOut={() => setEditValue("signedOutAt", "")}
+          onWorkerClick={setSelectedWorker}
         />
       </section>
 
@@ -777,6 +792,16 @@ function SiteSignContent() {
         isOpen={!!viewSignature}
         signature={viewSignature}
         onClose={() => setViewSignature(null)}
+      />
+
+      <WorkerProfileModal
+        isOpen={!!selectedWorker}
+        onClose={() => setSelectedWorker(null)}
+        companyId={activeCompanyId || ""}
+        fullName={selectedWorker?.full_name || ""}
+        workerCompanyName={selectedWorker?.company_name || ""}
+        phoneNumber={selectedWorker?.phone_number || null}
+        visitorType={selectedWorker?.visitor_type || "Worker"}
       />
 
       <ConnectedToolkitPrompt />

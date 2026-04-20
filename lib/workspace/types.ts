@@ -16,6 +16,7 @@ export interface Company {
   name: string;
   slug: string;
   owner_user_id: string | null;
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +94,12 @@ export interface SiteVisit {
   signed_out_at: string | null;
   created_by_user_id: string | null;
   signed_in_by_user_id: string | null;
+  /** Reason for editing the visit record (e.g., "Corrected sign-out time") */
+  edit_reason: string | null;
+  /** User ID of the person who last edited this record */
+  edited_by_user_id: string | null;
+  /** Timestamp when the record was last edited */
+  edited_at: string | null;
 }
 
 export interface WorkspaceSummary {

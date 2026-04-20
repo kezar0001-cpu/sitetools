@@ -314,7 +314,7 @@ export function CompanyAutocomplete({
               >
                 <Building2 className="h-4 w-4 text-slate-400" />
                 <span className="text-slate-600">
-                  Use "<span className="font-medium text-slate-900">{inputValue.trim()}</span>"
+                  Use &quot;<span className="font-medium text-slate-900">{inputValue.trim()}</span>&quot;
                 </span>
               </button>
             </>

@@ -96,6 +96,11 @@ export const visitEditSchema = z.object({
   visitorType: z.enum(["Worker", "Subcontractor", "Visitor", "Delivery"]),
   signedInAt: z.string().min(1, "Signed in time is required"),
   signedOutAt: z.string().optional().or(z.literal("")),
+  editReason: z
+    .string()
+    .max(200, "Edit reason must be 200 characters or less")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type VisitEditFormData = z.infer<typeof visitEditSchema>;
