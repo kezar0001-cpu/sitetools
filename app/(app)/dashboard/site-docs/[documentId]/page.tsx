@@ -203,8 +203,9 @@ export default function DocumentDetailPage() {
 
         setExporting(format);
         try {
-            if (document.activeElement instanceof HTMLElement) {
-                document.activeElement.blur();
+            const activeElement = typeof window !== "undefined" ? window.document.activeElement : null;
+            if (activeElement instanceof HTMLElement) {
+                activeElement.blur();
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
