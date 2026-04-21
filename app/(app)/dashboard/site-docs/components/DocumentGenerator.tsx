@@ -6,7 +6,6 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { generateDocumentContent, createDocument, exportDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
-import { getTemplatePrompt } from "@/lib/site-docs/templates";
 import type { DocumentTemplate, GeneratedContent, SiteDocument } from "@/lib/site-docs/types";
 import { DocumentPreview } from "./DocumentPreview";
 import { useVoiceToText } from "@/hooks/useVoiceToText";
@@ -127,10 +126,9 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
         setError(null);
 
         try {
-            const prompt = getTemplatePrompt(template.id, summaryInput);
             const content = await generateDocumentContent({
                 document_type: template.id,
-                summary: prompt,
+                summary: summaryInput,
                 metadata_override: metadata,
             });
 

@@ -23,9 +23,17 @@ interface DocumentPreviewProps {
     editable?: boolean;
     onChange?: (content: GeneratedContent) => void;
     documentId?: string;
+    persistOnBlur?: boolean;
 }
 
-export function DocumentPreview({ content, template, editable = false, onChange, documentId }: DocumentPreviewProps) {
+export function DocumentPreview({
+    content,
+    template,
+    editable = false,
+    onChange,
+    documentId,
+    persistOnBlur = true,
+}: DocumentPreviewProps) {
     const { metadata, sections, actionItems, attendees, signatories } = content;
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
     const [signingIndex, setSigningIndex] = useState<number | null>(null);
@@ -43,7 +51,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
     };
 
     const saveToServer = async () => {
-        if (!documentId || !editable) return;
+        if (!documentId || !editable || !persistOnBlur) return;
 
         setSaveStatus("saving");
         try {
@@ -207,7 +215,7 @@ export function DocumentPreview({ content, template, editable = false, onChange,
                         )}
                     </div>
                     <div className={`sm:text-right ${editable ? "sm:ml-4" : ""}`}>
-                        {editable && (
+                        {editable && persistOnBlur && (
                             <div className="mb-2 text-sm">
                                 {saveStatus === "saving" && (
                                     <span className="text-slate-500">Saving...</span>
