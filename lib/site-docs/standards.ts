@@ -37,11 +37,7 @@ export const DOCUMENT_STANDARD_PROFILES: Record<DocumentType, DocumentStandardPr
       { key: 'next_meeting', label: 'Next Meeting Date', type: 'date' },
       { key: 'distribution', label: 'Distribution' },
     ],
-    specificFields: [
-      { key: 'meeting_overview', label: 'Meeting Overview', kind: 'fields', helpText: 'Chair, minute taker, meeting purpose, and key context.' },
-      { key: 'decisions_register', label: 'Decisions Register', kind: 'table', columns: ['Decision', 'Owner', 'Date', 'Status'] },
-      { key: 'open_matters', label: 'Open Matters', kind: 'list' },
-    ],
+    specificFields: [],
   },
   'incident-report': {
     standardsBasis: [
