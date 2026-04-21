@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   content: {
     width: CONTENT_WIDTH,
     paddingTop: 132,
-    paddingBottom: 86,
+    paddingBottom: 110,
   },
   header: {
     position: 'absolute',
