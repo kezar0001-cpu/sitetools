@@ -84,7 +84,8 @@ export async function createDocument(payload: CreateDocumentPayload): Promise<Si
 
 export async function updateDocument(
     documentId: string,
-    updates: UpdateDocumentPayload
+    updates: UpdateDocumentPayload,
+    options?: { expectedUpdatedAt?: string | null }
 ): Promise<SiteDocument> {
     const updateData: Record<string, unknown> = {};
 
@@ -104,12 +105,20 @@ export async function updateDocument(
 
     updateData.updated_at = new Date().toISOString();
 
-    const { data, error } = await supabase
+    let query = supabase
         .from("site_documents")
         .update(updateData)
-        .eq("id", documentId)
-        .select()
-        .single();
+        .eq("id", documentId);
+
+    if (options?.expectedUpdatedAt) {
+        query = query.eq("updated_at", options.expectedUpdatedAt);
+    }
+
+    const { data, error } = await query.select().single();
+
+    if (error?.code === "PGRST116" && options?.expectedUpdatedAt) {
+        throw new Error("This document was updated elsewhere. Please refresh and try again.");
+    }
 
     if (error) throw new Error(error.message);
     return data;

@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Download, FileText, Loader2, Trash2, FolderOpen } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Trash2, FolderOpen, Save } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
-import { fetchDocument, deleteDocument, exportDocument, updateActionItemStatus, updateDocument } from "@/lib/site-docs/client";
+import { fetchDocument, deleteDocument, exportDocument, updateDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
 import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type SiteDocument } from "@/lib/site-docs/types";
@@ -14,12 +14,11 @@ import type { ActionItem } from "@/lib/site-docs/types";
 // ── Action Item Tracker Sub-component ──
 
 interface ActionItemTrackerProps {
-    documentId: string;
     actionItems: ActionItem[];
-    onUpdate: (items: ActionItem[]) => void;
+    onUpdate: (items: ActionItem[]) => Promise<void> | void;
 }
 
-function ActionItemTracker({ documentId, actionItems, onUpdate }: ActionItemTrackerProps) {
+function ActionItemTracker({ actionItems, onUpdate }: ActionItemTrackerProps) {
     const [updating, setUpdating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -28,15 +27,12 @@ function ActionItemTracker({ documentId, actionItems, onUpdate }: ActionItemTrac
         setError(null);
         
         try {
-            await updateActionItemStatus(documentId, itemId, newStatus);
-            
-            // Update local state
             const updatedItems = actionItems.map(item =>
                 item.id === itemId
                     ? { ...item, status: newStatus, updated_at: new Date().toISOString() }
                     : item
             );
-            onUpdate(updatedItems);
+            await onUpdate(updatedItems);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to update status");
         } finally {
@@ -143,7 +139,56 @@ export default function DocumentDetailPage() {
     const [deleting, setDeleting] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [project, setProject] = useState<Project | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [unsavedChanges, setUnsavedChanges] = useState(false);
+    const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
     const latestGeneratedContentRef = useRef<SiteDocument["generated_content"] | null>(null);
+    const latestUpdatedAtRef = useRef<string | null>(null);
+
+    function applyGeneratedContentUpdate(
+        updater: (current: SiteDocument["generated_content"]) => SiteDocument["generated_content"]
+    ) {
+        const baseContent = latestGeneratedContentRef.current ?? document?.generated_content;
+        if (baseContent) {
+            latestGeneratedContentRef.current = updater(baseContent);
+        }
+
+        setDocument((prev) => {
+            if (!prev) return prev;
+            const nextGeneratedContent = latestGeneratedContentRef.current ?? updater(prev.generated_content);
+            latestGeneratedContentRef.current = nextGeneratedContent;
+            setUnsavedChanges(true);
+            return {
+                ...prev,
+                generated_content: nextGeneratedContent,
+                updated_at: new Date().toISOString(),
+            };
+        });
+    }
+
+    async function persistLatestGeneratedContent() {
+        if (!document) return;
+        const latestGeneratedContent = latestGeneratedContentRef.current ?? document.generated_content;
+        setSaving(true);
+        try {
+            const updatedDoc = await updateDocument(
+                document.id,
+                { generated_content: latestGeneratedContent },
+                { expectedUpdatedAt: latestUpdatedAtRef.current ?? document.updated_at }
+            );
+            latestGeneratedContentRef.current = updatedDoc.generated_content;
+            latestUpdatedAtRef.current = updatedDoc.updated_at;
+            setDocument(updatedDoc);
+            setUnsavedChanges(false);
+            setLastSavedAt(updatedDoc.updated_at);
+            setError(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to save document");
+            throw err;
+        } finally {
+            setSaving(false);
+        }
+    }
 
     const documentId = params.documentId as string;
     const companyId = summary?.activeMembership?.company_id;
@@ -165,6 +210,8 @@ export default function DocumentDetailPage() {
                 } else {
                     setDocument(doc);
                     latestGeneratedContentRef.current = doc.generated_content;
+                    latestUpdatedAtRef.current = doc.updated_at;
+                    setLastSavedAt(doc.updated_at);
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Failed to load document");
@@ -209,10 +256,8 @@ export default function DocumentDetailPage() {
                 await new Promise((resolve) => setTimeout(resolve, 0));
             }
 
-            const latestGeneratedContent = latestGeneratedContentRef.current ?? document.generated_content;
-
             // Flush any in-progress edits before export
-            await updateDocument(document.id, { generated_content: latestGeneratedContent });
+            await persistLatestGeneratedContent();
             await exportDocument(document.id, format);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Export failed");
@@ -320,8 +365,20 @@ export default function DocumentDetailPage() {
                     </div>
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
                         <button
+                            onClick={() => void persistLatestGeneratedContent()}
+                            disabled={saving || !unsavedChanges}
+                            className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                        >
+                            {saving ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Save className="h-4 w-4" />
+                            )}
+                            Save changes
+                        </button>
+                        <button
                             onClick={() => handleExport("pdf")}
-                            disabled={exporting !== null}
+                            disabled={exporting !== null || saving}
                             className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
                         >
                             {exporting === "pdf" ? (
@@ -333,7 +390,7 @@ export default function DocumentDetailPage() {
                         </button>
                         <button
                             onClick={() => handleExport("docx")}
-                            disabled={exporting !== null}
+                            disabled={exporting !== null || saving}
                             className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
                             {exporting === "docx" ? (
@@ -364,6 +421,16 @@ export default function DocumentDetailPage() {
                     </div>
                 )}
 
+                <div className="mb-4 text-sm text-slate-500">
+                    {saving
+                        ? "Saving latest changes..."
+                        : unsavedChanges
+                            ? "You have unsaved changes."
+                            : lastSavedAt
+                                ? `All changes saved at ${new Date(lastSavedAt).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                                : "No saved changes yet."}
+                </div>
+
                 {/* Document Preview */}
                 {document && (
                     <DocumentPreview
@@ -371,13 +438,9 @@ export default function DocumentDetailPage() {
                         template={{ id: document.document_type, name: typeLabel, description: "", icon: "", color: "", prompt_template: "", required_fields: [], optional_fields: [], default_sections: [] }}
                         editable={true}
                         documentId={document.id}
+                        persistOnBlur={false}
                         onChange={(newContent) => {
-                            latestGeneratedContentRef.current = newContent;
-                            setDocument(prev => prev ? {
-                                ...prev,
-                                generated_content: newContent,
-                                updated_at: new Date().toISOString()
-                            } : null);
+                            applyGeneratedContentUpdate(() => newContent);
                         }}
                     />
                 )}
@@ -385,16 +448,13 @@ export default function DocumentDetailPage() {
                 {/* Action Item Tracker */}
                 {document?.generated_content.actionItems && document.generated_content.actionItems.length > 0 && (
                     <ActionItemTracker
-                        documentId={document.id}
                         actionItems={document.generated_content.actionItems}
-                        onUpdate={(updatedItems) => {
-                            setDocument(prev => prev ? {
-                                ...prev,
-                                generated_content: {
-                                    ...prev.generated_content,
-                                    actionItems: updatedItems
-                                }
-                            } : null);
+                        onUpdate={async (updatedItems) => {
+                            applyGeneratedContentUpdate((currentContent) => ({
+                                ...currentContent,
+                                actionItems: updatedItems,
+                            }));
+                            await persistLatestGeneratedContent();
                         }}
                     />
                 )}
