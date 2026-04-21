@@ -589,14 +589,14 @@ export function DocumentPreview({
             </div>
 
             {/* Standards Basis */}
-            {((standards_basis && standards_basis.length > 0) || editable) && (
+            {((standards_basis && standards_basis.length > 0) || (editable && standardProfile.standardsBasis.length > 0)) && (
                 <div className="p-4 sm:p-8 border-b border-slate-200 bg-slate-50/60">
                     <div className="flex items-center justify-between mb-4">
                         <div>
                             <h3 className="font-semibold text-slate-900">Standards & Requirements Basis</h3>
                             <p className="text-sm text-slate-500 mt-1">Industry, council, and Australian practice assumptions used to structure this document.</p>
                         </div>
-                        {editable && (
+                        {editable && standardProfile.standardsBasis.length > 0 && (
                             <button onClick={addStandardsBasis} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add basis</button>
                         )}
                     </div>
