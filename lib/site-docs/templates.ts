@@ -4,6 +4,7 @@
  */
 
 import type { DocumentTemplate, DocumentType } from "./types";
+import { buildTemplatePrompt } from "./standards";
 
 // ── Meeting Minutes Template ──
 const meetingMinutesTemplate: DocumentTemplate = {
@@ -631,5 +632,5 @@ export function getAllTemplates(): DocumentTemplate[] {
 
 export function getTemplatePrompt(type: DocumentType, summary: string): string {
     const template = DOCUMENT_TEMPLATES[type];
-    return template.prompt_template.replace("{{SUMMARY}}", summary);
+    return buildTemplatePrompt(template, summary);
 }

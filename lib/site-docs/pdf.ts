@@ -1,6 +1,7 @@
 import type { MSAItem, MSADocumentProps } from '@/lib/site-docs/pdf-types'
-import type { DocumentType, GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
+import type { DocumentType, GeneratedContent, SiteDocument, StructuredFieldValue, StructuredTableValue } from '@/lib/site-docs/types'
 import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
+import { getDocumentStandardProfile } from '@/lib/site-docs/standards'
 
 const DOC_TYPE_LABELS: Record<DocumentType, string> = {
   'meeting-minutes': 'Meeting Minutes',
@@ -52,6 +53,7 @@ export function mapSiteDocToMSA(
   origin?: string
 ): MSADocumentProps {
   const metadata = generatedContent.metadata
+  const standardProfile = getDocumentStandardProfile(document.document_type)
 
   const detailFields = [
     { label: 'Client', value: metadata.client },
@@ -164,6 +166,54 @@ export function mapSiteDocToMSA(
     })
   }
 
+  if (generatedContent.standards_basis?.length) {
+    sections.push({
+      title: 'Standards & Requirements Basis',
+      items: generatedContent.standards_basis.map((item) => ({ type: 'paragraph' as const, text: `• ${item}` })),
+    })
+  }
+
+  if (generatedContent.document_specific) {
+    for (const field of standardProfile.specificFields) {
+      const value = generatedContent.document_specific[field.key]
+      if (!value) continue
+
+      if (typeof value === 'string') {
+        sections.push({
+          title: field.label,
+          items: paragraphsFromContent(value),
+        })
+        continue
+      }
+
+      if (Array.isArray(value)) {
+        const isFields = value.every((item) => typeof item === 'object' && item !== null && 'label' in item && 'value' in item)
+        if (isFields) {
+          sections.push({
+            title: field.label,
+            items: [{ type: 'fields', data: (value as StructuredFieldValue[]).map((item) => ({ label: item.label, value: item.value })) }],
+          })
+        } else {
+          sections.push({
+            title: field.label,
+            items: (value as string[]).map((item) => ({ type: 'paragraph' as const, text: `• ${item}` })),
+          })
+        }
+        continue
+      }
+
+      const tableValue = value as StructuredTableValue
+      sections.push({
+        title: field.label,
+        items: [{
+          type: 'table',
+          columns: (tableValue.columns || []).map((column) => ({ header: column, weight: 1 })),
+          rows: tableValue.rows || [],
+        }],
+      })
+    }
+  }
+
   if (attendeesSection && document.document_type !== 'meeting-minutes') {
     sections.push(attendeesSection)
   }
@@ -190,10 +240,12 @@ export function mapSiteDocToMSA(
             status: signatory.signature_date ? 'Signed' : 'Pending',
           })),
         },
-        {
-          type: 'warning',
-          text: 'If no objection or requested amendment is raised within 48 hours of issue, these minutes will be taken as accepted.',
-        },
+        ...(document.document_type === 'meeting-minutes'
+          ? [{
+              type: 'warning' as const,
+              text: 'If no objection or requested amendment is raised within 48 hours of issue, these minutes will be taken as accepted.',
+            }]
+          : []),
       ],
     })
   }

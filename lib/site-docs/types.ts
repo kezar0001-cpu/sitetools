@@ -45,6 +45,8 @@ export interface GeneratedContent {
     actionItems?: ActionItem[];
     attendees?: Attendee[];
     signatories?: Signatory[];
+    standards_basis?: string[];
+    document_specific?: DocumentSpecificContent;
 }
 
 export interface DocumentMetadata {
@@ -98,6 +100,24 @@ export interface Signatory {
     signature_data?: string | null;
     sign_url?: string | null;
 }
+
+export interface StructuredFieldValue {
+    label: string;
+    value: string;
+}
+
+export interface StructuredTableValue {
+    columns: string[];
+    rows: string[][];
+}
+
+export type DocumentSpecificValue =
+    | string
+    | string[]
+    | StructuredFieldValue[]
+    | StructuredTableValue;
+
+export type DocumentSpecificContent = Record<string, DocumentSpecificValue>;
 
 // ── Template Definitions ──
 export interface DocumentTemplate {

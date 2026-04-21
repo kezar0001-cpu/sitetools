@@ -1,5 +1,6 @@
 import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
 import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
+import { getDocumentStandardProfile } from '@/lib/site-docs/standards'
 
 function escapeHtml(value: string | null | undefined): string {
   return (value ?? '')
@@ -29,10 +30,12 @@ export function generateSiteDocHtml(params: {
 }): string {
   const { document, content, companyName, origin } = params
   const metadata = content.metadata
+  const standardProfile = getDocumentStandardProfile(document.document_type)
   const displayTitle = metadata.document_title ?? document.title
   const resolvedCompany = companyName ?? metadata.organization ?? 'Buildstate'
-  const acceptanceClause =
-    'If no objection or requested amendment is raised within 48 hours of issue, these minutes will be taken as accepted.'
+  const acceptanceClause = document.document_type === 'meeting-minutes'
+    ? 'If no objection or requested amendment is raised within 48 hours of issue, these minutes will be taken as accepted.'
+    : ''
 
   const attendeesRows = (content.attendees ?? [])
     .map(
@@ -88,6 +91,31 @@ export function generateSiteDocHtml(params: {
     )
     .join('')
 
+  const standardsBlock = (content.standards_basis ?? []).length
+    ? `<section class="section"><div class="section-title">Standards & Requirements Basis</div><div class="section-body"><ul>${(content.standards_basis ?? []).map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div></section>`
+    : ''
+
+  const documentSpecificBlocks = standardProfile.specificFields.map((field) => {
+    const value = content.document_specific?.[field.key]
+    if (!value) return ''
+
+    if (typeof value === 'string') {
+      return `<section class="section"><div class="section-title">${escapeHtml(field.label)}</div><div class="section-body">${nl2br(value)}</div></section>`
+    }
+
+    if (Array.isArray(value)) {
+      const isFields = value.every((item) => typeof item === 'object' && item !== null && 'label' in item && 'value' in item)
+      if (isFields) {
+        return `<section class="section"><div class="section-title">${escapeHtml(field.label)}</div><div class="section-body"><div class="meta">${value.map((item) => `<div class="meta-card"><strong>${escapeHtml(String(item.label))}</strong>${escapeHtml(String(item.value))}</div>`).join('')}</div></div></section>`
+      }
+      return `<section class="section"><div class="section-title">${escapeHtml(field.label)}</div><div class="section-body"><ul>${value.map((item) => `<li>${escapeHtml(String(item))}</li>`).join('')}</ul></div></section>`
+    }
+
+    const columns = Array.isArray(value.columns) ? value.columns : []
+    const rows = Array.isArray(value.rows) ? value.rows : []
+    return `<section class="section"><div class="section-title">${escapeHtml(field.label)}</div><div class="section-body"><table><thead><tr>${columns.map((column) => `<th>${escapeHtml(String(column))}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${(Array.isArray(row) ? row : []).map((cell) => `<td>${escapeHtml(String(cell ?? ''))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>`
+  }).join('')
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -139,9 +167,13 @@ export function generateSiteDocHtml(params: {
 
     ${sectionBlocks}
 
+    ${standardsBlock}
+
+    ${documentSpecificBlocks}
+
     ${actionRows ? `<section class="section"><div class="section-title">Action Register</div><div class="section-body"><table><thead><tr><th>#</th><th>Action</th><th>Responsible</th><th>Due Date</th><th>Status</th></tr></thead><tbody>${actionRows}</tbody></table></div></section>` : ''}
 
-    ${signatoryRows ? `<section class="section"><div class="section-title">Confirmation & Sign-off</div><div class="section-body"><table><thead><tr><th>Signatory</th><th>Organisation</th><th>Signature</th><th>Date</th><th>Status</th></tr></thead><tbody>${signatoryRows}</tbody></table><div class="acceptance">${acceptanceClause}</div></div></section>` : ''}
+    ${signatoryRows ? `<section class="section"><div class="section-title">Confirmation & Sign-off</div><div class="section-body"><table><thead><tr><th>Signatory</th><th>Organisation</th><th>Signature</th><th>Date</th><th>Status</th></tr></thead><tbody>${signatoryRows}</tbody></table>${acceptanceClause ? `<div class="acceptance">${acceptanceClause}</div>` : ''}</div></section>` : ''}
 
     <div class="footer-note">Generated via Buildstate</div>
   </div>

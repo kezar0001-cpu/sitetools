@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { loadSignatureCanvas, preloadSignatureCanvas } from "@/lib/dynamicImports";
-import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection } from "@/lib/site-docs/types";
+import { getDocumentStandardProfile } from "@/lib/site-docs/standards";
+import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection, StructuredFieldValue, StructuredTableValue } from "@/lib/site-docs/types";
 import { updateDocument } from "@/lib/site-docs/client";
 
 type SignatureCanvasHandle = {
@@ -34,7 +35,8 @@ export function DocumentPreview({
     documentId,
     persistOnBlur = true,
 }: DocumentPreviewProps) {
-    const { metadata, sections, actionItems, attendees, signatories } = content;
+    const { metadata, sections, actionItems, attendees, signatories, standards_basis, document_specific } = content;
+    const standardProfile = getDocumentStandardProfile(template.id);
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
     const [signingIndex, setSigningIndex] = useState<number | null>(null);
     const [SignatureCanvas, setSignatureCanvas] = useState<SignatureCanvasComponent | null>(null);
@@ -106,6 +108,217 @@ export function DocumentPreview({
         const newSigs = [...signatories];
         newSigs[index] = { ...newSigs[index], [field]: value };
         handleChange({ ...content, signatories: newSigs });
+    };
+
+    const updateStandardsBasis = (index: number, value: string) => {
+        if (!editable) return;
+        const current = [...(standards_basis || [])];
+        current[index] = value;
+        handleChange({ ...content, standards_basis: current });
+    };
+
+    const addStandardsBasis = () => {
+        if (!editable) return;
+        handleChange({ ...content, standards_basis: [...(standards_basis || []), ""] });
+    };
+
+    const removeStandardsBasis = (index: number) => {
+        if (!editable) return;
+        handleChange({ ...content, standards_basis: (standards_basis || []).filter((_, i) => i !== index) });
+    };
+
+    const updateDocumentSpecific = (key: string, value: unknown) => {
+        if (!editable) return;
+        handleChange({
+            ...content,
+            document_specific: {
+                ...(document_specific || {}),
+                [key]: value,
+            },
+        });
+    };
+
+    const renderDocumentSpecificField = (field: typeof standardProfile.specificFields[number]) => {
+        const value = document_specific?.[field.key];
+
+        if (field.kind === "text" || field.kind === "textarea") {
+            const textValue = typeof value === "string" ? value : "";
+            return editable ? (
+                <textarea
+                    value={textValue}
+                    onChange={(e) => updateDocumentSpecific(field.key, e.target.value)}
+                    onBlur={saveToServer}
+                    className="w-full min-h-24 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder={field.helpText || field.label}
+                />
+            ) : (
+                <div className="text-sm text-slate-700 whitespace-pre-wrap">{textValue || "—"}</div>
+            );
+        }
+
+        if (field.kind === "list") {
+            const listValue = Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+            return (
+                <div className="space-y-2">
+                    {listValue.map((item, index) => (
+                        <div key={`${field.key}-${index}`} className="flex items-start gap-2">
+                            <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-400" />
+                            {editable ? (
+                                <div className="flex-1 flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={item}
+                                        onChange={(e) => {
+                                            const next = [...listValue];
+                                            next[index] = e.target.value;
+                                            updateDocumentSpecific(field.key, next);
+                                        }}
+                                        onBlur={saveToServer}
+                                        className="flex-1 border-b border-transparent bg-transparent py-1 text-sm text-slate-700 hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                    />
+                                    <button onClick={() => updateDocumentSpecific(field.key, listValue.filter((_, i) => i !== index))} className="text-xs text-red-500">✕</button>
+                                </div>
+                            ) : (
+                                <div className="text-sm text-slate-700">{item}</div>
+                            )}
+                        </div>
+                    ))}
+                    {editable && (
+                        <button
+                            onClick={() => updateDocumentSpecific(field.key, [...listValue, ""])}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                        >
+                            + Add item
+                        </button>
+                    )}
+                    {!editable && listValue.length === 0 && <div className="text-sm text-slate-500">—</div>}
+                </div>
+            );
+        }
+
+        if (field.kind === "fields") {
+            const fieldsValue = Array.isArray(value) ? value.filter((item): item is StructuredFieldValue => typeof item === "object" && item !== null && "label" in item && "value" in item) : [];
+            return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {fieldsValue.map((item, index) => (
+                        <div key={`${field.key}-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            {editable ? (
+                                <>
+                                    <input
+                                        type="text"
+                                        value={item.label}
+                                        onChange={(e) => {
+                                            const next = [...fieldsValue];
+                                            next[index] = { ...next[index], label: e.target.value };
+                                            updateDocumentSpecific(field.key, next);
+                                        }}
+                                        onBlur={saveToServer}
+                                        className="w-full bg-transparent text-xs font-semibold uppercase tracking-wide text-slate-500 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={item.value}
+                                        onChange={(e) => {
+                                            const next = [...fieldsValue];
+                                            next[index] = { ...next[index], value: e.target.value };
+                                            updateDocumentSpecific(field.key, next);
+                                        }}
+                                        onBlur={saveToServer}
+                                        className="mt-2 w-full bg-transparent text-sm text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                    />
+                                </>
+                            ) : (
+                                <>
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.label}</div>
+                                    <div className="mt-1 text-sm text-slate-800">{item.value || "—"}</div>
+                                </>
+                            )}
+                        </div>
+                    ))}
+                    {editable && (
+                        <button
+                            onClick={() => updateDocumentSpecific(field.key, [...fieldsValue, { label: "New field", value: "" }])}
+                            className="rounded-lg border border-dashed border-slate-300 p-3 text-sm font-medium text-blue-600 hover:border-blue-300 hover:bg-blue-50 text-left"
+                        >
+                            + Add field
+                        </button>
+                    )}
+                </div>
+            );
+        }
+
+        const tableValue = (value && typeof value === "object" && !Array.isArray(value) && "columns" in value && "rows" in value
+            ? value
+            : { columns: field.columns || [], rows: [] }) as StructuredTableValue;
+
+        return (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            {tableValue.columns.map((column, columnIndex) => (
+                                <th key={`${field.key}-col-${columnIndex}`} className="px-3 py-2 text-left font-medium text-slate-700">
+                                    {editable ? (
+                                        <input
+                                            type="text"
+                                            value={column}
+                                            onChange={(e) => {
+                                                const nextColumns = [...tableValue.columns];
+                                                nextColumns[columnIndex] = e.target.value;
+                                                updateDocumentSpecific(field.key, { ...tableValue, columns: nextColumns });
+                                            }}
+                                            onBlur={saveToServer}
+                                            className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                        />
+                                    ) : column}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                        {tableValue.rows.map((row, rowIndex) => (
+                            <tr key={`${field.key}-row-${rowIndex}`}>
+                                {tableValue.columns.map((_, columnIndex) => (
+                                    <td key={`${field.key}-cell-${rowIndex}-${columnIndex}`} className="px-3 py-2 text-slate-700">
+                                        {editable ? (
+                                            <input
+                                                type="text"
+                                                value={row[columnIndex] || ""}
+                                                onChange={(e) => {
+                                                    const nextRows = tableValue.rows.map((existingRow, existingRowIndex) =>
+                                                        existingRowIndex === rowIndex
+                                                            ? tableValue.columns.map((__, idx) => (idx === columnIndex ? e.target.value : existingRow[idx] || ""))
+                                                            : existingRow
+                                                    );
+                                                    updateDocumentSpecific(field.key, { ...tableValue, rows: nextRows });
+                                                }}
+                                                onBlur={saveToServer}
+                                                className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                            />
+                                        ) : (row[columnIndex] || "—")}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                        {editable && (
+                            <tr>
+                                <td colSpan={Math.max(tableValue.columns.length, 1)} className="px-3 py-2">
+                                    <button
+                                        onClick={() => updateDocumentSpecific(field.key, {
+                                            ...tableValue,
+                                            rows: [...tableValue.rows, tableValue.columns.map(() => "")],
+                                        })}
+                                        className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                                    >
+                                        + Add row
+                                    </button>
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        );
     };
 
     const handleApplySignature = async () => {
@@ -350,7 +563,85 @@ export function DocumentPreview({
                         </>
                     )}
                 </div>
+
+                {standardProfile.metadataFields.length > 0 && (
+                    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                        {standardProfile.metadataFields.map((field) => (
+                            <div key={field.key} className="flex items-center gap-2">
+                                <span className="text-slate-500">{field.label}:</span>
+                                {editable ? (
+                                    <input
+                                        type={field.type === "date" ? "date" : "text"}
+                                        value={(metadata[field.key as keyof typeof metadata] as string) || ""}
+                                        onChange={(e) => updateMetadata(field.key, e.target.value)}
+                                        onBlur={saveToServer}
+                                        className="flex-1 font-medium text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                    />
+                                ) : (
+                                    <span className="font-medium text-slate-900">{(metadata[field.key as keyof typeof metadata] as string) || "—"}</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
+
+            {/* Standards Basis */}
+            {((standards_basis && standards_basis.length > 0) || editable) && (
+                <div className="p-4 sm:p-8 border-b border-slate-200 bg-slate-50/60">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="font-semibold text-slate-900">Standards & Requirements Basis</h3>
+                            <p className="text-sm text-slate-500 mt-1">Industry, council, and Australian practice assumptions used to structure this document.</p>
+                        </div>
+                        {editable && (
+                            <button onClick={addStandardsBasis} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add basis</button>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                        {(standards_basis || []).map((item, index) => (
+                            <div key={`standard-${index}`} className="flex items-start gap-2">
+                                <span className="mt-2 h-1.5 w-1.5 rounded-full bg-slate-400" />
+                                {editable ? (
+                                    <div className="flex-1 flex items-center gap-2">
+                                        <input
+                                            type="text"
+                                            value={item}
+                                            onChange={(e) => updateStandardsBasis(index, e.target.value)}
+                                            onBlur={saveToServer}
+                                            className="flex-1 bg-transparent border-b border-transparent py-1 text-sm text-slate-700 hover:border-slate-300 focus:border-blue-500 focus:outline-none"
+                                        />
+                                        <button onClick={() => removeStandardsBasis(index)} className="text-xs text-red-500">✕</button>
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-slate-700">{item}</div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Document-Specific Structured Fields */}
+            {standardProfile.specificFields.length > 0 && (
+                <div className="p-4 sm:p-8 border-b border-slate-200">
+                    <div className="mb-6">
+                        <h3 className="font-semibold text-slate-900">{template.name} Structured Fields</h3>
+                        <p className="text-sm text-slate-500 mt-1">Purpose-built fields for this document type.</p>
+                    </div>
+                    <div className="space-y-6">
+                        {standardProfile.specificFields.map((field) => (
+                            <div key={field.key}>
+                                <div className="mb-2">
+                                    <h4 className="font-medium text-slate-900">{field.label}</h4>
+                                    {field.helpText && <p className="text-sm text-slate-500 mt-1">{field.helpText}</p>}
+                                </div>
+                                {renderDocumentSpecificField(field)}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Attendees */}
             {((attendees && attendees.length > 0) || editable) && (
@@ -743,9 +1034,11 @@ export function DocumentPreview({
                             </table>
                         </div>
                     )}
-                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-                        If no objection or requested amendment is raised within 48 hours of issue, these minutes will be considered accepted.
-                    </div>
+                    {template.id === "meeting-minutes" && (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                            If no objection or requested amendment is raised within 48 hours of issue, these minutes will be considered accepted.
+                        </div>
+                    )}
                 </div>
             )}
 
