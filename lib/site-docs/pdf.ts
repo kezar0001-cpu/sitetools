@@ -1,5 +1,5 @@
 import type { MSAItem, MSADocumentProps } from '@/lib/site-docs/pdf-types'
-import type { DocumentStatus, DocumentType, GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
+import type { DocumentType, GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
 import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
 
 const DOC_TYPE_LABELS: Record<DocumentType, string> = {

@@ -142,6 +142,9 @@ export default function DocumentDetailPage() {
     const [saving, setSaving] = useState(false);
     const [unsavedChanges, setUnsavedChanges] = useState(false);
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+    const [showRevisionModal, setShowRevisionModal] = useState(false);
+    const [revisionValue, setRevisionValue] = useState("Rev A");
+    const [editingRevision, setEditingRevision] = useState(false);
     const latestGeneratedContentRef = useRef<SiteDocument["generated_content"] | null>(null);
     const latestUpdatedAtRef = useRef<string | null>(null);
 
@@ -289,6 +292,35 @@ export default function DocumentDetailPage() {
     function closeDeleteModal() {
         if (!deleting) {
             setShowDeleteModal(false);
+        }
+    }
+
+    async function handleRevisionUpdate() {
+        if (!document) return;
+
+        const nextRevision = revisionValue.trim() || "Rev A";
+
+        setEditingRevision(true);
+        setError(null);
+
+        try {
+            const updatedDoc = await updateDocument(
+                document.id,
+                { revision: nextRevision },
+                { expectedUpdatedAt: latestUpdatedAtRef.current ?? document.updated_at }
+            );
+
+            latestGeneratedContentRef.current = updatedDoc.generated_content;
+            latestUpdatedAtRef.current = updatedDoc.updated_at;
+            setDocument(updatedDoc);
+            setRevisionValue(updatedDoc.revision || "Rev A");
+            setLastSavedAt(updatedDoc.updated_at);
+            setShowRevisionModal(false);
+            setUnsavedChanges(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to update revision");
+        } finally {
+            setEditingRevision(false);
         }
     }
 
