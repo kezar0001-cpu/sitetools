@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   content: {
     width: CONTENT_WIDTH,
     paddingTop: 115,
-    paddingBottom: 110,
+    paddingBottom: 140,
   },
   header: {
     position: 'absolute',
@@ -299,6 +299,9 @@ const styles = StyleSheet.create({
     borderColor: DARK,
     marginBottom: 8,
   },
+  tableWrap: {
+    marginBottom: 8,
+  },
   tableRow: {
     flexDirection: 'row',
   },
@@ -418,40 +421,42 @@ function statusStyle(status: 'open' | 'closed' | 'critical' | 'in-progress') {
 
 function Table({ columns, rows }: Pick<Extract<MSAItem, { type: 'table' }>, 'columns' | 'rows'>) {
   return (
-    <View style={styles.table}>
-      <View style={styles.tableRow}>
-        {columns.map((column, index) => (
-          <Text
-            key={`${column.header}-${index}`}
-            style={[
-              styles.headerCell,
-              { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
-            ]}
-          >
-            {column.header}
-          </Text>
-        ))}
-      </View>
-      {rows.map((row, rowIndex) => (
-        <View key={`row-${rowIndex}`} style={styles.tableRow}>
-          {columns.map((column, cellIndex) => (
+    <View style={styles.tableWrap} wrap={false}>
+      <View style={styles.table}>
+        <View style={styles.tableRow}>
+          {columns.map((column, index) => (
             <Text
-              key={`${rowIndex}-${cellIndex}`}
+              key={`${column.header}-${index}`}
               style={[
-                rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt,
-                {
-                  flexGrow: column.weight,
-                  flexBasis: 0,
-                  backgroundColor: rowColor(rowIndex),
-                  borderRightWidth: cellIndex === columns.length - 1 ? 0 : 0.5,
-                },
+                styles.headerCell,
+                { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
               ]}
             >
-              {row[cellIndex] ?? ''}
+              {column.header}
             </Text>
           ))}
         </View>
-      ))}
+        {rows.map((row, rowIndex) => (
+          <View key={`row-${rowIndex}`} style={styles.tableRow} wrap={false}>
+            {columns.map((column, cellIndex) => (
+              <Text
+                key={`${rowIndex}-${cellIndex}`}
+                style={[
+                  rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt,
+                  {
+                    flexGrow: column.weight,
+                    flexBasis: 0,
+                    backgroundColor: rowColor(rowIndex),
+                    borderRightWidth: cellIndex === columns.length - 1 ? 0 : 0.5,
+                  },
+                ]}
+              >
+                {row[cellIndex] ?? ''}
+              </Text>
+            ))}
+          </View>
+        ))}
+      </View>
     </View>
   )
 }
@@ -461,44 +466,46 @@ function StatusTable({
   rows,
 }: Pick<Extract<MSAItem, { type: 'status_table' }>, 'columns' | 'rows'>) {
   return (
-    <View style={styles.table}>
-      <View style={styles.tableRow}>
-        {columns.map((column, index) => (
-          <Text
-            key={`${column.header}-${index}`}
-            style={[
-              styles.headerCell,
-              { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
-            ]}
-          >
-            {column.header}
-          </Text>
+    <View style={styles.tableWrap} wrap={false}>
+      <View style={styles.table}>
+        <View style={styles.tableRow}>
+          {columns.map((column, index) => (
+            <Text
+              key={`${column.header}-${index}`}
+              style={[
+                styles.headerCell,
+                { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
+              ]}
+            >
+              {column.header}
+            </Text>
+          ))}
+        </View>
+        {rows.map((row, rowIndex) => (
+          <View key={`status-row-${rowIndex}`} style={styles.tableRow} wrap={false}>
+            {columns.map((column, cellIndex) => {
+              const isLast = cellIndex === columns.length - 1
+              return (
+                <View
+                  key={`${rowIndex}-${cellIndex}`}
+                  style={[
+                    rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt,
+                    {
+                      flexGrow: column.weight,
+                      flexBasis: 0,
+                      backgroundColor: rowColor(rowIndex),
+                      borderRightWidth: isLast ? 0 : 0.5,
+                    },
+                    ...(isLast ? [styles.statusWrap] : []),
+                  ]}
+                >
+                  {isLast ? <Text style={statusStyle(row.status)}>{formatStatus(row.status)}</Text> : <Text>{row.cells[cellIndex] ?? ''}</Text>}
+                </View>
+              )
+            })}
+          </View>
         ))}
       </View>
-      {rows.map((row, rowIndex) => (
-        <View key={`status-row-${rowIndex}`} style={styles.tableRow}>
-          {columns.map((column, cellIndex) => {
-            const isLast = cellIndex === columns.length - 1
-            return (
-              <View
-                key={`${rowIndex}-${cellIndex}`}
-                style={[
-                  rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt,
-                  {
-                    flexGrow: column.weight,
-                    flexBasis: 0,
-                    backgroundColor: rowColor(rowIndex),
-                    borderRightWidth: isLast ? 0 : 0.5,
-                  },
-                  ...(isLast ? [styles.statusWrap] : []),
-                ]}
-              >
-                {isLast ? <Text style={statusStyle(row.status)}>{formatStatus(row.status)}</Text> : <Text>{row.cells[cellIndex] ?? ''}</Text>}
-              </View>
-            )
-          })}
-        </View>
-      ))}
     </View>
   )
 }
@@ -508,40 +515,42 @@ function SignoffTable({
   rows,
 }: Pick<Extract<MSAItem, { type: 'signoff_table' }>, 'columns' | 'rows'>) {
   return (
-    <View style={styles.table}>
-      <View style={styles.tableRow}>
-        {columns.map((column, index) => (
-          <Text
-            key={`${column.header}-${index}`}
-            style={[
-              styles.headerCell,
-              { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
-            ]}
-          >
-            {column.header}
-          </Text>
+    <View style={styles.tableWrap} wrap={false}>
+      <View style={styles.table}>
+        <View style={styles.tableRow}>
+          {columns.map((column, index) => (
+            <Text
+              key={`${column.header}-${index}`}
+              style={[
+                styles.headerCell,
+                { flexGrow: column.weight, flexBasis: 0, borderRightWidth: index === columns.length - 1 ? 0 : 0.5 },
+              ]}
+            >
+              {column.header}
+            </Text>
+          ))}
+        </View>
+        {rows.map((row, rowIndex) => (
+          <View key={`signoff-row-${rowIndex}`} style={styles.tableRow} wrap={false}>
+            <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[0].weight, flexBasis: 0 }]}>{row.name}</Text>
+            <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[1].weight, flexBasis: 0 }]}>{row.organization}</Text>
+            <View style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, styles.signImageWrap, { flexGrow: columns[2].weight, flexBasis: 0 }]}>
+              {row.signatureData ? (
+                // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image is not a DOM element.
+                <Image src={row.signatureData} style={styles.signImage} />
+              ) : row.signUrl ? (
+                <Link src={row.signUrl} style={{ fontSize: 8, color: '#1D4ED8', textDecoration: 'underline' }}>
+                  Click to sign
+                </Link>
+              ) : (
+                <Text style={styles.signPlaceholder}>Pending</Text>
+              )}
+            </View>
+            <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[3].weight, flexBasis: 0 }]}>{row.signatureDate}</Text>
+            <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[4].weight, flexBasis: 0 }]}>{row.status}</Text>
+          </View>
         ))}
       </View>
-      {rows.map((row, rowIndex) => (
-        <View key={`signoff-row-${rowIndex}`} style={styles.tableRow} wrap={false}>
-          <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[0].weight, flexBasis: 0 }]}>{row.name}</Text>
-          <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[1].weight, flexBasis: 0 }]}>{row.organization}</Text>
-          <View style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, styles.signImageWrap, { flexGrow: columns[2].weight, flexBasis: 0 }]}> 
-            {row.signatureData ? (
-              // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image is not a DOM element.
-              <Image src={row.signatureData} style={styles.signImage} />
-            ) : row.signUrl ? (
-              <Link src={row.signUrl} style={{ fontSize: 8, color: '#1D4ED8', textDecoration: 'underline' }}>
-                Click to sign
-              </Link>
-            ) : (
-              <Text style={styles.signPlaceholder}>Pending</Text>
-            )}
-          </View>
-          <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[3].weight, flexBasis: 0 }]}>{row.signatureDate}</Text>
-          <Text style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[4].weight, flexBasis: 0 }]}>{row.status}</Text>
-        </View>
-      ))}
     </View>
   )
 }
@@ -550,7 +559,7 @@ function FieldsGrid({ data }: Pick<Extract<MSAItem, { type: 'fields' }>, 'data'>
   const pairs = Array.from({ length: Math.ceil(data.length / 2) }).map((_, i) => [data[i * 2], data[i * 2 + 1]])
 
   return (
-    <View style={styles.fieldsGrid}>
+    <View style={styles.fieldsGrid} wrap={false}>
       {pairs.map((pair, rowIndex) => (
         <View
           key={`field-row-${rowIndex}`}
@@ -558,6 +567,7 @@ function FieldsGrid({ data }: Pick<Extract<MSAItem, { type: 'fields' }>, 'data'>
             styles.fieldRow,
             { backgroundColor: rowColor(rowIndex), borderBottomWidth: rowIndex === pairs.length - 1 ? 0 : 0.5 },
           ]}
+          wrap={false}
         >
           {pair.map((field, colIndex) => (
             <View
@@ -618,7 +628,7 @@ function renderItem(item: MSAItem, key: string) {
 
 function Section({ section }: { section: MSASection }) {
   return (
-    <View wrap>
+    <View minPresenceAhead={120}>
       <SectionBanner title={section.title} />
       {section.items.map((item, itemIndex) => renderItem(item, `${section.title}-${itemIndex}`))}
     </View>
