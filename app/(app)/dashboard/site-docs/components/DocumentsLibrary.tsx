@@ -186,15 +186,15 @@ export function DocumentsLibrary({ companyId, onDocumentClick }: DocumentsLibrar
                     />
                 </div>
 
-                {/* Filter Row */}
-                <div className="flex flex-wrap gap-3">
+                {/* Filter Row - Stack on mobile, wrap on tablet+ */}
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                     {/* Document Type */}
-                    <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Filter className="h-4 w-4 text-slate-400 shrink-0" />
                         <select
                             value={selectedType}
                             onChange={(e) => setSelectedType(e.target.value as DocumentType | "all")}
-                            className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         >
                             {DOCUMENT_TYPES.map(type => (
                                 <option key={type.value} value={type.value}>{type.label}</option>
@@ -202,33 +202,37 @@ export function DocumentsLibrary({ companyId, onDocumentClick }: DocumentsLibrar
                         </select>
                     </div>
 
-                    {/* Date Range */}
-                    <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-slate-400" />
-                        <input
-                            type="date"
-                            value={dateFrom}
-                            onChange={(e) => setDateFrom(e.target.value)}
-                            className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                            placeholder="From"
-                        />
-                        <span className="text-slate-400">–</span>
-                        <input
-                            type="date"
-                            value={dateTo}
-                            onChange={(e) => setDateTo(e.target.value)}
-                            className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                            placeholder="To"
-                        />
+                    {/* Date Range - Stack on mobile, inline on sm+ */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+                        <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-slate-400 shrink-0" />
+                            <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => setDateFrom(e.target.value)}
+                                className="flex-1 sm:w-auto px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="From"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 sm:pl-0">
+                            <span className="text-slate-400 hidden sm:inline">–</span>
+                            <input
+                                type="date"
+                                value={dateTo}
+                                onChange={(e) => setDateTo(e.target.value)}
+                                className="flex-1 sm:w-auto px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                                placeholder="To"
+                            />
+                        </div>
                     </div>
 
                     {/* Sort */}
-                    <div className="flex items-center gap-2 ml-auto">
-                        <ArrowUpDown className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-2 sm:ml-auto w-full sm:w-auto">
+                        <ArrowUpDown className="h-4 w-4 text-slate-400 shrink-0" />
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value as SortOption)}
-                            className="px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         >
                             {SORT_OPTIONS.map(option => (
                                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -322,26 +326,26 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
     return (
         <div 
             onClick={onClick}
-            className="group flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 cursor-pointer"
+            className="group flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 cursor-pointer gap-3"
         >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className={`w-10 h-10 rounded-lg ${colorClass} flex items-center justify-center shrink-0`}>
                     <FileText className="h-5 w-5" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                     <p className="font-medium text-slate-900 truncate">{document.title}</p>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-500 truncate">
                         {label} • {new Date(document.created_at).toLocaleDateString()}
                     </p>
                 </div>
             </div>
-            <div className="flex items-center gap-2">
-                <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusClass}`}>
+            <div className="flex items-center gap-2 shrink-0">
+                <span className={`px-2 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${statusClass}`}>
                     {document.status}
                 </span>
                 
-                {/* Action buttons - visible on hover */}
-                <div className="hidden group-hover:flex items-center gap-1">
+                {/* Action buttons - visible on hover, hidden on mobile */}
+                <div className="hidden sm:group-hover:flex items-center gap-1">
                     <button
                         onClick={handleExport}
                         className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-700"
@@ -358,7 +362,7 @@ function DocumentRow({ document, onClick }: { document: SiteDocument; onClick: (
                     </button>
                 </div>
                 
-                <ChevronRight className="h-5 w-5 text-slate-400" />
+                <ChevronRight className="h-5 w-5 text-slate-400 shrink-0" />
             </div>
         </div>
     );

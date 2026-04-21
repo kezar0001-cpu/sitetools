@@ -31,7 +31,7 @@ export function ManualEntryForm({
         <h2 className="text-base font-bold text-slate-700">Manual Sign-In Entry</h2>
         <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-medium">Admin</span>
       </div>
-      <form className="grid grid-cols-1 md:grid-cols-6 gap-3" onSubmit={onSubmit}>
+      <form className="grid grid-cols-1 md:grid-cols-7 gap-3" onSubmit={onSubmit}>
         <div>
           <input
             {...register("fullName")}
@@ -98,6 +98,17 @@ export function ManualEntryForm({
             <p className="mt-1 text-xs text-red-500">{errors.signedInAt.message}</p>
           )}
         </div>
+        <div>
+          <input
+            type="datetime-local"
+            {...register("signedOutAt")}
+            className={`w-full border-2 ${errors.signedOutAt ? "border-red-300 focus:border-red-400" : "border-slate-200 focus:border-amber-400"} rounded-xl px-4 py-3 text-sm outline-none transition-colors`}
+            title="Signed out time (optional)"
+          />
+          {errors.signedOutAt && (
+            <p className="mt-1 text-xs text-red-500">{errors.signedOutAt.message}</p>
+          )}
+        </div>
         <button
           type="submit"
           disabled={isSubmitting || !isValid}
@@ -106,17 +117,6 @@ export function ManualEntryForm({
           {isSubmitting ? "Adding..." : "Add Record"}
         </button>
       </form>
-      <div className="mt-3 max-w-sm">
-        <input
-          type="datetime-local"
-          {...register("signedOutAt")}
-          className={`w-full border ${errors.signedOutAt ? "border-red-300 focus:border-red-400" : "border-slate-300 focus:border-amber-400"} rounded-xl px-4 py-2.5 text-sm outline-none transition-colors`}
-          title="Signed out time (optional)"
-        />
-        {errors.signedOutAt && (
-          <p className="mt-1 text-xs text-red-500">{errors.signedOutAt.message}</p>
-        )}
-      </div>
     </section>
   );
 }

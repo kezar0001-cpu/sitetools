@@ -591,13 +591,13 @@ export function DocumentPreview({
             {/* Standards Basis */}
             {((standards_basis && standards_basis.length > 0) || (editable && standardProfile.standardsBasis.length > 0)) && (
                 <div className="p-4 sm:p-8 border-b border-slate-200 bg-slate-50/60">
-                    <div className="flex items-center justify-between mb-4">
-                        <div>
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-4">
+                        <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-slate-900">Standards & Requirements Basis</h3>
                             <p className="text-sm text-slate-500 mt-1">Industry, council, and Australian practice assumptions used to structure this document.</p>
                         </div>
                         {editable && standardProfile.standardsBasis.length > 0 && (
-                            <button onClick={addStandardsBasis} className="text-sm text-blue-600 hover:text-blue-700 font-medium">+ Add basis</button>
+                            <button onClick={addStandardsBasis} className="text-sm text-blue-600 hover:text-blue-700 font-medium shrink-0">+ Add basis</button>
                         )}
                     </div>
                     <div className="space-y-2">
@@ -648,7 +648,7 @@ export function DocumentPreview({
             {/* Attendees */}
             {((attendees && attendees.length > 0) || editable) && (
                 <div className="p-4 sm:p-8 border-b border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                         <h3 className="font-semibold text-slate-900">Attendees</h3>
                         {editable && (
                             <button
@@ -664,11 +664,11 @@ export function DocumentPreview({
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50">
                                     <tr>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Role</th>
-                                        <th className="px-4 py-2 text-center font-medium text-slate-700">Present</th>
-                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[150px]">Name</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[150px]">Organization</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[120px]">Role</th>
+                                        <th className="px-4 py-2 text-center font-medium text-slate-700 min-w-[80px]">Present</th>
+                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700 min-w-[3rem]"></th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
@@ -748,7 +748,7 @@ export function DocumentPreview({
 
             {/* Sections */}
             <div className="p-4 sm:p-8 space-y-8">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <h3 className="font-semibold text-slate-900">Sections</h3>
                     {editable && (
                         <button
@@ -761,7 +761,7 @@ export function DocumentPreview({
                 </div>
                 {sections.map((section, idx) => (
                     <div key={section.id} className={editable ? "border border-slate-200 rounded-lg p-4" : ""}>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
                             {editable ? (
                                 <>
                                     <input
@@ -769,32 +769,34 @@ export function DocumentPreview({
                                         value={section.title}
                                         onChange={(e) => updateSection(idx, "title", e.target.value)}
                                         onBlur={saveToServer}
-                                        className="flex-1 font-semibold text-slate-900 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                        className="w-full sm:flex-1 font-semibold text-slate-900 border-b-2 border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent min-w-0"
                                         placeholder="Section Title"
                                     />
-                                    <select
-                                        value={section.status || ""}
-                                        onChange={(e) => updateSection(idx, "status", e.target.value)}
-                                        onBlur={saveToServer}
-                                        className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">No Status</option>
-                                        <option value="open">Open</option>
-                                        <option value="in-progress">In Progress</option>
-                                        <option value="closed">Closed</option>
-                                    </select>
-                                    <button
-                                        onClick={() => removeSection(idx)}
-                                        className="text-red-500 hover:text-red-700 text-sm px-2"
-                                    >
-                                        ✕
-                                    </button>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <select
+                                            value={section.status || ""}
+                                            onChange={(e) => updateSection(idx, "status", e.target.value)}
+                                            onBlur={saveToServer}
+                                            className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="">No Status</option>
+                                            <option value="open">Open</option>
+                                            <option value="in-progress">In Progress</option>
+                                            <option value="closed">Closed</option>
+                                        </select>
+                                        <button
+                                            onClick={() => removeSection(idx)}
+                                            className="text-red-500 hover:text-red-700 text-sm px-2"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
                                 </>
                             ) : (
                                 <>
-                                    <h3 className="font-semibold text-slate-900">{section.title}</h3>
+                                    <h3 className="font-semibold text-slate-900 truncate">{section.title}</h3>
                                     {section.status && (
-                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full shrink-0 ${
                                             section.status === "open" ? "bg-amber-100 text-amber-700" :
                                             section.status === "closed" ? "bg-emerald-100 text-emerald-700" :
                                             section.status === "in-progress" ? "bg-blue-100 text-blue-700" :
@@ -824,7 +826,7 @@ export function DocumentPreview({
             {/* Action Items */}
             {((actionItems && actionItems.length > 0) || editable) && (
                 <div className="p-4 sm:p-8 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                         <h3 className="font-semibold text-slate-900">Action Items</h3>
                         {editable && (
                             <button
@@ -840,12 +842,12 @@ export function DocumentPreview({
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50">
                                     <tr>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700 w-12">#</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Action</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Responsible</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Due</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
-                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 w-12 min-w-[3rem]">#</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[150px]">Action</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[120px]">Responsible</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[120px]">Due</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[100px]">Status</th>
+                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700 min-w-[3rem]"></th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">
@@ -934,8 +936,8 @@ export function DocumentPreview({
             {/* Sign-off */}
             {((signatories && signatories.length > 0) || editable) && (
                 <div className="p-4 sm:p-8 border-t border-slate-200">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-semibold text-slate-900 mb-4">Confirmation & Sign-off</h3>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <h3 className="font-semibold text-slate-900">Confirmation & Sign-off</h3>
                         {editable && (
                             <button
                                 onClick={addSignatory}
@@ -950,12 +952,12 @@ export function DocumentPreview({
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-50">
                                     <tr>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Name</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Organization</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Signature</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Date</th>
-                                        <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
-                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700"></th>}
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[150px]">Name</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[120px]">Role</th>
+                                        <th className="px-4 py-2 text-left font-medium text-slate-700 min-w-[150px]">Organization</th>
+                                        <th className="px-4 py-2 text-center font-medium text-slate-700 min-w-[150px]">Signature</th>
+                                        <th className="px-4 py-2 text-center font-medium text-slate-700 min-w-[100px]">Date</th>
+                                        {editable && <th className="px-4 py-2 text-center font-medium text-slate-700 min-w-[3rem]"></th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200">

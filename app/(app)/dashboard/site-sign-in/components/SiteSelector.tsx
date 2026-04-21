@@ -29,13 +29,13 @@ export function SiteSelector({
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Working Site</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0">Working Site</span>
             <select
               value={selectedSiteId}
               onChange={(e) => onSiteChange(e.target.value)}
               onMouseEnter={onPrefetchSites}
-              className="border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white"
+              className="border-2 border-slate-200 focus:border-amber-400 rounded-xl px-4 py-2.5 text-sm font-semibold bg-white max-w-[200px] sm:max-w-[280px] truncate"
             >
               {sites.map((site) => (
                 <option key={site.id} value={site.id}>

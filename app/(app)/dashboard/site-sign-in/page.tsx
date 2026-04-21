@@ -763,6 +763,7 @@ function SiteSignContent() {
           editSignedOut={editSignedOut}
           editIsValid={editIsValid}
           editSaving={editSaving}
+          watchEdit={watchEdit}
           onStartEdit={startEdit}
           onSaveEdit={handleSubmitEdit((data) => {
             if (editingId) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { UseFormRegister, FieldErrors } from "react-hook-form";
+import { UseFormRegister, FieldErrors, UseFormWatch } from "react-hook-form";
 import type { SiteVisit } from "@/lib/workspace/types";
 import type { VisitEditFormData } from "@/lib/validation/schemas";
 import { visitorTypes } from "@/lib/validation/schemas";
@@ -32,6 +32,7 @@ interface VisitTableProps {
   editSignedOut: string | undefined;
   editIsValid: boolean;
   editSaving: boolean;
+  watchEdit: UseFormWatch<VisitEditFormData>;
   onStartEdit: (visit: SiteVisit) => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
@@ -58,6 +59,7 @@ export function VisitTable({
   editSignedOut,
   editIsValid,
   editSaving,
+  watchEdit,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
@@ -104,17 +106,7 @@ export function VisitTable({
               ) : (
                 visit.full_name
               )}
-              subtitle={editingId === visit.id ? (
-                <div onClick={(e) => e.stopPropagation()}>
-                  <input
-                    {...registerEdit("companyName")}
-                    className={`w-full border ${editErrors.companyName ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1 text-xs mt-1 outline-none`}
-                  />
-                  {editErrors.companyName && (
-                    <p className="text-[10px] text-red-500 mt-0.5">{editErrors.companyName.message}</p>
-                  )}
-                </div>
-              ) : `${visit.company_name} • ${visit.visitor_type}`}
+              subtitle={`${visit.company_name} • ${visit.visitor_type}`}
               badge={(
                 <>
                   {!visit.signed_out_at && !editingId && (
@@ -131,7 +123,7 @@ export function VisitTable({
         {
           key: "mobile",
           header: "Mobile",
-          mobileVisible: false,
+          mobileVisible: true,
           render: (visit) => editingId === visit.id ? (
             <div onClick={(e) => e.stopPropagation()}>
               <input
@@ -147,13 +139,23 @@ export function VisitTable({
         {
           key: "company",
           header: "Company",
-          mobileVisible: false,
-          render: (visit) => visit.company_name,
+          mobileVisible: true,
+          render: (visit) => editingId === visit.id ? (
+            <div onClick={(e) => e.stopPropagation()}>
+              <input
+                {...registerEdit("companyName")}
+                className={`w-full border ${editErrors.companyName ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1.5 text-xs outline-none`}
+              />
+              {editErrors.companyName && (
+                <p className="text-[10px] text-red-500 mt-0.5">{editErrors.companyName.message}</p>
+              )}
+            </div>
+          ) : visit.company_name,
         },
         {
           key: "type",
           header: "Type",
-          mobileVisible: false,
+          mobileVisible: true,
           render: (visit) => editingId === visit.id ? (
             <div onClick={(e) => e.stopPropagation()}>
               <select
@@ -180,6 +182,7 @@ export function VisitTable({
               <input
                 type="datetime-local"
                 {...registerEdit("signedInAt")}
+                value={watchEdit("signedInAt") || ""}
                 className={`w-full border ${editErrors.signedInAt ? "border-red-400" : "border-amber-400"} rounded-lg px-2 py-1.5 text-xs outline-none`}
               />
               {editErrors.signedInAt && (
@@ -196,6 +199,7 @@ export function VisitTable({
               <input
                 type="datetime-local"
                 {...registerEdit("signedOutAt")}
+                value={watchEdit("signedOutAt") || ""}
                 className={`w-full border ${editErrors.signedOutAt ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs outline-none`}
               />
               {editSignedOut && (
@@ -251,6 +255,8 @@ export function VisitTable({
         {
           key: "actions",
           header: "Actions",
+          width: "w-32",
+          mobileVisible: false,
           render: (visit) => {
             if (editingId === visit.id) {
               return (
