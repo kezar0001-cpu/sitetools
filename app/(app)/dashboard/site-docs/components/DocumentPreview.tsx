@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { loadSignatureCanvas, preloadSignatureCanvas } from "@/lib/dynamicImports";
 import { getDocumentStandardProfile } from "@/lib/site-docs/standards";
-import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection, StructuredFieldValue, StructuredTableValue } from "@/lib/site-docs/types";
+import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection, StructuredFieldValue, StructuredTableValue, DocumentSpecificValue, DocumentSpecificContent } from "@/lib/site-docs/types";
 import { updateDocument } from "@/lib/site-docs/client";
 
 type SignatureCanvasHandle = {
@@ -127,14 +127,16 @@ export function DocumentPreview({
         handleChange({ ...content, standards_basis: (standards_basis || []).filter((_, i) => i !== index) });
     };
 
-    const updateDocumentSpecific = (key: string, value: unknown) => {
+    const updateDocumentSpecific = (key: string, value: DocumentSpecificValue) => {
         if (!editable) return;
+        const nextDocumentSpecific: DocumentSpecificContent = {
+            ...(document_specific ?? {}),
+            [key]: value,
+        };
+
         handleChange({
             ...content,
-            document_specific: {
-                ...(document_specific || {}),
-                [key]: value,
-            },
+            document_specific: nextDocumentSpecific,
         });
     };
 
