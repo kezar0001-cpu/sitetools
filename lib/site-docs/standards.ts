@@ -25,11 +25,7 @@ export interface DocumentStandardProfile {
 
 export const DOCUMENT_STANDARD_PROFILES: Record<DocumentType, DocumentStandardProfile> = {
   'meeting-minutes': {
-    standardsBasis: [
-      'Common Australian council and construction project governance practice for formal meeting records',
-      'Document control principles aligned with ISO 9001-style traceability and action close-out',
-      'Construction administration expectation that attendees, decisions, actions, and next steps are clearly recorded',
-    ],
+    standardsBasis: [],
     purpose: 'Record attendees, matters discussed, decisions, responsibilities, and follow-up actions in an auditable format.',
     metadataFields: [
       { key: 'time', label: 'Meeting Time' },
