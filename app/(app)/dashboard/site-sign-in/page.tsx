@@ -140,6 +140,7 @@ function SiteSignContent() {
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [displayLimit, setDisplayLimit] = useState<number>(25); // Show 25 records initially
 
   // Inline edit form with react-hook-form
   const {
@@ -229,6 +230,11 @@ function SiteSignContent() {
     });
   }, [visits, filterDate, dateRange, filterType, filterStatus, searchText, weekStartDate]);
 
+  // Reset display limit when filters change so users see filtered results from the top
+  useEffect(() => {
+    setDisplayLimit(25);
+  }, [filterDate, dateRange, filterType, filterStatus, searchText]);
+
   const exportableVisits = useMemo(() => {
     if (exportRange === "all") return filteredVisits;
 
@@ -280,6 +286,7 @@ function SiteSignContent() {
 
   async function handleSwitchSite(nextSiteId: string) {
     setSelectedSiteId(nextSiteId);
+    setDisplayLimit(25); // Reset pagination on site change
     clearEdit();
 
     try {
@@ -712,7 +719,8 @@ function SiteSignContent() {
         <StatsPanel
           onSiteCount={onSiteCount}
           todayCount={todayCount}
-          recordsShown={filteredVisits.length}
+          recordsShown={Math.min(filteredVisits.length, displayLimit)}
+          totalFiltered={filteredVisits.length}
         />
 
         {/* Divider */}
@@ -750,7 +758,7 @@ function SiteSignContent() {
         </div>
 
         <VisitTable
-          visits={filteredVisits}
+          visits={filteredVisits.slice(0, displayLimit)}
           isLoading={visitsLoading}
           editingId={editingId}
           canEdit={canEdit}
@@ -779,6 +787,30 @@ function SiteSignContent() {
           onClearSignOut={() => setEditValue("signedOutAt", "")}
           onWorkerClick={setSelectedWorker}
         />
+
+        {/* Show more button - appears when there are more records to display */}
+        {filteredVisits.length > displayLimit && (
+          <div className="mt-4 flex justify-center">
+            <button
+              onClick={() => setDisplayLimit((prev) => prev + 25)}
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg px-4 py-2 transition-colors"
+            >
+              Show more ({filteredVisits.length - displayLimit} remaining)
+            </button>
+          </div>
+        )}
+
+        {/* Show less button - appears when showing more than initial limit */}
+        {displayLimit > 25 && (
+          <div className="mt-2 flex justify-center">
+            <button
+              onClick={() => setDisplayLimit(25)}
+              className="text-xs font-medium text-slate-500 hover:text-slate-700 underline"
+            >
+              Show less
+            </button>
+          </div>
+        )}
       </section>
 
       <BulkActionsModal

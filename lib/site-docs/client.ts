@@ -244,7 +244,8 @@ function getReferencePrefix(type: DocumentType): string {
         "toolbox-talk": "TBT",
         variation: "VO",
         ncr: "NCR",
-        "site-instruction": "SI",
+        "site-instruction-issue": "SI-ISS",
+        "site-instruction-acknowledge": "SI-ACK",
     };
     return prefixes[type];
 }

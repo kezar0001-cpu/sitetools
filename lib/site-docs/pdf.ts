@@ -13,7 +13,8 @@ const DOC_TYPE_LABELS: Record<DocumentType, string> = {
   'toolbox-talk': 'Toolbox Talk Record',
   variation: 'Variation / Change Order',
   ncr: 'Non-Conformance Report',
-  'site-instruction': 'Site Instruction',
+  'site-instruction-issue': 'Site Instruction — Issue',
+  'site-instruction-acknowledge': 'Site Instruction — Acknowledge',
 }
 
 function formatDisplayDate(date: string | null | undefined): string {

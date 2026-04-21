@@ -155,7 +155,7 @@ export const DOCUMENT_STANDARD_PROFILES: Record<DocumentType, DocumentStandardPr
       { key: 'closeout_evidence', label: 'Close-out Evidence', kind: 'list' },
     ],
   },
-  'site-instruction': {
+  'site-instruction-issue': {
     standardsBasis: [
       'Construction superintendent / client instruction practice under common Australian contract administration workflows',
       'Project document control expectation that instructions are explicit, dated, referenced, and acknowledged',
@@ -168,6 +168,21 @@ export const DOCUMENT_STANDARD_PROFILES: Record<DocumentType, DocumentStandardPr
       { key: 'reference_register', label: 'Reference Register', kind: 'table', columns: ['Type', 'Reference', 'Revision / Date', 'Purpose'] },
       { key: 'contractor_actions', label: 'Contractor Actions', kind: 'table', columns: ['Required Action', 'Owner', 'Due Date', 'Status'] },
       { key: 'claim_notice', label: 'Claim / Notice Requirements', kind: 'textarea' },
+    ],
+  },
+  'site-instruction-acknowledge': {
+    standardsBasis: [
+      'Contractor recordkeeping practice for site instructions received from client, engineer, or superintendent',
+      'Australian construction compliance expectation that contractors formally acknowledge receipt and understanding',
+      'Contract administration practice requiring contractors to assess time/cost implications and provide claim notice within specified periods',
+    ],
+    purpose: 'Acknowledge receipt of a site instruction, document understanding, outline compliance approach, and record any time/cost impact assessment.',
+    metadataFields: [],
+    specificFields: [
+      { key: 'original_instruction', label: 'Original Instruction Details', kind: 'fields', helpText: 'Received from, original SI reference, date received, and priority.' },
+      { key: 'compliance_plan', label: 'Compliance Plan', kind: 'table', columns: ['Step', 'Description', 'Owner', 'Due Date', 'Status'] },
+      { key: 'claim_assessment', label: 'Time/Cost Claim Assessment', kind: 'fields', helpText: 'Impact assessment, notice required, notice date, and claim status.' },
+      { key: 'compliance_evidence', label: 'Compliance Evidence', kind: 'list' },
     ],
   },
 }

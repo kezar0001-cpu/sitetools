@@ -7,20 +7,23 @@ import {
   activateInduction,
   deactivateInduction,
 } from "@/lib/workspace/client";
-import type { SiteInduction, SiteInductionStep } from "@/lib/workspace/types";
+import {
+  createChecklistItem,
+  createContact,
+  createDefaultInductionSections,
+  DEFAULT_EMERGENCY_INFO,
+  normalizeInductionSections,
+  type SiteInduction,
+  type SiteInductionSection,
+  type VisitorType,
+  visitorTypeOptions,
+} from "@/lib/workspace/types";
 
 interface SiteInductionPanelProps {
   siteId: string;
   companyId: string;
   onConfiguredChange?: (isConfigured: boolean) => void;
 }
-
-const EMPTY_STEP = (): SiteInductionStep => ({
-  step_number: 1,
-  title: "",
-  content: "",
-  requires_acknowledgement: true,
-});
 
 export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: SiteInductionPanelProps) {
   const [induction, setInduction] = useState<SiteInduction | null>(null);
@@ -29,9 +32,11 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
   const [toggling, setToggling] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  // Edit state
   const [editTitle, setEditTitle] = useState("Site Induction");
-  const [editSteps, setEditSteps] = useState<SiteInductionStep[]>([EMPTY_STEP()]);
+  const [editSections, setEditSections] = useState<SiteInductionSection[]>(createDefaultInductionSections());
+  const [editAppliesTo, setEditAppliesTo] = useState<VisitorType[]>([]);
+  const [editRevision, setEditRevision] = useState(1);
+  const [editRequiresReacceptance, setEditRequiresReacceptance] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -40,7 +45,10 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
       setInduction(data);
       if (data) {
         setEditTitle(data.title);
-        setEditSteps(data.steps.length > 0 ? data.steps : [EMPTY_STEP()]);
+        setEditSections(normalizeInductionSections(data));
+        setEditAppliesTo(data.applies_to_visitor_types ?? []);
+        setEditRevision(data.revision_number ?? 1);
+        setEditRequiresReacceptance(data.requires_reacceptance_on_revision ?? true);
       }
       onConfiguredChange?.(!!data);
     } finally {
@@ -53,16 +61,25 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
   }, [siteId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
-    if (!editTitle.trim() || editSteps.some((s) => !s.title.trim() || !s.content.trim())) return;
+    if (!editTitle.trim() || editSections.some((s) => !s.title.trim())) return;
     setSaving(true);
     try {
-      const steps = editSteps.map((s, i) => ({ ...s, step_number: i + 1 }));
+      const steps = editSections.map((section, i) => ({
+        step_number: i + 1,
+        title: section.title,
+        content: section.description,
+        requires_acknowledgement: section.requires_acknowledgement,
+      }));
       const saved = await upsertInduction({
         id: induction?.id,
         site_id: siteId,
         company_id: companyId,
         title: editTitle,
         steps,
+        sections: editSections,
+        applies_to_visitor_types: editAppliesTo,
+        revision_number: editRevision,
+        requires_reacceptance_on_revision: editRequiresReacceptance,
       });
       setInduction(saved);
       setEditing(false);
@@ -86,19 +103,16 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
     }
   };
 
-  const addStep = () => {
-    setEditSteps((prev) => [
-      ...prev,
-      { ...EMPTY_STEP(), step_number: prev.length + 1 },
-    ]);
+  const updateSection = (index: number, patch: Partial<SiteInductionSection>) => {
+    setEditSections((prev) => prev.map((section, i) => (i === index ? { ...section, ...patch } : section)));
   };
 
-  const removeStep = (index: number) => {
-    setEditSteps((prev) => prev.filter((_, i) => i !== index));
+  const removeSection = (index: number) => {
+    setEditSections((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const updateStep = (index: number, patch: Partial<SiteInductionStep>) => {
-    setEditSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  const toggleAudience = (type: VisitorType) => {
+    setEditAppliesTo((prev) => (prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]));
   };
 
   if (loading) {
@@ -123,14 +137,56 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
           />
         </div>
 
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Revision</label>
+            <input
+              type="number"
+              min={1}
+              value={editRevision}
+              onChange={(e) => setEditRevision(Math.max(1, Number(e.target.value) || 1))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </div>
+          <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={editRequiresReacceptance}
+              onChange={(e) => setEditRequiresReacceptance(e.target.checked)}
+              className="rounded"
+            />
+            Require re-induction when revision changes
+          </label>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-2">Show this induction for</label>
+          <div className="flex flex-wrap gap-2">
+            {visitorTypeOptions.map((type) => {
+              const active = editAppliesTo.includes(type);
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleAudience(type)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${active ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                >
+                  {type}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">Leave all unselected to show the induction to everyone.</p>
+        </div>
+
         <div className="space-y-3">
-          {editSteps.map((step, i) => (
+          {editSections.map((section, i) => (
             <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Step {i + 1}</span>
-                {editSteps.length > 1 && (
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Section {i + 1} · {section.type}</span>
+                {editSections.length > 1 && (
                   <button
-                    onClick={() => removeStep(i)}
+                    onClick={() => removeSection(i)}
                     className="text-xs text-slate-400 hover:text-red-500 transition-colors"
                   >
                     Remove
@@ -141,46 +197,137 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
                 <label className="block text-xs font-medium text-slate-600 mb-1">Title</label>
                 <input
                   type="text"
-                  value={step.title}
-                  onChange={(e) => updateStep(i, { title: e.target.value })}
-                  placeholder="e.g. Site Hazards"
+                  value={section.title}
+                  onChange={(e) => updateSection(i, { title: e.target.value })}
+                  placeholder="e.g. Emergency Information"
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Content</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Summary / Instructions</label>
                 <textarea
-                  value={step.content}
-                  onChange={(e) => updateStep(i, { content: e.target.value })}
+                  value={section.description}
+                  onChange={(e) => updateSection(i, { description: e.target.value })}
                   rows={3}
-                  placeholder="Describe this section of the induction..."
+                  placeholder="Describe the information shown in this section..."
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 resize-none"
                 />
               </div>
+              {section.type === "contacts" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-slate-600">Site Contacts</label>
+                    <button
+                      type="button"
+                      onClick={() => updateSection(i, { contacts: [...(section.contacts ?? []), createContact()] })}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-700"
+                    >
+                      + Add contact
+                    </button>
+                  </div>
+                  {(section.contacts ?? []).map((contact, contactIndex) => (
+                    <div key={contact.id} className="grid gap-2 sm:grid-cols-3">
+                      <input
+                        type="text"
+                        value={contact.role}
+                        onChange={(e) => updateSection(i, { contacts: (section.contacts ?? []).map((item, idx) => idx === contactIndex ? { ...item, role: e.target.value } : item) })}
+                        placeholder="Role"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={contact.name}
+                        onChange={(e) => updateSection(i, { contacts: (section.contacts ?? []).map((item, idx) => idx === contactIndex ? { ...item, name: e.target.value } : item) })}
+                        placeholder="Name"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="text"
+                        value={contact.phone}
+                        onChange={(e) => updateSection(i, { contacts: (section.contacts ?? []).map((item, idx) => idx === contactIndex ? { ...item, phone: e.target.value } : item) })}
+                        placeholder="Phone"
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {section.type === "emergency" && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {Object.entries(section.emergency ?? DEFAULT_EMERGENCY_INFO).map(([key, value]) => (
+                    <input
+                      key={key}
+                      type="text"
+                      value={value}
+                      onChange={(e) => updateSection(i, { emergency: { ...(section.emergency ?? DEFAULT_EMERGENCY_INFO), [key]: e.target.value } })}
+                      placeholder={key.replace(/_/g, " ")}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  ))}
+                </div>
+              )}
+              {(section.type === "hazards" || section.type === "rules" || section.type === "permits" || section.type === "environment") && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-slate-600">Checklist items</label>
+                    <button
+                      type="button"
+                      onClick={() => updateSection(i, { items: [...(section.items ?? []), createChecklistItem()] })}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-700"
+                    >
+                      + Add item
+                    </button>
+                  </div>
+                  {(section.items ?? []).map((item, itemIndex) => (
+                    <div key={item.id} className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+                      <input
+                        type="text"
+                        value={item.title}
+                        onChange={(e) => updateSection(i, { items: (section.items ?? []).map((entry, idx) => idx === itemIndex ? { ...entry, title: e.target.value } : entry) })}
+                        placeholder="Item title"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      />
+                      <textarea
+                        value={item.description}
+                        onChange={(e) => updateSection(i, { items: (section.items ?? []).map((entry, idx) => idx === itemIndex ? { ...entry, description: e.target.value } : entry) })}
+                        rows={2}
+                        placeholder="Item description"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={step.requires_acknowledgement}
-                  onChange={(e) => updateStep(i, { requires_acknowledgement: e.target.checked })}
+                  checked={section.requires_acknowledgement}
+                  onChange={(e) => updateSection(i, { requires_acknowledgement: e.target.checked })}
                   className="rounded"
                 />
-                <span className="text-xs text-slate-600">Require worker to tick &ldquo;I acknowledge&rdquo; on this step</span>
+                <span className="text-xs text-slate-600">Require worker acknowledgement for this section</span>
               </label>
             </div>
           ))}
         </div>
 
         <button
-          onClick={addStep}
+          onClick={() => setEditSections((prev) => [...prev, {
+            id: `custom-${prev.length + 1}`,
+            type: "welcome",
+            title: "New section",
+            description: "",
+            requires_acknowledgement: true,
+          }])}
           className="w-full rounded-xl border border-dashed border-slate-300 py-2.5 text-sm font-medium text-slate-500 hover:border-violet-400 hover:text-violet-600 transition-colors"
         >
-          + Add Step
+          + Add Section
         </button>
 
         <div className="flex gap-2">
           <button
             onClick={handleSave}
-            disabled={saving || !editTitle.trim() || editSteps.some((s) => !s.title.trim() || !s.content.trim())}
+            disabled={saving || !editTitle.trim() || editSections.some((s) => !s.title.trim())}
             className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-bold rounded-lg px-4 py-2 text-sm transition-colors"
           >
             {saving ? "Saving…" : "Save Induction"}
@@ -228,16 +375,22 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
       {/* Step summary */}
       <div>
         <p className="text-sm font-semibold text-slate-900 mb-2">{induction.title}</p>
+        <div className="mb-3 flex flex-wrap gap-2">
+          {(induction.applies_to_visitor_types ?? []).length > 0 ? (induction.applies_to_visitor_types ?? []).map((type) => (
+            <span key={type} className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700">{type}</span>
+          )) : <span className="text-xs text-slate-500">Applies to all visitor types</span>}
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">Revision {induction.revision_number ?? 1}</span>
+        </div>
         <div className="space-y-2">
-          {induction.steps.map((step, i) => (
+          {normalizeInductionSections(induction).map((section, i) => (
             <div key={i} className="flex items-start gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2">
               <span className="flex-shrink-0 mt-0.5 h-5 w-5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold flex items-center justify-center">
                 {i + 1}
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-800">{step.title}</p>
-                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{step.content}</p>
-                {step.requires_acknowledgement && (
+                <p className="text-sm font-medium text-slate-800">{section.title}</p>
+                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{section.description}</p>
+                {section.requires_acknowledgement && (
                   <span className="mt-1 inline-block text-xs text-violet-600 font-medium">Requires acknowledgement</span>
                 )}
               </div>
@@ -249,7 +402,10 @@ export function SiteInductionPanel({ siteId, companyId, onConfiguredChange }: Si
       <button
         onClick={() => {
           setEditTitle(induction.title);
-          setEditSteps(induction.steps.length > 0 ? induction.steps : [EMPTY_STEP()]);
+          setEditSections(normalizeInductionSections(induction));
+          setEditAppliesTo(induction.applies_to_visitor_types ?? []);
+          setEditRevision(induction.revision_number ?? 1);
+          setEditRequiresReacceptance(induction.requires_reacceptance_on_revision ?? true);
           setEditing(true);
         }}
         className="w-full rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"

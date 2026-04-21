@@ -546,11 +546,11 @@ NCR Summary:
     default_sections: ["Description", "Reference", "Immediate Actions", "Rectification", "Preventive Measures"],
 };
 
-// ── Site Instruction Template ──
-const siteInstructionTemplate: DocumentTemplate = {
-    id: "site-instruction",
-    name: "Site Instruction",
-    description: "Engineer or client directions issued to the contractor",
+// ── Site Instruction Issue Template ──
+const siteInstructionIssueTemplate: DocumentTemplate = {
+    id: "site-instruction-issue",
+    name: "Site Instruction — Issue",
+    description: "Issue formal directions TO a contractor or subcontractor",
     icon: "clipboard",
     color: "yellow",
     prompt_template: `Convert the following instruction summary into a professional site instruction.
@@ -608,6 +608,70 @@ Instruction Summary:
     default_sections: ["Instruction Details", "Reason", "Contractor Obligations", "Time for Compliance"],
 };
 
+// ── Site Instruction Acknowledge Template ──
+const siteInstructionAcknowledgeTemplate: DocumentTemplate = {
+    id: "site-instruction-acknowledge",
+    name: "Site Instruction — Acknowledge",
+    description: "Acknowledge and document a site instruction received FROM client/engineer",
+    icon: "clipboard-check",
+    color: "amber",
+    prompt_template: `Convert the following received instruction summary into a professional acknowledgement record.
+
+Structure the output as JSON:
+{
+  "metadata": {
+    "document_title": "Site Instruction Acknowledgement",
+    "project_name": "extracted",
+    "location": "affected area",
+    "date": "YYYY-MM-DD",
+    "reference": "SI-XXX (received reference)",
+    "prepared_by": "contractor representative",
+    "organization": "contractor company"
+  },
+  "sections": [
+    { "id": "1", "title": "1. Received Instruction", "content": "what was instructed by the client/engineer", "order": 1 },
+    { "id": "2", "title": "2. Instruction Details", "content": "specific requirements, drawings, specifications referenced", "order": 2 },
+    { "id": "3", "title": "3. Acknowledgement", "content": "confirmation that the instruction has been received, understood, and accepted", "order": 3 },
+    { "id": "4", "title": "4. Compliance Plan", "content": "how the contractor intends to comply, steps to be taken", "order": 4 },
+    { "id": "5", "title": "5. Time & Cost Assessment", "content": "assessment of any time or cost implications, notice of claim if applicable", "order": 5 },
+    { "id": "6", "title": "6. Evidence & Close-out", "content": "photos, records, or documentation of completed work", "order": 6 }
+  ],
+  "actionItems": [
+    { "id": "1", "number": 1, "description": "compliance action required", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open" }
+  ],
+  "signatories": [
+    { "id": "1", "name": "Received By (Contractor)", "organization": "Organisation", "signature_date": null },
+    { "id": "2", "name": "Verified By (Supervisor)", "organization": "Organisation", "signature_date": null }
+  ]
+}
+
+Extract and include:
+- Original SI reference number from the received instruction
+- Date the instruction was received
+- Who issued the instruction (client, engineer, superintendent)
+- Clear instruction details and requirements
+- Relevant drawings, specifications, or correspondence referenced
+- Contractor's understanding and acceptance of the instruction
+- Compliance plan with specific steps and responsible parties
+- Assessment of time/cost implications or notice of claim
+- Compliance timeframe and any constraints
+- Evidence of completed work for close-out
+
+Received Instruction Summary:
+{{SUMMARY}}`,
+    required_fields: [
+        { name: "original_si_reference", label: "Original SI Reference", type: "text", placeholder: "SI-001" },
+        { name: "date_received", label: "Date Received", type: "date" },
+        { name: "issued_by", label: "Issued By", type: "text" },
+    ],
+    optional_fields: [
+        { name: "response_deadline", label: "Response/Compliance Deadline", type: "date" },
+        { name: "claim_notice_required", label: "Cost/Time Claim Notice", type: "select", options: ["Not Required", "Pending Assessment", "Notice Submitted"] },
+        { name: "compliance_status", label: "Compliance Status", type: "select", options: ["Pending", "In Progress", "Completed"] },
+    ],
+    default_sections: ["Received Instruction", "Acknowledgement", "Compliance Plan", "Time & Cost Assessment"],
+};
+
 // ── Template Registry ──
 export const DOCUMENT_TEMPLATES: Record<DocumentType, DocumentTemplate> = {
     "meeting-minutes": meetingMinutesTemplate,
@@ -619,7 +683,8 @@ export const DOCUMENT_TEMPLATES: Record<DocumentType, DocumentTemplate> = {
     "toolbox-talk": toolboxTalkTemplate,
     variation: variationTemplate,
     ncr: ncrTemplate,
-    "site-instruction": siteInstructionTemplate,
+    "site-instruction-issue": siteInstructionIssueTemplate,
+    "site-instruction-acknowledge": siteInstructionAcknowledgeTemplate,
 };
 
 export function getTemplate(type: DocumentType): DocumentTemplate {

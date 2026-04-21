@@ -3,6 +3,7 @@ import {
   Company,
   CompanyInvitation,
   CompanyMembership,
+  DEFAULT_BRIEFING_CONTENT,
   Profile,
   Project,
   ProjectWithCounts,
@@ -683,32 +684,45 @@ export async function deleteProject(projectId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function fetchSiteVisitsForCompanySite(companyId: string, siteId: string): Promise<SiteVisit[]> {
-  const scoped = await supabase
+export async function fetchSiteVisitsForCompanySite(
+  companyId: string,
+  siteId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<SiteVisit[]> {
+  const limit = options?.limit ?? 100; // Default max to 100 records
+  const offset = options?.offset ?? 0;
+
+  const scoped = supabase
     .from("site_visits")
     .select("*")
     .eq("site_id", siteId)
     .or(`company_id.eq.${companyId},company_id.is.null`)
-    .order("signed_in_at", { ascending: false });
+    .order("signed_in_at", { ascending: false })
+    .limit(limit)
+    .range(offset, offset + limit - 1);
 
-  if (!scoped.error) {
-    return (scoped.data ?? []) as SiteVisit[];
+  const { data, error } = await scoped;
+
+  if (!error) {
+    return (data ?? []) as SiteVisit[];
   }
 
   // Legacy databases may not have company_id on site_visits yet.
   // Fall back to the site-scoped query so existing registers still load.
-  if (referencesColumn(scoped.error, "company_id")) {
+  if (referencesColumn(error, "company_id")) {
     const legacy = await supabase
       .from("site_visits")
       .select("*")
       .eq("site_id", siteId)
-      .order("signed_in_at", { ascending: false });
+      .order("signed_in_at", { ascending: false })
+      .limit(limit)
+      .range(offset, offset + limit - 1);
 
     if (legacy.error) throw legacy.error;
     return (legacy.data ?? []) as SiteVisit[];
   }
 
-  throw scoped.error;
+  throw error;
 }
 
 export async function fetchCompanyTeam(companyId: string): Promise<CompanyMembership[]> {
@@ -1031,7 +1045,12 @@ export async function getActiveBriefingForSite(siteId: string): Promise<SiteDail
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return data
+    ? {
+        ...data,
+        content_json: { ...DEFAULT_BRIEFING_CONTENT, ...((data as SiteDailyBriefing).content_json ?? {}) },
+      }
+    : null;
 }
 
 /** Fetch all briefings for a site (authenticated). */
@@ -1043,7 +1062,10 @@ export async function getBriefingsForSite(siteId: string): Promise<SiteDailyBrie
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((briefing) => ({
+    ...briefing,
+    content_json: { ...DEFAULT_BRIEFING_CONTENT, ...((briefing as SiteDailyBriefing).content_json ?? {}) },
+  }));
 }
 
 /** Create or update a briefing. Pass id to update, omit to create. */

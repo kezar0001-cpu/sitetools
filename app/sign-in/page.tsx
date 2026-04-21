@@ -6,7 +6,14 @@ import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { getActiveBriefingForSite, getActiveInductionForSite } from "@/lib/workspace/client";
 import { CompanyAutocomplete, addRecentCompany } from "@/components/forms";
-import type { SiteDailyBriefing, SiteInduction, BriefingCategory } from "@/lib/workspace/types";
+import {
+  appliesToVisitorType,
+  normalizeBriefingContent,
+  normalizeInductionSections,
+  type SiteDailyBriefing,
+  type SiteInduction,
+  type BriefingCategory,
+} from "@/lib/workspace/types";
 
 type VisitorType = "Worker" | "Subcontractor" | "Visitor" | "Delivery";
 
@@ -321,12 +328,14 @@ function SiteSignIn({ site }: { site: Site }) {
       setFormError("Please enter a valid mobile number.");
       return;
     }
-    // Route new visitors through induction (if active) then briefing before signature
-    if (activeInduction) {
+    // Route new visitors through induction (if active for their visitor type) then briefing before signature
+    const inductionApplies = !!activeInduction && appliesToVisitorType(activeInduction.applies_to_visitor_types, visitorType);
+    const briefingApplies = !!activeBriefing && appliesToVisitorType(activeBriefing.applies_to_visitor_types, visitorType);
+    if (inductionApplies) {
       setCurrentInductionStep(0);
       setInductionStepAcknowledged(false);
       setSignInStep("induction");
-    } else if (activeBriefing) {
+    } else if (briefingApplies) {
       setBriefingAcknowledged(false);
       setSignInStep("briefing");
     } else {
@@ -336,7 +345,9 @@ function SiteSignIn({ site }: { site: Site }) {
 
   // Called when returning worker taps "Sign In" quick button
   function handleReturningSignIn() {
-    const requiresInduction = !!activeInduction && !(returningVisitor?.induction_completed ?? false);
+    const inductionApplies = !!activeInduction && appliesToVisitorType(activeInduction.applies_to_visitor_types, visitorType);
+    const briefingApplies = !!activeBriefing && appliesToVisitorType(activeBriefing.applies_to_visitor_types, visitorType);
+    const requiresInduction = inductionApplies && !(returningVisitor?.induction_completed ?? false);
     if (requiresInduction) {
       setCurrentInductionStep(0);
       setInductionStepAcknowledged(false);
@@ -344,7 +355,7 @@ function SiteSignIn({ site }: { site: Site }) {
       return;
     }
 
-    if (activeBriefing) {
+    if (briefingApplies) {
       setBriefingAcknowledged(false);
       setSignInStep("briefing");
     } else {
@@ -356,7 +367,7 @@ function SiteSignIn({ site }: { site: Site }) {
   function handleInductionComplete() {
     isInductionCompleted.current = true;
     if (activeInduction) pendingInductionId.current = activeInduction.id;
-    if (activeBriefing) {
+    if (activeBriefing && appliesToVisitorType(activeBriefing.applies_to_visitor_types, visitorType)) {
       setBriefingAcknowledged(false);
       setSignInStep("briefing");
     } else {
@@ -553,12 +564,12 @@ function SiteSignIn({ site }: { site: Site }) {
                 {returningVisitor.visitor_type}
               </span>
             </div>
-            {activeBriefing && (
+            {activeBriefing && appliesToVisitorType(activeBriefing.applies_to_visitor_types, returningVisitor.visitor_type) && (
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 <span className="font-bold">Today&apos;s briefing:</span> {activeBriefing.title} — you&apos;ll read it before signing in.
               </div>
             )}
-            {activeInduction && !returningVisitor.induction_completed && (
+            {activeInduction && appliesToVisitorType(activeInduction.applies_to_visitor_types, returningVisitor.visitor_type) && !returningVisitor.induction_completed && (
               <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
                 <span className="font-bold">Site induction required:</span> please complete the induction before signing in.
               </div>
@@ -604,13 +615,44 @@ function SiteSignIn({ site }: { site: Site }) {
                 style={{ width: `${((currentInductionStep + 1) / activeInduction.steps.length) * 100}%` }}
               />
             </div>
-            {activeInduction.steps[currentInductionStep] && (
+            {normalizeInductionSections(activeInduction)[currentInductionStep] && (
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-slate-900">{activeInduction.steps[currentInductionStep].title}</h3>
+                <h3 className="text-lg font-bold text-slate-900">{normalizeInductionSections(activeInduction)[currentInductionStep].title}</h3>
                 <div className="rounded-2xl bg-slate-50 border border-slate-100 p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                  {activeInduction.steps[currentInductionStep].content}
+                  {normalizeInductionSections(activeInduction)[currentInductionStep].description}
                 </div>
-                {activeInduction.steps[currentInductionStep].requires_acknowledgement && (
+                {normalizeInductionSections(activeInduction)[currentInductionStep].type === "contacts" && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(normalizeInductionSections(activeInduction)[currentInductionStep].contacts ?? []).map((contact) => (
+                      <div key={contact.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{contact.role}</p>
+                        <p className="text-sm font-semibold text-slate-900">{contact.name || "—"}</p>
+                        <p className="text-xs text-slate-500">{contact.phone || "—"}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {normalizeInductionSections(activeInduction)[currentInductionStep].type === "emergency" && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {Object.entries(normalizeInductionSections(activeInduction)[currentInductionStep].emergency ?? {}).map(([key, value]) => (
+                      <div key={key} className="rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-red-500">{key.replace(/_/g, " ")}</p>
+                        <p className="text-sm font-semibold text-slate-900">{String(value || "—")}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!!(normalizeInductionSections(activeInduction)[currentInductionStep].items ?? []).length && (
+                  <div className="space-y-2">
+                    {(normalizeInductionSections(activeInduction)[currentInductionStep].items ?? []).map((item) => (
+                      <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <p className="text-xs text-slate-500 mt-1">{item.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {normalizeInductionSections(activeInduction)[currentInductionStep].requires_acknowledgement && (
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -627,7 +669,7 @@ function SiteSignIn({ site }: { site: Site }) {
             )}
             <button
               onClick={() => {
-                const step = activeInduction.steps[currentInductionStep];
+                const step = normalizeInductionSections(activeInduction)[currentInductionStep];
                 if (step.requires_acknowledgement && !inductionStepAcknowledged) return;
                 if (currentInductionStep < activeInduction.steps.length - 1) {
                   setCurrentInductionStep((p) => p + 1);
@@ -637,7 +679,7 @@ function SiteSignIn({ site }: { site: Site }) {
                 }
               }}
               disabled={
-                activeInduction.steps[currentInductionStep]?.requires_acknowledgement &&
+                normalizeInductionSections(activeInduction)[currentInductionStep]?.requires_acknowledgement &&
                 !inductionStepAcknowledged
               }
               className="mt-6 w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-black py-4 rounded-[1.5rem] transition-all text-lg shadow-lg"
@@ -668,6 +710,12 @@ function SiteSignIn({ site }: { site: Site }) {
             <h3 className="text-lg font-bold text-slate-900 mb-3">{activeBriefing.title}</h3>
             <div className="rounded-2xl bg-amber-50 border border-amber-100 p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap mb-6">
               {activeBriefing.content}
+            </div>
+            <div className="grid gap-3 mb-6 sm:grid-cols-2">
+              {normalizeBriefingContent(activeBriefing).work_summary && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><span className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Work summary</span>{normalizeBriefingContent(activeBriefing).work_summary}</div>}
+              {normalizeBriefingContent(activeBriefing).work_areas && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><span className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Work areas</span>{normalizeBriefingContent(activeBriefing).work_areas}</div>}
+              {normalizeBriefingContent(activeBriefing).weather_notes && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><span className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Conditions</span>{normalizeBriefingContent(activeBriefing).weather_notes}</div>}
+              {normalizeBriefingContent(activeBriefing).presenter_name && <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm"><span className="block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">Presenter</span>{normalizeBriefingContent(activeBriefing).presenter_name}</div>}
             </div>
             <label className="flex items-start gap-3 cursor-pointer mb-6">
               <input
@@ -780,7 +828,12 @@ function SiteSignIn({ site }: { site: Site }) {
               </div>
               <button type="submit" disabled={submitting}
                 className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 disabled:opacity-60 text-amber-950 font-black py-5 rounded-[1.5rem] transition-all text-xl shadow-xl shadow-amber-200 mt-2 hover:scale-[1.02] active:scale-[0.98]">
-                {submitting ? "Signing In…" : activeInduction ? "Continue →" : activeBriefing ? "Continue →" : "Confirm Sign In"}
+                {submitting
+                  ? "Signing In…"
+                  : (activeInduction && appliesToVisitorType(activeInduction.applies_to_visitor_types, visitorType)) ||
+                      (activeBriefing && appliesToVisitorType(activeBriefing.applies_to_visitor_types, visitorType))
+                    ? "Continue →"
+                    : "Confirm Sign In"}
               </button>
             </form>
           </div>

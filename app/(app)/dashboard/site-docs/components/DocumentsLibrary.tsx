@@ -40,7 +40,8 @@ const DOCUMENT_TYPES: { value: DocumentType | "all"; label: string }[] = [
     { value: "toolbox-talk", label: "Toolbox Talk" },
     { value: "variation", label: "Variation" },
     { value: "ncr", label: "NCR" },
-    { value: "site-instruction", label: "Site Instruction" },
+    { value: "site-instruction-issue", label: "Site Instruction — Issue" },
+    { value: "site-instruction-acknowledge", label: "Site Instruction — Acknowledge" },
 ];
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [

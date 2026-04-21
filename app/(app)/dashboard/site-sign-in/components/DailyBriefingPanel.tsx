@@ -8,7 +8,15 @@ import {
   activateBriefing,
   deactivateBriefing,
 } from "@/lib/workspace/client";
-import type { SiteDailyBriefing, BriefingCategory } from "@/lib/workspace/types";
+import {
+  createBriefingTopicItem,
+  DEFAULT_BRIEFING_CONTENT,
+  type SiteDailyBriefing,
+  type BriefingCategory,
+  type SiteDailyBriefingContent,
+  type VisitorType,
+  visitorTypeOptions,
+} from "@/lib/workspace/types";
 
 const CATEGORIES: BriefingCategory[] = ["Safety", "Environment", "Quality", "General"];
 
@@ -36,6 +44,9 @@ export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: Da
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<BriefingCategory>("Safety");
+  const [presenterName, setPresenterName] = useState("");
+  const [appliesTo, setAppliesTo] = useState<VisitorType[]>([]);
+  const [contentJson, setContentJson] = useState<SiteDailyBriefingContent>(DEFAULT_BRIEFING_CONTENT);
 
   const load = async () => {
     setLoading(true);
@@ -60,15 +71,47 @@ export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: Da
     if (!title.trim() || !content.trim()) return;
     setSaving(true);
     try {
-      await upsertBriefing({ site_id: siteId, company_id: companyId, date: today, title, content, category });
+      await upsertBriefing({
+        site_id: siteId,
+        company_id: companyId,
+        date: today,
+        title,
+        content,
+        category,
+        presenter_name: presenterName,
+        applies_to_visitor_types: appliesTo,
+        requires_acknowledgement: true,
+        content_json: { ...contentJson, presenter_name: presenterName },
+      });
       setTitle("");
       setContent("");
       setCategory("Safety");
+      setPresenterName("");
+      setAppliesTo([]);
+      setContentJson(DEFAULT_BRIEFING_CONTENT);
       setShowForm(false);
       await load();
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleAudience = (type: VisitorType) => {
+    setAppliesTo((prev) => (prev.includes(type) ? prev.filter((value) => value !== type) : [...prev, type]));
+  };
+
+  const updateTopicList = (key: keyof Pick<SiteDailyBriefingContent, "planned_activities" | "high_risk_activities" | "hazards" | "controls" | "permits_required" | "plant_equipment">, index: number, value: string) => {
+    setContentJson((prev) => ({
+      ...prev,
+      [key]: prev[key].map((item, idx) => (idx === index ? { ...item, text: value } : item)),
+    }));
+  };
+
+  const addTopic = (key: keyof Pick<SiteDailyBriefingContent, "planned_activities" | "high_risk_activities" | "hazards" | "controls" | "permits_required" | "plant_equipment">) => {
+    setContentJson((prev) => ({
+      ...prev,
+      [key]: [...prev[key], createBriefingTopicItem()],
+    }));
   };
 
   const handleToggle = async (briefing: SiteDailyBriefing) => {
@@ -113,6 +156,7 @@ export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: Da
               </div>
               <p className="font-semibold text-slate-900">{activeBriefing.title}</p>
               <p className="mt-1 text-sm text-slate-600 line-clamp-2">{activeBriefing.content}</p>
+              {activeBriefing.presenter_name && <p className="mt-2 text-xs text-slate-500">Presenter: {activeBriefing.presenter_name}</p>}
             </div>
             <button
               onClick={() => handleToggle(activeBriefing)}
@@ -156,6 +200,35 @@ export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: Da
             </select>
           </div>
           <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Presenter / Supervisor</label>
+            <input
+              type="text"
+              value={presenterName}
+              onChange={(e) => setPresenterName(e.target.value)}
+              placeholder="Who is delivering this briefing?"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-2">Show briefing for</label>
+            <div className="flex flex-wrap gap-2">
+              {visitorTypeOptions.map((type) => {
+                const active = appliesTo.includes(type);
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => toggleAudience(type)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${active ? "bg-amber-500 text-slate-900" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                  >
+                    {type}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Leave unselected to show to everyone.</p>
+          </div>
+          <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Content</label>
             <textarea
               value={content}
@@ -165,6 +238,41 @@ export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: Da
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
             />
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input value={contentJson.work_summary} onChange={(e) => setContentJson((prev) => ({ ...prev, work_summary: e.target.value }))} placeholder="Today's work summary" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <input value={contentJson.work_areas} onChange={(e) => setContentJson((prev) => ({ ...prev, work_areas: e.target.value }))} placeholder="Work areas" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <input value={contentJson.shift_label} onChange={(e) => setContentJson((prev) => ({ ...prev, shift_label: e.target.value }))} placeholder="Shift / crew" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+            <input value={contentJson.weather_notes} onChange={(e) => setContentJson((prev) => ({ ...prev, weather_notes: e.target.value }))} placeholder="Weather / conditions" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          </div>
+          {([
+            ["planned_activities", "Planned activities"],
+            ["high_risk_activities", "High-risk activities"],
+            ["hazards", "Hazards"],
+            ["controls", "Controls / PPE"],
+            ["permits_required", "Permits required"],
+            ["plant_equipment", "Plant / equipment"],
+          ] as const).map(([key, label]) => (
+            <div key={key} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium text-slate-600">{label}</label>
+                <button type="button" onClick={() => addTopic(key)} className="text-xs font-medium text-amber-600 hover:text-amber-700">+ Add</button>
+              </div>
+              {contentJson[key].map((item, index) => (
+                <input
+                  key={item.id}
+                  value={item.text}
+                  onChange={(e) => updateTopicList(key, index, e.target.value)}
+                  placeholder={label}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                />
+              ))}
+            </div>
+          ))}
+          <textarea value={contentJson.environmental_notes} onChange={(e) => setContentJson((prev) => ({ ...prev, environmental_notes: e.target.value }))} rows={2} placeholder="Environmental notes" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none" />
+          <textarea value={contentJson.coordination_notes} onChange={(e) => setContentJson((prev) => ({ ...prev, coordination_notes: e.target.value }))} rows={2} placeholder="Coordination notes" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none" />
+          <textarea value={contentJson.incidents_lessons} onChange={(e) => setContentJson((prev) => ({ ...prev, incidents_lessons: e.target.value }))} rows={2} placeholder="Incidents / lessons learned" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none" />
+          <textarea value={contentJson.deliveries_traffic} onChange={(e) => setContentJson((prev) => ({ ...prev, deliveries_traffic: e.target.value }))} rows={2} placeholder="Deliveries / traffic management" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none" />
+          <textarea value={contentJson.special_instructions} onChange={(e) => setContentJson((prev) => ({ ...prev, special_instructions: e.target.value }))} rows={2} placeholder="Special instructions" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none" />
           <div className="flex gap-2">
             <button
               onClick={handleCreate}
@@ -203,6 +311,9 @@ export function DailyBriefingPanel({ siteId, companyId, onConfiguredChange }: Da
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{b.title}</p>
                     <p className="text-xs text-slate-500">{b.date}</p>
+                    {(b.applies_to_visitor_types ?? []).length > 0 && (
+                      <p className="text-xs text-slate-400">{(b.applies_to_visitor_types ?? []).join(", ")}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => handleToggle(b)}

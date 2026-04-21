@@ -14,7 +14,8 @@ export type DocumentType =
     | "toolbox-talk"
     | "variation"
     | "ncr"
-    | "site-instruction";
+    | "site-instruction-issue"
+    | "site-instruction-acknowledge";
 
 export type DocumentStatus = "draft" | "shared" | "finalised";
 
@@ -187,7 +188,8 @@ export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
     "toolbox-talk": "Toolbox Talk Record",
     variation: "Variation / Change Order",
     ncr: "Non-Conformance Report",
-    "site-instruction": "Site Instruction",
+    "site-instruction-issue": "Site Instruction — Issue to Contractor",
+    "site-instruction-acknowledge": "Site Instruction — Acknowledge Receipt",
 };
 
 export const DOCUMENT_TYPE_ICONS: Record<DocumentType, string> = {
@@ -200,7 +202,8 @@ export const DOCUMENT_TYPE_ICONS: Record<DocumentType, string> = {
     "toolbox-talk": "message-square",
     variation: "file-diff",
     ncr: "x-circle",
-    "site-instruction": "clipboard",
+    "site-instruction-issue": "clipboard",
+    "site-instruction-acknowledge": "clipboard-check",
 };
 
 export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
@@ -213,7 +216,8 @@ export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
     "toolbox-talk": "orange",
     variation: "teal",
     ncr: "rose",
-    "site-instruction": "yellow",
+    "site-instruction-issue": "yellow",
+    "site-instruction-acknowledge": "amber",
 };
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {

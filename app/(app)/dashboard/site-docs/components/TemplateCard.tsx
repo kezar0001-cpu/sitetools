@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Users, AlertTriangle, ClipboardCheck, ShieldCheck, HelpCircle, ListChecks, MessageSquare } from "lucide-react";
+import { FileText, Users, AlertTriangle, ClipboardCheck, Clipboard, ShieldCheck, HelpCircle, ListChecks, MessageSquare } from "lucide-react";
 import type { DocumentTemplate } from "@/lib/site-docs/types";
 
 interface TemplateCardProps {
@@ -13,6 +13,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     users: Users,
     "alert-triangle": AlertTriangle,
     "clipboard-check": ClipboardCheck,
+    clipboard: Clipboard,
     "shield-check": ShieldCheck,
     "help-circle": HelpCircle,
     "list-checks": ListChecks,
@@ -28,6 +29,9 @@ const colorMap: Record<string, { bg: string; border: string; icon: string; hover
     slate: { bg: "bg-slate-50", border: "border-slate-200", icon: "text-slate-600", hover: "hover:border-slate-400 hover:bg-slate-100" },
     indigo: { bg: "bg-indigo-50", border: "border-indigo-200", icon: "text-indigo-600", hover: "hover:border-indigo-400 hover:bg-indigo-100" },
     orange: { bg: "bg-orange-50", border: "border-orange-200", icon: "text-orange-600", hover: "hover:border-orange-400 hover:bg-orange-100" },
+    yellow: { bg: "bg-yellow-50", border: "border-yellow-200", icon: "text-yellow-600", hover: "hover:border-yellow-400 hover:bg-yellow-100" },
+    teal: { bg: "bg-teal-50", border: "border-teal-200", icon: "text-teal-600", hover: "hover:border-teal-400 hover:bg-teal-100" },
+    rose: { bg: "bg-rose-50", border: "border-rose-200", icon: "text-rose-600", hover: "hover:border-rose-400 hover:bg-rose-100" },
 };
 
 export function TemplateCard({ template, onClick }: TemplateCardProps) {

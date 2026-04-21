@@ -15,6 +15,7 @@ interface UseSiteVisitsOptions {
   enabled?: boolean;
   refetchInterval?: number;
   staleTime?: number;
+  limit?: number; // Number of records to fetch (default: 50)
 }
 
 interface CreateVisitPayload {
@@ -53,7 +54,7 @@ interface DeleteVisitPayload {
 
 /**
  * Hook for fetching site visits with "live" refetching.
- * Defaults to 30-second polling for real-time feel.
+ * Defaults to 30-second polling for real-time feel and 100 records limit.
  */
 export function useSiteVisits(
   companyId: string | null,
@@ -64,13 +65,14 @@ export function useSiteVisits(
     enabled = true,
     refetchInterval = 30 * 1000, // 30 seconds for "live" feel
     staleTime = 10 * 1000, // 10 seconds since we poll
+    limit = 50, // Default to 50 records for better page performance
   } = options;
 
   const query = useQuery<SiteVisit[]>({
     queryKey: visitKeys.site(companyId, siteId),
     queryFn: async () => {
       if (!companyId || !siteId) return [];
-      return fetchSiteVisitsForCompanySite(companyId, siteId);
+      return fetchSiteVisitsForCompanySite(companyId, siteId, { limit });
     },
     enabled: enabled && !!companyId && !!siteId,
     refetchInterval,

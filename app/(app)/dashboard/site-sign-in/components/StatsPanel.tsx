@@ -18,14 +18,19 @@ interface StatsPanelProps {
   onSiteCount: number;
   todayCount: number;
   recordsShown: number;
+  totalFiltered?: number; // Total records matching filters (vs displayed count)
 }
 
-export function StatsPanel({ onSiteCount, todayCount, recordsShown }: StatsPanelProps) {
+export function StatsPanel({ onSiteCount, todayCount, recordsShown, totalFiltered }: StatsPanelProps) {
+  const hasMore = totalFiltered !== undefined && totalFiltered > recordsShown;
   return (
     <div className="grid grid-cols-3 gap-3">
       <Stat label="On Site Now" value={String(onSiteCount)} />
       <Stat label="Sign-Ins Today" value={String(todayCount)} />
-      <Stat label="Records Shown" value={String(recordsShown)} />
+      <Stat 
+        label="Records Shown" 
+        value={hasMore ? `${recordsShown} of ${totalFiltered}` : String(recordsShown)} 
+      />
     </div>
   );
 }

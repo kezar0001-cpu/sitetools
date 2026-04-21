@@ -70,15 +70,26 @@ export function CompleteExportPanel<TDiary extends CompletableDiary>({
 
       if (format === "pdf" && contentType.includes("text/html")) {
         const html = await response.text();
-        const printWindow = window.open("", "_blank", "noopener,noreferrer");
+        // Remove noopener to allow document.write access; noreferrer for privacy
+        const printWindow = window.open("", "_blank", "noreferrer");
         if (!printWindow) {
           throw new Error("Pop-up blocked. Please allow pop-ups to export PDF.");
         }
 
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
-        printWindow.focus();
+        // Ensure document is ready before writing to prevent blank pages
+        const writeDocument = () => {
+          printWindow.document.open();
+          printWindow.document.write(html);
+          printWindow.document.close();
+          printWindow.focus();
+        };
+
+        if (printWindow.document.readyState === "loading") {
+          printWindow.document.addEventListener("DOMContentLoaded", writeDocument);
+        } else {
+          writeDocument();
+        }
+
         toast.success("Printable export opened. Use Print → Save as PDF.");
         return;
       }
