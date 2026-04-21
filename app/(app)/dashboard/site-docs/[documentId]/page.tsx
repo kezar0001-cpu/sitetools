@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Download, FileText, Loader2, Trash2, FolderOpen, Save } from "lucide-react";
+import { ArrowLeft, Download, FileText, Loader2, Trash2, FolderOpen, Save, FileEdit } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchDocument, deleteDocument, exportDocument, updateDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
@@ -212,6 +212,7 @@ export default function DocumentDetailPage() {
                     latestGeneratedContentRef.current = doc.generated_content;
                     latestUpdatedAtRef.current = doc.updated_at;
                     setLastSavedAt(doc.updated_at);
+                    setRevisionValue(doc.revision || "Rev A");
                 }
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Failed to load document");
@@ -359,6 +360,14 @@ export default function DocumentDetailPage() {
                                         {project.name}
                                     </button>
                                 )}
+                                <button
+                                    onClick={() => setShowRevisionModal(true)}
+                                    className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-medium rounded-full border border-slate-300 hover:bg-slate-200 transition-colors shrink-0"
+                                    title="Click to change revision"
+                                >
+                                    <FileEdit className="h-3 w-3" />
+                                    {document.revision || "Rev A"}
+                                </button>
                             </div>
                             <p className="text-sm text-slate-500">{typeLabel}</p>
                         </div>
@@ -466,6 +475,69 @@ export default function DocumentDetailPage() {
                         <pre className="text-sm text-slate-600 whitespace-pre-wrap font-sans">{document.summary_input}</pre>
                     </div>
                 </div>
+
+                {/* Revision Edit Modal */}
+                {showRevisionModal && document && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <div 
+                            className="absolute inset-0 bg-black/50"
+                            onClick={() => setShowRevisionModal(false)}
+                        />
+                        
+                        <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+                            <div className="text-center">
+                                <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                                    <FileEdit className="h-6 w-6 text-blue-600" />
+                                </div>
+                                
+                                <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                                    Edit Document Revision
+                                </h3>
+                                
+                                <p className="text-sm text-slate-600 mb-4">
+                                    Update the revision identifier for this document (e.g., Rev A, Rev B, Rev C).
+                                </p>
+                                
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Revision
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={revisionValue}
+                                        onChange={(e) => setRevisionValue(e.target.value)}
+                                        placeholder="Rev A"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center font-medium"
+                                    />
+                                </div>
+                                
+                                <div className="flex gap-3 justify-center">
+                                    <button
+                                        onClick={() => setShowRevisionModal(false)}
+                                        disabled={editingRevision}
+                                        className="px-4 py-2 text-slate-700 font-medium rounded-lg border border-slate-300 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleRevisionUpdate}
+                                        disabled={editingRevision}
+                                        className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                                    >
+                                        {editingRevision ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            "Save Revision"
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Delete Confirmation Modal */}
                 {showDeleteModal && document && (

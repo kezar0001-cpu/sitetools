@@ -30,6 +30,7 @@ export interface SiteDocument {
     summary_input: string; // Raw user input
     generated_content: GeneratedContent;
     status: DocumentStatus;
+    revision: string;
     created_by: string | null;
     created_at: string;
     updated_at: string;
@@ -143,6 +144,7 @@ export interface UpdateDocumentPayload {
     generated_content?: Partial<GeneratedContent>;
     status?: DocumentStatus;
     reference_number?: string | null;
+    revision?: string;
 }
 
 // ── Export Options ──

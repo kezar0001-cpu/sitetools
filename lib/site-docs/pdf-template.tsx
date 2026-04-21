@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   content: {
     width: CONTENT_WIDTH,
-    paddingTop: 132,
+    paddingTop: 115,
     paddingBottom: 110,
   },
   header: {
@@ -631,7 +631,8 @@ export function MSADocument(props: MSADocumentProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View fixed style={styles.header}>
+        {/* Header - not fixed, only appears on first page */}
+        <View style={styles.header}>
           <View style={styles.headerRow}>
             <View style={styles.companyBlock}>
               <Text style={styles.companyName}>{props.companyName || 'Buildstate'}</Text>

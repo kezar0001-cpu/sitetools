@@ -22,12 +22,6 @@ function formatDisplayDate(date: string | null | undefined): string {
   return parsed.toLocaleDateString('en-AU', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-function statusToRevision(status: DocumentStatus): string {
-  if (status === 'finalised') return 'Rev C'
-  if (status === 'shared') return 'Rev B'
-  return 'Rev A'
-}
-
 function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' | 'in-progress' {
   if (!value) return 'open'
   const normalized = value.toLowerCase()
@@ -51,7 +45,7 @@ function toDisplayValue(value: string | null | undefined, fallback = '—'): str
 }
 
 export function mapSiteDocToMSA(
-  document: Pick<SiteDocument, 'id' | 'title' | 'document_type' | 'status' | 'reference_number'>,
+  document: Pick<SiteDocument, 'id' | 'title' | 'document_type' | 'status' | 'reference_number' | 'revision'>,
   generatedContent: GeneratedContent,
   companyName: string | null,
   companyLogoUrl?: string | null,
@@ -210,7 +204,7 @@ export function mapSiteDocToMSA(
     documentType: DOC_TYPE_LABELS[document.document_type] ?? document.document_type,
     documentNo: metadata.reference ?? document.reference_number ?? `DOC-${document.id.slice(0, 8).toUpperCase()}`,
     date: formatDisplayDate(metadata.date),
-    revision: statusToRevision(document.status),
+    revision: document.revision || 'Rev A',
     title: metadata.document_title ?? document.title,
     subtitle: metadata.project_name ?? undefined,
     project: metadata.project_name ?? 'General Document',

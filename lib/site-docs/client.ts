@@ -102,6 +102,9 @@ export async function updateDocument(
     if (updates.reference_number !== undefined) {
         updateData.reference_number = updates.reference_number;
     }
+    if (updates.revision !== undefined) {
+        updateData.revision = updates.revision;
+    }
 
     updateData.updated_at = new Date().toISOString();
 
@@ -164,7 +167,11 @@ export async function generateDocumentContent(
 
 // ── Export ──
 
-export async function exportDocument(documentId: string, format: "pdf" | "docx" = "pdf"): Promise<void> {
+export async function exportDocument(
+    documentId: string,
+    format: "pdf" | "docx" = "pdf",
+    generatedContent?: GeneratedContent
+): Promise<void> {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
 
@@ -173,7 +180,12 @@ export async function exportDocument(documentId: string, format: "pdf" | "docx" 
     }
 
     const response = await fetch(`/api/site-docs/export/${documentId}?format=${format}`, {
-        headers: { "Authorization": `Bearer ${token}` },
+        method: "POST",
+        headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(generatedContent ? { generated_content: generatedContent } : {}),
     });
 
     if (!response.ok) {
@@ -184,7 +196,7 @@ export async function exportDocument(documentId: string, format: "pdf" | "docx" 
     const blob = await response.blob();
     const contentDisposition = response.headers.get("Content-Disposition");
     const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || `document.${format === "docx" ? "doc" : "pdf"}`;
-    
+
     downloadBlob(blob, filename);
 }
 

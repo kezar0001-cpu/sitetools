@@ -29,12 +29,14 @@ async function renderPdfWithFallback(pdfData: MSADocumentProps) {
   }
 }
 
-export async function GET(
+export async function POST(
   req: NextRequest,
   { params }: { params: { documentId: string } }
 ) {
   try {
+    const body = await req.json().catch(() => ({}))
     const format = req.nextUrl.searchParams.get('format') === 'docx' ? 'docx' : 'pdf'
+    const providedContent = body.generated_content as GeneratedContent | undefined
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -82,6 +84,9 @@ export async function GET(
       generated_content: GeneratedContent
     }
 
+    // Use provided content if available (avoids race condition with fresh saves)
+    const contentToExport = providedContent ?? typedDocument.generated_content
+
     const pdfData = mapSiteDocToMSA(
       {
         id: typedDocument.id,
@@ -89,8 +94,9 @@ export async function GET(
         document_type: typedDocument.document_type,
         status: typedDocument.status,
         reference_number: typedDocument.reference_number,
+        revision: typedDocument.revision ?? 'Rev A',
       },
-      typedDocument.generated_content,
+      contentToExport,
       typedDocument.company?.name ?? null,
       typedDocument.company?.logo_url ?? null,
       req.nextUrl.origin
@@ -106,7 +112,7 @@ export async function GET(
           document_type: typedDocument.document_type,
           reference_number: typedDocument.reference_number,
         },
-        content: typedDocument.generated_content,
+        content: contentToExport,
         companyName: typedDocument.company?.name ?? null,
         origin: req.nextUrl.origin,
       })
