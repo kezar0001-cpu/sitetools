@@ -78,9 +78,15 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const [loadingProjects, setLoadingProjects] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [completedAction, setCompletedAction] = useState<"saved" | "exported" | null>(null);
+    const [generationProgress, setGenerationProgress] = useState<{ stage: string; percent: number } | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
 
     // Compute input quality
     const inputQuality = useMemo(() => analyzeInputQuality(summaryInput, template.id), [summaryInput, template.id]);
+    
+    // Check if input is very long and may need more processing time
+    const isLongInput = summaryInput.length > 5000;
+    const isVeryLongInput = summaryInput.length > 8000;
 
     // Load projects for dropdown
     useEffect(() => {
@@ -124,25 +130,50 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
 
         setStep("generating");
         setError(null);
+        setGenerationProgress(null);
+        setRetryCount(0);
 
         try {
-            const content = await generateDocumentContent({
-                document_type: template.id,
-                summary: summaryInput,
-                metadata_override: metadata,
-            });
+            const content = await generateDocumentContent(
+                {
+                    document_type: template.id,
+                    summary: summaryInput,
+                    metadata_override: metadata,
+                },
+                {
+                    retries: isVeryLongInput ? 3 : 2,
+                    onRetry: (attempt) => {
+                        setRetryCount(attempt);
+                        setGenerationProgress({ stage: `Retrying (attempt ${attempt + 1})...`, percent: 10 + attempt * 20 });
+                    },
+                    onProgress: (progress) => {
+                        setGenerationProgress(progress);
+                    },
+                }
+            );
 
             setGeneratedContent(content);
             setStep("preview");
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "Failed to generate document";
-            // Provide more helpful error message for timeouts
+            
+            // Provide more helpful error messages based on input length and error type
             if (errorMessage.toLowerCase().includes("abort") || errorMessage.toLowerCase().includes("timeout")) {
-                setError("Request timed out. The AI is taking longer than expected. Try with shorter notes or try again.");
+                if (summaryInput.length > 8000) {
+                    setError("This document is quite long and is taking more time than expected. Please try again — the system will automatically retry up to 3 times. If it continues to fail, consider splitting your notes into smaller sections.");
+                } else if (summaryInput.length > 4000) {
+                    setError("Request timed out. The AI is taking longer than expected due to the amount of content. Please try again — it often succeeds on retry.");
+                } else {
+                    setError("Request timed out. The AI is taking longer than expected. Please try again.");
+                }
+            } else if (errorMessage.toLowerCase().includes("parse") || errorMessage.toLowerCase().includes("json")) {
+                setError("The AI had trouble parsing your input. This can happen with very complex documents. Try rephrasing or shortening your notes.");
             } else {
                 setError(errorMessage);
             }
             setStep("input");
+        } finally {
+            setGenerationProgress(null);
         }
     }
 
@@ -397,8 +428,9 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                             )}
                             <div className="mt-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <p className="text-sm text-slate-500">
-                                        {summaryInput.length} characters
+                                    <p className={`text-sm ${summaryInput.length > 8000 ? 'text-amber-600 font-medium' : 'text-slate-500'}`}>
+                                        {summaryInput.length.toLocaleString()} characters
+                                        {summaryInput.length > 8000 && " (may take longer)"}
                                     </p>
                                     {summaryInput.length > 0 && (
                                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${getQualityColor(inputQuality.level)}`}>
@@ -417,6 +449,14 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                                     Generate Document
                                 </button>
                             </div>
+                            
+                            {/* Long input warning */}
+                            {summaryInput.length > 10000 && (
+                                <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                                    <strong>Very long input detected.</strong> Documents over 10,000 characters may take 3-5 minutes to generate. 
+                                    The system will automatically retry if needed.
+                                </div>
+                            )}
                         </div>
 
                         {/* Quality Guidance Panel */}
@@ -485,12 +525,41 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
     if (step === "generating") {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <div className="text-center">
+                <div className="text-center max-w-md mx-4">
                     <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
                     </div>
                     <h2 className="text-lg font-semibold text-slate-900">Generating your document...</h2>
-                    <p className="text-slate-500 mt-1">AI is structuring your notes into professional format</p>
+                    <p className="text-slate-500 mt-1">
+                        {generationProgress?.stage || "AI is structuring your notes into professional format"}
+                    </p>
+                    
+                    {/* Progress bar */}
+                    {generationProgress && (
+                        <div className="mt-4 w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-blue-500 transition-all duration-300"
+                                style={{ width: `${generationProgress.percent}%` }}
+                            />
+                        </div>
+                    )}
+                    
+                    {/* Long input warning */}
+                    {isLongInput && (
+                        <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p className="text-sm text-amber-700">
+                                <strong>Large document detected</strong> — {summaryInput.length.toLocaleString()} characters. 
+                                This may take a few minutes. Please don&apos;t close this window.
+                            </p>
+                        </div>
+                    )}
+                    
+                    {/* Retry indicator */}
+                    {retryCount > 0 && (
+                        <div className="mt-3 text-sm text-slate-500">
+                            Retry attempt {retryCount}...
+                        </div>
+                    )}
                 </div>
             </div>
         );

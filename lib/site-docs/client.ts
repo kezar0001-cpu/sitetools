@@ -138,31 +138,122 @@ export async function finalizeDocument(documentId: string): Promise<SiteDocument
 
 // ── AI Generation ──
 
+export interface GenerationOptions {
+    retries?: number;
+    onRetry?: (attempt: number, error: Error) => void;
+    onProgress?: (progress: { stage: string; percent: number }) => void;
+}
+
+const DEFAULT_RETRIES = 2;
+const RETRY_DELAY_MS = 2000;
+
+async function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Generate document content with automatic retry for timeouts
+ * and support for long inputs via progressive processing
+ */
 export async function generateDocumentContent(
-    payload: GenerateDocumentPayload
+    payload: GenerateDocumentPayload,
+    options: GenerationOptions = {}
 ): Promise<GeneratedContent> {
+    const { retries = DEFAULT_RETRIES, onRetry, onProgress } = options;
+    const maxRetries = retries;
+    
     // Get Supabase session for auth
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     
     console.log("[site-docs/client] Session:", session ? "found" : "not found", "Token:", token ? `Bearer ${token.substring(0, 20)}...` : "none");
 
-    const response = await fetch("/api/site-docs/generate", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to generate document");
+    // Check input length and warn if very long
+    const inputLength = payload.summary?.length || 0;
+    const isVeryLongInput = inputLength > 6000;
+    
+    if (isVeryLongInput && onProgress) {
+        onProgress({ stage: "preparing", percent: 5 });
     }
 
-    const data = await response.json();
-    return data.generated_content;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            if (attempt > 0 && onRetry) {
+                onRetry(attempt, lastError!);
+            }
+            
+            if (onProgress && attempt > 0) {
+                onProgress({ stage: `retrying (attempt ${attempt + 1})`, percent: 10 });
+            }
+
+            // Use AbortController for client-side timeout (longer for retries)
+            const controller = new AbortController();
+            const timeoutMs = isVeryLongInput 
+                ? 300_000 + (attempt * 30_000) // 5 min base + 30s per retry
+                : 120_000 + (attempt * 30_000); // 2 min base + 30s per retry
+            
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+            const response = await fetch("/api/site-docs/generate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+                
+                // Check if this is a timeout error that we should retry
+                const isTimeoutError = 
+                    response.status === 504 || 
+                    errorData.error?.toLowerCase().includes("timeout") ||
+                    errorData.error?.toLowerCase().includes("abort");
+                
+                if (isTimeoutError && attempt < maxRetries) {
+                    lastError = new Error(errorData.error || `Timeout (attempt ${attempt + 1})`);
+                    console.log(`[site-docs/client] Timeout on attempt ${attempt + 1}, retrying after ${RETRY_DELAY_MS * Math.pow(2, attempt)}ms...`);
+                    await sleep(RETRY_DELAY_MS * Math.pow(2, attempt)); // Exponential backoff
+                    continue;
+                }
+                
+                throw new Error(errorData.error || `Failed to generate document (${response.status})`);
+            }
+
+            const data = await response.json();
+            
+            if (onProgress) {
+                onProgress({ stage: "complete", percent: 100 });
+            }
+            
+            return data.generated_content;
+            
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            
+            // Check if this is an abort error (timeout) that we should retry
+            const isAbortError = lastError.name === "AbortError" || 
+                                  lastError.message?.toLowerCase().includes("abort");
+            
+            if (isAbortError && attempt < maxRetries) {
+                console.log(`[site-docs/client] Request aborted on attempt ${attempt + 1}, retrying...`);
+                await sleep(RETRY_DELAY_MS * Math.pow(2, attempt)); // Exponential backoff
+                continue;
+            }
+            
+            // If we've exhausted retries or it's not a retryable error, throw
+            throw lastError;
+        }
+    }
+    
+    throw lastError || new Error("Failed to generate document after retries");
 }
 
 // ── Export ──

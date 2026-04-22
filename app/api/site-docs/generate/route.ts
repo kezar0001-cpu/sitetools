@@ -7,6 +7,7 @@ import type { DocumentType } from "@/lib/site-docs/types";
 
 export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // 5 minutes for long document generation
 
 const DOCUMENT_SYSTEM_PROMPT =
     "You are a professional document generator for construction and civil engineering projects. " +
@@ -68,13 +69,26 @@ export async function POST(request: NextRequest) {
             ? getTemplatePrompt(document_type as DocumentType, summary)
             : `Generate a professional construction document from the following summary:\n\n${summary}`;
 
+        // Dynamic timeout based on input length: 1 min base + 30s per 1000 chars
+        const inputLength = summary?.length || 0;
+        const dynamicTimeoutMs = Math.min(
+            270_000, // Cap at 4.5 minutes
+            Math.max(60_000, 60_000 + (inputLength / 1000) * 30_000) // Base 1min + 30s per 1000 chars
+        );
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 55_000);
+        const timeoutId = setTimeout(() => controller.abort(), dynamicTimeoutMs);
+
+        // Dynamic max_tokens based on input length for comprehensive outputs
+        const dynamicMaxTokens = Math.min(
+            8192, // Cap at 8192
+            Math.max(4096, Math.ceil(inputLength / 2)) // At least 4096, or half input length
+        );
 
         const message = await anthropic.messages.create(
             {
                 model: "claude-sonnet-4-6",
-                max_tokens: 4096,
+                max_tokens: dynamicMaxTokens,
                 system: DOCUMENT_SYSTEM_PROMPT,
                 messages: [{ role: "user", content: userPrompt }],
             },
