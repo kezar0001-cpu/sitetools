@@ -146,6 +146,7 @@ export interface GenerationOptions {
 
 const DEFAULT_RETRIES = 2;
 const RETRY_DELAY_MS = 2000;
+const MAX_SUMMARY_LENGTH = 10_000;
 
 async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -170,7 +171,11 @@ export async function generateDocumentContent(
 
     // Check input length and warn if very long
     const inputLength = payload.summary?.length || 0;
-    const isVeryLongInput = inputLength > 6000;
+    const isVeryLongInput = inputLength > 8000;
+
+    if (inputLength > MAX_SUMMARY_LENGTH) {
+        throw new Error(`Input is too long. Please keep your notes at or below ${MAX_SUMMARY_LENGTH.toLocaleString()} characters.`);
+    }
     
     if (isVeryLongInput && onProgress) {
         onProgress({ stage: "preparing", percent: 5 });
@@ -216,10 +221,16 @@ export async function generateDocumentContent(
                     response.status === 504 || 
                     errorData.error?.toLowerCase().includes("timeout") ||
                     errorData.error?.toLowerCase().includes("abort");
+                const isRecoverableParseError =
+                    response.status === 422 && (
+                        errorData.error?.toLowerCase().includes("malformed") ||
+                        errorData.error?.toLowerCase().includes("parse") ||
+                        errorData.error?.toLowerCase().includes("json")
+                    );
                 
-                if (isTimeoutError && attempt < maxRetries) {
-                    lastError = new Error(errorData.error || `Timeout (attempt ${attempt + 1})`);
-                    console.log(`[site-docs/client] Timeout on attempt ${attempt + 1}, retrying after ${RETRY_DELAY_MS * Math.pow(2, attempt)}ms...`);
+                if ((isTimeoutError || (isRecoverableParseError && inputLength <= MAX_SUMMARY_LENGTH)) && attempt < maxRetries) {
+                    lastError = new Error(errorData.error || `Generation failed (attempt ${attempt + 1})`);
+                    console.log(`[site-docs/client] Recoverable generation error on attempt ${attempt + 1}, retrying after ${RETRY_DELAY_MS * Math.pow(2, attempt)}ms...`);
                     await sleep(RETRY_DELAY_MS * Math.pow(2, attempt)); // Exponential backoff
                     continue;
                 }

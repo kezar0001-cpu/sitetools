@@ -9,9 +9,58 @@ export const runtime = "nodejs";
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for long document generation
 
+const MAX_SUMMARY_LENGTH = 10_000;
+
 const DOCUMENT_SYSTEM_PROMPT =
     "You are a professional document generator for construction and civil engineering projects. " +
     "Respond ONLY with valid JSON — no markdown fences, no explanation, no text outside the JSON object.";
+
+function sanitizeJsonLikeText(input: string): string {
+    return input
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/,\s*([}\]])/g, "$1")
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, " ");
+}
+
+function tryParseGeneratedContent(responseText: string) {
+    const candidates = [
+        responseText,
+        sanitizeJsonLikeText(responseText),
+    ];
+
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+        candidates.push(jsonMatch[0]);
+        candidates.push(sanitizeJsonLikeText(jsonMatch[0]));
+    }
+
+    for (const candidate of candidates) {
+        try {
+            return JSON.parse(candidate);
+        } catch {
+            // Continue trying fallbacks
+        }
+    }
+
+    return null;
+}
+
+async function repairJsonWithModel(anthropic: Anthropic, malformedText: string) {
+    const repairMessage = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 6000,
+        system: "You repair malformed JSON. Return ONLY valid JSON. Preserve the original content and structure as closely as possible. Do not add markdown fences or commentary.",
+        messages: [{
+            role: "user",
+            content: `Repair this malformed JSON so it becomes valid JSON only:\n\n${malformedText}`,
+        }],
+    });
+
+    const repairedTextBlock = repairMessage.content.find((b) => b.type === "text");
+    const repairedText = repairedTextBlock && "text" in repairedTextBlock ? repairedTextBlock.text.trim() : "";
+    return tryParseGeneratedContent(repairedText);
+}
 
 export async function POST(request: NextRequest) {
     try {
@@ -27,6 +76,13 @@ export async function POST(request: NextRequest) {
         if (!summary) {
             return NextResponse.json(
                 { error: "Summary is required." },
+                { status: 400 }
+            );
+        }
+
+        if (summary.length > MAX_SUMMARY_LENGTH) {
+            return NextResponse.json(
+                { error: `Summary is too long. Please keep input at or below ${MAX_SUMMARY_LENGTH.toLocaleString()} characters.` },
                 { status: 400 }
             );
         }
@@ -81,8 +137,8 @@ export async function POST(request: NextRequest) {
 
         // Dynamic max_tokens based on input length for comprehensive outputs
         const dynamicMaxTokens = Math.min(
-            8192, // Cap at 8192
-            Math.max(4096, Math.ceil(inputLength / 2)) // At least 4096, or half input length
+            10000,
+            Math.max(5000, Math.ceil(inputLength * 0.9))
         );
 
         const message = await anthropic.messages.create(
@@ -101,27 +157,17 @@ export async function POST(request: NextRequest) {
         const responseText = textBlock && "text" in textBlock ? textBlock.text.trim() : "";
 
         // Parse JSON response
-        let generatedContent;
-        try {
-            generatedContent = JSON.parse(responseText);
-        } catch {
-            // Try to extract JSON from any accidental markdown wrapping
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                try {
-                    generatedContent = JSON.parse(jsonMatch[0]);
-                } catch {
-                    return NextResponse.json(
-                        { error: "Failed to parse AI response. Please try again." },
-                        { status: 422 }
-                    );
-                }
-            } else {
-                return NextResponse.json(
-                    { error: "Failed to parse AI response. Please try again." },
-                    { status: 422 }
-                );
-            }
+        let generatedContent = tryParseGeneratedContent(responseText);
+
+        if (!generatedContent && responseText) {
+            generatedContent = await repairJsonWithModel(anthropic, responseText);
+        }
+
+        if (!generatedContent) {
+            return NextResponse.json(
+                { error: "The AI returned malformed structured output. Please retry — long inputs up to 10,000 characters are supported, and the system will attempt to recover automatically." },
+                { status: 422 }
+            );
         }
 
         // Apply metadata overrides if provided

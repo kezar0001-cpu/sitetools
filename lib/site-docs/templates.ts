@@ -13,56 +13,50 @@ const meetingMinutesTemplate: DocumentTemplate = {
     description: "Professional meeting minutes with attendees, agenda items, action items, and sign-off",
     icon: "users",
     color: "blue",
-    prompt_template: `Convert the following meeting summary into professional meeting minutes for any type of meeting.
+    prompt_template: `Convert the following meeting summary into professional meeting minutes.
 
 Structure the output as JSON with this exact structure:
 {
   "metadata": {
-    "document_title": "Meeting Minutes — [Meeting Name or Subject]",
+    "document_title": "Meeting Minutes — [Project/Meeting Name]",
     "project_name": "extracted or null",
     "location": "extracted meeting location or null",
     "date": "YYYY-MM-DD format",
-    "time": "extracted meeting time e.g. 2:00 PM or null",
     "reference": "generated reference like MTG-001 or null",
-    "prepared_by": "extracted minute taker name or null",
-    "organization": "extracted primary organization or null",
-    "abn": "extracted ABN number if mentioned or null",
-    "meeting_type": "meeting category if stated (e.g. project meeting, design review, client meeting, safety committee, leadership meeting) or null",
-    "next_meeting": "YYYY-MM-DD format or null",
-    "distribution": "e.g. Attendees only, All stakeholders, or null"
+    "prepared_by": "extracted minute taker",
+    "organization": "extracted organization"
   },
   "attendees": [
-    { "id": "1", "name": "Full Name", "organization": "Company", "role": "Role/Title", "present": true }
+    { "id": "1", "name": "Full Name", "organization": "Company", "role": "Role", "present": true }
   ],
   "sections": [
-    { "id": "1", "title": "Descriptive agenda item title", "content": "Detailed discussion notes, decisions made, and context. Write in full sentences.", "order": 1, "status": "open|closed|in-progress" }
+    { "id": "1", "title": "1. Matters from Previous Meeting", "content": "detailed content", "order": 1, "status": "open|closed|in-progress" }
   ],
   "actionItems": [
-    { "id": "1", "number": 1, "description": "Clear action description", "responsible": "Name — Organisation", "due_date": "YYYY-MM-DD or null", "status": "open|in-progress|closed" }
+    { "id": "1", "number": 1, "description": "action description", "responsible": "Name — Org", "due_date": "YYYY-MM-DD or null", "status": "open|in-progress|closed" }
   ],
   "signatories": [
-    { "id": "1", "name": "Name", "organization": "Organisation", "signature_date": null }
+    { "id": "1", "name": "Name", "organization": "Org", "signature_date": null }
   ]
 }
 
-Extract and organize all of the following:
-- Meeting date, time, location, meeting type/category, and next meeting date
+Extract and organize:
+- Meeting date, time, location
 - All attendees with their organizations and roles
-- Every agenda item discussed — write detailed section content in full sentences
-- All action items with responsible parties and due dates
-- Status indicators (open/closed/in-progress) for each item and section
-- All decisions made, agreements reached, and outstanding matters
-- Keep the language generic and do not assume this is an internal meeting, site meeting, or tied to any specific company unless the source notes explicitly say so.
+- Agenda items discussed (numbered sections)
+- Action items with responsible parties and due dates
+- Status indicators (Open/Closed/In Progress) for each item
+- Decisions made and agreements reached
 
 Meeting Summary:
 {{SUMMARY}}`,
     required_fields: [
-        { name: "project_name", label: "Project / Subject", type: "text", placeholder: "Client Coordination Meeting" },
-        { name: "location", label: "Meeting Location", type: "text", placeholder: "Conference Room A or Microsoft Teams" },
+        { name: "project_name", label: "Project Name", type: "text", placeholder: "Depena Reserve Carpark Upgrade" },
+        { name: "location", label: "Meeting Location", type: "text", placeholder: "MSA Civil Site Office" },
         { name: "date", label: "Meeting Date", type: "date" },
     ],
     optional_fields: [
-        { name: "reference", label: "Reference Number", type: "text", placeholder: "MM-002" },
+        { name: "reference", label: "Reference Number", type: "text", placeholder: "MSA-MM-002" },
         { name: "next_meeting", label: "Next Meeting Date", type: "date" },
         { name: "prepared_by", label: "Minutes By", type: "text" },
     ],
@@ -697,5 +691,8 @@ export function getAllTemplates(): DocumentTemplate[] {
 
 export function getTemplatePrompt(type: DocumentType, summary: string): string {
     const template = DOCUMENT_TEMPLATES[type];
+    if (type === "meeting-minutes") {
+        return template.prompt_template.replace("{{SUMMARY}}", summary);
+    }
     return buildTemplatePrompt(template, summary);
 }

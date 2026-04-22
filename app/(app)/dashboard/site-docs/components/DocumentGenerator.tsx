@@ -85,8 +85,8 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
     const inputQuality = useMemo(() => analyzeInputQuality(summaryInput, template.id), [summaryInput, template.id]);
     
     // Check if input is very long and may need more processing time
-    const isLongInput = summaryInput.length > 5000;
-    const isVeryLongInput = summaryInput.length > 8000;
+    const isLongInput = summaryInput.length > 7000;
+    const isVeryLongInput = summaryInput.length > 9000;
 
     // Load projects for dropdown
     useEffect(() => {
@@ -141,7 +141,7 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
                     metadata_override: metadata,
                 },
                 {
-                    retries: isVeryLongInput ? 3 : 2,
+                    retries: isVeryLongInput ? 4 : isLongInput ? 3 : 2,
                     onRetry: (attempt) => {
                         setRetryCount(attempt);
                         setGenerationProgress({ stage: `Retrying (attempt ${attempt + 1})...`, percent: 10 + attempt * 20 });
@@ -159,15 +159,15 @@ export function DocumentGenerator({ template, companyId, onCancel }: DocumentGen
             
             // Provide more helpful error messages based on input length and error type
             if (errorMessage.toLowerCase().includes("abort") || errorMessage.toLowerCase().includes("timeout")) {
-                if (summaryInput.length > 8000) {
-                    setError("This document is quite long and is taking more time than expected. Please try again — the system will automatically retry up to 3 times. If it continues to fail, consider splitting your notes into smaller sections.");
+                if (summaryInput.length > 9000) {
+                    setError("This is a very large document, but inputs up to 10,000 characters are supported. Please try again — the system will automatically retry and allow extra processing time.");
                 } else if (summaryInput.length > 4000) {
-                    setError("Request timed out. The AI is taking longer than expected due to the amount of content. Please try again — it often succeeds on retry.");
+                    setError("The AI is taking longer than expected because of the amount of detail. Your notes are still within the supported range. Please try again — retries usually recover it.");
                 } else {
                     setError("Request timed out. The AI is taking longer than expected. Please try again.");
                 }
             } else if (errorMessage.toLowerCase().includes("parse") || errorMessage.toLowerCase().includes("json")) {
-                setError("The AI had trouble parsing your input. This can happen with very complex documents. Try rephrasing or shortening your notes.");
+                setError("The AI returned malformed structured output while processing your notes. Inputs up to 10,000 characters are supported, so you should not need to shorten this — please retry and the system will attempt to recover it automatically.");
             } else {
                 setError(errorMessage);
             }
@@ -453,8 +453,8 @@ The AI will convert this into a professional ${template.name.toLowerCase()}.`}
                             {/* Long input warning */}
                             {summaryInput.length > 10000 && (
                                 <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
-                                    <strong>Very long input detected.</strong> Documents over 10,000 characters may take 3-5 minutes to generate. 
-                                    The system will automatically retry if needed.
+                                    <strong>Input exceeds the supported limit.</strong> You can paste up to 10,000 characters in a single generation request.
+                                    Please trim this down slightly before generating.
                                 </div>
                             )}
                         </div>
