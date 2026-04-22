@@ -3,6 +3,8 @@ import type { MSAItem, MSADocumentProps, MSASection } from '@/lib/site-docs/pdf-
 
 const MM_TO_PT = 2.835
 const CONTENT_WIDTH = 170 * MM_TO_PT
+const FOOTER_RESERVED = 32 * MM_TO_PT
+const HEADER_CONTENT_OFFSET = 115
 
 const ORANGE = '#E87722'
 const DARK = '#1A1A2E'
@@ -166,12 +168,12 @@ const styles = StyleSheet.create({
     paddingLeft: 20 * MM_TO_PT,
     paddingRight: 20 * MM_TO_PT,
     paddingTop: 18 * MM_TO_PT,
-    paddingBottom: 18 * MM_TO_PT,
+    paddingBottom: FOOTER_RESERVED,
   },
   content: {
     width: CONTENT_WIDTH,
-    paddingTop: 115,
-    paddingBottom: 140,
+    paddingTop: HEADER_CONTENT_OFFSET,
+    paddingBottom: 12,
   },
   header: {
     position: 'absolute',
@@ -356,9 +358,12 @@ const styles = StyleSheet.create({
   },
   footer: {
     position: 'absolute',
-    bottom: 18 * MM_TO_PT,
+    bottom: 10 * MM_TO_PT,
     left: 20 * MM_TO_PT,
     width: CONTENT_WIDTH,
+    minHeight: 18 * MM_TO_PT,
+    backgroundColor: WHITE,
+    paddingTop: 4,
   },
   footerRule: {
     height: 0.5,
@@ -428,7 +433,7 @@ function statusStyle(status: 'open' | 'closed' | 'critical' | 'in-progress') {
 
 function Table({ columns, rows }: Pick<Extract<MSAItem, { type: 'table' }>, 'columns' | 'rows'>) {
   return (
-    <View style={styles.tableWrap}>
+    <View style={styles.tableWrap} minPresenceAhead={48}>
       <View style={styles.table}>
         <View style={styles.tableRow}>
           {columns.map((column, index) => (
@@ -444,7 +449,7 @@ function Table({ columns, rows }: Pick<Extract<MSAItem, { type: 'table' }>, 'col
           ))}
         </View>
         {rows.map((row, rowIndex) => (
-          <View key={`row-${rowIndex}`} style={styles.tableRow} wrap={false} minPresenceAhead={24}>
+          <View key={`row-${rowIndex}`} style={styles.tableRow} minPresenceAhead={36}>
             {columns.map((column, cellIndex) => (
               <View
                 key={`${rowIndex}-${cellIndex}`}
@@ -473,7 +478,7 @@ function StatusTable({
   rows,
 }: Pick<Extract<MSAItem, { type: 'status_table' }>, 'columns' | 'rows'>) {
   return (
-    <View style={styles.tableWrap}>
+    <View style={styles.tableWrap} minPresenceAhead={56}>
       <View style={styles.table}>
         <View style={styles.tableRow}>
           {columns.map((column, index) => (
@@ -489,7 +494,7 @@ function StatusTable({
           ))}
         </View>
         {rows.map((row, rowIndex) => (
-          <View key={`status-row-${rowIndex}`} style={styles.tableRow} wrap={false} minPresenceAhead={28}>
+          <View key={`status-row-${rowIndex}`} style={styles.tableRow} minPresenceAhead={40}>
             {columns.map((column, cellIndex) => {
               const isLast = cellIndex === columns.length - 1
               return (
@@ -526,7 +531,7 @@ function SignoffTable({
   rows,
 }: Pick<Extract<MSAItem, { type: 'signoff_table' }>, 'columns' | 'rows'>) {
   return (
-    <View style={styles.tableWrap}>
+    <View style={styles.tableWrap} minPresenceAhead={56}>
       <View style={styles.table}>
         <View style={styles.tableRow}>
           {columns.map((column, index) => (
@@ -542,7 +547,7 @@ function SignoffTable({
           ))}
         </View>
         {rows.map((row, rowIndex) => (
-          <View key={`signoff-row-${rowIndex}`} style={styles.tableRow} wrap={false} minPresenceAhead={28}>
+          <View key={`signoff-row-${rowIndex}`} style={styles.tableRow} minPresenceAhead={40}>
             <View style={[rowIndex % 2 === 0 ? styles.bodyCell : styles.bodyCellAlt, { flexGrow: columns[0].weight, flexBasis: 0 }]}>
               <Text style={styles.cellText}>{row.name}</Text>
             </View>
@@ -647,7 +652,7 @@ function renderItem(item: MSAItem, key: string) {
 
 function Section({ section }: { section: MSASection }) {
   return (
-    <View minPresenceAhead={120}>
+    <View minPresenceAhead={160}>
       <SectionBanner title={section.title} />
       {section.items.map((item, itemIndex) => renderItem(item, `${section.title}-${itemIndex}`))}
     </View>
