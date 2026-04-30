@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, CheckCircle2, ClipboardList, FolderOpen, Loader2, Search, X } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, ClipboardList, Download, FolderOpen, Loader2, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { loadJsPDF, preloadJsPDF } from "@/lib/dynamicImports";
 import { fetchCompanyDocuments, updateActionItemStatus } from "@/lib/site-docs/client";
 import {
     DOCUMENT_TYPE_LABELS,
@@ -49,6 +50,10 @@ const STATUS_LABELS: Record<ActionStatus, string> = {
     closed: "Closed",
 };
 
+function getActionKey(action: Pick<RegisterAction, "documentId" | "id">): string {
+    return `${action.documentId}:${action.id}`;
+}
+
 export function ActionRegister({ companyId }: ActionRegisterProps) {
     const router = useRouter();
     const [documents, setDocuments] = useState<SiteDocument[]>([]);
@@ -59,6 +64,9 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [projectFilter, setProjectFilter] = useState<ProjectFilter>("all");
     const [updatingKey, setUpdatingKey] = useState<string | null>(null);
+    const [selectedActionKeys, setSelectedActionKeys] = useState<Set<string>>(new Set());
+    const [selectionInitialized, setSelectionInitialized] = useState(false);
+    const [exportingPdf, setExportingPdf] = useState(false);
 
     const loadRegisterData = useCallback(async () => {
         setLoading(true);
@@ -102,6 +110,31 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         });
     }, [documents]);
 
+    useEffect(() => {
+        setSelectedActionKeys((currentKeys) => {
+            const availableKeys = new Set(actions.map(getActionKey));
+            const nextKeys = new Set<string>();
+
+            for (const action of actions) {
+                const key = getActionKey(action);
+                if (!selectionInitialized || currentKeys.has(key)) {
+                    nextKeys.add(key);
+                }
+            }
+
+            for (const key of Array.from(currentKeys)) {
+                if (availableKeys.has(key)) {
+                    nextKeys.add(key);
+                }
+            }
+
+            return nextKeys;
+        });
+        if (actions.length > 0 && !selectionInitialized) {
+            setSelectionInitialized(true);
+        }
+    }, [actions, selectionInitialized]);
+
     const filteredActions = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
 
@@ -141,6 +174,17 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         );
     }, [actions]);
 
+    const visibleActionKeys = useMemo(() => filteredActions.map(getActionKey), [filteredActions]);
+
+    const selectedVisibleActions = useMemo(() => {
+        return filteredActions.filter((action) => selectedActionKeys.has(getActionKey(action)));
+    }, [filteredActions, selectedActionKeys]);
+
+    const allVisibleSelected =
+        visibleActionKeys.length > 0 && visibleActionKeys.every((key) => selectedActionKeys.has(key));
+    const someVisibleSelected =
+        visibleActionKeys.length > 0 && visibleActionKeys.some((key) => selectedActionKeys.has(key));
+
     const hasActiveFilters = searchQuery || statusFilter !== "all" || projectFilter !== "all";
 
     function clearFilters() {
@@ -149,8 +193,116 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         setProjectFilter("all");
     }
 
+    function getProjectName(projectId: string | null): string {
+        return projectId ? projectNameById.get(projectId) ?? "Unknown project" : "No project";
+    }
+
+    function formatDate(dateValue: string | null | undefined): string {
+        return dateValue ? new Date(dateValue).toLocaleDateString("en-AU") : "No date";
+    }
+
+    function toggleActionSelection(action: RegisterAction) {
+        const actionKey = getActionKey(action);
+        setSelectedActionKeys((currentKeys) => {
+            const nextKeys = new Set(currentKeys);
+            if (nextKeys.has(actionKey)) {
+                nextKeys.delete(actionKey);
+            } else {
+                nextKeys.add(actionKey);
+            }
+            return nextKeys;
+        });
+    }
+
+    function toggleVisibleSelection() {
+        setSelectedActionKeys((currentKeys) => {
+            const nextKeys = new Set(currentKeys);
+            if (allVisibleSelected) {
+                visibleActionKeys.forEach((key) => nextKeys.delete(key));
+            } else {
+                visibleActionKeys.forEach((key) => nextKeys.add(key));
+            }
+            return nextKeys;
+        });
+    }
+
+    async function exportSelectedPdf() {
+        if (selectedVisibleActions.length === 0) {
+            setError("Select at least one visible action item to export.");
+            return;
+        }
+
+        setExportingPdf(true);
+        setError(null);
+
+        try {
+            const { jsPDF, autoTable } = await loadJsPDF();
+            const doc = new jsPDF({ orientation: "landscape" });
+            const generatedAt = new Date();
+            const statusLabel = STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "All Statuses";
+            const projectLabel =
+                projectFilter === "all"
+                    ? "All Projects"
+                    : projectFilter === "unassigned"
+                        ? "No Project"
+                        : projectNameById.get(projectFilter) ?? "Selected Project";
+
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text("SiteDocs Action Register", 14, 16);
+
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(95);
+            doc.text(
+                `Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${selectedVisibleActions.length} | Project: ${projectLabel} | Status: ${statusLabel}`,
+                14,
+                23
+            );
+            if (searchQuery.trim()) {
+                doc.text(`Search: ${searchQuery.trim()}`, 14, 29);
+            }
+            doc.setTextColor(0);
+
+            autoTable(doc, {
+                head: [["#", "Action", "Project", "Report", "Responsible", "Due", "Status"]],
+                body: selectedVisibleActions.map((action, index) => [
+                    String(index + 1),
+                    action.description || "Untitled action",
+                    getProjectName(action.projectId),
+                    action.documentReference
+                        ? `${action.documentTitle} (${action.documentReference})`
+                        : action.documentTitle,
+                    action.responsible || "Unassigned",
+                    formatDate(action.due_date),
+                    STATUS_LABELS[action.status],
+                ]),
+                startY: searchQuery.trim() ? 34 : 28,
+                styles: { fontSize: 8, cellPadding: 2.5, overflow: "linebreak" },
+                headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                columnStyles: {
+                    0: { cellWidth: 10 },
+                    1: { cellWidth: 82 },
+                    2: { cellWidth: 38 },
+                    3: { cellWidth: 56 },
+                    4: { cellWidth: 34 },
+                    5: { cellWidth: 24 },
+                    6: { cellWidth: 24 },
+                },
+                margin: { left: 14, right: 14 },
+            });
+
+            doc.save(`sitedocs-action-register-${generatedAt.toISOString().slice(0, 10)}.pdf`);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to export action register PDF");
+        } finally {
+            setExportingPdf(false);
+        }
+    }
+
     async function handleStatusChange(action: RegisterAction, status: ActionStatus) {
-        const updateKey = `${action.documentId}:${action.id}`;
+        const updateKey = getActionKey(action);
         setUpdatingKey(updateKey);
         setError(null);
 
@@ -202,22 +354,38 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                         Track action items collected from every SiteDocs report.
                     </p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                    {STATUS_OPTIONS.map((option) => (
-                        <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setStatusFilter(option.value)}
-                            className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                                statusFilter === option.value
-                                    ? "border-blue-300 bg-blue-50 text-blue-700"
-                                    : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                            }`}
-                        >
-                            <span className="block text-xs font-medium">{option.label}</span>
-                            <span className="text-lg font-semibold">{counts[option.value]}</span>
-                        </button>
-                    ))}
+                <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                        {STATUS_OPTIONS.map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setStatusFilter(option.value)}
+                                className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                                    statusFilter === option.value
+                                        ? "border-blue-300 bg-blue-50 text-blue-700"
+                                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                                }`}
+                            >
+                                <span className="block text-xs font-medium">{option.label}</span>
+                                <span className="text-lg font-semibold">{counts[option.value]}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        type="button"
+                        onMouseEnter={preloadJsPDF}
+                        onClick={() => void exportSelectedPdf()}
+                        disabled={exportingPdf || selectedVisibleActions.length === 0}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {exportingPdf ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                            <Download className="h-4 w-4" />
+                        )}
+                        Export selected PDF
+                    </button>
                 </div>
             </div>
 
@@ -274,6 +442,21 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                 )}
             </div>
 
+            <div className="mt-3 flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                    {selectedVisibleActions.length} of {filteredActions.length} visible actions selected for PDF export
+                </span>
+                {filteredActions.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={toggleVisibleSelection}
+                        className="text-left font-medium text-blue-600 hover:text-blue-700 sm:text-right"
+                    >
+                        {allVisibleSelected ? "Clear visible selection" : "Select all visible"}
+                    </button>
+                )}
+            </div>
+
             {filteredActions.length === 0 ? (
                 <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
                     <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" />
@@ -291,6 +474,16 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                     <table className="w-full text-sm">
                         <thead className="bg-slate-50">
                             <tr className="border-b border-slate-200">
+                                <th className="w-12 px-4 py-3 text-left font-medium text-slate-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={allVisibleSelected}
+                                        onChange={toggleVisibleSelection}
+                                        aria-checked={someVisibleSelected && !allVisibleSelected ? "mixed" : allVisibleSelected}
+                                        aria-label="Select all visible actions for PDF export"
+                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                </th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Action</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Project</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Report</th>
@@ -302,14 +495,22 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                         </thead>
                         <tbody className="divide-y divide-slate-200">
                             {filteredActions.map((action) => {
-                                const updateKey = `${action.documentId}:${action.id}`;
+                                const updateKey = getActionKey(action);
                                 const isUpdating = updatingKey === updateKey;
-                                const projectName = action.projectId
-                                    ? projectNameById.get(action.projectId) ?? "Unknown project"
-                                    : "No project";
+                                const isSelected = selectedActionKeys.has(updateKey);
+                                const projectName = getProjectName(action.projectId);
 
                                 return (
                                     <tr key={updateKey} className="hover:bg-slate-50">
+                                        <td className="px-4 py-4 align-top">
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => toggleActionSelection(action)}
+                                                aria-label={`Include ${action.description || "action"} in PDF export`}
+                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                        </td>
                                         <td className="max-w-md px-4 py-4 align-top">
                                             <p className="font-medium text-slate-900">{action.description || "Untitled action"}</p>
                                             <p className="mt-1 text-xs text-slate-500">Action #{action.number}</p>
@@ -324,16 +525,14 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                             <p className="font-medium text-slate-800">{action.documentTitle}</p>
                                             <p className="mt-1 text-xs text-slate-500">
                                                 {DOCUMENT_TYPE_LABELS[action.documentType] ?? action.documentType}
-                                                {action.documentReference ? ` · ${action.documentReference}` : ""}
+                                                {action.documentReference ? ` - ${action.documentReference}` : ""}
                                             </p>
                                         </td>
                                         <td className="px-4 py-4 align-top text-slate-600">
                                             {action.responsible || "Unassigned"}
                                         </td>
                                         <td className="px-4 py-4 align-top text-slate-600">
-                                            {action.due_date
-                                                ? new Date(action.due_date).toLocaleDateString("en-AU")
-                                                : "No date"}
+                                            {formatDate(action.due_date)}
                                         </td>
                                         <td className="px-4 py-4 align-top">
                                             <select

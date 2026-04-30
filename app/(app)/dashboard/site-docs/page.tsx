@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, FolderOpen, Sparkles, CheckCircle, Lightbulb, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { ClipboardList, FileText, FolderOpen, Sparkles, CheckCircle, Lightbulb, ArrowRight } from "lucide-react";
 import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { getAllTemplates } from "@/lib/site-docs/templates";
 import type { DocumentTemplate } from "@/lib/site-docs/types";
 import { DocumentGenerator } from "./components/DocumentGenerator";
 import { TemplateCard } from "./components/TemplateCard";
 import { DocumentsLibrary } from "./components/DocumentsLibrary";
-import { ActionRegister } from "./components/ActionRegister";
 
 // ── Main Dashboard ──
 
@@ -66,15 +66,19 @@ export default function SiteDocsPage() {
                     <p className="text-slate-500 mt-1">
                         Convert rough notes into professional construction documents with AI
                     </p>
+                    <div className="mt-4">
+                        <Link
+                            href="/dashboard/site-docs/actions"
+                            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800"
+                        >
+                            <ClipboardList className="h-4 w-4" />
+                            Action Register
+                        </Link>
+                    </div>
                 </div>
-
-                {/* Action Register */}
-                <ActionRegister companyId={activeCompanyId} />
 
                 {/* Documents Library */}
-                <div className="mt-10">
                 <DocumentsLibrary companyId={activeCompanyId} />
-                </div>
 
                 {/* Template Selection */}
                 <div className="mt-10">
