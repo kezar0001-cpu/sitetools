@@ -35,7 +35,6 @@ interface SiteVisit {
   site_id: string;
   company_id?: string | null;
   signature?: string | null;
-  edit_reason?: string | null;
 }
 
 const VISITOR_TYPES: VisitorType[] = ["Worker", "Subcontractor", "Visitor", "Delivery"];
@@ -199,7 +198,6 @@ function SiteSignIn({ site }: { site: Site }) {
 
   const [editingTime, setEditingTime] = useState(false);
   const [editTime, setEditTime] = useState("");
-  const [editReason, setEditReason] = useState("");
   const [editTimeSaving, setEditTimeSaving] = useState(false);
 
   // Sign-in flow
@@ -279,16 +277,11 @@ function SiteSignIn({ site }: { site: Site }) {
     const hh = String(d.getHours()).padStart(2, "0");
     const mm = String(d.getMinutes()).padStart(2, "0");
     setEditTime(`${hh}:${mm}`);
-    setEditReason(v.edit_reason || "");
     setEditingTime(true);
   }
 
   async function handleSaveTime() {
     if (!editTime || !myVisit) return;
-    if (!editReason.trim()) {
-      setFormError("Please provide a reason for editing the sign-in time.");
-      return;
-    }
 
     setEditTimeSaving(true);
     const original = new Date(myVisit.signed_in_at);
@@ -300,7 +293,6 @@ function SiteSignIn({ site }: { site: Site }) {
       .from("site_visits")
       .update({
         signed_in_at: updated.toISOString(),
-        edit_reason: editReason.trim()
       })
       .eq("id", myVisit.id)
       .select().single();
@@ -312,7 +304,6 @@ function SiteSignIn({ site }: { site: Site }) {
     }
     setMyVisit(data as SiteVisit);
     setEditingTime(false);
-    setEditReason("");
   }
 
   async function handleSignIn(e: React.FormEvent) {
@@ -903,27 +894,18 @@ function SiteSignIn({ site }: { site: Site }) {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-black uppercase tracking-widest text-gray-500 mb-1.5">Reason for Edit</label>
-                  <textarea
-                    placeholder="e.g. Forgot to sign in at the gate"
-                    value={editReason}
-                    onChange={(e) => setEditReason(e.target.value)}
-                    className="w-full border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-amber-400 bg-gray-50 min-h-[100px] resize-none transition-colors"
-                  />
-                </div>
               </div>
 
               <div className="flex gap-3">
                 <button
                   onClick={handleSaveTime}
-                  disabled={editTimeSaving || !editTime || !editReason.trim()}
+                  disabled={editTimeSaving || !editTime}
                   className="flex-1 bg-slate-900 hover:bg-black disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm shadow-lg transition-all active:scale-[0.98]"
                 >
                   {editTimeSaving ? "Saving..." : "Update Time"}
                 </button>
                 <button
-                  onClick={() => { setEditingTime(false); setEditReason(""); }}
+                  onClick={() => setEditingTime(false)}
                   className="px-4 py-3.5 rounded-xl border-2 border-gray-100 text-sm font-bold text-gray-600 hover:bg-gray-50 transition-all active:scale-[0.98]"
                 >
                   Cancel

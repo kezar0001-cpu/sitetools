@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { UseFormRegister, FieldErrors, UseFormWatch } from "react-hook-form";
 import type { SiteVisit } from "@/lib/workspace/types";
 import type { VisitEditFormData } from "@/lib/validation/schemas";
 import { visitorTypes } from "@/lib/validation/schemas";
 import { MobileCardList, MobileCardHeader, MobileStatusBadge, MobileActionButton } from "@/components/mobile/MobileCardList";
-import { Pencil, ChevronDown, ChevronUp } from "lucide-react";
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString("en-AU", {
@@ -112,9 +110,6 @@ export function VisitTable({
                   {!visit.signed_out_at && !editingId && (
                     <MobileStatusBadge status="On site" variant="success" />
                   )}
-                  {visit.edited_by_user_id && !editingId && (
-                    <EditedBadge visit={visit} />
-                  )}
                 </>
               )}
             />
@@ -216,19 +211,6 @@ export function VisitTable({
               {editErrors.signedOutAt && (
                 <p className="text-[10px] text-red-500 mt-0.5">{editErrors.signedOutAt.message}</p>
               )}
-              {editingId === visit.id && (
-                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                  <label className="text-[10px] text-slate-500 block mb-1">Reason for edit (optional)</label>
-                  <input
-                    {...registerEdit("editReason")}
-                    placeholder="e.g., Corrected sign-out time"
-                    className={`w-full border ${editErrors.editReason ? "border-red-400" : "border-slate-300"} rounded-lg px-2 py-1.5 text-xs outline-none`}
-                  />
-                  {editErrors.editReason && (
-                    <p className="text-[10px] text-red-500 mt-0.5">{editErrors.editReason.message}</p>
-                  )}
-                </div>
-              )}
             </div>
           ) : visit.signed_out_at ? (
             formatDateTime(visit.signed_out_at)
@@ -319,42 +301,5 @@ export function VisitTable({
         },
       ]}
     />
-  );
-}
-
-// Component to display "Edited" badge with expandable audit details
-function EditedBadge({ visit }: { visit: SiteVisit }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const formatEditTime = (value: string | null) => {
-    if (!value) return "";
-    return new Date(value).toLocaleString("en-AU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  return (
-    <div className="inline-flex flex-col">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-      >
-        <Pencil className="w-3 h-3" />
-        Edited
-        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-      </button>
-      {isExpanded && (
-        <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800 max-w-[280px]">
-          <p className="font-medium">Edited {formatEditTime(visit.edited_at)}</p>
-          {visit.edit_reason && (
-            <p className="mt-0.5 text-amber-700">Reason: {visit.edit_reason}</p>
-          )}
-        </div>
-      )}
-    </div>
   );
 }

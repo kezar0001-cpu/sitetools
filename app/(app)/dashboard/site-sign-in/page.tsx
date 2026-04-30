@@ -83,7 +83,6 @@ function SiteSignContent() {
   const activeCompanyId = summary?.activeMembership?.company_id ?? null;
   const activeRole = summary?.activeMembership?.role ?? null;
   const profileActiveSiteId = summary?.profile?.active_site_id ?? null;
-  const currentUserId = summary?.userId ?? null;
 
   const { sites, isLoading: sitesLoading, prefetchSites } = useCompanySites(activeCompanyId, {
     staleTime: 5 * 60 * 1000,
@@ -146,10 +145,11 @@ function SiteSignContent() {
   const {
     register: registerEdit,
     handleSubmit: handleSubmitEdit,
-    formState: { errors: editErrors, isSubmitting: editSaving, isValid: editIsValid },
+    formState: { errors: editErrors, isSubmitting: editSubmitting, isValid: editIsValid },
     reset: resetEdit,
     watch: watchEdit,
     setValue: setEditValue,
+    trigger: triggerEdit,
   } = useForm<VisitEditFormData>({
     resolver: zodResolver(visitEditSchema),
     mode: "onChange",
@@ -177,6 +177,7 @@ function SiteSignContent() {
   const signingOutId = signOutVisit.isPending ? "pending" : null;
   const bulkSigningOut = bulkSignOut.isPending;
   const deletingId = deleteVisit.isPending ? "pending" : null;
+  const editSaving = editSubmitting || updateVisit.isPending;
 
   useEffect(() => {
     if (sites.length === 0) {
@@ -282,6 +283,7 @@ function SiteSignContent() {
       signedInAt: toDatetimeLocal(visit.signed_in_at),
       signedOutAt: toDatetimeLocal(visit.signed_out_at),
     });
+    void triggerEdit();
   }
 
   async function handleSwitchSite(nextSiteId: string) {
@@ -343,10 +345,10 @@ function SiteSignContent() {
   }
 
   async function handleSaveEdit(data: VisitEditFormData, visitId: string) {
-    if (!selectedSiteId || !currentUserId) return;
+    if (!selectedSiteId) return;
 
-    updateVisit.mutate(
-      {
+    try {
+      await updateVisit.mutateAsync({
         id: visitId,
         site_id: selectedSiteId,
         full_name: data.fullName.trim(),
@@ -355,19 +357,12 @@ function SiteSignContent() {
         visitor_type: data.visitorType,
         signed_in_at: new Date(data.signedInAt).toISOString(),
         signed_out_at: data.signedOutAt ? new Date(data.signedOutAt).toISOString() : null,
-        edit_reason: data.editReason?.trim() || null,
-        edited_by_user_id: currentUserId,
-      },
-      {
-        onSuccess: () => {
-          clearEdit();
-          showSuccessToast("Record updated.");
-        },
-        onError: (err) => {
-          showErrorToast(err instanceof Error ? `${err.message} Try again or refresh the page.` : "Failed to update record. Please try again.");
-        },
-      }
-    );
+      });
+      clearEdit();
+      showSuccessToast("Record updated.");
+    } catch (err) {
+      showErrorToast(err instanceof Error ? `${err.message} Try again or refresh the page.` : "Failed to update record. Please try again.");
+    }
   }
 
   async function handleSignOut(visitId: string) {
@@ -775,8 +770,9 @@ function SiteSignContent() {
           onStartEdit={startEdit}
           onSaveEdit={handleSubmitEdit((data) => {
             if (editingId) {
-              handleSaveEdit(data, editingId);
+              return handleSaveEdit(data, editingId);
             }
+            return undefined;
           })}
           onCancelEdit={clearEdit}
           onSignOut={handleSignOut}
@@ -947,4 +943,3 @@ export default function SiteSignInModulePage() {
     </ErrorBoundary>
   );
 }
-

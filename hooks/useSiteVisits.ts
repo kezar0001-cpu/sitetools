@@ -38,8 +38,6 @@ interface UpdateVisitPayload {
   visitor_type: VisitorType;
   signed_in_at: string;
   signed_out_at?: string | null;
-  edit_reason?: string | null;
-  edited_by_user_id: string;
 }
 
 interface SignOutPayload {
@@ -136,9 +134,6 @@ export function useVisitMutations(
         signed_out_at: payload.signed_out_at ?? null,
         created_by_user_id: null,
         signed_in_by_user_id: null,
-        edit_reason: null,
-        edited_by_user_id: null,
-        edited_at: null,
       };
 
       queryClient.setQueryData<SiteVisit[]>(getQueryKey(), (old) => {
@@ -163,7 +158,7 @@ export function useVisitMutations(
   // Update visit with optimistic update
   const updateVisit = useMutation({
     mutationFn: async (payload: UpdateVisitPayload) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("site_visits")
         .update({
           full_name: payload.full_name,
@@ -172,20 +167,19 @@ export function useVisitMutations(
           visitor_type: payload.visitor_type,
           signed_in_at: payload.signed_in_at,
           signed_out_at: payload.signed_out_at ?? null,
-          edit_reason: payload.edit_reason ?? null,
-          edited_by_user_id: payload.edited_by_user_id,
-          edited_at: new Date().toISOString(),
         })
         .eq("id", payload.id)
-        .eq("site_id", payload.site_id);
+        .eq("site_id", payload.site_id)
+        .select("id")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("No matching visit record was updated.");
     },
     onMutate: async (payload) => {
       await queryClient.cancelQueries({ queryKey: getQueryKey() });
       const previousVisits = queryClient.getQueryData<SiteVisit[]>(getQueryKey()) ?? [];
 
-      const now = new Date().toISOString();
       queryClient.setQueryData<SiteVisit[]>(getQueryKey(), (old) => {
         const visits = old ?? [];
         return visits.map((visit) =>
@@ -198,9 +192,6 @@ export function useVisitMutations(
                 visitor_type: payload.visitor_type,
                 signed_in_at: payload.signed_in_at,
                 signed_out_at: payload.signed_out_at ?? null,
-                edit_reason: payload.edit_reason ?? null,
-                edited_by_user_id: payload.edited_by_user_id,
-                edited_at: now,
               }
             : visit
         );
