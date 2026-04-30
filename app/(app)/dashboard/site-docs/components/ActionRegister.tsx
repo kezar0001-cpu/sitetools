@@ -240,12 +240,6 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             const doc = new jsPDF({ orientation: "landscape" });
             const generatedAt = new Date();
             const statusLabel = STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "All Statuses";
-            const projectLabel =
-                projectFilter === "all"
-                    ? "All Projects"
-                    : projectFilter === "unassigned"
-                        ? "No Project"
-                        : projectNameById.get(projectFilter) ?? "Selected Project";
 
             doc.setFontSize(16);
             doc.setFont("helvetica", "bold");
@@ -255,7 +249,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             doc.setFont("helvetica", "normal");
             doc.setTextColor(95);
             doc.text(
-                `Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${selectedVisibleActions.length} | Project: ${projectLabel} | Status: ${statusLabel}`,
+                `Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${selectedVisibleActions.length} | Status: ${statusLabel}`,
                 14,
                 23
             );
@@ -265,11 +259,10 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             doc.setTextColor(0);
 
             autoTable(doc, {
-                head: [["#", "Action", "Project", "Report", "Responsible", "Due", "Status"]],
+                head: [["#", "Action", "Report", "Responsible", "Due", "Status"]],
                 body: selectedVisibleActions.map((action, index) => [
                     String(index + 1),
                     action.description || "Untitled action",
-                    getProjectName(action.projectId),
                     action.documentReference
                         ? `${action.documentTitle} (${action.documentReference})`
                         : action.documentTitle,
@@ -283,12 +276,11 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 columnStyles: {
                     0: { cellWidth: 10 },
-                    1: { cellWidth: 82 },
-                    2: { cellWidth: 38 },
-                    3: { cellWidth: 56 },
-                    4: { cellWidth: 34 },
+                    1: { cellWidth: 112 },
+                    2: { cellWidth: 64 },
+                    3: { cellWidth: 38 },
+                    4: { cellWidth: 24 },
                     5: { cellWidth: 24 },
-                    6: { cellWidth: 24 },
                 },
                 margin: { left: 14, right: 14 },
             });
