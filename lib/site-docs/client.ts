@@ -465,9 +465,15 @@ export async function updateActionItemStatus(
         throw new Error("No action items found in document");
     }
 
+    const updatedAt = new Date().toISOString();
+    const actionExists = generatedContent.actionItems.some(item => item.id === itemId);
+    if (!actionExists) {
+        throw new Error("Action item not found in document");
+    }
+
     const updatedActionItems = generatedContent.actionItems.map(item =>
         item.id === itemId
-            ? { ...item, status, updated_at: new Date().toISOString() }
+            ? { ...item, status, updated_at: updatedAt }
             : item
     );
 
@@ -481,11 +487,11 @@ export async function updateActionItemStatus(
         .from("site_documents")
         .update({
             generated_content: updatedContent,
-            updated_at: new Date().toISOString(),
+            updated_at: updatedAt,
         })
         .eq("id", documentId);
 
     if (updateError) throw new Error(updateError.message);
 
-    return { updated_at: new Date().toISOString() };
+    return { updated_at: updatedAt };
 }

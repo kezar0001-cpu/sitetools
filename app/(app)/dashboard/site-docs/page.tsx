@@ -8,6 +8,7 @@ import type { DocumentTemplate } from "@/lib/site-docs/types";
 import { DocumentGenerator } from "./components/DocumentGenerator";
 import { TemplateCard } from "./components/TemplateCard";
 import { DocumentsLibrary } from "./components/DocumentsLibrary";
+import { ActionRegister } from "./components/ActionRegister";
 
 // ── Main Dashboard ──
 
@@ -67,8 +68,13 @@ export default function SiteDocsPage() {
                     </p>
                 </div>
 
+                {/* Action Register */}
+                <ActionRegister companyId={activeCompanyId} />
+
                 {/* Documents Library */}
+                <div className="mt-10">
                 <DocumentsLibrary companyId={activeCompanyId} />
+                </div>
 
                 {/* Template Selection */}
                 <div className="mt-10">
