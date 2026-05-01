@@ -89,6 +89,27 @@ function typeCode(type: ItemType): string {
   return "W";
 }
 
+function normalizePdfText(value: string | null | undefined): string {
+  if (!value) return "";
+
+  const normalized = value
+    .normalize("NFKC")
+    .replace(/\r\n/g, "\n")
+    .replace(/\u00A0/g, " ");
+
+  // Some imported ITP text arrives with intra-letter spacing (e.g. "S u b g r a d e").
+  // Collapse those runs back into words so PDF renderers don't show fragmented text.
+  const deSpaced = normalized.replace(
+    /\b(?:[A-Za-z]\s){2,}[A-Za-z]\b/g,
+    (fragment) => fragment.replace(/\s+/g, "")
+  );
+
+  return deSpaced
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -204,11 +225,11 @@ export default function ItpPdfExport({ session }: Props) {
           bodyRows.push([
             String(itemNum),
             typeCode(item.type),
-            item.title,
-            item.reference_standard || "—",
-            item.acceptance_criteria || item.description || "—",
+            normalizePdfText(item.title) || "—",
+            normalizePdfText(item.reference_standard) || "—",
+            normalizePdfText(item.acceptance_criteria || item.description) || "—",
             isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
-            signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : ""),
+            normalizePdfText(signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : "")),
           ]);
         }
       } else {
@@ -221,11 +242,11 @@ export default function ItpPdfExport({ session }: Props) {
           bodyRows.push([
             String(i + 1),
             typeCode(item.type),
-            item.title,
-            item.reference_standard || "—",
-            item.acceptance_criteria || item.description || "—",
+            normalizePdfText(item.title) || "—",
+            normalizePdfText(item.reference_standard) || "—",
+            normalizePdfText(item.acceptance_criteria || item.description) || "—",
             isSigned ? "Signed" : isWaived ? "Waived" : "Pending",
-            signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : ""),
+            normalizePdfText(signerNames || ((isSigned || isWaived) && item.signed_off_by_name ? item.signed_off_by_name : "")),
           ]);
         });
       }
