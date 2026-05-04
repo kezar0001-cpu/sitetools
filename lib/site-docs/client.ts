@@ -11,6 +11,9 @@ import type {
     GenerateDocumentPayload,
     GeneratedContent,
     DocumentType,
+    ActionStatus,
+    SiteActionItem,
+    SiteActionRegisterLink,
 } from "./types";
 
 // ── Document CRUD ──
@@ -444,10 +447,96 @@ export async function regenerateDocument(
 
 // ── Action Item Status Updates ──
 
+async function getAccessToken(): Promise<string> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) throw new Error("Not authenticated");
+    return token;
+}
+
+export async function fetchActionRegisterItems(
+    companyId: string,
+    options?: { projectId?: string | null }
+): Promise<SiteActionItem[]> {
+    const token = await getAccessToken();
+    const params = new URLSearchParams({ companyId });
+    if (options?.projectId) params.set("projectId", options.projectId);
+
+    const response = await fetch(`/api/site-docs/actions?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to load action register");
+    return data.actions ?? [];
+}
+
+export async function createManualAction(payload: {
+    company_id: string;
+    project_id?: string | null;
+    description: string;
+    responsible?: string | null;
+    due_date?: string | null;
+    status?: ActionStatus;
+}): Promise<SiteActionItem> {
+    const token = await getAccessToken();
+    const response = await fetch("/api/site-docs/actions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to create action");
+    return data.action;
+}
+
+export async function updateRegisterActionStatus(
+    actionId: string,
+    status: ActionStatus,
+    comment: string
+): Promise<SiteActionItem> {
+    const token = await getAccessToken();
+    const response = await fetch(`/api/site-docs/actions/${actionId}/status`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status, comment }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to update status");
+    return data.action;
+}
+
+export async function createActionRegisterClientLink(payload: {
+    company_id: string;
+    project_id: string;
+    recipient_name?: string | null;
+    recipient_email?: string | null;
+    recipient_organisation?: string | null;
+    expires_at?: string | null;
+}): Promise<{ link: SiteActionRegisterLink; url: string }> {
+    const token = await getAccessToken();
+    const response = await fetch("/api/site-docs/action-register-links", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to create client link");
+    return { link: data.link, url: data.url };
+}
+
 export async function updateActionItemStatus(
     documentId: string,
     itemId: string,
-    status: "open" | "in-progress" | "closed"
+    status: ActionStatus
 ): Promise<{ updated_at: string }> {
     // First, fetch the current document
     const { data: doc, error: fetchError } = await supabase

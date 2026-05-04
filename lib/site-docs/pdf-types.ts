@@ -30,7 +30,7 @@ export type MSAItem =
   | {
       type: 'status_table'
       columns: { header: string; weight: number }[]
-      rows: { cells: string[]; status: 'open' | 'closed' | 'critical' | 'in-progress' }[]
+      rows: { cells: string[]; status: 'open' | 'closed' | 'critical' | 'in-progress' | 'council-response-provided' }[]
     }
   | { type: 'outcome'; text: string }
   | { type: 'action'; text: string }

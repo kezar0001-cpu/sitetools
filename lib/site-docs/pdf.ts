@@ -1,5 +1,5 @@
 import type { MSAItem, MSADocumentProps } from '@/lib/site-docs/pdf-types'
-import type { DocumentType, GeneratedContent, SiteDocument, StructuredFieldValue, StructuredTableValue } from '@/lib/site-docs/types'
+import type { ActionStatus, DocumentType, GeneratedContent, SiteActionUpdate, SiteDocument, StructuredFieldValue, StructuredTableValue } from '@/lib/site-docs/types'
 import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
 import { getDocumentStandardProfile } from '@/lib/site-docs/standards'
 
@@ -24,13 +24,32 @@ function formatDisplayDate(date: string | null | undefined): string {
   return parsed.toLocaleDateString('en-AU', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' | 'in-progress' {
+function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' | 'in-progress' | 'council-response-provided' {
   if (!value) return 'open'
   const normalized = value.toLowerCase()
   if (normalized === 'closed') return 'closed'
   if (normalized === 'critical') return 'critical'
   if (normalized === 'in-progress' || normalized === 'in progress') return 'in-progress'
+  if (normalized === 'council-response-provided' || normalized === 'council response provided') return 'council-response-provided'
   return 'open'
+}
+
+function formatActionStatus(value: ActionStatus | string): string {
+  if (value === 'in-progress') return 'In Progress'
+  if (value === 'council-response-provided') return 'Council Response Provided'
+  if (value === 'closed') return 'Closed'
+  return 'Open'
+}
+
+function formatLatestUpdate(item: { latest_update?: SiteActionUpdate | null }): string {
+  const update = item.latest_update
+  if (!update) return '—'
+  const parsed = update.created_at ? new Date(update.created_at) : null
+  const dateText = parsed && !Number.isNaN(parsed.getTime())
+    ? parsed.toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : update.created_at ?? ''
+  const byline = [update.updated_by_name, update.updated_by_organisation].filter(Boolean).join(', ')
+  return `${dateText}${byline ? `, ${byline}` : ''}: “${update.comment ?? ''}”`
 }
 
 function paragraphsFromContent(content: string): MSAItem[] {
@@ -150,6 +169,7 @@ export function mapSiteDocToMSA(
             { header: 'Action', weight: 3 },
             { header: 'Responsible', weight: 1.4 },
             { header: 'Due Date', weight: 1 },
+            { header: 'Latest Update', weight: 2 },
             { header: 'Status', weight: 1 },
           ],
           rows: generatedContent.actionItems.map((item) => ({
@@ -158,7 +178,8 @@ export function mapSiteDocToMSA(
                 toDisplayValue(item.description, ''),
                 toDisplayValue(item.responsible),
               formatDisplayDate(item.due_date),
-              item.status,
+              formatLatestUpdate(item),
+              formatActionStatus(item.status),
             ],
             status: toStatus(item.status),
           })),

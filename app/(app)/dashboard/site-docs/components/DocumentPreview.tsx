@@ -5,6 +5,7 @@ import Image from "next/image";
 import { loadSignatureCanvas, preloadSignatureCanvas } from "@/lib/dynamicImports";
 import { getDocumentStandardProfile } from "@/lib/site-docs/standards";
 import type { GeneratedContent, DocumentTemplate, ActionItem, Attendee, Signatory, DocumentSection, StructuredFieldValue, StructuredTableValue, DocumentSpecificValue, DocumentSpecificContent } from "@/lib/site-docs/types";
+import { ACTION_STATUS_LABELS, ACTION_STATUS_OPTIONS } from "@/lib/site-docs/types";
 import { updateDocument } from "@/lib/site-docs/client";
 
 type SignatureCanvasHandle = {
@@ -892,9 +893,9 @@ export function DocumentPreview({
                                                             onBlur={saveToServer}
                                                             className="text-xs font-medium rounded-full border border-slate-300 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                         >
-                                                            <option value="open">Open</option>
-                                                            <option value="in-progress">In Progress</option>
-                                                            <option value="closed">Closed</option>
+                                                            {ACTION_STATUS_OPTIONS.map((option) => (
+                                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                                            ))}
                                                         </select>
                                                     </td>
                                                     <td className="px-4 py-3 text-center">
@@ -917,9 +918,10 @@ export function DocumentPreview({
                                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                                                             item.status === "open" ? "bg-amber-100 text-amber-700" :
                                                             item.status === "in-progress" ? "bg-blue-100 text-blue-700" :
+                                                            item.status === "council-response-provided" ? "bg-violet-100 text-violet-700" :
                                                             "bg-emerald-100 text-emerald-700"
                                                         }`}>
-                                                            {item.status}
+                                                            {ACTION_STATUS_LABELS[item.status]}
                                                         </span>
                                                     </td>
                                                 </>

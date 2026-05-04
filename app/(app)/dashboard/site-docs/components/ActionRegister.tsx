@@ -1,15 +1,32 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, CheckCircle2, ClipboardList, Download, FolderOpen, Loader2, Search, X } from "lucide-react";
+import {
+    ArrowUpRight,
+    CheckCircle2,
+    ClipboardList,
+    Download,
+    FolderOpen,
+    Link2,
+    Loader2,
+    Plus,
+    Search,
+    X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { loadJsPDF, preloadJsPDF } from "@/lib/dynamicImports";
-import { fetchCompanyDocuments, updateActionItemStatus } from "@/lib/site-docs/client";
 import {
+    createActionRegisterClientLink,
+    createManualAction,
+    fetchActionRegisterItems,
+    updateRegisterActionStatus,
+} from "@/lib/site-docs/client";
+import {
+    ACTION_STATUS_LABELS,
+    ACTION_STATUS_OPTIONS,
     DOCUMENT_TYPE_LABELS,
-    type ActionItem,
-    type DocumentType,
-    type SiteDocument,
+    type ActionStatus,
+    type SiteActionItem,
 } from "@/lib/site-docs/types";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
@@ -18,48 +35,68 @@ interface ActionRegisterProps {
     companyId: string;
 }
 
-type ActionStatus = ActionItem["status"];
 type StatusFilter = ActionStatus | "all";
 type ProjectFilter = string | "all" | "unassigned";
 
-interface RegisterAction extends ActionItem {
-    documentId: string;
-    documentTitle: string;
-    documentType: DocumentType;
-    documentReference: string | null;
-    documentCreatedAt: string;
-    projectId: string | null;
+interface StatusModalState {
+    action: SiteActionItem;
+    newStatus: ActionStatus;
+    comment: string;
 }
 
-const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+interface ManualActionForm {
+    description: string;
+    responsible: string;
+    due_date: string;
+    status: ActionStatus;
+    project_id: string;
+}
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
     { value: "all", label: "All Statuses" },
-    { value: "open", label: "Open" },
-    { value: "in-progress", label: "In Progress" },
-    { value: "closed", label: "Closed" },
+    ...ACTION_STATUS_OPTIONS,
 ];
 
 const STATUS_STYLES: Record<ActionStatus, string> = {
     open: "border-amber-300 bg-amber-50 text-amber-700",
     "in-progress": "border-blue-300 bg-blue-50 text-blue-700",
+    "council-response-provided": "border-violet-300 bg-violet-50 text-violet-700",
     closed: "border-emerald-300 bg-emerald-50 text-emerald-700",
 };
 
-const STATUS_LABELS: Record<ActionStatus, string> = {
-    open: "Open",
-    "in-progress": "In Progress",
-    closed: "Closed",
-};
+function getActionKey(action: Pick<SiteActionItem, "id">): string {
+    return action.id;
+}
 
-function getActionKey(action: Pick<RegisterAction, "documentId" | "id">): string {
-    return `${action.documentId}:${action.id}`;
+function formatDate(dateValue: string | null | undefined): string {
+    return dateValue ? new Date(dateValue).toLocaleDateString("en-AU") : "No date";
+}
+
+function formatDateTime(dateValue: string | null | undefined): string {
+    if (!dateValue) return "";
+    return new Date(dateValue).toLocaleString("en-AU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function formatLatestUpdate(action: SiteActionItem): string {
+    const update = action.latest_update;
+    if (!update) return "No updates yet";
+    const byline = [update.updated_by_name, update.updated_by_organisation].filter(Boolean).join(", ");
+    return `${formatDateTime(update.created_at)} — ${byline}: “${update.comment}”`;
 }
 
 export function ActionRegister({ companyId }: ActionRegisterProps) {
     const router = useRouter();
-    const [documents, setDocuments] = useState<SiteDocument[]>([]);
+    const [actions, setActions] = useState<SiteActionItem[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [notice, setNotice] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [projectFilter, setProjectFilter] = useState<ProjectFilter>("all");
@@ -67,17 +104,32 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     const [selectedActionKeys, setSelectedActionKeys] = useState<Set<string>>(new Set());
     const [selectionInitialized, setSelectionInitialized] = useState(false);
     const [exportingPdf, setExportingPdf] = useState(false);
+    const [statusModal, setStatusModal] = useState<StatusModalState | null>(null);
+    const [manualModalOpen, setManualModalOpen] = useState(false);
+    const [manualForm, setManualForm] = useState<ManualActionForm>({
+        description: "",
+        responsible: "",
+        due_date: "",
+        status: "open",
+        project_id: "",
+    });
+    const [creatingAction, setCreatingAction] = useState(false);
+    const [shareModalOpen, setShareModalOpen] = useState(false);
+    const [shareProjectId, setShareProjectId] = useState("");
+    const [shareRecipient, setShareRecipient] = useState({ name: "", email: "", organisation: "" });
+    const [shareUrl, setShareUrl] = useState("");
+    const [creatingLink, setCreatingLink] = useState(false);
 
     const loadRegisterData = useCallback(async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const [docs, projectList] = await Promise.all([
-                fetchCompanyDocuments(companyId),
+            const [actionItems, projectList] = await Promise.all([
+                fetchActionRegisterItems(companyId),
                 getProjects(companyId),
             ]);
-            setDocuments(docs);
+            setActions(actionItems);
             setProjects(projectList);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to load action register");
@@ -90,25 +142,16 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         void loadRegisterData();
     }, [loadRegisterData]);
 
-    const projectNameById = useMemo(() => {
-        return new Map(projects.map((project) => [project.id, project.name]));
-    }, [projects]);
+    useEffect(() => {
+        if (projects.length === 1 && !manualForm.project_id) {
+            setManualForm((current) => ({ ...current, project_id: projects[0].id }));
+        }
+        if (projects.length === 1 && !shareProjectId) {
+            setShareProjectId(projects[0].id);
+        }
+    }, [manualForm.project_id, projects, shareProjectId]);
 
-    const actions = useMemo<RegisterAction[]>(() => {
-        return documents.flatMap((document) => {
-            const actionItems = document.generated_content.actionItems ?? [];
-
-            return actionItems.map((item) => ({
-                ...item,
-                documentId: document.id,
-                documentTitle: document.title,
-                documentType: document.document_type,
-                documentReference: document.reference_number,
-                documentCreatedAt: document.created_at,
-                projectId: document.project_id,
-            }));
-        });
-    }, [documents]);
+    const projectNameById = useMemo(() => new Map(projects.map((project) => [project.id, project.name])), [projects]);
 
     useEffect(() => {
         setSelectedActionKeys((currentKeys) => {
@@ -117,22 +160,16 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
 
             for (const action of actions) {
                 const key = getActionKey(action);
-                if (!selectionInitialized || currentKeys.has(key)) {
-                    nextKeys.add(key);
-                }
+                if (!selectionInitialized || currentKeys.has(key)) nextKeys.add(key);
             }
 
             for (const key of Array.from(currentKeys)) {
-                if (availableKeys.has(key)) {
-                    nextKeys.add(key);
-                }
+                if (availableKeys.has(key)) nextKeys.add(key);
             }
 
             return nextKeys;
         });
-        if (actions.length > 0 && !selectionInitialized) {
-            setSelectionInitialized(true);
-        }
+        if (actions.length > 0 && !selectionInitialized) setSelectionInitialized(true);
     }, [actions, selectionInitialized]);
 
     const filteredActions = useMemo(() => {
@@ -141,25 +178,27 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         return actions
             .filter((action) => {
                 if (statusFilter !== "all" && action.status !== statusFilter) return false;
-                if (projectFilter === "unassigned" && action.projectId) return false;
-                if (projectFilter !== "all" && projectFilter !== "unassigned" && action.projectId !== projectFilter) return false;
-
+                if (projectFilter === "unassigned" && action.project_id) return false;
+                if (projectFilter !== "all" && projectFilter !== "unassigned" && action.project_id !== projectFilter) return false;
                 if (!query) return true;
 
-                const projectName = action.projectId ? projectNameById.get(action.projectId) ?? "" : "";
+                const projectName = action.project_id ? projectNameById.get(action.project_id) ?? "" : "";
                 return [
                     action.description,
                     action.responsible ?? "",
-                    action.documentTitle,
-                    action.documentReference ?? "",
+                    action.source_document_title ?? "Manual action",
+                    action.source_document_reference ?? "",
                     projectName,
+                    action.latest_update?.comment ?? "",
+                    action.latest_update?.updated_by_name ?? "",
+                    action.latest_update?.updated_by_organisation ?? "",
                 ].some((value) => value.toLowerCase().includes(query));
             })
             .sort((a, b) => {
                 const aDue = a.due_date ? new Date(a.due_date).getTime() : Number.MAX_SAFE_INTEGER;
                 const bDue = b.due_date ? new Date(b.due_date).getTime() : Number.MAX_SAFE_INTEGER;
                 if (aDue !== bDue) return aDue - bDue;
-                return new Date(b.documentCreatedAt).getTime() - new Date(a.documentCreatedAt).getTime();
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
             });
     }, [actions, projectFilter, projectNameById, searchQuery, statusFilter]);
 
@@ -170,22 +209,21 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                 acc[action.status] += 1;
                 return acc;
             },
-            { all: 0, open: 0, "in-progress": 0, closed: 0 }
+            { all: 0, open: 0, "in-progress": 0, "council-response-provided": 0, closed: 0 }
         );
     }, [actions]);
 
     const visibleActionKeys = useMemo(() => filteredActions.map(getActionKey), [filteredActions]);
-
-    const selectedVisibleActions = useMemo(() => {
-        return filteredActions.filter((action) => selectedActionKeys.has(getActionKey(action)));
-    }, [filteredActions, selectedActionKeys]);
-
-    const allVisibleSelected =
-        visibleActionKeys.length > 0 && visibleActionKeys.every((key) => selectedActionKeys.has(key));
-    const someVisibleSelected =
-        visibleActionKeys.length > 0 && visibleActionKeys.some((key) => selectedActionKeys.has(key));
-
+    const selectedVisibleActions = useMemo(
+        () => filteredActions.filter((action) => selectedActionKeys.has(getActionKey(action))),
+        [filteredActions, selectedActionKeys]
+    );
+    const allVisibleSelected = visibleActionKeys.length > 0 && visibleActionKeys.every((key) => selectedActionKeys.has(key));
     const hasActiveFilters = searchQuery || statusFilter !== "all" || projectFilter !== "all";
+
+    function getProjectName(projectId: string | null): string {
+        return projectId ? projectNameById.get(projectId) ?? "Unknown project" : "No project";
+    }
 
     function clearFilters() {
         setSearchQuery("");
@@ -193,23 +231,12 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         setProjectFilter("all");
     }
 
-    function getProjectName(projectId: string | null): string {
-        return projectId ? projectNameById.get(projectId) ?? "Unknown project" : "No project";
-    }
-
-    function formatDate(dateValue: string | null | undefined): string {
-        return dateValue ? new Date(dateValue).toLocaleDateString("en-AU") : "No date";
-    }
-
-    function toggleActionSelection(action: RegisterAction) {
+    function toggleActionSelection(action: SiteActionItem) {
         const actionKey = getActionKey(action);
         setSelectedActionKeys((currentKeys) => {
             const nextKeys = new Set(currentKeys);
-            if (nextKeys.has(actionKey)) {
-                nextKeys.delete(actionKey);
-            } else {
-                nextKeys.add(actionKey);
-            }
+            if (nextKeys.has(actionKey)) nextKeys.delete(actionKey);
+            else nextKeys.add(actionKey);
             return nextKeys;
         });
     }
@@ -217,13 +244,97 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     function toggleVisibleSelection() {
         setSelectedActionKeys((currentKeys) => {
             const nextKeys = new Set(currentKeys);
-            if (allVisibleSelected) {
-                visibleActionKeys.forEach((key) => nextKeys.delete(key));
-            } else {
-                visibleActionKeys.forEach((key) => nextKeys.add(key));
-            }
+            if (allVisibleSelected) visibleActionKeys.forEach((key) => nextKeys.delete(key));
+            else visibleActionKeys.forEach((key) => nextKeys.add(key));
             return nextKeys;
         });
+    }
+
+    function openStatusModal(action: SiteActionItem, newStatus: ActionStatus) {
+        if (newStatus === action.status) return;
+        setStatusModal({ action, newStatus, comment: "" });
+    }
+
+    async function saveStatusUpdate() {
+        if (!statusModal || !statusModal.comment.trim()) return;
+        const updateKey = getActionKey(statusModal.action);
+        setUpdatingKey(updateKey);
+        setError(null);
+        setNotice(null);
+
+        try {
+            const updatedAction = await updateRegisterActionStatus(
+                statusModal.action.id,
+                statusModal.newStatus,
+                statusModal.comment
+            );
+            setActions((current) => current.map((item) => (item.id === updatedAction.id ? updatedAction : item)));
+            setStatusModal(null);
+            setNotice("Action status updated with comment.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to update action status");
+        } finally {
+            setUpdatingKey(null);
+        }
+    }
+
+    async function handleCreateManualAction() {
+        if (!manualForm.description.trim()) return;
+        setCreatingAction(true);
+        setError(null);
+        setNotice(null);
+
+        try {
+            const action = await createManualAction({
+                company_id: companyId,
+                project_id: manualForm.project_id || null,
+                description: manualForm.description,
+                responsible: manualForm.responsible || null,
+                due_date: manualForm.due_date || null,
+                status: manualForm.status,
+            });
+            setActions((current) => [action, ...current]);
+            setManualModalOpen(false);
+            setManualForm({ description: "", responsible: "", due_date: "", status: "open", project_id: projects[0]?.id ?? "" });
+            setNotice("Manual action created.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to create manual action");
+        } finally {
+            setCreatingAction(false);
+        }
+    }
+
+    async function handleCreateClientLink() {
+        if (!shareProjectId) {
+            setError("Select a project before creating a client link.");
+            return;
+        }
+        setCreatingLink(true);
+        setError(null);
+        setNotice(null);
+        setShareUrl("");
+
+        try {
+            const result = await createActionRegisterClientLink({
+                company_id: companyId,
+                project_id: shareProjectId,
+                recipient_name: shareRecipient.name || null,
+                recipient_email: shareRecipient.email || null,
+                recipient_organisation: shareRecipient.organisation || null,
+            });
+            setShareUrl(result.url);
+            setNotice("Client link created. Copy it from the share dialog.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to create client link");
+        } finally {
+            setCreatingLink(false);
+        }
+    }
+
+    async function copyShareUrl() {
+        if (!shareUrl) return;
+        await navigator.clipboard?.writeText(shareUrl);
+        setNotice("Client link copied to clipboard.");
     }
 
     async function exportSelectedPdf() {
@@ -239,48 +350,42 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             const { jsPDF, autoTable } = await loadJsPDF();
             const doc = new jsPDF({ orientation: "landscape" });
             const generatedAt = new Date();
-            const statusLabel = STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "All Statuses";
+            const statusLabel = STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "All Statuses";
 
             doc.setFontSize(16);
             doc.setFont("helvetica", "bold");
             doc.text("SiteDocs Action Register", 14, 16);
-
             doc.setFontSize(9);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(95);
-            doc.text(
-                `Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${selectedVisibleActions.length} | Status: ${statusLabel}`,
-                14,
-                23
-            );
-            if (searchQuery.trim()) {
-                doc.text(`Search: ${searchQuery.trim()}`, 14, 29);
-            }
+            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${selectedVisibleActions.length} | Status: ${statusLabel}`, 14, 23);
             doc.setTextColor(0);
 
             autoTable(doc, {
-                head: [["#", "Action", "Report", "Responsible", "Due", "Status"]],
+                head: [["#", "Action", "Source", "Responsible", "Due", "Status", "Latest update"]],
                 body: selectedVisibleActions.map((action, index) => [
-                    String(index + 1),
+                    action.action_number || String(index + 1),
                     action.description || "Untitled action",
-                    action.documentReference
-                        ? `${action.documentTitle} (${action.documentReference})`
-                        : action.documentTitle,
+                    action.source === "manual"
+                        ? "Manual"
+                        : `${action.source_document_title ?? "SiteDocs document"}${action.source_document_reference ? ` (${action.source_document_reference})` : ""}`,
                     action.responsible || "Unassigned",
                     formatDate(action.due_date),
-                    STATUS_LABELS[action.status],
+                    ACTION_STATUS_LABELS[action.status],
+                    formatLatestUpdate(action),
                 ]),
-                startY: searchQuery.trim() ? 34 : 28,
-                styles: { fontSize: 8, cellPadding: 2.5, overflow: "linebreak" },
+                startY: 28,
+                styles: { fontSize: 7, cellPadding: 2.5, overflow: "linebreak" },
                 headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 columnStyles: {
-                    0: { cellWidth: 10 },
-                    1: { cellWidth: 112 },
-                    2: { cellWidth: 64 },
-                    3: { cellWidth: 38 },
+                    0: { cellWidth: 18 },
+                    1: { cellWidth: 78 },
+                    2: { cellWidth: 50 },
+                    3: { cellWidth: 36 },
                     4: { cellWidth: 24 },
-                    5: { cellWidth: 24 },
+                    5: { cellWidth: 34 },
+                    6: { cellWidth: 44 },
                 },
                 margin: { left: 14, right: 14 },
             });
@@ -290,36 +395,6 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             setError(err instanceof Error ? err.message : "Failed to export action register PDF");
         } finally {
             setExportingPdf(false);
-        }
-    }
-
-    async function handleStatusChange(action: RegisterAction, status: ActionStatus) {
-        const updateKey = getActionKey(action);
-        setUpdatingKey(updateKey);
-        setError(null);
-
-        try {
-            const { updated_at } = await updateActionItemStatus(action.documentId, action.id, status);
-            setDocuments((currentDocuments) =>
-                currentDocuments.map((document) => {
-                    if (document.id !== action.documentId) return document;
-
-                    return {
-                        ...document,
-                        updated_at,
-                        generated_content: {
-                            ...document.generated_content,
-                            actionItems: (document.generated_content.actionItems ?? []).map((item) =>
-                                item.id === action.id ? { ...item, status, updated_at } : item
-                            ),
-                        },
-                    };
-                })
-            );
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Failed to update action status");
-        } finally {
-            setUpdatingKey(null);
         }
     }
 
@@ -343,145 +418,78 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                         <h2 className="text-lg font-semibold text-slate-900">Action Register</h2>
                     </div>
                     <p className="text-sm text-slate-500 mt-1">
-                        Track action items collected from every SiteDocs report.
+                        Track SiteDocs meeting-minute actions and manual project actions in one shared register.
                     </p>
                 </div>
                 <div className="flex flex-col gap-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
-                        {STATUS_OPTIONS.map((option) => (
-                            <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => setStatusFilter(option.value)}
-                                className={`rounded-lg border px-3 py-2 text-left transition-colors ${
-                                    statusFilter === option.value
-                                        ? "border-blue-300 bg-blue-50 text-blue-700"
-                                        : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
-                                }`}
-                            >
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-sm">
+                        {STATUS_FILTER_OPTIONS.map((option) => (
+                            <button key={option.value} type="button" onClick={() => setStatusFilter(option.value)} className={`rounded-lg border px-3 py-2 text-left transition-colors ${statusFilter === option.value ? "border-blue-300 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"}`}>
                                 <span className="block text-xs font-medium">{option.label}</span>
                                 <span className="text-lg font-semibold">{counts[option.value]}</span>
                             </button>
                         ))}
                     </div>
-                    <button
-                        type="button"
-                        onMouseEnter={preloadJsPDF}
-                        onClick={() => void exportSelectedPdf()}
-                        disabled={exportingPdf || selectedVisibleActions.length === 0}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        {exportingPdf ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Download className="h-4 w-4" />
-                        )}
-                        Export selected PDF
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setManualModalOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800">
+                            <Plus className="h-4 w-4" />
+                            Add Action
+                        </button>
+                        <button type="button" onClick={() => setShareModalOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                            <Link2 className="h-4 w-4" />
+                            Client link
+                        </button>
+                        <button type="button" onMouseEnter={preloadJsPDF} onClick={() => void exportSelectedPdf()} disabled={exportingPdf || selectedVisibleActions.length === 0} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            Export selected PDF
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {error && (
-                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
-                </div>
-            )}
+            {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+            {notice && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
 
             <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(event) => setSearchQuery(event.target.value)}
-                        placeholder="Search actions, reports, responsible people..."
-                        className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <input type="text" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search actions, reports, responsible people, latest comments..." className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
-                <select
-                    value={projectFilter}
-                    onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value as ProjectFilter)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="all">All Projects</option>
                     <option value="unassigned">No Project</option>
-                    {projects.map((project) => (
-                        <option key={project.id} value={project.id}>
-                            {project.name}
-                        </option>
-                    ))}
+                    {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
                 </select>
-                <select
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                    {STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                            {option.label}
-                        </option>
-                    ))}
+                <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {STATUS_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
-                {hasActiveFilters && (
-                    <button
-                        type="button"
-                        onClick={clearFilters}
-                        className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-                    >
-                        <X className="h-4 w-4" />
-                        Clear
-                    </button>
-                )}
+                {hasActiveFilters && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"><X className="h-4 w-4" />Clear</button>}
             </div>
 
             <div className="mt-3 flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                <span>
-                    {selectedVisibleActions.length} of {filteredActions.length} visible actions selected for PDF export
-                </span>
-                {filteredActions.length > 0 && (
-                    <button
-                        type="button"
-                        onClick={toggleVisibleSelection}
-                        className="text-left font-medium text-blue-600 hover:text-blue-700 sm:text-right"
-                    >
-                        {allVisibleSelected ? "Clear visible selection" : "Select all visible"}
-                    </button>
-                )}
+                <span>{selectedVisibleActions.length} of {filteredActions.length} visible actions selected for PDF export</span>
+                {filteredActions.length > 0 && <button type="button" onClick={toggleVisibleSelection} className="text-left font-medium text-blue-600 hover:text-blue-700 sm:text-right">{allVisibleSelected ? "Clear visible selection" : "Select all visible"}</button>}
             </div>
 
             {filteredActions.length === 0 ? (
                 <div className="mt-6 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
                     <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" />
-                    <p className="mt-3 font-medium text-slate-700">
-                        {actions.length === 0 ? "No action items found" : "No actions match your filters"}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                        {actions.length === 0
-                            ? "Generated report actions will appear here once documents include action items."
-                            : "Adjust the project, status, or search filters to widen the register."}
-                    </p>
+                    <p className="mt-3 font-medium text-slate-700">{actions.length === 0 ? "No action items found" : "No actions match your filters"}</p>
+                    <p className="mt-1 text-sm text-slate-500">{actions.length === 0 ? "Generated SiteDocs actions and manual actions will appear here." : "Adjust the project, status, or search filters to widen the register."}</p>
                 </div>
             ) : (
                 <div className="mt-6 overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="bg-slate-50">
                             <tr className="border-b border-slate-200">
-                                <th className="w-12 px-4 py-3 text-left font-medium text-slate-700">
-                                    <input
-                                        type="checkbox"
-                                        checked={allVisibleSelected}
-                                        onChange={toggleVisibleSelection}
-                                        aria-checked={someVisibleSelected && !allVisibleSelected ? "mixed" : allVisibleSelected}
-                                        aria-label="Select all visible actions for PDF export"
-                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                </th>
+                                <th className="w-12 px-4 py-3 text-left font-medium text-slate-700"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleSelection} aria-label="Select all visible actions for PDF export" className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /></th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Action</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Project</th>
-                                <th className="px-4 py-3 text-left font-medium text-slate-700">Report</th>
+                                <th className="px-4 py-3 text-left font-medium text-slate-700">Source</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Responsible</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Due</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
+                                <th className="px-4 py-3 text-left font-medium text-slate-700">Latest update</th>
                                 <th className="px-4 py-3 text-right font-medium text-slate-700">Open</th>
                             </tr>
                         </thead>
@@ -490,76 +498,64 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                 const updateKey = getActionKey(action);
                                 const isUpdating = updatingKey === updateKey;
                                 const isSelected = selectedActionKeys.has(updateKey);
-                                const projectName = getProjectName(action.projectId);
+                                const canOpenSource = !!action.source_document_id;
+                                const update = action.latest_update;
 
                                 return (
                                     <tr key={updateKey} className="hover:bg-slate-50">
-                                        <td className="px-4 py-4 align-top">
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => toggleActionSelection(action)}
-                                                aria-label={`Include ${action.description || "action"} in PDF export`}
-                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                        </td>
-                                        <td className="max-w-md px-4 py-4 align-top">
-                                            <p className="font-medium text-slate-900">{action.description || "Untitled action"}</p>
-                                            <p className="mt-1 text-xs text-slate-500">Action #{action.number}</p>
-                                        </td>
-                                        <td className="px-4 py-4 align-top text-slate-600">
-                                            <span className="inline-flex items-center gap-1.5">
-                                                <FolderOpen className="h-3.5 w-3.5 text-slate-400" />
-                                                {projectName}
-                                            </span>
-                                        </td>
-                                        <td className="max-w-xs px-4 py-4 align-top">
-                                            <p className="font-medium text-slate-800">{action.documentTitle}</p>
-                                            <p className="mt-1 text-xs text-slate-500">
-                                                {DOCUMENT_TYPE_LABELS[action.documentType] ?? action.documentType}
-                                                {action.documentReference ? ` - ${action.documentReference}` : ""}
-                                            </p>
-                                        </td>
-                                        <td className="px-4 py-4 align-top text-slate-600">
-                                            {action.responsible || "Unassigned"}
-                                        </td>
-                                        <td className="px-4 py-4 align-top text-slate-600">
-                                            {formatDate(action.due_date)}
-                                        </td>
-                                        <td className="px-4 py-4 align-top">
-                                            <select
-                                                value={action.status}
-                                                disabled={isUpdating}
-                                                onChange={(event) => void handleStatusChange(action, event.target.value as ActionStatus)}
-                                                className={`rounded-full border px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${STATUS_STYLES[action.status]}`}
-                                                aria-label={`Update status for ${action.description}`}
-                                            >
-                                                <option value="open">{STATUS_LABELS.open}</option>
-                                                <option value="in-progress">{STATUS_LABELS["in-progress"]}</option>
-                                                <option value="closed">{STATUS_LABELS.closed}</option>
-                                            </select>
-                                            {isUpdating && (
-                                                <span className="mt-2 flex items-center gap-1 text-xs text-slate-500">
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                    Updating
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-4 text-right align-top">
-                                            <button
-                                                type="button"
-                                                onClick={() => router.push(`/dashboard/site-docs/${action.documentId}`)}
-                                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50"
-                                            >
-                                                Report
-                                                <ArrowUpRight className="h-4 w-4" />
-                                            </button>
-                                        </td>
+                                        <td className="px-4 py-4 align-top"><input type="checkbox" checked={isSelected} onChange={() => toggleActionSelection(action)} aria-label={`Include ${action.description || "action"} in PDF export`} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /></td>
+                                        <td className="max-w-md px-4 py-4 align-top"><p className="font-medium text-slate-900">{action.description || "Untitled action"}</p><p className="mt-1 text-xs text-slate-500">{action.action_number || (action.source === "manual" ? "Manual action" : "Generated action")}</p></td>
+                                        <td className="px-4 py-4 align-top text-slate-600"><span className="inline-flex items-center gap-1.5"><FolderOpen className="h-3.5 w-3.5 text-slate-400" />{getProjectName(action.project_id)}</span></td>
+                                        <td className="max-w-xs px-4 py-4 align-top"><p className="font-medium text-slate-800">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs document"}</p><p className="mt-1 text-xs text-slate-500">{action.source === "manual" ? "Created in register" : `${DOCUMENT_TYPE_LABELS["meeting-minutes"]}${action.source_document_reference ? ` - ${action.source_document_reference}` : ""}`}</p></td>
+                                        <td className="px-4 py-4 align-top text-slate-600">{action.responsible || "Unassigned"}</td>
+                                        <td className="px-4 py-4 align-top text-slate-600">{formatDate(action.due_date)}</td>
+                                        <td className="px-4 py-4 align-top"><select value={action.status} disabled={isUpdating} onChange={(event) => openStatusModal(action, event.target.value as ActionStatus)} className={`rounded-full border px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${STATUS_STYLES[action.status]}`} aria-label={`Update status for ${action.description}`}>{ACTION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{isUpdating && <span className="mt-2 flex items-center gap-1 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" />Updating</span>}</td>
+                                        <td className="max-w-xs px-4 py-4 align-top text-slate-600">{update ? <div><p className="text-xs font-medium text-slate-700">{formatDateTime(update.created_at)} · {update.updated_by_name}{update.updated_by_organisation ? `, ${update.updated_by_organisation}` : ""}</p><p className="mt-1 text-sm text-slate-700">“{update.comment}”</p></div> : <span className="text-xs text-slate-400">No update yet</span>}</td>
+                                        <td className="px-4 py-4 text-right align-top">{canOpenSource ? <button type="button" onClick={() => router.push(`/dashboard/site-docs/${action.source_document_id}`)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50">Report<ArrowUpRight className="h-4 w-4" /></button> : <span className="text-xs text-slate-400">—</span>}</td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {statusModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-slate-900">Add status update</h3>
+                        <p className="mt-1 text-sm text-slate-500">A comment is required for every status change.</p>
+                        <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm"><p className="font-medium text-slate-800">{statusModal.action.description}</p><p className="mt-2 text-slate-600">{ACTION_STATUS_LABELS[statusModal.action.status]} → {ACTION_STATUS_LABELS[statusModal.newStatus]}</p></div>
+                        <label className="mt-4 block text-sm font-medium text-slate-700">Update comment</label>
+                        <textarea value={statusModal.comment} onChange={(event) => setStatusModal((current) => current ? { ...current, comment: event.target.value } : current)} className="mt-2 min-h-28 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Describe what changed and who provided the update..." />
+                        <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setStatusModal(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" onClick={() => void saveStatusUpdate()} disabled={!statusModal.comment.trim() || !!updatingKey} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{updatingKey ? "Saving..." : "Save update"}</button></div>
+                    </div>
+                </div>
+            )}
+
+            {manualModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+                    <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-slate-900">Add manual action</h3>
+                        <p className="mt-1 text-sm text-slate-500">Create a project action without a source document.</p>
+                        <div className="mt-5 space-y-4">
+                            <div><label className="text-sm font-medium text-slate-700">Project</label><select value={manualForm.project_id} onChange={(event) => setManualForm((current) => ({ ...current, project_id: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="">No project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+                            <div><label className="text-sm font-medium text-slate-700">Description *</label><textarea value={manualForm.description} onChange={(event) => setManualForm((current) => ({ ...current, description: event.target.value }))} className="mt-1 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3"><div><label className="text-sm font-medium text-slate-700">Responsible</label><input value={manualForm.responsible} onChange={(event) => setManualForm((current) => ({ ...current, responsible: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="text-sm font-medium text-slate-700">Due date</label><input type="date" value={manualForm.due_date} onChange={(event) => setManualForm((current) => ({ ...current, due_date: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="text-sm font-medium text-slate-700">Status</label><select value={manualForm.status} onChange={(event) => setManualForm((current) => ({ ...current, status: event.target.value as ActionStatus }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">{ACTION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setManualModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" onClick={() => void handleCreateManualAction()} disabled={!manualForm.description.trim() || creatingAction} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">{creatingAction ? "Creating..." : "Create action"}</button></div>
+                    </div>
+                </div>
+            )}
+
+            {shareModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+                    <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-slate-900">Create client access link</h3>
+                        <p className="mt-1 text-sm text-slate-500">Links are project-scoped. The client will confirm their identity on first open.</p>
+                        <div className="mt-5 space-y-4"><div><label className="text-sm font-medium text-slate-700">Project *</label><select value={shareProjectId} onChange={(event) => setShareProjectId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-3"><div><label className="text-sm font-medium text-slate-700">Recipient name</label><input value={shareRecipient.name} onChange={(event) => setShareRecipient((current) => ({ ...current, name: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="text-sm font-medium text-slate-700">Email</label><input type="email" value={shareRecipient.email} onChange={(event) => setShareRecipient((current) => ({ ...current, email: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="text-sm font-medium text-slate-700">Organisation</label><input value={shareRecipient.organisation} onChange={(event) => setShareRecipient((current) => ({ ...current, organisation: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div></div>{shareUrl && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-medium text-blue-900">Secure client link</p><p className="mt-1 break-all text-sm text-blue-800">{shareUrl}</p><button type="button" onClick={() => void copyShareUrl()} className="mt-3 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Copy link</button></div>}</div>
+                        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setShareModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button><button type="button" onClick={() => void handleCreateClientLink()} disabled={!shareProjectId || creatingLink} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{creatingLink ? "Creating..." : "Generate link"}</button></div>
+                    </div>
                 </div>
             )}
         </div>

@@ -20,6 +20,8 @@ const RED = '#C0392B'
 const REDBG = '#FDEDEC'
 const BLUE = '#1A5276'
 const BLUEBG = '#EBF5FB'
+const PURPLE = '#6D28D9'
+const PURPLEBG = '#F3E8FF'
 
 const TITLE_STYLE = {
   fontFamily: 'Helvetica-Bold',
@@ -136,6 +138,16 @@ const STATUS_IN_PROGRESS = {
   fontSize: 8,
   color: BLUE,
   backgroundColor: BLUEBG,
+  paddingVertical: 2,
+  paddingHorizontal: 6,
+  borderRadius: 3,
+}
+
+const STATUS_COUNCIL_RESPONSE = {
+  fontFamily: 'Helvetica-Bold',
+  fontSize: 8,
+  color: PURPLE,
+  backgroundColor: PURPLEBG,
   paddingVertical: 2,
   paddingHorizontal: 6,
   borderRadius: 3,
@@ -343,6 +355,7 @@ const styles = StyleSheet.create({
   statusClosed: STATUS_CLOSED,
   statusCritical: STATUS_CRITICAL,
   statusInProgress: STATUS_IN_PROGRESS,
+  statusCouncilResponse: STATUS_COUNCIL_RESPONSE,
   block: {
     marginBottom: 8,
   },
@@ -419,15 +432,17 @@ function rowColor(index: number): string {
   return index % 2 === 0 ? WHITE : LIGHT
 }
 
-function formatStatus(status: 'open' | 'closed' | 'critical' | 'in-progress'): string {
+function formatStatus(status: 'open' | 'closed' | 'critical' | 'in-progress' | 'council-response-provided'): string {
   if (status === 'in-progress') return 'IN PROGRESS'
+  if (status === 'council-response-provided') return 'COUNCIL RESPONSE PROVIDED'
   return status.toUpperCase()
 }
 
-function statusStyle(status: 'open' | 'closed' | 'critical' | 'in-progress') {
+function statusStyle(status: 'open' | 'closed' | 'critical' | 'in-progress' | 'council-response-provided') {
   if (status === 'closed') return styles.statusClosed
   if (status === 'critical') return styles.statusCritical
   if (status === 'in-progress') return styles.statusInProgress
+  if (status === 'council-response-provided') return styles.statusCouncilResponse
   return styles.statusOpen
 }
 

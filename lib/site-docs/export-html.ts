@@ -1,4 +1,4 @@
-import type { GeneratedContent, SiteDocument } from '@/lib/site-docs/types'
+import type { GeneratedContent, SiteActionUpdate, SiteDocument } from '@/lib/site-docs/types'
 import { buildSiteDocSignUrl } from '@/lib/site-docs/sign-links'
 import { getDocumentStandardProfile } from '@/lib/site-docs/standards'
 
@@ -16,6 +16,27 @@ function formatDisplayDate(date: string | null | undefined): string {
   const parsed = new Date(date)
   if (Number.isNaN(parsed.getTime())) return escapeHtml(date)
   return parsed.toLocaleDateString('en-AU', { day: '2-digit', month: 'long', year: 'numeric' })
+}
+
+function formatDisplayDateTime(date: string | null | undefined): string {
+  if (!date) return ''
+  const parsed = new Date(date)
+  if (Number.isNaN(parsed.getTime())) return escapeHtml(date)
+  return parsed.toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatActionStatus(status: string): string {
+  if (status === 'in-progress') return 'In Progress'
+  if (status === 'council-response-provided') return 'Council Response Provided'
+  if (status === 'closed') return 'Closed'
+  return 'Open'
+}
+
+function formatLatestUpdate(update: SiteActionUpdate | null | undefined): string {
+  const typed = update
+  if (!typed) return '—'
+  const byline = [typed.updated_by_name, typed.updated_by_organisation].filter(Boolean).join(', ')
+  return `${formatDisplayDateTime(typed.created_at)}${byline ? `, ${escapeHtml(byline)}` : ''}: “${escapeHtml(typed.comment ?? '')}”`
 }
 
 function nl2br(value: string | null | undefined): string {
@@ -57,7 +78,8 @@ export function generateSiteDocHtml(params: {
           <td>${escapeHtml(item.description)}</td>
           <td>${escapeHtml(item.responsible ?? '—')}</td>
           <td>${formatDisplayDate(item.due_date)}</td>
-          <td>${escapeHtml(item.status)}</td>
+          <td>${escapeHtml(formatActionStatus(item.status))}</td>
+          <td>${formatLatestUpdate(item.latest_update)}</td>
         </tr>`
     )
     .join('')
@@ -171,7 +193,7 @@ export function generateSiteDocHtml(params: {
 
     ${documentSpecificBlocks}
 
-    ${actionRows ? `<section class="section"><div class="section-title">Action Register</div><div class="section-body"><table><thead><tr><th>#</th><th>Action</th><th>Responsible</th><th>Due Date</th><th>Status</th></tr></thead><tbody>${actionRows}</tbody></table></div></section>` : ''}
+    ${actionRows ? `<section class="section"><div class="section-title">Action Register</div><div class="section-body"><table><thead><tr><th>#</th><th>Action</th><th>Responsible</th><th>Due Date</th><th>Status</th><th>Latest Update</th></tr></thead><tbody>${actionRows}</tbody></table></div></section>` : ''}
 
     ${signatoryRows ? `<section class="section"><div class="section-title">Confirmation & Sign-off</div><div class="section-body"><table><thead><tr><th>Signatory</th><th>Organisation</th><th>Signature</th><th>Date</th><th>Status</th></tr></thead><tbody>${signatoryRows}</tbody></table>${acceptanceClause ? `<div class="acceptance">${acceptanceClause}</div>` : ''}</div></section>` : ''}
 

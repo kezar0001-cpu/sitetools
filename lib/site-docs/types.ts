@@ -19,6 +19,12 @@ export type DocumentType =
 
 export type DocumentStatus = "draft" | "shared" | "finalised";
 
+export type ActionStatus = "open" | "in-progress" | "council-response-provided" | "closed";
+
+export type ActionSource = "meeting-minutes" | "manual" | "imported";
+
+export type ActionUpdateSource = "internal" | "client_link";
+
 // ── Core Document Entity ──
 export interface SiteDocument {
     id: string;
@@ -81,8 +87,62 @@ export interface ActionItem {
     description: string;
     responsible: string | null;
     due_date: string | null;
-    status: "open" | "in-progress" | "closed";
+    status: ActionStatus;
     updated_at?: string;
+    latest_update?: SiteActionUpdate | null;
+}
+
+export interface SiteActionUpdate {
+    id: string;
+    action_item_id: string;
+    previous_status: ActionStatus | null;
+    new_status: ActionStatus;
+    comment: string;
+    updated_by_user_id: string | null;
+    updated_by_name: string;
+    updated_by_email: string | null;
+    updated_by_organisation: string | null;
+    updated_by_role: string | null;
+    source: ActionUpdateSource;
+    created_at: string;
+}
+
+export interface SiteActionItem {
+    id: string;
+    company_id: string;
+    project_id: string | null;
+    source_document_id: string | null;
+    source_document_title: string | null;
+    source_document_reference: string | null;
+    source: ActionSource;
+    generated_action_id: string | null;
+    generated_source_key: string | null;
+    action_number: string | null;
+    description: string;
+    responsible: string | null;
+    due_date: string | null;
+    status: ActionStatus;
+    latest_update_id: string | null;
+    latest_update?: SiteActionUpdate | null;
+    created_by: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SiteActionRegisterLink {
+    id: string;
+    company_id: string;
+    project_id: string;
+    recipient_name: string | null;
+    recipient_email: string | null;
+    recipient_organisation: string | null;
+    role: string;
+    identity_confirmed_at: string | null;
+    permissions: Record<string, boolean>;
+    expires_at: string | null;
+    revoked_at: string | null;
+    created_by: string | null;
+    created_at: string;
 }
 
 export interface Attendee {
@@ -219,6 +279,20 @@ export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
     "site-instruction-issue": "yellow",
     "site-instruction-acknowledge": "amber",
 };
+
+export const ACTION_STATUS_LABELS: Record<ActionStatus, string> = {
+    open: "Open",
+    "in-progress": "In Progress",
+    "council-response-provided": "Council Response Provided",
+    closed: "Closed",
+};
+
+export const ACTION_STATUS_OPTIONS: { value: ActionStatus; label: string }[] = [
+    { value: "open", label: ACTION_STATUS_LABELS.open },
+    { value: "in-progress", label: ACTION_STATUS_LABELS["in-progress"] },
+    { value: "council-response-provided", label: ACTION_STATUS_LABELS["council-response-provided"] },
+    { value: "closed", label: ACTION_STATUS_LABELS.closed },
+];
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
     draft: "Draft",

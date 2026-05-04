@@ -7,7 +7,7 @@ import { useWorkspace } from "@/lib/workspace/useWorkspace";
 import { fetchDocument, deleteDocument, exportDocument, updateDocument } from "@/lib/site-docs/client";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
-import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type SiteDocument } from "@/lib/site-docs/types";
+import { DOCUMENT_TYPE_LABELS, DOCUMENT_STATUS_LABELS, DOCUMENT_STATUS_BADGE, type ActionStatus, type SiteDocument } from "@/lib/site-docs/types";
 import { DocumentPreview } from "../components/DocumentPreview";
 import type { ActionItem } from "@/lib/site-docs/types";
 
@@ -22,7 +22,7 @@ function ActionItemTracker({ actionItems, onUpdate }: ActionItemTrackerProps) {
     const [updating, setUpdating] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    async function handleStatusChange(itemId: string, newStatus: "open" | "in-progress" | "closed") {
+    async function handleStatusChange(itemId: string, newStatus: ActionStatus) {
         setUpdating(itemId);
         setError(null);
         
@@ -56,6 +56,7 @@ function ActionItemTracker({ actionItems, onUpdate }: ActionItemTrackerProps) {
         switch (status) {
             case "open": return "bg-amber-100 text-amber-700 border-amber-300";
             case "in-progress": return "bg-blue-100 text-blue-700 border-blue-300";
+            case "council-response-provided": return "bg-violet-100 text-violet-700 border-violet-300";
             case "closed": return "bg-emerald-100 text-emerald-700 border-emerald-300";
             default: return "bg-slate-100 text-slate-700 border-slate-300";
         }
@@ -99,12 +100,13 @@ function ActionItemTracker({ actionItems, onUpdate }: ActionItemTrackerProps) {
                                     <td className="py-4 px-4">
                                         <select
                                             value={item.status}
-                                            onChange={(e) => handleStatusChange(item.id, e.target.value as "open" | "in-progress" | "closed")}
+                                            onChange={(e) => handleStatusChange(item.id, e.target.value as ActionStatus)}
                                             disabled={updating === item.id}
                                             className={`text-sm font-medium rounded-full border px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer disabled:opacity-50 ${getStatusColor(item.status)}`}
                                         >
                                             <option value="open">Open</option>
                                             <option value="in-progress">In Progress</option>
+                                            <option value="council-response-provided">Council Response Provided</option>
                                             <option value="closed">Closed</option>
                                         </select>
                                     </td>
