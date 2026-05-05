@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Download, Loader2, Search, X } from "lucide-react";
-import { ACTION_STATUS_LABELS, ACTION_STATUS_OPTIONS, type ActionStatus, type SiteActionItem } from "@/lib/site-docs/types";
+import { ACTION_STATUS_LABELS, ACTION_STATUS_OPTIONS, formatActionNumber, type ActionStatus, type SiteActionItem } from "@/lib/site-docs/types";
 import { loadJsPDF, preloadJsPDF } from "@/lib/dynamicImports";
 
 type StatusFilter = ActionStatus | "all";
@@ -24,25 +24,12 @@ interface StatusModalState {
     comment: string;
 }
 
-// Filter out council-response-provided as it doesn't make sense for client view
-const CLIENT_STATUS_OPTIONS = ACTION_STATUS_OPTIONS.filter((opt) => opt.value !== "council-response-provided");
-
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
     { value: "all", label: "All Statuses" },
-    ...CLIENT_STATUS_OPTIONS,
-    // Add explicit closed filter since closed is hidden by default
-    { value: "closed", label: "Closed Only" },
+    ...ACTION_STATUS_OPTIONS,
 ];
 
 const STATUS_STYLES: Record<ActionStatus, string> = {
-    open: "border-amber-300 bg-amber-50 text-amber-700",
-    "in-progress": "border-blue-300 bg-blue-50 text-blue-700",
-    "council-response-provided": "border-violet-300 bg-violet-50 text-violet-700",
-    closed: "border-emerald-300 bg-emerald-50 text-emerald-700",
-};
-
-// Exclude council-response-provided from client view styles
-const CLIENT_STATUS_STYLES: Record<Exclude<ActionStatus, "council-response-provided">, string> = {
     open: "border-amber-300 bg-amber-50 text-amber-700",
     "in-progress": "border-blue-300 bg-blue-50 text-blue-700",
     closed: "border-emerald-300 bg-emerald-50 text-emerald-700",
@@ -115,8 +102,6 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
         return actions.filter((action) => {
             // Default view: hide closed actions unless explicitly filtered
             if (statusFilter === "all" && action.status === "closed") return false;
-            // Hide council-response-provided from client view entirely
-            if (action.status === "council-response-provided") return false;
             if (statusFilter !== "all" && action.status !== statusFilter) return false;
             if (!query) return true;
             return [
@@ -132,7 +117,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
 
     // Count visible vs total for "showing X of Y" indicator
     const visibleCount = filteredActions.length;
-    const totalOpenCount = actions.filter((a) => a.status !== "closed" && a.status !== "council-response-provided").length;
+    const totalOpenCount = actions.filter((a) => a.status !== "closed").length;
     const closedCount = actions.filter((a) => a.status === "closed").length;
 
     // Selection helpers
@@ -226,8 +211,9 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
     }
 
     async function exportSelectedPdf() {
-        if (selectedVisibleActions.length === 0) {
-            setError("Select at least one action to export.");
+        const actionsToExport = selectedVisibleActions.length > 0 ? selectedVisibleActions : filteredActions;
+        if (actionsToExport.length === 0) {
+            setError("No actions to export.");
             return;
         }
         setExportingPdf(true);
@@ -236,34 +222,50 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
             const { jsPDF, autoTable } = await loadJsPDF();
             const doc = new jsPDF({ orientation: "landscape" });
             const generatedAt = new Date();
-            const statusLabel = statusFilter === "all" ? "Open Actions" : STATUS_FILTER_OPTIONS.find((o) => o.value === statusFilter)?.label ?? "Filtered Actions";
 
-            // Header
             doc.setFontSize(16);
-            doc.text(`${link?.project_name ?? "Project"} - Action Register`, 14, 20);
-            doc.setFontSize(10);
-            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | ${link?.company_name ?? "Buildstate"}`, 14, 28);
-            doc.text(`Filter: ${statusLabel} (${selectedVisibleActions.length} of ${filteredActions.length} selected)`, 14, 34);
+            doc.setFont("helvetica", "bold");
+            doc.text(`${link?.project_name ?? "Project"} — Action Register`, 14, 16);
+            doc.setFontSize(9);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(95);
+            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | ${link?.company_name ?? "Project Team"} | ${actionsToExport.length} items`, 14, 23);
+            doc.setTextColor(0);
 
-            // Table with continuous numbering
             autoTable(doc, {
-                startY: 40,
-                head: [["#", "Action", "Source", "Responsible", "Due", "Status"]],
-                body: selectedVisibleActions.map((action, index) => [
-                    String(index + 1),
-                    action.description || "Untitled",
-                    action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs",
-                    action.responsible || "Unassigned",
-                    formatDate(action.due_date),
-                    ACTION_STATUS_LABELS[action.status],
-                ]),
-                styles: { fontSize: 9, cellPadding: 2 },
-                headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+                startY: 28,
+                head: [["#", "Action", "Source", "Responsible", "Due", "Status", "Latest Update"]],
+                body: actionsToExport.map((action) => {
+                    const globalIndex = actions.indexOf(action);
+                    const update = action.latest_update;
+                    const updateText = update ? `${formatDateTime(update.created_at)} — ${update.updated_by_name}: "${update.comment}"` : "—";
+                    return [
+                        formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0),
+                        action.description || "Untitled",
+                        action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs",
+                        action.responsible || "Unassigned",
+                        formatDate(action.due_date),
+                        ACTION_STATUS_LABELS[action.status],
+                        updateText,
+                    ];
+                }),
+                styles: { fontSize: 7, cellPadding: 2.5, overflow: "linebreak" },
+                headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
+                columnStyles: {
+                    0: { cellWidth: 16 },
+                    1: { cellWidth: 70 },
+                    2: { cellWidth: 40 },
+                    3: { cellWidth: 30 },
+                    4: { cellWidth: 22 },
+                    5: { cellWidth: 24 },
+                    6: { cellWidth: 60 },
+                },
+                margin: { left: 14, right: 14 },
             });
 
             doc.save(`${link?.project_name?.replace(/\s+/g, "_") ?? "Project"}_Action_Register_${generatedAt.toISOString().split("T")[0]}.pdf`);
-            setNotice(`PDF exported with ${selectedVisibleActions.length} action${selectedVisibleActions.length === 1 ? "" : "s"}.`);
+            setNotice(`PDF exported with ${actionsToExport.length} action${actionsToExport.length === 1 ? "" : "s"}.`);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to export PDF");
         } finally {
@@ -283,52 +285,50 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
 
     return (
         <div className="min-h-screen bg-slate-100 px-3 py-4 sm:px-4 sm:py-8">
-            <div className="mx-auto max-w-6xl rounded-xl sm:rounded-2xl bg-white p-4 sm:p-6 shadow-xl">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                        {identityConfirmed ? (
-                            <>
-                                <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Secure project action update link</p>
-                                <h1 className="mt-2 text-2xl font-bold text-slate-900">{link?.project_name ?? "Project action register"}</h1>
-                                <p className="mt-1 text-sm text-slate-500">{link?.company_name ?? "Buildstate"}</p>
-                            </>
-                        ) : (
-                            <>
-                                <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Buildstate client action register</p>
-                                <h1 className="mt-2 text-2xl font-bold text-slate-900">{link?.project_name ?? "Project action register"}</h1>
-                                <p className="mt-1 text-sm text-slate-500">{link?.company_name ?? "Buildstate"}</p>
-                            </>
-                        )}
-                    </div>
-                    {identityConfirmed && link?.recipient_name && (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                            Updating as <span className="font-semibold">{link.recipient_name}</span>{link.recipient_organisation ? `, ${link.recipient_organisation}` : ""}
+            {/* Fatal error state */}
+            {error && !link ? (
+                <div className="mx-auto max-w-md mt-16 text-center">
+                    <div className="rounded-2xl bg-white p-8 shadow-lg border border-slate-200">
+                        <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center">
+                            <X className="h-6 w-6 text-red-500" />
                         </div>
-                    )}
+                        <p className="mt-4 font-medium text-slate-900">Unable to load action register</p>
+                        <p className="mt-2 text-sm text-slate-500">The link may have been revoked, expired, or the URL is incomplete.</p>
+                        <p className="mt-1 text-sm text-slate-500">Please check the link or contact the project team for assistance.</p>
+                    </div>
                 </div>
+            ) : !identityConfirmed ? (
+                /* Identity confirmation — centered card layout */
+                <div className="mx-auto max-w-md mt-8 sm:mt-16">
+                    <div className="rounded-2xl bg-white p-6 sm:p-8 shadow-lg border border-slate-200">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Secure action update link</p>
+                        <h1 className="mt-3 text-xl font-bold text-slate-900">{link?.project_name ?? "Project Action Register"}</h1>
+                        <p className="mt-1 text-sm text-slate-500">{link?.company_name ?? "Project Team"}</p>
 
-                {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-                {notice && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
-
-                {/* Fatal error state - don't show forms if link is invalid */}
-                {error && !link ? (
-                    <div className="mt-8 sm:mt-12 text-center">
-                        <p className="text-slate-600">Unable to load action register. The link may have been revoked, expired, or the URL is incomplete.</p>
-                        <p className="mt-2 text-sm text-slate-500">Please check the link or contact the project team for assistance.</p>
-                    </div>
-                ) : !identityConfirmed ? (
-                    <div className="mt-6 sm:mt-8 max-w-xl rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-                        <h2 className="text-base sm:text-lg font-semibold text-slate-900">Confirm your details</h2>
-                        <p className="mt-1 text-sm text-slate-500">
-                            You are accessing a secure action update link shared by {link?.company_name ?? "the project team"}. Changes are saved immediately and recorded against your name.
-                        </p>
-                        <div className="mt-4 sm:mt-5 space-y-3 sm:space-y-4">
-                            <div><label className="text-sm font-medium text-slate-700">Name *</label><input value={identityForm.name} onChange={(event) => setIdentityForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                            <div><label className="text-sm font-medium text-slate-700">Organisation *</label><input value={identityForm.organisation} onChange={(event) => setIdentityForm((current) => ({ ...current, organisation: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                            <div><label className="text-sm font-medium text-slate-700">Email <span className="font-normal text-slate-400">recommended</span></label><input type="email" value={identityForm.email} onChange={(event) => setIdentityForm((current) => ({ ...current, email: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                        <div className="mt-6 border-t border-slate-100 pt-6">
+                            <h2 className="text-base font-semibold text-slate-900">Confirm your details</h2>
+                            <p className="mt-1 text-sm text-slate-500">
+                                First time only. Your details are saved against this secure link so future updates are attributed correctly.
+                            </p>
+                            <div className="mt-5 space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Name *</label>
+                                    <input value={identityForm.name} onChange={(event) => setIdentityForm((current) => ({ ...current, name: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Your full name" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Organisation *</label>
+                                    <input value={identityForm.organisation} onChange={(event) => setIdentityForm((current) => ({ ...current, organisation: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Your company or organisation" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Email <span className="font-normal text-slate-400">(recommended)</span></label>
+                                    <input type="email" value={identityForm.email} onChange={(event) => setIdentityForm((current) => ({ ...current, email: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@example.com" />
+                                </div>
+                            </div>
+                            {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+                            <button type="button" onClick={() => void confirmIdentity()} disabled={!identityForm.name.trim() || !identityForm.organisation.trim() || savingIdentity} className="mt-5 w-full rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{savingIdentity ? "Saving..." : "Confirm and open register"}</button>
                         </div>
-                        <button type="button" onClick={() => void confirmIdentity()} disabled={!identityForm.name.trim() || !identityForm.organisation.trim() || savingIdentity} className="mt-4 sm:mt-5 w-full sm:w-auto rounded-lg bg-blue-600 px-5 py-2.5 sm:py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{savingIdentity ? "Saving..." : "Confirm and open register"}</button>
                     </div>
+                </div>
                 ) : completionMode ? (
                     // Completion panel
                     <div className="mt-8 sm:mt-12 max-w-lg mx-auto text-center">
@@ -367,150 +367,148 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                         </div>
                     </div>
                 ) : (
-                    <>
-                        <div className="mt-4 sm:mt-6 flex flex-col gap-3">
-                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-between">
-                                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-1">
-                                    <div className="relative flex-1 order-2 sm:order-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search actions, responsible people, comments..." className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                                    <div className="flex gap-2 order-1 sm:order-2">
-                                        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 sm:flex-none">{STATUS_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-                                        {(searchQuery || statusFilter !== "all") && <button type="button" onClick={() => { setSearchQuery(""); setStatusFilter("all"); }} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"><X className="h-4 w-4" /><span className="hidden sm:inline">Clear</span></button>}
-                                    </div>
+                    /* Main register view */
+                    <div className="mx-auto max-w-6xl">
+                        <div className="rounded-xl sm:rounded-2xl bg-white p-4 sm:p-6 shadow-lg border border-slate-200">
+                            {/* Header */}
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Secure action update link</p>
+                                    <h1 className="mt-2 text-xl sm:text-2xl font-bold text-slate-900">{link?.project_name ?? "Project Action Register"}</h1>
+                                    <p className="mt-1 text-sm text-slate-500">
+                                        You are accessing a secure action update link shared by {link?.company_name || "the project team"}. Changes are saved immediately and recorded against your name.
+                                    </p>
                                 </div>
+                                <div className="flex flex-col items-end gap-2 shrink-0">
+                                    {link?.recipient_name && (
+                                        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                            Updating as <span className="font-semibold">{link.recipient_name}</span>{link.recipient_organisation ? `, ${link.recipient_organisation}` : ""}
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setCompletionMode(true)}
+                                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 whitespace-nowrap"
+                                    >
+                                        Finish updates
+                                    </button>
+                                </div>
+                            </div>
+
+                            {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+                            {notice && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
+
+                            {/* Filters */}
+                            <div className="mt-5 flex flex-col sm:flex-row gap-2 sm:gap-3">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                    <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search actions, responsible, comments..." className="w-full rounded-lg border border-slate-300 py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div className="flex gap-2">
+                                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 sm:flex-none">{STATUS_FILTER_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+                                    {(searchQuery || statusFilter !== "all") && <button type="button" onClick={() => { setSearchQuery(""); setStatusFilter("all"); }} className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"><X className="h-4 w-4" /><span className="hidden sm:inline">Clear</span></button>}
+                                    <button
+                                        type="button"
+                                        onMouseEnter={preloadJsPDF}
+                                        onClick={() => void exportSelectedPdf()}
+                                        disabled={exportingPdf || filteredActions.length === 0}
+                                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                        <span className="hidden sm:inline">Export PDF</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Summary */}
+                            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                                <span>
+                                    Showing {visibleCount} of {totalOpenCount} open actions
+                                    {closedCount > 0 && ` · ${closedCount} closed`}
+                                    {lastSavedAt && (
+                                        <span className="ml-2 text-emerald-600">
+                                            Last saved: {lastSavedAt.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
+                                        </span>
+                                    )}
+                                </span>
+                            </div>
+
+                            {/* Table */}
+                            {filteredActions.length === 0 ? (
+                                <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center">
+                                    <CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" />
+                                    <p className="mt-3 font-medium text-slate-700">No actions match your filters</p>
+                                    <p className="mt-1 text-sm text-slate-500">Try adjusting your search or status filter.</p>
+                                </div>
+                            ) : (
+                                <div className="mt-4 overflow-x-auto -mx-4 sm:mx-0">
+                                    <table className="w-full text-sm min-w-[700px]">
+                                        <thead className="bg-slate-50">
+                                            <tr className="border-b border-slate-200">
+                                                <th className="px-3 py-3 text-center font-medium text-slate-700 w-12">#</th>
+                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Action</th>
+                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Responsible</th>
+                                                <th className="px-3 py-3 text-left font-medium text-slate-700 w-24">Due</th>
+                                                <th className="px-3 py-3 text-left font-medium text-slate-700 w-28">Status</th>
+                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Latest Update</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {filteredActions.map((action) => {
+                                                const globalIndex = actions.indexOf(action);
+                                                return (
+                                                    <tr key={action.id} className="hover:bg-slate-50">
+                                                        <td className="px-3 py-3 text-center text-slate-500 text-xs font-medium">{formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0)}</td>
+                                                        <td className="px-3 py-3 align-top">
+                                                            <p className="font-medium text-slate-900">{action.description}</p>
+                                                            <p className="mt-0.5 text-xs text-slate-500">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</p>
+                                                        </td>
+                                                        <td className="px-3 py-3 align-top text-slate-600">{action.responsible || "Unassigned"}</td>
+                                                        <td className="px-3 py-3 align-top text-slate-600 whitespace-nowrap">{formatDate(action.due_date)}</td>
+                                                        <td className="px-3 py-3 align-top whitespace-nowrap">
+                                                            <select
+                                                                value={action.status}
+                                                                disabled={updatingId === action.id}
+                                                                onChange={(event) => openStatusModal(action, event.target.value as ActionStatus)}
+                                                                className={`rounded-full border px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${STATUS_STYLES[action.status]}`}
+                                                            >
+                                                                {ACTION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                            </select>
+                                                        </td>
+                                                        <td className="px-3 py-3 align-top text-slate-600 max-w-xs">
+                                                            {action.latest_update ? (
+                                                                <div>
+                                                                    <p className="text-xs text-slate-700">&ldquo;{action.latest_update.comment}&rdquo;</p>
+                                                                    <p className="mt-0.5 text-xs text-slate-400">{action.latest_update.updated_by_name} · {formatDateTime(action.latest_update.created_at)}</p>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-slate-400">No updates</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Bottom finish CTA */}
+                            <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                <p className="text-sm text-slate-600">All updates are saved immediately. You can close this page when finished.</p>
                                 <button
                                     type="button"
                                     onClick={() => setCompletionMode(true)}
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 whitespace-nowrap"
+                                    className="w-full sm:w-auto rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                                 >
-                                    Finish updates
-                                </button>
-                            </div>
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                                <div className="flex flex-col gap-1">
-                                    <p className="text-xs text-slate-500">
-                                        Showing {visibleCount} of {totalOpenCount} open actions
-                                        {closedCount > 0 && ` (${closedCount} closed hidden)`}
-                                        {lastSavedAt && (
-                                            <span className="ml-2 text-emerald-600">
-                                                Last saved: {lastSavedAt.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
-                                            </span>
-                                        )}
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        {selectedVisibleActions.length} of {visibleCount} selected for PDF export
-                                        {visibleCount > 0 && (
-                                            <button
-                                                type="button"
-                                                onClick={toggleVisibleSelection}
-                                                className="ml-2 font-medium text-blue-600 hover:text-blue-700"
-                                            >
-                                                {allVisibleSelected ? "Clear visible" : "Select all visible"}
-                                            </button>
-                                        )}
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onMouseEnter={preloadJsPDF}
-                                    onClick={() => void exportSelectedPdf()}
-                                    disabled={exportingPdf || selectedVisibleActions.length === 0}
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                                    Export selected PDF
+                                    Done reviewing? Finish updates
                                 </button>
                             </div>
                         </div>
-
-                        {filteredActions.length === 0 ? <div className="mt-6 sm:mt-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center"><CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" /><p className="mt-3 font-medium text-slate-700">No actions match your filters</p></div> : (
-                            <div className="mt-4 sm:mt-6">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-slate-50">
-                                        <tr className="border-b border-slate-200">
-                                            <th className="px-2 sm:px-3 py-3 text-center font-medium text-slate-700 w-10">#</th>
-                                            <th className="px-2 sm:px-3 py-3 text-center font-medium text-slate-700 w-10">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={allVisibleSelected}
-                                                    onChange={toggleVisibleSelection}
-                                                    aria-label={allVisibleSelected ? "Deselect all visible" : "Select all visible"}
-                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                />
-                                            </th>
-                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700">Action</th>
-                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700 hidden sm:table-cell">Source</th>
-                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700 hidden md:table-cell">Responsible</th>
-                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700">Due</th>
-                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700">Status</th>
-                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700 hidden lg:table-cell">Latest update</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {filteredActions.map((action, index) => {
-                                            const isSelected = selectedActionIds.has(action.id);
-                                            return (
-                                                <tr key={action.id} className="hover:bg-slate-50">
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 text-center text-slate-500 text-xs">{index + 1}</td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 text-center align-top">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={() => toggleActionSelection(action.id)}
-                                                            aria-label={`Select action ${index + 1} for PDF export`}
-                                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                                                        />
-                                                    </td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top">
-                                                        <p className="font-medium text-slate-900 text-sm sm:text-base">{action.description}</p>
-                                                        <p className="mt-1 text-xs text-slate-500 sm:hidden">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</p>
-                                                    </td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap hidden sm:table-cell">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap hidden md:table-cell">{action.responsible || "Unassigned"}</td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap">{formatDate(action.due_date)}</td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top whitespace-nowrap">
-                                                        <select
-                                                            value={action.status}
-                                                            disabled={updatingId === action.id}
-                                                            onChange={(event) => openStatusModal(action, event.target.value as ActionStatus)}
-                                                            className={`rounded-full border px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${action.status === "council-response-provided" ? STATUS_STYLES["council-response-provided"] : CLIENT_STATUS_STYLES[action.status as Exclude<ActionStatus, "council-response-provided">]}`}
-                                                        >
-                                                            {CLIENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                                                        </select>
-                                                    </td>
-                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 hidden lg:table-cell">
-                                                        {action.latest_update ? (
-                                                            <div>
-                                                                <p className="text-xs font-medium text-slate-700">{formatDateTime(action.latest_update.created_at)}</p>
-                                                                <p className="text-xs text-slate-500">{action.latest_update.updated_by_name}</p>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-xs text-slate-400">No update</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-
-                        {/* Bottom finish CTA */}
-                        <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                            <p className="text-sm text-slate-600">All updates are saved immediately. You can close this page when finished.</p>
-                            <button
-                                type="button"
-                                onClick={() => setCompletionMode(true)}
-                                className="w-full sm:w-auto rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
-                            >
-                                Done reviewing? Finish updates
-                            </button>
-                        </div>
-                    </>
+                    </div>
                 )}
 
                 {statusModal && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 sm:p-4"><div className="w-full max-w-lg rounded-xl sm:rounded-2xl bg-white p-4 sm:p-6 shadow-2xl max-h-[90vh] overflow-y-auto"><h3 className="text-base sm:text-lg font-semibold text-slate-900">Add status update</h3><p className="mt-1 text-sm text-slate-500">A comment is required for every status change.</p><div className="mt-3 sm:mt-4 rounded-lg bg-slate-50 p-3 text-sm"><p className="font-medium text-slate-800 line-clamp-2">{statusModal.action.description}</p><p className="mt-2 text-slate-600">{ACTION_STATUS_LABELS[statusModal.action.status]} → {ACTION_STATUS_LABELS[statusModal.newStatus]}</p></div><label className="mt-3 sm:mt-4 block text-sm font-medium text-slate-700">Update comment</label><textarea value={statusModal.comment} onChange={(event) => setStatusModal((current) => current ? { ...current, comment: event.target.value } : current)} className="mt-2 min-h-24 sm:min-h-28 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Describe the status update..." /><div className="mt-4 sm:mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2"><button type="button" onClick={() => setStatusModal(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" onClick={() => void saveStatusUpdate()} disabled={!statusModal.comment.trim() || !!updatingId} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{updatingId ? "Saving..." : "Save update"}</button></div></div></div>}
-            </div>
         </div>
     );
 }

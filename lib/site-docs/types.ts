@@ -19,7 +19,7 @@ export type DocumentType =
 
 export type DocumentStatus = "draft" | "shared" | "finalised";
 
-export type ActionStatus = "open" | "in-progress" | "council-response-provided" | "closed";
+export type ActionStatus = "open" | "in-progress" | "closed";
 
 export type ActionSource = "meeting-minutes" | "manual" | "imported";
 
@@ -283,16 +283,26 @@ export const DOCUMENT_TYPE_COLORS: Record<DocumentType, string> = {
 export const ACTION_STATUS_LABELS: Record<ActionStatus, string> = {
     open: "Open",
     "in-progress": "In Progress",
-    "council-response-provided": "Council Response Provided",
     closed: "Closed",
 };
 
 export const ACTION_STATUS_OPTIONS: { value: ActionStatus; label: string }[] = [
     { value: "open", label: ACTION_STATUS_LABELS.open },
     { value: "in-progress", label: ACTION_STATUS_LABELS["in-progress"] },
-    { value: "council-response-provided", label: ACTION_STATUS_LABELS["council-response-provided"] },
     { value: "closed", label: ACTION_STATUS_LABELS.closed },
 ];
+
+/**
+ * Consistent action numbering across admin, client, and PDF export.
+ * Prefers `action_number` from the DB (e.g. "A-001"), falls back to formatted index.
+ */
+export function formatActionNumber(
+    action: { action_number?: string | null },
+    fallbackIndex: number
+): string {
+    if (action.action_number) return action.action_number;
+    return String(fallbackIndex + 1);
+}
 
 export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
     draft: "Draft",

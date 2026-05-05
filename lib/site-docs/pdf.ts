@@ -24,20 +24,22 @@ function formatDisplayDate(date: string | null | undefined): string {
   return parsed.toLocaleDateString('en-AU', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' | 'in-progress' | 'council-response-provided' {
+function toStatus(value: string | null | undefined): 'open' | 'closed' | 'critical' | 'in-progress' {
   if (!value) return 'open'
   const normalized = value.toLowerCase()
   if (normalized === 'closed') return 'closed'
   if (normalized === 'critical') return 'critical'
   if (normalized === 'in-progress' || normalized === 'in progress') return 'in-progress'
-  if (normalized === 'council-response-provided' || normalized === 'council response provided') return 'council-response-provided'
+  // Legacy: map removed status to in-progress
+  if (normalized === 'council-response-provided' || normalized === 'council response provided') return 'in-progress'
   return 'open'
 }
 
 function formatActionStatus(value: ActionStatus | string): string {
   if (value === 'in-progress') return 'In Progress'
-  if (value === 'council-response-provided') return 'Council Response Provided'
   if (value === 'closed') return 'Closed'
+  // Legacy: map removed status
+  if (value === 'council-response-provided') return 'In Progress'
   return 'Open'
 }
 

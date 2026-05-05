@@ -34,6 +34,7 @@ import {
     ACTION_STATUS_LABELS,
     ACTION_STATUS_OPTIONS,
     DOCUMENT_TYPE_LABELS,
+    formatActionNumber,
     type ActionStatus,
     type SiteActionItem,
     type SiteActionRegisterLink,
@@ -137,7 +138,6 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
 const STATUS_STYLES: Record<ActionStatus, string> = {
     open: "border-amber-300 bg-amber-50 text-amber-700",
     "in-progress": "border-blue-300 bg-blue-50 text-blue-700",
-    "council-response-provided": "border-violet-300 bg-violet-50 text-violet-700",
     closed: "border-emerald-300 bg-emerald-50 text-emerald-700",
 };
 
@@ -294,7 +294,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                 acc[action.status] += 1;
                 return acc;
             },
-            { all: 0, open: 0, "in-progress": 0, "council-response-provided": 0, closed: 0 }
+            { all: 0, open: 0, "in-progress": 0, closed: 0 }
         );
     }, [actions]);
 
@@ -513,8 +513,11 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     }
 
     async function exportSelectedPdf() {
-        if (selectedVisibleActions.length === 0) {
-            setError("Select at least one visible action item to export.");
+        // If nothing is explicitly selected, export ALL visible (filtered) actions
+        const actionsToExport = selectedVisibleActions.length > 0 ? selectedVisibleActions : filteredActions;
+
+        if (actionsToExport.length === 0) {
+            setError("No action items to export. Adjust your filters or add actions.");
             return;
         }
 
@@ -526,46 +529,53 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             const doc = new jsPDF({ orientation: "landscape" });
             const generatedAt = new Date();
             const statusLabel = STATUS_FILTER_OPTIONS.find((option) => option.value === statusFilter)?.label ?? "All Statuses";
+            const isSelected = selectedVisibleActions.length > 0;
 
             doc.setFontSize(16);
             doc.setFont("helvetica", "bold");
-            doc.text("SiteDocs Action Register", 14, 16);
+            doc.text("Action Register", 14, 16);
             doc.setFontSize(9);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(95);
-            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${selectedVisibleActions.length} | Status: ${statusLabel}`, 14, 23);
+            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${actionsToExport.length}${isSelected ? " (selected)" : ""} | Status: ${statusLabel}`, 14, 23);
             doc.setTextColor(0);
 
+            // Find the stable index of each action in the full sorted list for consistent numbering
             autoTable(doc, {
-                head: [["#", "Action", "Source", "Responsible", "Due", "Status", "Latest update"]],
-                body: selectedVisibleActions.map((action, index) => [
-                    action.action_number || String(index + 1),
-                    action.description || "Untitled action",
-                    action.source === "manual"
-                        ? "Manual"
-                        : `${action.source_document_title ?? "SiteDocs document"}${action.source_document_reference ? ` (${action.source_document_reference})` : ""}`,
-                    action.responsible || "Unassigned",
-                    formatDate(action.due_date),
-                    ACTION_STATUS_LABELS[action.status],
-                    formatLatestUpdate(action),
-                ]),
+                head: [["#", "Action", "Project", "Source", "Responsible", "Due", "Status", "Latest Update"]],
+                body: actionsToExport.map((action) => {
+                    const globalIndex = actions.indexOf(action);
+                    return [
+                        formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0),
+                        action.description || "Untitled action",
+                        getProjectName(action.project_id),
+                        action.source === "manual"
+                            ? "Manual"
+                            : `${action.source_document_title ?? "SiteDocs"}${action.source_document_reference ? ` (${action.source_document_reference})` : ""}`,
+                        action.responsible || "Unassigned",
+                        formatDate(action.due_date),
+                        ACTION_STATUS_LABELS[action.status],
+                        formatLatestUpdate(action),
+                    ];
+                }),
                 startY: 28,
                 styles: { fontSize: 7, cellPadding: 2.5, overflow: "linebreak" },
                 headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: "bold" },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 columnStyles: {
-                    0: { cellWidth: 18 },
-                    1: { cellWidth: 78 },
-                    2: { cellWidth: 50 },
-                    3: { cellWidth: 36 },
-                    4: { cellWidth: 24 },
-                    5: { cellWidth: 34 },
-                    6: { cellWidth: 44 },
+                    0: { cellWidth: 16 },
+                    1: { cellWidth: 60 },
+                    2: { cellWidth: 34 },
+                    3: { cellWidth: 40 },
+                    4: { cellWidth: 30 },
+                    5: { cellWidth: 22 },
+                    6: { cellWidth: 24 },
+                    7: { cellWidth: 48 },
                 },
                 margin: { left: 14, right: 14 },
             });
 
-            doc.save(`sitedocs-action-register-${generatedAt.toISOString().slice(0, 10)}.pdf`);
+            doc.save(`action-register-${generatedAt.toISOString().slice(0, 10)}.pdf`);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to export action register PDF");
         } finally {
@@ -614,10 +624,11 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                             <Link2 className="h-4 w-4" />
                             Client link
                         </button>
-                        <button type="button" onMouseEnter={preloadJsPDF} onClick={() => void exportSelectedPdf()} disabled={exportingPdf || selectedVisibleActions.length === 0} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" onMouseEnter={preloadJsPDF} onClick={() => void exportSelectedPdf()} disabled={exportingPdf || filteredActions.length === 0} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                             {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                            Export selected PDF
+                            Export PDF
                         </button>
+
                     </div>
                 </div>
             </div>
@@ -642,8 +653,8 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             </div>
 
             <div className="mt-3 flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                <span>{selectedVisibleActions.length} of {filteredActions.length} visible actions selected for PDF export</span>
-                {filteredActions.length > 0 && <button type="button" onClick={toggleVisibleSelection} className="text-left font-medium text-blue-600 hover:text-blue-700 sm:text-right">{allVisibleSelected ? "Clear visible selection" : "Select all visible"}</button>}
+                <span>{selectedVisibleActions.length > 0 ? `${selectedVisibleActions.length} of ${filteredActions.length} visible actions selected` : `${filteredActions.length} visible actions`}{hasActiveFilters ? " (filtered)" : ""}</span>
+                {filteredActions.length > 0 && <button type="button" onClick={toggleVisibleSelection} className="text-left font-medium text-blue-600 hover:text-blue-700 sm:text-right">{allVisibleSelected ? "Clear selection" : "Select all visible"}</button>}
             </div>
 
             {filteredActions.length === 0 ? (
@@ -658,13 +669,14 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                         <thead className="bg-slate-50">
                             <tr className="border-b border-slate-200">
                                 <th className="w-12 px-4 py-3 text-left font-medium text-slate-700"><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleSelection} aria-label="Select all visible actions for PDF export" className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /></th>
+                                <th className="w-14 px-3 py-3 text-left font-medium text-slate-700">#</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Action</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Project</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Source</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Responsible</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Due</th>
                                 <th className="px-4 py-3 text-left font-medium text-slate-700">Status</th>
-                                <th className="px-4 py-3 text-left font-medium text-slate-700">Latest update</th>
+                                <th className="px-4 py-3 text-left font-medium text-slate-700">Latest Update</th>
                                 <th className="px-4 py-3 text-right font-medium text-slate-700">Open</th>
                             </tr>
                         </thead>
@@ -679,7 +691,8 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                 return (
                                     <tr key={updateKey} className="hover:bg-slate-50">
                                         <td className="px-4 py-4 align-top"><input type="checkbox" checked={isSelected} onChange={() => toggleActionSelection(action)} aria-label={`Include ${action.description || "action"} in PDF export`} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /></td>
-                                        <td className="max-w-md px-4 py-4 align-top"><p className="font-medium text-slate-900">{action.description || "Untitled action"}</p><p className="mt-1 text-xs text-slate-500">{action.action_number || (action.source === "manual" ? "Manual action" : "Generated action")}</p></td>
+                                        <td className="w-14 px-3 py-4 align-top text-xs font-medium text-slate-500">{formatActionNumber(action, actions.indexOf(action))}</td>
+                                        <td className="max-w-md px-4 py-4 align-top"><p className="font-medium text-slate-900">{action.description || "Untitled action"}</p></td>
                                         <td className="px-4 py-4 align-top text-slate-600"><span className="inline-flex items-center gap-1.5"><FolderOpen className="h-3.5 w-3.5 text-slate-400" />{getProjectName(action.project_id)}</span></td>
                                         <td className="max-w-xs px-4 py-4 align-top"><p className="font-medium text-slate-800">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs document"}</p><p className="mt-1 text-xs text-slate-500">{action.source === "manual" ? "Created in register" : `${DOCUMENT_TYPE_LABELS["meeting-minutes"]}${action.source_document_reference ? ` - ${action.source_document_reference}` : ""}`}</p></td>
                                         <td className="px-4 py-4 align-top text-slate-600">{action.responsible || "Unassigned"}</td>

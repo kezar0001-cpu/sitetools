@@ -22,7 +22,6 @@ export interface InternalUserContext {
 export const VALID_ACTION_STATUSES: ActionStatus[] = [
     "open",
     "in-progress",
-    "council-response-provided",
     "closed",
 ];
 
@@ -43,7 +42,8 @@ export function normalizeActionStatus(value: unknown): ActionStatus {
     if (typeof value === "string") {
         const normalized = value.trim().toLowerCase().replace(/_/g, "-");
         if (normalized === "in progress") return "in-progress";
-        if (normalized === "council response provided") return "council-response-provided";
+        // Legacy: map removed status to in-progress
+        if (normalized === "council-response-provided" || normalized === "council response provided") return "in-progress";
         if (isActionStatus(normalized)) return normalized;
     }
     return "open";

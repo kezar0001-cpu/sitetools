@@ -27,7 +27,8 @@ function formatDisplayDateTime(date: string | null | undefined): string {
 
 function formatActionStatus(status: string): string {
   if (status === 'in-progress') return 'In Progress'
-  if (status === 'council-response-provided') return 'Council Response Provided'
+  // Legacy: map removed status
+  if (status === 'council-response-provided') return 'In Progress'
   if (status === 'closed') return 'Closed'
   return 'Open'
 }
