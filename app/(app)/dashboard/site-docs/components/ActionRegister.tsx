@@ -818,11 +818,11 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                     <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                                     <span className="ml-2 text-sm text-slate-500">Loading links...</span>
                                 </div>
-                            ) : clientLinks.length === 0 ? (
+                            ) : clientLinks.filter((l) => !l.revoked_at).length === 0 ? (
                                 <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-8 text-center">
                                     <Link2 className="mx-auto h-8 w-8 text-slate-300" />
-                                    <p className="mt-2 text-sm text-slate-600">No client links created yet</p>
-                                    <p className="text-xs text-slate-500">Create your first link above to share project access</p>
+                                    <p className="mt-2 text-sm text-slate-600">No active client links</p>
+                                    <p className="text-xs text-slate-500">Create a new link above to share project access</p>
                                 </div>
                             ) : (
                                 <div className="mt-4 overflow-x-auto">
@@ -837,13 +837,15 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200">
-                                            {clientLinks.map((link) => {
-                                                const status = getLinkStatus(link);
-                                                const projectName = Array.isArray(link.projects) ? link.projects[0]?.name : link.projects?.name;
-                                                const isRevoking = revokingLinkId === link.id;
-                                                const isCopied = copiedLinkId === link.id;
+                                            {clientLinks
+                                                .filter((link) => !link.revoked_at)
+                                                .map((link) => {
+                                                    const status = getLinkStatus(link);
+                                                    const projectName = Array.isArray(link.projects) ? link.projects[0]?.name : link.projects?.name;
+                                                    const isRevoking = revokingLinkId === link.id;
+                                                    const isCopied = copiedLinkId === link.id;
 
-                                                return (
+                                                    return (
                                                     <tr key={link.id} className="hover:bg-slate-50">
                                                         <td className="px-3 py-3">
                                                             <div className="font-medium text-slate-900">{link.recipient_name || "Unnamed recipient"}</div>
