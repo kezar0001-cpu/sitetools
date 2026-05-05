@@ -20,8 +20,6 @@ const RED = '#C0392B'
 const REDBG = '#FDEDEC'
 const BLUE = '#1A5276'
 const BLUEBG = '#EBF5FB'
-const PURPLE = '#6D28D9'
-const PURPLEBG = '#F3E8FF'
 
 const TITLE_STYLE = {
   fontFamily: 'Helvetica-Bold',

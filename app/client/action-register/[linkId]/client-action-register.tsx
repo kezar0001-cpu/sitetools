@@ -50,6 +50,19 @@ function formatDateTime(dateValue: string | null | undefined): string {
     });
 }
 
+function formatActionSource(action: SiteActionItem): string {
+    if (action.source === "manual") return "Manual";
+    const title = action.source_document_title ?? "SiteDocs";
+    return action.source_document_reference ? `${title} (${action.source_document_reference})` : title;
+}
+
+function formatLatestUpdate(action: SiteActionItem): string {
+    const update = action.latest_update;
+    if (!update) return "No updates yet";
+    const byline = [update.updated_by_name, update.updated_by_organisation].filter(Boolean).join(", ");
+    return `${formatDateTime(update.created_at)} — ${byline}: “${update.comment}”`;
+}
+
 export default function ClientActionRegisterPage({ linkId, token }: { linkId: string; token: string }) {
     const [link, setLink] = useState<PublicLinkInfo | null>(null);
     const [actions, setActions] = useState<SiteActionItem[]>([]);
@@ -68,6 +81,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
     const [updatedCount, setUpdatedCount] = useState(0);
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
     const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+    const [selectionInitialized, setSelectionInitialized] = useState(false);
 
     useEffect(() => {
         async function load() {
@@ -96,6 +110,20 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
         }
         void load();
     }, [linkId, token]);
+
+    useEffect(() => {
+        setSelectedActionIds((currentIds) => {
+            const availableIds = new Set(actions.map((action) => action.id));
+
+            if (!selectionInitialized) {
+                return new Set(actions.map((action) => action.id));
+            }
+
+            return new Set(Array.from(currentIds).filter((actionId) => availableIds.has(actionId)));
+        });
+
+        if (actions.length > 0 && !selectionInitialized) setSelectionInitialized(true);
+    }, [actions, selectionInitialized]);
 
     const filteredActions = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
@@ -211,9 +239,9 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
     }
 
     async function exportSelectedPdf() {
-        const actionsToExport = selectedVisibleActions.length > 0 ? selectedVisibleActions : filteredActions;
+        const actionsToExport = selectedVisibleActions;
         if (actionsToExport.length === 0) {
-            setError("No actions to export.");
+            setError("Select at least one action to export.");
             return;
         }
         setExportingPdf(true);
@@ -229,7 +257,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
             doc.setFontSize(9);
             doc.setFont("helvetica", "normal");
             doc.setTextColor(95);
-            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | ${link?.company_name ?? "Project Team"} | ${actionsToExport.length} items`, 14, 23);
+            doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | ${link?.company_name ?? "Project Team"} | Items: ${actionsToExport.length}`, 14, 23);
             doc.setTextColor(0);
 
             autoTable(doc, {
@@ -237,16 +265,14 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                 head: [["#", "Action", "Source", "Responsible", "Due", "Status", "Latest Update"]],
                 body: actionsToExport.map((action) => {
                     const globalIndex = actions.indexOf(action);
-                    const update = action.latest_update;
-                    const updateText = update ? `${formatDateTime(update.created_at)} — ${update.updated_by_name}: "${update.comment}"` : "—";
                     return [
                         formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0),
-                        action.description || "Untitled",
-                        action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs",
+                        action.description || "Untitled action",
+                        formatActionSource(action),
                         action.responsible || "Unassigned",
                         formatDate(action.due_date),
                         ACTION_STATUS_LABELS[action.status],
-                        updateText,
+                        formatLatestUpdate(action),
                     ];
                 }),
                 styles: { fontSize: 7, cellPadding: 2.5, overflow: "linebreak" },
@@ -411,7 +437,8 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                         type="button"
                                         onMouseEnter={preloadJsPDF}
                                         onClick={() => void exportSelectedPdf()}
-                                        disabled={exportingPdf || filteredActions.length === 0}
+                                        disabled={exportingPdf || selectedVisibleActions.length === 0}
+                                        title={selectedVisibleActions.length === 0 ? "Select at least one action to export" : "Export selected visible actions to PDF"}
                                         className="inline-flex items-center gap-1.5 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                                     >
                                         {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
@@ -421,7 +448,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                             </div>
 
                             {/* Summary */}
-                            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                            <div className="mt-3 flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-start sm:justify-between">
                                 <span>
                                     Showing {visibleCount} of {totalOpenCount} open actions
                                     {closedCount > 0 && ` · ${closedCount} closed`}
@@ -431,6 +458,16 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                         </span>
                                     )}
                                 </span>
+                                <div className="flex flex-col gap-1 sm:items-end sm:text-right">
+                                    <span className={selectedVisibleActions.length === 0 ? "font-medium text-amber-600" : "text-slate-600"}>
+                                        {selectedVisibleActions.length} of {visibleCount} visible actions selected for PDF export
+                                    </span>
+                                    {visibleCount > 0 && (
+                                        <button type="button" onClick={toggleVisibleSelection} className="font-medium text-blue-600 hover:text-blue-700">
+                                            {allVisibleSelected ? "Clear visible selection" : "Select all visible"}
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Table */}
@@ -442,11 +479,21 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                 </div>
                             ) : (
                                 <div className="mt-4 overflow-x-auto -mx-4 sm:mx-0">
-                                    <table className="w-full text-sm min-w-[700px]">
+                                    <table className="w-full min-w-[900px] text-sm">
                                         <thead className="bg-slate-50">
                                             <tr className="border-b border-slate-200">
-                                                <th className="px-3 py-3 text-center font-medium text-slate-700 w-12">#</th>
+                                                <th className="w-12 min-w-[3rem] px-3 py-3 text-left font-medium text-slate-700">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={allVisibleSelected}
+                                                        onChange={toggleVisibleSelection}
+                                                        aria-label="Select all visible actions for PDF export"
+                                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                </th>
+                                                <th className="w-14 px-3 py-3 text-center font-medium text-slate-700">#</th>
                                                 <th className="px-3 py-3 text-left font-medium text-slate-700">Action</th>
+                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Source</th>
                                                 <th className="px-3 py-3 text-left font-medium text-slate-700">Responsible</th>
                                                 <th className="px-3 py-3 text-left font-medium text-slate-700 w-24">Due</th>
                                                 <th className="px-3 py-3 text-left font-medium text-slate-700 w-28">Status</th>
@@ -456,13 +503,23 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                         <tbody className="divide-y divide-slate-200">
                                             {filteredActions.map((action) => {
                                                 const globalIndex = actions.indexOf(action);
+                                                const isSelected = selectedActionIds.has(action.id);
                                                 return (
                                                     <tr key={action.id} className="hover:bg-slate-50">
+                                                        <td className="px-3 py-3 align-top">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={() => toggleActionSelection(action.id)}
+                                                                aria-label={`Include ${action.description || "action"} in PDF export`}
+                                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                        </td>
                                                         <td className="px-3 py-3 text-center text-slate-500 text-xs font-medium">{formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0)}</td>
                                                         <td className="px-3 py-3 align-top">
                                                             <p className="font-medium text-slate-900">{action.description}</p>
-                                                            <p className="mt-0.5 text-xs text-slate-500">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</p>
                                                         </td>
+                                                        <td className="px-3 py-3 align-top text-slate-600">{formatActionSource(action)}</td>
                                                         <td className="px-3 py-3 align-top text-slate-600">{action.responsible || "Unassigned"}</td>
                                                         <td className="px-3 py-3 align-top text-slate-600 whitespace-nowrap">{formatDate(action.due_date)}</td>
                                                         <td className="px-3 py-3 align-top whitespace-nowrap">
