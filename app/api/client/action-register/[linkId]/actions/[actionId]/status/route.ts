@@ -65,7 +65,7 @@ export async function POST(
         }
 
         const action = await fetchActionItemById(supabaseAdmin, params.actionId);
-        if (!action || action.company_id !== link.company_id || action.project_id !== link.project_id) {
+        if (!action || action.company_id !== link.company_id) {
             return NextResponse.json({ error: "Action item not found for this register." }, { status: 404 });
         }
 

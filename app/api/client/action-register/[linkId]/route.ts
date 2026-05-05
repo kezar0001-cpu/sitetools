@@ -82,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: { linkId: stri
         const { link, supabaseAdmin } = result;
         const identityConfirmed = !!link.identity_confirmed_at;
         const actions = identityConfirmed
-            ? await fetchActionItems(supabaseAdmin, link.company_id, link.project_id)
+            ? await fetchActionItems(supabaseAdmin, link.company_id)
             : [];
 
         return NextResponse.json({
@@ -137,11 +137,11 @@ export async function POST(req: NextRequest, { params }: { params: { linkId: str
             }
 
             const nextLink = updatedLink as LinkRow;
-            const actions = await fetchActionItems(supabaseAdmin, nextLink.company_id, nextLink.project_id);
+            const actions = await fetchActionItems(supabaseAdmin, nextLink.company_id);
             return NextResponse.json({ link: publicLinkPayload(nextLink), identityConfirmed: true, actions });
         }
 
-        const actions = await fetchActionItems(supabaseAdmin, link.company_id, link.project_id);
+        const actions = await fetchActionItems(supabaseAdmin, link.company_id);
         return NextResponse.json({ link: publicLinkPayload(link), identityConfirmed: true, actions });
     } catch (error) {
         return NextResponse.json(

@@ -50,12 +50,6 @@ function formatDateTime(dateValue: string | null | undefined): string {
     });
 }
 
-function formatActionSource(action: SiteActionItem): string {
-    if (action.source === "manual") return "Manual";
-    const title = action.source_document_title ?? "SiteDocs";
-    return action.source_document_reference ? `${title} (${action.source_document_reference})` : title;
-}
-
 function formatLatestUpdate(action: SiteActionItem): string {
     const update = action.latest_update;
     if (!update) return "No updates yet";
@@ -260,12 +254,11 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
 
             autoTable(doc, {
                 startY: 28,
-                head: [["#", "Action", "Source", "Responsible", "Due", "Status", "Latest Update"]],
+                head: [["#", "Action", "Responsible", "Due", "Status", "Latest Update"]],
                 body: actionsToExport.map((action, index) => {
                     return [
                         String(index + 1),
                         action.description || "Untitled action",
-                        formatActionSource(action),
                         action.responsible || "Unassigned",
                         formatDate(action.due_date),
                         ACTION_STATUS_LABELS[action.status],
@@ -277,12 +270,11 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                 alternateRowStyles: { fillColor: [248, 250, 252] },
                 columnStyles: {
                     0: { cellWidth: 16 },
-                    1: { cellWidth: 70 },
-                    2: { cellWidth: 40 },
-                    3: { cellWidth: 30 },
-                    4: { cellWidth: 22 },
-                    5: { cellWidth: 24 },
-                    6: { cellWidth: 60 },
+                    1: { cellWidth: 92 },
+                    2: { cellWidth: 36 },
+                    3: { cellWidth: 24 },
+                    4: { cellWidth: 28 },
+                    5: { cellWidth: 65 },
                 },
                 margin: { left: 14, right: 14 },
             });
@@ -476,10 +468,10 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                 </div>
                             ) : (
                                 <div className="mt-4 overflow-x-auto -mx-4 sm:mx-0">
-                                    <table className="w-full min-w-[1100px] table-fixed text-sm">
+                                    <table className="w-full min-w-[760px] table-fixed text-sm">
                                         <thead className="bg-slate-50">
                                             <tr className="border-b border-slate-200">
-                                                <th className="w-12 min-w-[3rem] px-3 py-3 text-left font-medium text-slate-700">
+                                                <th className="w-10 px-3 py-3 text-left font-medium text-slate-700">
                                                     <input
                                                         type="checkbox"
                                                         checked={allVisibleSelected}
@@ -488,13 +480,12 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                                     />
                                                 </th>
-                                                <th className="w-14 px-3 py-3 text-center font-medium text-slate-700">#</th>
-                                                <th className="w-[28rem] px-3 py-3 text-left font-medium text-slate-700">Action</th>
-                                                <th className="w-48 px-3 py-3 text-left font-medium text-slate-700">Source</th>
-                                                <th className="w-40 px-3 py-3 text-left font-medium text-slate-700">Responsible</th>
-                                                <th className="w-28 px-3 py-3 text-left font-medium text-slate-700">Due</th>
+                                                <th className="w-12 px-3 py-3 text-center font-medium text-slate-700">#</th>
+                                                <th className="w-[38%] px-3 py-3 text-left font-medium text-slate-700">Action</th>
+                                                <th className="w-[16%] px-3 py-3 text-left font-medium text-slate-700">Responsible</th>
+                                                <th className="w-24 px-3 py-3 text-left font-medium text-slate-700">Due</th>
                                                 <th className="w-32 px-3 py-3 text-left font-medium text-slate-700">Status</th>
-                                                <th className="w-[22rem] px-3 py-3 text-left font-medium text-slate-700">Latest Update</th>
+                                                <th className="w-[24%] px-3 py-3 text-left font-medium text-slate-700">Latest Update</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200">
@@ -515,7 +506,6 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                                         <td className="px-3 py-3 align-top">
                                                             <p className="font-medium text-slate-900">{action.description}</p>
                                                         </td>
-                                                        <td className="px-3 py-3 align-top text-slate-600">{formatActionSource(action)}</td>
                                                         <td className="px-3 py-3 align-top text-slate-600">{action.responsible || "Unassigned"}</td>
                                                         <td className="px-3 py-3 align-top text-slate-600 whitespace-nowrap">{formatDate(action.due_date)}</td>
                                                         <td className="px-3 py-3 align-top whitespace-nowrap">
@@ -523,7 +513,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                                                 value={action.status}
                                                                 disabled={updatingId === action.id}
                                                                 onChange={(event) => openStatusModal(action, event.target.value as ActionStatus)}
-                                                                className={`rounded-full border px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${STATUS_STYLES[action.status]}`}
+                                                                className={`max-w-full rounded-full border px-2.5 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${STATUS_STYLES[action.status]}`}
                                                             >
                                                                 {ACTION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                                                             </select>
