@@ -201,6 +201,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     const [linksError, setLinksError] = useState<string | null>(null);
     const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
     const [openingLinkId, setOpeningLinkId] = useState<string | null>(null);
+    const [regeneratedUrls, setRegeneratedUrls] = useState<Map<string, string>>(new Map());
     const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
     const [copyError, setCopyError] = useState<string | null>(null);
 
@@ -468,6 +469,12 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         setError(null);
         try {
             const result = await regenerateActionRegisterClientLink(linkId, companyId);
+            // Store the regenerated URL for copying
+            setRegeneratedUrls((current) => {
+                const next = new Map(current);
+                next.set(linkId, result.url);
+                return next;
+            });
             // Open the fresh URL in a new tab
             window.open(result.url, "_blank");
             // Update the link in the list to reflect any changes
@@ -483,7 +490,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
 
     async function copyExistingLinkUrl(linkId: string, url: string | null | undefined) {
         if (!url) {
-            setCopyError("For security, older link URLs cannot be reconstructed. Revoke this link and create a new one if you need to reshare it.");
+            setCopyError("Click 'Open link' first to regenerate the URL, then you can copy it.");
             return;
         }
         setCopyError(null);
@@ -907,10 +914,10 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                                                         </button>
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => void copyExistingLinkUrl(link.id, null)}
+                                                                            onClick={() => void copyExistingLinkUrl(link.id, regeneratedUrls.get(link.id))}
                                                                             disabled={isCopied}
                                                                             className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-                                                                            title={isCopied ? "Copied!" : "Copy URL not available for older links"}
+                                                                            title={isCopied ? "Copied!" : regeneratedUrls.has(link.id) ? "Copy URL" : "Open link first to enable copy"}
                                                                         >
                                                                             {isCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Clipboard className="h-4 w-4" />}
                                                                         </button>
