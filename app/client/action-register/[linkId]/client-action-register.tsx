@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Download, Loader2, Search, X } from "lucide-react";
-import { ACTION_STATUS_LABELS, ACTION_STATUS_OPTIONS, formatActionNumber, type ActionStatus, type SiteActionItem } from "@/lib/site-docs/types";
+import { ACTION_STATUS_LABELS, ACTION_STATUS_OPTIONS, type ActionStatus, type SiteActionItem } from "@/lib/site-docs/types";
 import { loadJsPDF, preloadJsPDF } from "@/lib/dynamicImports";
 
 type StatusFilter = ActionStatus | "all";
@@ -128,8 +128,6 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
     const filteredActions = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         return actions.filter((action) => {
-            // Default view: hide closed actions unless explicitly filtered
-            if (statusFilter === "all" && action.status === "closed") return false;
             if (statusFilter !== "all" && action.status !== statusFilter) return false;
             if (!query) return true;
             return [
@@ -145,8 +143,8 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
 
     // Count visible vs total for "showing X of Y" indicator
     const visibleCount = filteredActions.length;
-    const totalOpenCount = actions.filter((a) => a.status !== "closed").length;
-    const closedCount = actions.filter((a) => a.status === "closed").length;
+    const totalCount = actions.length;
+    const closedCount = actions.filter((action) => action.status === "closed").length;
 
     // Selection helpers
     const selectedVisibleActions = useMemo(
@@ -263,10 +261,9 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
             autoTable(doc, {
                 startY: 28,
                 head: [["#", "Action", "Source", "Responsible", "Due", "Status", "Latest Update"]],
-                body: actionsToExport.map((action) => {
-                    const globalIndex = actions.indexOf(action);
+                body: actionsToExport.map((action, index) => {
                     return [
-                        formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0),
+                        String(index + 1),
                         action.description || "Untitled action",
                         formatActionSource(action),
                         action.responsible || "Unassigned",
@@ -450,7 +447,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                             {/* Summary */}
                             <div className="mt-3 flex flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-start sm:justify-between">
                                 <span>
-                                    Showing {visibleCount} of {totalOpenCount} open actions
+                                    Showing {visibleCount} of {totalCount} actions
                                     {closedCount > 0 && ` · ${closedCount} closed`}
                                     {lastSavedAt && (
                                         <span className="ml-2 text-emerald-600">
@@ -479,7 +476,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                 </div>
                             ) : (
                                 <div className="mt-4 overflow-x-auto -mx-4 sm:mx-0">
-                                    <table className="w-full min-w-[900px] text-sm">
+                                    <table className="w-full min-w-[1100px] table-fixed text-sm">
                                         <thead className="bg-slate-50">
                                             <tr className="border-b border-slate-200">
                                                 <th className="w-12 min-w-[3rem] px-3 py-3 text-left font-medium text-slate-700">
@@ -492,17 +489,16 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                                     />
                                                 </th>
                                                 <th className="w-14 px-3 py-3 text-center font-medium text-slate-700">#</th>
-                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Action</th>
-                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Source</th>
-                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Responsible</th>
-                                                <th className="px-3 py-3 text-left font-medium text-slate-700 w-24">Due</th>
-                                                <th className="px-3 py-3 text-left font-medium text-slate-700 w-28">Status</th>
-                                                <th className="px-3 py-3 text-left font-medium text-slate-700">Latest Update</th>
+                                                <th className="w-[28rem] px-3 py-3 text-left font-medium text-slate-700">Action</th>
+                                                <th className="w-48 px-3 py-3 text-left font-medium text-slate-700">Source</th>
+                                                <th className="w-40 px-3 py-3 text-left font-medium text-slate-700">Responsible</th>
+                                                <th className="w-28 px-3 py-3 text-left font-medium text-slate-700">Due</th>
+                                                <th className="w-32 px-3 py-3 text-left font-medium text-slate-700">Status</th>
+                                                <th className="w-[22rem] px-3 py-3 text-left font-medium text-slate-700">Latest Update</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-200">
-                                            {filteredActions.map((action) => {
-                                                const globalIndex = actions.indexOf(action);
+                                            {filteredActions.map((action, index) => {
                                                 const isSelected = selectedActionIds.has(action.id);
                                                 return (
                                                     <tr key={action.id} className="hover:bg-slate-50">
@@ -515,7 +511,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                                                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                                             />
                                                         </td>
-                                                        <td className="px-3 py-3 text-center text-slate-500 text-xs font-medium">{formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0)}</td>
+                                                        <td className="px-3 py-3 text-center text-slate-500 text-xs font-medium">{index + 1}</td>
                                                         <td className="px-3 py-3 align-top">
                                                             <p className="font-medium text-slate-900">{action.description}</p>
                                                         </td>

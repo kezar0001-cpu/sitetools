@@ -293,14 +293,13 @@ export const ACTION_STATUS_OPTIONS: { value: ActionStatus; label: string }[] = [
 ];
 
 /**
- * Consistent action numbering across admin, client, and PDF export.
- * Prefers `action_number` from the DB (e.g. "A-001"), falls back to formatted index.
+ * Consistent display numbering across admin, client, and PDF export.
+ * Uses the current visible/exported row order, not the stored action_number.
  */
 export function formatActionNumber(
-    action: { action_number?: string | null },
+    _action: { action_number?: string | null },
     fallbackIndex: number
 ): string {
-    if (action.action_number) return action.action_number;
     return String(fallbackIndex + 1);
 }
 

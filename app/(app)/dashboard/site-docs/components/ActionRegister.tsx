@@ -34,7 +34,6 @@ import {
     ACTION_STATUS_LABELS,
     ACTION_STATUS_OPTIONS,
     DOCUMENT_TYPE_LABELS,
-    formatActionNumber,
     type ActionStatus,
     type SiteActionItem,
     type SiteActionRegisterLink,
@@ -540,13 +539,11 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | Items: ${actionsToExport.length}${isSelected ? " (selected)" : ""} | Status: ${statusLabel}`, 14, 23);
             doc.setTextColor(0);
 
-            // Find the stable index of each action in the full sorted list for consistent numbering
             autoTable(doc, {
                 head: [["#", "Action", "Project", "Source", "Responsible", "Due", "Status", "Latest Update"]],
-                body: actionsToExport.map((action) => {
-                    const globalIndex = actions.indexOf(action);
+                body: actionsToExport.map((action, index) => {
                     return [
-                        formatActionNumber(action, globalIndex >= 0 ? globalIndex : 0),
+                        String(index + 1),
                         action.description || "Untitled action",
                         getProjectName(action.project_id),
                         action.source === "manual"
@@ -681,7 +678,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                            {filteredActions.map((action) => {
+                            {filteredActions.map((action, index) => {
                                 const updateKey = getActionKey(action);
                                 const isUpdating = updatingKey === updateKey;
                                 const isSelected = selectedActionKeys.has(updateKey);
@@ -691,7 +688,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                 return (
                                     <tr key={updateKey} className="hover:bg-slate-50">
                                         <td className="px-4 py-4 align-top"><input type="checkbox" checked={isSelected} onChange={() => toggleActionSelection(action)} aria-label={`Include ${action.description || "action"} in PDF export`} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" /></td>
-                                        <td className="w-14 px-3 py-4 align-top text-xs font-medium text-slate-500">{formatActionNumber(action, actions.indexOf(action))}</td>
+                                        <td className="w-14 px-3 py-4 align-top text-xs font-medium text-slate-500">{index + 1}</td>
                                         <td className="max-w-md px-4 py-4 align-top"><p className="font-medium text-slate-900">{action.description || "Untitled action"}</p></td>
                                         <td className="px-4 py-4 align-top text-slate-600"><span className="inline-flex items-center gap-1.5"><FolderOpen className="h-3.5 w-3.5 text-slate-400" />{getProjectName(action.project_id)}</span></td>
                                         <td className="max-w-xs px-4 py-4 align-top"><p className="font-medium text-slate-800">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs document"}</p><p className="mt-1 text-xs text-slate-500">{action.source === "manual" ? "Created in register" : `${DOCUMENT_TYPE_LABELS["meeting-minutes"]}${action.source_document_reference ? ` - ${action.source_document_reference}` : ""}`}</p></td>
