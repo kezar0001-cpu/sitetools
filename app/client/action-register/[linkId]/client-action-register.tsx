@@ -80,6 +80,7 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
     const [completionMode, setCompletionMode] = useState(false);
     const [updatedCount, setUpdatedCount] = useState(0);
     const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+    const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         async function load() {
@@ -125,6 +126,43 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
     const visibleCount = filteredActions.length;
     const totalOpenCount = actions.filter((a) => a.status !== "closed" && a.status !== "council-response-provided").length;
     const closedCount = actions.filter((a) => a.status === "closed").length;
+
+    // Selection helpers
+    const selectedVisibleActions = useMemo(
+        () => filteredActions.filter((action) => selectedActionIds.has(action.id)),
+        [filteredActions, selectedActionIds]
+    );
+    const allVisibleSelected = visibleCount > 0 && selectedVisibleActions.length === visibleCount;
+
+    function toggleActionSelection(actionId: string) {
+        setSelectedActionIds((current) => {
+            const next = new Set(current);
+            if (next.has(actionId)) {
+                next.delete(actionId);
+            } else {
+                next.add(actionId);
+            }
+            return next;
+        });
+    }
+
+    function toggleVisibleSelection() {
+        if (allVisibleSelected) {
+            // Deselect all visible
+            setSelectedActionIds((current) => {
+                const next = new Set(current);
+                filteredActions.forEach((a) => next.delete(a.id));
+                return next;
+            });
+        } else {
+            // Select all visible
+            setSelectedActionIds((current) => {
+                const next = new Set(current);
+                filteredActions.forEach((a) => next.add(a.id));
+                return next;
+            });
+        }
+    }
 
     async function confirmIdentity() {
         if (!identityForm.name.trim() || !identityForm.organisation.trim()) return;
@@ -179,9 +217,9 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
         }
     }
 
-    async function exportPdf() {
-        if (filteredActions.length === 0) {
-            setError("No actions to export.");
+    async function exportSelectedPdf() {
+        if (selectedVisibleActions.length === 0) {
+            setError("Select at least one action to export.");
             return;
         }
         setExportingPdf(true);
@@ -197,30 +235,27 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
             doc.text(`${link?.project_name ?? "Project"} - Action Register`, 14, 20);
             doc.setFontSize(10);
             doc.text(`Generated: ${generatedAt.toLocaleString("en-AU")} | ${link?.company_name ?? "Buildstate"}`, 14, 28);
-            doc.text(`Filter: ${statusLabel} (${filteredActions.length} actions)`, 14, 34);
+            doc.text(`Filter: ${statusLabel} (${selectedVisibleActions.length} of ${filteredActions.length} selected)`, 14, 34);
 
-            // Table
+            // Table with continuous numbering
             autoTable(doc, {
                 startY: 40,
-                head: [["Ref", "Action", "Source", "Responsible", "Due", "Status"]],
-                body: filteredActions.map((action) => {
-                    const refLabel = action.action_number || (action.source === "manual" ? "M" : "MM");
-                    return [
-                        refLabel,
-                        action.description || "Untitled",
-                        action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs",
-                        action.responsible || "Unassigned",
-                        formatDate(action.due_date),
-                        ACTION_STATUS_LABELS[action.status],
-                    ];
-                }),
+                head: [["#", "Action", "Source", "Responsible", "Due", "Status"]],
+                body: selectedVisibleActions.map((action, index) => [
+                    String(index + 1),
+                    action.description || "Untitled",
+                    action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs",
+                    action.responsible || "Unassigned",
+                    formatDate(action.due_date),
+                    ACTION_STATUS_LABELS[action.status],
+                ]),
                 styles: { fontSize: 9, cellPadding: 2 },
                 headStyles: { fillColor: [59, 130, 246], textColor: 255 },
                 alternateRowStyles: { fillColor: [248, 250, 252] },
             });
 
             doc.save(`${link?.project_name?.replace(/\s+/g, "_") ?? "Project"}_Action_Register_${generatedAt.toISOString().split("T")[0]}.pdf`);
-            setNotice("PDF exported successfully.");
+            setNotice(`PDF exported with ${selectedVisibleActions.length} action${selectedVisibleActions.length === 1 ? "" : "s"}.`);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to export PDF");
         } finally {
@@ -336,34 +371,112 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                                     Finish updates
                                 </button>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <p className="text-xs text-slate-500">
-                                    Showing {visibleCount} of {totalOpenCount} open actions
-                                    {closedCount > 0 && ` (${closedCount} closed hidden)`}
-                                    {lastSavedAt && (
-                                        <span className="ml-2 text-emerald-600">
-                                            Last saved: {lastSavedAt.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
-                                        </span>
-                                    )}
-                                </p>
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-xs text-slate-500">
+                                        Showing {visibleCount} of {totalOpenCount} open actions
+                                        {closedCount > 0 && ` (${closedCount} closed hidden)`}
+                                        {lastSavedAt && (
+                                            <span className="ml-2 text-emerald-600">
+                                                Last saved: {lastSavedAt.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" })}
+                                            </span>
+                                        )}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {selectedVisibleActions.length} of {visibleCount} selected for PDF export
+                                        {visibleCount > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={toggleVisibleSelection}
+                                                className="ml-2 font-medium text-blue-600 hover:text-blue-700"
+                                            >
+                                                {allVisibleSelected ? "Clear visible" : "Select all visible"}
+                                            </button>
+                                        )}
+                                    </p>
+                                </div>
                                 <button
                                     type="button"
                                     onMouseEnter={preloadJsPDF}
-                                    onClick={() => void exportPdf()}
-                                    disabled={exportingPdf || filteredActions.length === 0}
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    onClick={() => void exportSelectedPdf()}
+                                    disabled={exportingPdf || selectedVisibleActions.length === 0}
+                                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                                    Export PDF
+                                    Export selected PDF
                                 </button>
                             </div>
                         </div>
 
                         {filteredActions.length === 0 ? <div className="mt-6 sm:mt-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center"><CheckCircle2 className="mx-auto h-10 w-10 text-slate-300" /><p className="mt-3 font-medium text-slate-700">No actions match your filters</p></div> : (
-                            <div className="mt-4 sm:mt-6 -mx-4 px-4 overflow-x-auto">
-                                <table className="w-full min-w-[640px] text-sm">
-                                    <thead className="bg-slate-50"><tr className="border-b border-slate-200"><th className="px-3 sm:px-4 py-3 text-left font-medium text-slate-700">Action</th><th className="px-3 sm:px-4 py-3 text-left font-medium text-slate-700">Source</th><th className="px-3 sm:px-4 py-3 text-left font-medium text-slate-700">Responsible</th><th className="px-3 sm:px-4 py-3 text-left font-medium text-slate-700">Due</th><th className="px-3 sm:px-4 py-3 text-left font-medium text-slate-700">Status</th><th className="px-3 sm:px-4 py-3 text-left font-medium text-slate-700">Latest update</th></tr></thead>
-                                    <tbody className="divide-y divide-slate-200">{filteredActions.map((action) => <tr key={action.id} className="hover:bg-slate-50"><td className="max-w-[200px] sm:max-w-md px-3 sm:px-4 py-3 sm:py-4 align-top"><p className="font-medium text-slate-900 text-sm sm:text-base">{action.description}</p><p className="mt-1 text-xs text-slate-500">{action.action_number ? `Ref: ${action.action_number}` : (action.source === "manual" ? "Manual action" : "From meeting minutes")}</p></td><td className="px-3 sm:px-4 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</td><td className="px-3 sm:px-4 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap">{action.responsible || "Unassigned"}</td><td className="px-3 sm:px-4 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap">{formatDate(action.due_date)}</td><td className="px-3 sm:px-4 py-3 sm:py-4 align-top whitespace-nowrap"><select value={action.status} disabled={updatingId === action.id} onChange={(event) => openStatusModal(action, event.target.value as ActionStatus)} className={`rounded-full border px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${action.status === "council-response-provided" ? STATUS_STYLES["council-response-provided"] : CLIENT_STATUS_STYLES[action.status as Exclude<ActionStatus, "council-response-provided">]}`}>{CLIENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></td><td className="max-w-[150px] sm:max-w-xs px-3 sm:px-4 py-3 sm:py-4 align-top text-slate-600">{action.latest_update ? <div><p className="text-xs font-medium text-slate-700">{formatDateTime(action.latest_update.created_at)} · {action.latest_update.updated_by_name}{action.latest_update.updated_by_organisation ? `, ${action.latest_update.updated_by_organisation}` : ""}</p><p className="mt-1 text-sm">{action.latest_update.comment}</p></div> : <span className="text-xs text-slate-400">No update yet</span>}</td></tr>)}</tbody>
+                            <div className="mt-4 sm:mt-6">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-50">
+                                        <tr className="border-b border-slate-200">
+                                            <th className="px-2 sm:px-3 py-3 text-center font-medium text-slate-700 w-10">#</th>
+                                            <th className="px-2 sm:px-3 py-3 text-center font-medium text-slate-700 w-10">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allVisibleSelected}
+                                                    onChange={toggleVisibleSelection}
+                                                    aria-label={allVisibleSelected ? "Deselect all visible" : "Select all visible"}
+                                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                            </th>
+                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700">Action</th>
+                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700 hidden sm:table-cell">Source</th>
+                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700 hidden md:table-cell">Responsible</th>
+                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700">Due</th>
+                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700">Status</th>
+                                            <th className="px-2 sm:px-3 py-3 text-left font-medium text-slate-700 hidden lg:table-cell">Latest update</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200">
+                                        {filteredActions.map((action, index) => {
+                                            const isSelected = selectedActionIds.has(action.id);
+                                            return (
+                                                <tr key={action.id} className="hover:bg-slate-50">
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 text-center text-slate-500 text-xs">{index + 1}</td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 text-center align-top">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => toggleActionSelection(action.id)}
+                                                            aria-label={`Select action ${index + 1} for PDF export`}
+                                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                        />
+                                                    </td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top">
+                                                        <p className="font-medium text-slate-900 text-sm sm:text-base">{action.description}</p>
+                                                        <p className="mt-1 text-xs text-slate-500 sm:hidden">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</p>
+                                                    </td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap hidden sm:table-cell">{action.source === "manual" ? "Manual" : action.source_document_title ?? "SiteDocs"}</td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap hidden md:table-cell">{action.responsible || "Unassigned"}</td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 whitespace-nowrap">{formatDate(action.due_date)}</td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top whitespace-nowrap">
+                                                        <select
+                                                            value={action.status}
+                                                            disabled={updatingId === action.id}
+                                                            onChange={(event) => openStatusModal(action, event.target.value as ActionStatus)}
+                                                            className={`rounded-full border px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 ${action.status === "council-response-provided" ? STATUS_STYLES["council-response-provided"] : CLIENT_STATUS_STYLES[action.status as Exclude<ActionStatus, "council-response-provided">]}`}
+                                                        >
+                                                            {CLIENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-2 sm:px-3 py-3 sm:py-4 align-top text-slate-600 hidden lg:table-cell">
+                                                        {action.latest_update ? (
+                                                            <div>
+                                                                <p className="text-xs font-medium text-slate-700">{formatDateTime(action.latest_update.created_at)}</p>
+                                                                <p className="text-xs text-slate-500">{action.latest_update.updated_by_name}</p>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-400">No update</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
                                 </table>
                             </div>
                         )}
