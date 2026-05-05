@@ -2,21 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+    AlertCircle,
     ArrowUpRight,
+    Check,
     CheckCircle2,
+    Clipboard,
     ClipboardList,
+    Copy,
     Download,
+    ExternalLink,
     FolderOpen,
     Link2,
     Loader2,
     Plus,
     Search,
+    Trash2,
     X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { loadJsPDF, preloadJsPDF } from "@/lib/dynamicImports";
 import {
     createActionRegisterClientLink,
+    fetchActionRegisterClientLinks,
+    revokeActionRegisterClientLink,
     createManualAction,
     fetchActionRegisterItems,
     updateRegisterActionStatus,
@@ -27,13 +35,81 @@ import {
     DOCUMENT_TYPE_LABELS,
     type ActionStatus,
     type SiteActionItem,
+    type SiteActionRegisterLink,
 } from "@/lib/site-docs/types";
 import { getProjects } from "@/lib/workspace/client";
 import type { Project } from "@/lib/workspace/types";
 
+// ── Robust Clipboard Copy Utility ──
+
+interface CopyResult {
+    success: boolean;
+    error?: string;
+}
+
+async function copyToClipboard(text: string): Promise<CopyResult> {
+    // Try modern Clipboard API first
+    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return { success: true };
+        } catch {
+            // Fall through to fallback - err not needed
+        }
+    }
+
+    // Fallback: use textarea + execCommand
+    try {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "0";
+        textarea.setAttribute("readonly", "");
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textarea);
+
+        if (successful) {
+            return { success: true };
+        }
+        return { success: false, error: "Copy command failed" };
+    } catch (err) {
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : "Copy failed",
+        };
+    }
+}
+
+function getLinkStatus(link: SiteActionRegisterLink): "active" | "expired" | "revoked" {
+    if (link.revoked_at) return "revoked";
+    if (link.expires_at && new Date(link.expires_at).getTime() < Date.now()) return "expired";
+    return "active";
+}
+
+function formatLinkDateTime(dateValue: string | null | undefined): string {
+    if (!dateValue) return "—";
+    return new Date(dateValue).toLocaleString("en-AU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 interface ActionRegisterProps {
     companyId: string;
 }
+
+// Extended link type that includes joined project data from API
+type SiteActionRegisterLinkWithProject = SiteActionRegisterLink & {
+    projects?: { name?: string | null } | { name?: string | null }[] | null;
+};
 
 type StatusFilter = ActionStatus | "all";
 type ProjectFilter = string | "all" | "unassigned";
@@ -119,6 +195,12 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     const [shareRecipient, setShareRecipient] = useState({ name: "", email: "", organisation: "" });
     const [shareUrl, setShareUrl] = useState("");
     const [creatingLink, setCreatingLink] = useState(false);
+    const [clientLinks, setClientLinks] = useState<SiteActionRegisterLinkWithProject[]>([]);
+    const [loadingLinks, setLoadingLinks] = useState(false);
+    const [linksError, setLinksError] = useState<string | null>(null);
+    const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+    const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+    const [copyError, setCopyError] = useState<string | null>(null);
 
     const loadRegisterData = useCallback(async () => {
         setLoading(true);
@@ -313,6 +395,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
         setError(null);
         setNotice(null);
         setShareUrl("");
+        setCopyError(null);
 
         try {
             const result = await createActionRegisterClientLink({
@@ -323,7 +406,9 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                 recipient_organisation: shareRecipient.organisation || null,
             });
             setShareUrl(result.url);
-            setNotice("Client link created. Copy it from the share dialog.");
+            // Add new link to the list immediately
+            setClientLinks((current) => [result.link, ...current]);
+            setNotice("Client link created successfully.");
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to create client link");
         } finally {
@@ -333,8 +418,71 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
 
     async function copyShareUrl() {
         if (!shareUrl) return;
-        await navigator.clipboard?.writeText(shareUrl);
-        setNotice("Client link copied to clipboard.");
+        setCopyError(null);
+        const result = await copyToClipboard(shareUrl);
+        if (result.success) {
+            setCopiedLinkId("new");
+            setTimeout(() => setCopiedLinkId(null), 2000);
+        } else {
+            setCopyError(result.error || "Copy failed. Please select and copy manually.");
+        }
+    }
+
+    async function loadClientLinks() {
+        setLoadingLinks(true);
+        setLinksError(null);
+        try {
+            const links = await fetchActionRegisterClientLinks(companyId);
+            setClientLinks(links);
+        } catch (err) {
+            setLinksError(err instanceof Error ? err.message : "Failed to load client links");
+        } finally {
+            setLoadingLinks(false);
+        }
+    }
+
+    async function handleRevokeLink(linkId: string) {
+        if (!confirm("Are you sure you want to revoke this client link? The recipient will no longer be able to access the action register.")) {
+            return;
+        }
+        setRevokingLinkId(linkId);
+        setError(null);
+        try {
+            const result = await revokeActionRegisterClientLink(linkId, companyId);
+            // Update the link in the list without full reload
+            setClientLinks((current) =>
+                current.map((link) => (link.id === linkId ? result.link : link))
+            );
+            setNotice("Client link revoked successfully.");
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to revoke link");
+        } finally {
+            setRevokingLinkId(null);
+        }
+    }
+
+    async function copyExistingLinkUrl(linkId: string, url: string | null | undefined) {
+        if (!url) {
+            setCopyError("For security, older link URLs cannot be reconstructed. Revoke this link and create a new one if you need to reshare it.");
+            return;
+        }
+        setCopyError(null);
+        const result = await copyToClipboard(url);
+        if (result.success) {
+            setCopiedLinkId(linkId);
+            setTimeout(() => setCopiedLinkId(null), 2000);
+        } else {
+            setCopyError(result.error || "Copy failed. Please select and copy manually.");
+        }
+    }
+
+    function openShareModal() {
+        setShareModalOpen(true);
+        setShareUrl("");
+        setCopyError(null);
+        setCopiedLinkId(null);
+        // Load existing links when opening modal
+        void loadClientLinks();
     }
 
     async function exportSelectedPdf() {
@@ -435,7 +583,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                             <Plus className="h-4 w-4" />
                             Add Action
                         </button>
-                        <button type="button" onClick={() => setShareModalOpen(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                        <button type="button" onClick={() => openShareModal()} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100">
                             <Link2 className="h-4 w-4" />
                             Client link
                         </button>
@@ -550,11 +698,225 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
 
             {shareModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-                    <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
-                        <h3 className="text-lg font-semibold text-slate-900">Create client access link</h3>
-                        <p className="mt-1 text-sm text-slate-500">Links are project-scoped. The client will confirm their identity on first open.</p>
-                        <div className="mt-5 space-y-4"><div><label className="text-sm font-medium text-slate-700">Project *</label><select value={shareProjectId} onChange={(event) => setShareProjectId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div><div className="grid grid-cols-1 gap-4 sm:grid-cols-3"><div><label className="text-sm font-medium text-slate-700">Recipient name</label><input value={shareRecipient.name} onChange={(event) => setShareRecipient((current) => ({ ...current, name: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="text-sm font-medium text-slate-700">Email</label><input type="email" value={shareRecipient.email} onChange={(event) => setShareRecipient((current) => ({ ...current, email: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div><div><label className="text-sm font-medium text-slate-700">Organisation</label><input value={shareRecipient.organisation} onChange={(event) => setShareRecipient((current) => ({ ...current, organisation: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div></div>{shareUrl && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><p className="text-xs font-medium text-blue-900">Secure client link</p><p className="mt-1 break-all text-sm text-blue-800">{shareUrl}</p><button type="button" onClick={() => void copyShareUrl()} className="mt-3 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">Copy link</button></div>}</div>
-                        <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setShareModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Close</button><button type="button" onClick={() => void handleCreateClientLink()} disabled={!shareProjectId || creatingLink} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{creatingLink ? "Creating..." : "Generate link"}</button></div>
+                    <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-slate-900">Client Access Links</h3>
+                                <p className="mt-1 text-sm text-slate-500">Create and manage project-scoped client links. Recipients confirm their identity on first use.</p>
+                            </div>
+                            <button type="button" onClick={() => setShareModalOpen(false)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Create New Link Section */}
+                        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <h4 className="text-sm font-semibold text-slate-900">Create New Link</h4>
+                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="text-sm font-medium text-slate-700">Project *</label>
+                                    <select value={shareProjectId} onChange={(event) => setShareProjectId(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        <option value="">Select project</option>
+                                        {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-slate-700">Recipient Name</label>
+                                    <input value={shareRecipient.name} onChange={(event) => setShareRecipient((current) => ({ ...current, name: event.target.value }))} placeholder="e.g., John Smith" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-slate-700">Email</label>
+                                    <input type="email" value={shareRecipient.email} onChange={(event) => setShareRecipient((current) => ({ ...current, email: event.target.value }))} placeholder="recipient@example.com" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-slate-700">Organisation</label>
+                                    <input value={shareRecipient.organisation} onChange={(event) => setShareRecipient((current) => ({ ...current, organisation: event.target.value }))} placeholder="e.g., ABC Consulting" className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                            </div>
+
+                            {/* Newly Created Link Display */}
+                            {shareUrl && (
+                                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                                    <div className="flex items-center gap-2">
+                                        <Check className="h-4 w-4 text-emerald-600" />
+                                        <p className="text-sm font-medium text-emerald-800">Link created successfully</p>
+                                    </div>
+                                    <div className="mt-2">
+                                        <input type="text" readOnly value={shareUrl} className="w-full rounded border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none" />
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void copyShareUrl()}
+                                            disabled={copiedLinkId === "new"}
+                                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            {copiedLinkId === "new" ? (
+                                                <><Check className="h-3.5 w-3.5" />Copied!</>
+                                            ) : (
+                                                <><Copy className="h-3.5 w-3.5" />Copy Link</>
+                                            )}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => window.open(shareUrl, "_blank")}
+                                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            Open Link
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {copyError && (
+                                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                                        <span>{copyError}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="mt-4 flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCreateClientLink()}
+                                    disabled={!shareProjectId || creatingLink}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {creatingLink ? <><Loader2 className="h-4 w-4 animate-spin" />Creating...</> : <><Link2 className="h-4 w-4" />Generate Link</>}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Existing Links List */}
+                        <div className="mt-6">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-semibold text-slate-900">Existing Client Links</h4>
+                                <button
+                                    type="button"
+                                    onClick={() => void loadClientLinks()}
+                                    disabled={loadingLinks}
+                                    className="text-xs text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                                >
+                                    {loadingLinks ? "Loading..." : "Refresh"}
+                                </button>
+                            </div>
+
+                            {linksError && (
+                                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                    <div className="flex items-start gap-2">
+                                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                                        <span>{linksError}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {loadingLinks ? (
+                                <div className="mt-4 flex items-center justify-center py-8">
+                                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                    <span className="ml-2 text-sm text-slate-500">Loading links...</span>
+                                </div>
+                            ) : clientLinks.length === 0 ? (
+                                <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 py-8 text-center">
+                                    <Link2 className="mx-auto h-8 w-8 text-slate-300" />
+                                    <p className="mt-2 text-sm text-slate-600">No client links created yet</p>
+                                    <p className="text-xs text-slate-500">Create your first link above to share project access</p>
+                                </div>
+                            ) : (
+                                <div className="mt-4 overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-50">
+                                            <tr className="border-b border-slate-200">
+                                                <th className="px-3 py-2 text-left font-medium text-slate-700">Recipient</th>
+                                                <th className="px-3 py-2 text-left font-medium text-slate-700">Project</th>
+                                                <th className="px-3 py-2 text-left font-medium text-slate-700">Created</th>
+                                                <th className="px-3 py-2 text-left font-medium text-slate-700">Status</th>
+                                                <th className="px-3 py-2 text-right font-medium text-slate-700">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-200">
+                                            {clientLinks.map((link) => {
+                                                const status = getLinkStatus(link);
+                                                const projectName = Array.isArray(link.projects) ? link.projects[0]?.name : link.projects?.name;
+                                                const isRevoking = revokingLinkId === link.id;
+                                                const isCopied = copiedLinkId === link.id;
+
+                                                return (
+                                                    <tr key={link.id} className="hover:bg-slate-50">
+                                                        <td className="px-3 py-3">
+                                                            <div className="font-medium text-slate-900">{link.recipient_name || "Unnamed recipient"}</div>
+                                                            {link.recipient_email && <div className="text-xs text-slate-500">{link.recipient_email}</div>}
+                                                            {link.recipient_organisation && <div className="text-xs text-slate-500">{link.recipient_organisation}</div>}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-slate-700">{projectName || "Unknown project"}</td>
+                                                        <td className="px-3 py-3 text-slate-600">{formatLinkDateTime(link.created_at)}</td>
+                                                        <td className="px-3 py-3">
+                                                            {status === "active" && (
+                                                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                                                    <Check className="h-3 w-3" /> Active
+                                                                </span>
+                                                            )}
+                                                            {status === "expired" && (
+                                                                <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                                                    <AlertCircle className="h-3 w-3" /> Expired
+                                                                </span>
+                                                            )}
+                                                            {status === "revoked" && (
+                                                                <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                                                                    <X className="h-3 w-3" /> Revoked
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-3 py-3 text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                {status === "active" && (
+                                                                    <>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => window.open(`/client/action-register/${link.id}`, "_blank")}
+                                                                            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                                                            title="Open link"
+                                                                        >
+                                                                            <ExternalLink className="h-4 w-4" />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void copyExistingLinkUrl(link.id, null)}
+                                                                            disabled={isCopied}
+                                                                            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                                                                            title={isCopied ? "Copied!" : "Copy URL not available for older links"}
+                                                                        >
+                                                                            {isCopied ? <Check className="h-4 w-4 text-emerald-600" /> : <Clipboard className="h-4 w-4" />}
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => void handleRevokeLink(link.id)}
+                                                                            disabled={isRevoking}
+                                                                            className="rounded p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                                                                            title="Revoke link"
+                                                                        >
+                                                                            {isRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-6 flex justify-end border-t border-slate-200 pt-4">
+                            <button type="button" onClick={() => setShareModalOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -533,6 +533,40 @@ export async function createActionRegisterClientLink(payload: {
     return { link: data.link, url: data.url };
 }
 
+export async function fetchActionRegisterClientLinks(
+    companyId: string,
+    options?: { projectId?: string | null }
+): Promise<SiteActionRegisterLink[]> {
+    const token = await getAccessToken();
+    const params = new URLSearchParams({ companyId });
+    if (options?.projectId) params.set("projectId", options.projectId);
+
+    const response = await fetch(`/api/site-docs/action-register-links?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to fetch client links");
+    return data.links ?? [];
+}
+
+export async function revokeActionRegisterClientLink(
+    linkId: string,
+    companyId: string
+): Promise<{ link: SiteActionRegisterLink; message: string }> {
+    const token = await getAccessToken();
+    const response = await fetch(`/api/site-docs/action-register-links/${linkId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ company_id: companyId }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to revoke client link");
+    return { link: data.link, message: data.message };
+}
+
 export async function updateActionItemStatus(
     documentId: string,
     itemId: string,
