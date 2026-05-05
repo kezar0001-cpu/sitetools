@@ -25,6 +25,7 @@ import {
     createActionRegisterClientLink,
     fetchActionRegisterClientLinks,
     revokeActionRegisterClientLink,
+    regenerateActionRegisterClientLink,
     createManualAction,
     fetchActionRegisterItems,
     updateRegisterActionStatus,
@@ -199,6 +200,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
     const [loadingLinks, setLoadingLinks] = useState(false);
     const [linksError, setLinksError] = useState<string | null>(null);
     const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+    const [openingLinkId, setOpeningLinkId] = useState<string | null>(null);
     const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
     const [copyError, setCopyError] = useState<string | null>(null);
 
@@ -458,6 +460,24 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
             setError(err instanceof Error ? err.message : "Failed to revoke link");
         } finally {
             setRevokingLinkId(null);
+        }
+    }
+
+    async function handleOpenLink(linkId: string) {
+        setOpeningLinkId(linkId);
+        setError(null);
+        try {
+            const result = await regenerateActionRegisterClientLink(linkId, companyId);
+            // Open the fresh URL in a new tab
+            window.open(result.url, "_blank");
+            // Update the link in the list to reflect any changes
+            setClientLinks((current) =>
+                current.map((link) => (link.id === linkId ? { ...link, ...result.link } : link))
+            );
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to open link");
+        } finally {
+            setOpeningLinkId(null);
         }
     }
 
@@ -843,6 +863,7 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                                     const status = getLinkStatus(link);
                                                     const projectName = Array.isArray(link.projects) ? link.projects[0]?.name : link.projects?.name;
                                                     const isRevoking = revokingLinkId === link.id;
+                                                    const isOpening = openingLinkId === link.id;
                                                     const isCopied = copiedLinkId === link.id;
 
                                                     return (
@@ -877,11 +898,12 @@ export function ActionRegister({ companyId }: ActionRegisterProps) {
                                                                     <>
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => window.open(`/client/action-register/${link.id}`, "_blank")}
-                                                                            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                                                            title="Open link"
+                                                                            onClick={() => void handleOpenLink(link.id)}
+                                                                            disabled={isOpening}
+                                                                            className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                                                                            title={isOpening ? "Opening..." : "Open link (regenerates token)"}
                                                                         >
-                                                                            <ExternalLink className="h-4 w-4" />
+                                                                            {isOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                                                                         </button>
                                                                         <button
                                                                             type="button"

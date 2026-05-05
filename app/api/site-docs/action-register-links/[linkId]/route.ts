@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin, requireInternalUser } from "@/lib/site-docs/action-register-service";
+import { createActionRegisterToken, hashActionRegisterToken, buildActionRegisterClientUrl } from "@/lib/site-docs/action-register-links";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +114,106 @@ export async function PATCH(
     } catch (error) {
         return NextResponse.json(
             { error: error instanceof Error ? error.message : "Failed to revoke link." },
+            { status: 500 }
+        );
+    }
+}
+
+/**
+ * POST /api/site-docs/action-register-links/[linkId]
+ * Regenerates the token for an existing link (rotates the secret).
+ * This invalidates old URLs and returns a fresh working URL.
+ * Requires authentication and company membership.
+ */
+export async function POST(
+    req: NextRequest,
+    { params }: { params: { linkId: string } }
+) {
+    try {
+        const { linkId } = params;
+
+        // Parse request body to get company_id for authorization
+        const body = await req.json().catch(() => null) as {
+            company_id?: string;
+        } | null;
+
+        const companyId = body?.company_id;
+        if (!companyId) {
+            return NextResponse.json(
+                { error: "Company ID is required in request body." },
+                { status: 400 }
+            );
+        }
+
+        const supabaseAdmin = createSupabaseAdmin();
+
+        // Verify user belongs to the company
+        const userContext = await requireInternalUser(req, supabaseAdmin, companyId);
+        if (userContext instanceof Response) return userContext;
+
+        // Verify the link exists and belongs to this company
+        const { data: existingLink, error: fetchError } = await supabaseAdmin
+            .from("site_action_register_links")
+            .select("*, projects(name)")
+            .eq("id", linkId)
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+        if (fetchError) {
+            return NextResponse.json(
+                { error: fetchError.message },
+                { status: 500 }
+            );
+        }
+
+        if (!existingLink) {
+            return NextResponse.json(
+                { error: "Link not found or access denied." },
+                { status: 404 }
+            );
+        }
+
+        // Check if revoked
+        if (existingLink.revoked_at) {
+            return NextResponse.json(
+                { error: "Link has been revoked and cannot be regenerated." },
+                { status: 409 }
+            );
+        }
+
+        // Generate new token and hash
+        const newToken = createActionRegisterToken();
+        const newTokenHash = hashActionRegisterToken(newToken);
+
+        // Update the link with the new token hash
+        const { data: updatedLink, error: updateError } = await supabaseAdmin
+            .from("site_action_register_links")
+            .update({
+                token_hash: newTokenHash,
+            })
+            .eq("id", linkId)
+            .eq("company_id", companyId)
+            .select("*, projects(name)")
+            .single();
+
+        if (updateError) {
+            return NextResponse.json(
+                { error: updateError.message },
+                { status: 500 }
+            );
+        }
+
+        // Build the new URL with the fresh token
+        const url = buildActionRegisterClientUrl(linkId, newToken, req.nextUrl.origin);
+
+        return NextResponse.json({
+            link: sanitizeLinkForResponse(updatedLink as Record<string, unknown>),
+            url,
+            message: "Link token regenerated. Old URLs will no longer work.",
+        });
+    } catch (error) {
+        return NextResponse.json(
+            { error: error instanceof Error ? error.message : "Failed to regenerate link." },
             { status: 500 }
         );
     }

@@ -93,6 +93,14 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                 setLink(data.link);
                 setIdentityConfirmed(!!data.identityConfirmed);
                 setActions(data.actions ?? []);
+                // Pre-fill form with saved recipient details for returning users
+                if (data.link?.recipient_name) {
+                    setIdentityForm({
+                        name: data.link.recipient_name ?? "",
+                        organisation: data.link.recipient_organisation ?? "",
+                        email: data.link.recipient_email ?? "",
+                    });
+                }
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Unable to load action register");
             } finally {
@@ -302,7 +310,13 @@ export default function ClientActionRegisterPage({ linkId, token }: { linkId: st
                 {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
                 {notice && <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div>}
 
-                {!identityConfirmed ? (
+                {/* Fatal error state - don't show forms if link is invalid */}
+                {error && !link ? (
+                    <div className="mt-8 sm:mt-12 text-center">
+                        <p className="text-slate-600">Unable to load action register. The link may have been revoked, expired, or the URL is incomplete.</p>
+                        <p className="mt-2 text-sm text-slate-500">Please check the link or contact the project team for assistance.</p>
+                    </div>
+                ) : !identityConfirmed ? (
                     <div className="mt-6 sm:mt-8 max-w-xl rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                         <h2 className="text-base sm:text-lg font-semibold text-slate-900">Confirm your details</h2>
                         <p className="mt-1 text-sm text-slate-500">

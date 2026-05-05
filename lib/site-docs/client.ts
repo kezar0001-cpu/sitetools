@@ -567,6 +567,24 @@ export async function revokeActionRegisterClientLink(
     return { link: data.link, message: data.message };
 }
 
+export async function regenerateActionRegisterClientLink(
+    linkId: string,
+    companyId: string
+): Promise<{ link: SiteActionRegisterLink; url: string; message: string }> {
+    const token = await getAccessToken();
+    const response = await fetch(`/api/site-docs/action-register-links/${linkId}`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ company_id: companyId }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to regenerate client link");
+    return { link: data.link, url: data.url, message: data.message };
+}
+
 export async function updateActionItemStatus(
     documentId: string,
     itemId: string,
