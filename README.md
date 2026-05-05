@@ -63,3 +63,5 @@ Supabase migrations should be applied to your production project before first de
 ## Licence
 
 © Buildstate. All rights reserved. Licence terms to be confirmed.
+
+> Deployment note: a documentation-only commit can be used to trigger a fresh Vercel deployment when needed.
