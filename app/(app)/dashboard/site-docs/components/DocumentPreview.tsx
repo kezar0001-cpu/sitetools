@@ -371,7 +371,9 @@ export function DocumentPreview({
 
     const removeActionItem = (index: number) => {
         if (!editable || !actionItems) return;
-        const newItems = actionItems.filter((_, i) => i !== index);
+        const newItems = actionItems
+            .filter((_, i) => i !== index)
+            .map((item, idx) => ({ ...item, number: idx + 1 }));
         handleChange({ ...content, actionItems: newItems });
     };
 
