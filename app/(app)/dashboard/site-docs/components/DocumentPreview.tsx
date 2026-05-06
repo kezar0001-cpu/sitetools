@@ -97,6 +97,27 @@ export function DocumentPreview({
         handleChange({ ...content, actionItems: newItems });
     };
 
+    const updateActionItemNumber = (index: number, value: string) => {
+        if (!editable || !actionItems) return;
+
+        const parsedValue = Number.parseInt(value, 10);
+        const totalItems = actionItems.length;
+        const targetNumber = Number.isFinite(parsedValue)
+            ? Math.min(Math.max(parsedValue, 1), totalItems)
+            : index + 1;
+
+        const reorderedItems = [...actionItems];
+        const [movedItem] = reorderedItems.splice(index, 1);
+        reorderedItems.splice(targetNumber - 1, 0, movedItem);
+
+        const resequencedItems = reorderedItems.map((item, itemIndex) => ({
+            ...item,
+            number: itemIndex + 1,
+        }));
+
+        handleChange({ ...content, actionItems: resequencedItems });
+    };
+
     const updateAttendee = (index: number, field: keyof Attendee, value: string | boolean) => {
         if (!editable || !attendees) return;
         const newAttendees = [...attendees];
@@ -856,7 +877,17 @@ export function DocumentPreview({
                                 <tbody className="divide-y divide-slate-200">
                                     {actionItems.map((item, idx) => (
                                         <tr key={item.id}>
-                                            <td className="px-4 py-3 font-medium text-slate-900">{item.number}</td>
+                                            <td className="px-4 py-3 font-medium text-slate-900">{editable ? (
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    max={actionItems.length}
+                                                    value={item.number}
+                                                    onChange={(e) => updateActionItemNumber(idx, e.target.value)}
+                                                    onBlur={saveToServer}
+                                                    className="w-14 text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent"
+                                                />
+                                            ) : item.number}</td>
                                             {editable ? (
                                                 <>
                                                     <td className="px-4 py-3">
